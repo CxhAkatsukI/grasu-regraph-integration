@@ -47,4 +47,6 @@ git_summary "Spine" "${SPINE_ROOT}"
 
 check_path "GraSU host" "${GRASU_ROOT}/.tmp_build/u55c_hbm_hw/GraSU_host_u55c"
 check_path "GraSU xclbin" "${GRASU_ROOT}/.tmp_build/u55c_hbm_hw/build/GraSU_u55c_hbm.hw.xclbin"
+check_path "ReGraph host" "${REGRAPH_ROOT}/host_graph_fpga_pr_baseline"
+check_path "ReGraph xclbin" "${REGRAPH_ROOT}/xclbin_hw_pr_baseline/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin"
 check_path "Spine xclbin" "${SPINE_ROOT}/tests/test_integration/xclbin/spine_integration.hw.xclbin"

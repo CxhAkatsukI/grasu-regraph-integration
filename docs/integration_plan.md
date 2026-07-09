@@ -73,6 +73,8 @@ BFS distance. For a stricter comparison, add a ReGraph SSSP UDF.
    - run GraSU update
    - recover final edge list with original vertex IDs
    - write ReGraph-readable graph
+   - current first-pass script uses the GraSU result file as the checked final
+     graph because the existing GraSU host has `OUTPUT_RESULT=0`
 
 4. Add benchmark scripts:
    - GraSU update-only timing
@@ -85,4 +87,3 @@ BFS distance. For a stricter comparison, add a ReGraph SSSP UDF.
    - ReGraph preprocessing time
    - ReGraph kernel compute time
    - total wall time
-

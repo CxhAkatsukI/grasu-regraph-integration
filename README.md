@@ -55,3 +55,24 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/check_workspace.sh
 ```
 
+## First Chained Run
+
+The first chained script uses GraSU to run and validate an update workload, then
+converts the checked final graph into a ReGraph edge list and runs the existing
+ReGraph PageRank hardware build:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_grasu_regraph_pr.sh
+```
+
+For a command-only preview:
+
+```bash
+./scripts/run_grasu_regraph_pr.sh --dry-run
+```
+
+This initial chain uses the GraSU result file as the final graph because the
+current GraSU host was built with `OUTPUT_RESULT=0`. Rebuilding GraSU with final
+edge-list export enabled will let the chain consume GraSU's emitted graph
+directly.
