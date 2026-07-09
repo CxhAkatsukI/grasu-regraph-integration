@@ -76,3 +76,17 @@ This initial chain uses the GraSU result file as the final graph because the
 current GraSU host was built with `OUTPUT_RESULT=0`. Rebuilding GraSU with final
 edge-list export enabled will let the chain consume GraSU's emitted graph
 directly.
+
+## Current PR Sweep
+
+Run a small matrix for the currently available chain:
+
+```bash
+./scripts/run_current_pr_sweep.sh
+```
+
+The sweep writes one directory per case plus a tab-separated summary:
+
+```text
+results/current_pr_sweep_<timestamp>/summary.tsv
+```
