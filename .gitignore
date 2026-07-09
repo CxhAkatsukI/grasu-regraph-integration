@@ -1,0 +1,25 @@
+# Local run outputs
+results/*
+!results/.gitkeep
+
+# Generated workloads can be large. Promote selected cases manually if needed.
+workloads/generated/
+
+# Vitis/XRT build artifacts
+.Xil/
+_x/
+build/
+.tmp_build/
+*.xo
+*.xclbin
+*.xclbin.info
+*.xclbin.link_summary
+*.ltx
+*.jou
+*.str
+*.wdb
+
+# Editor and cache files
+*~
+.cache/
+
