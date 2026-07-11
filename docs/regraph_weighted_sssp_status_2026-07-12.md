@@ -160,6 +160,22 @@ littleKernelScatterGather: initDstTmpProp Final II = 1, Estimated Fmax 266.63 MH
 bigKernelScatterGather:    initDstTmpProp Final II = 1, Estimated Fmax 281.54 MHz
 ```
 
+Manual smoke-test rerun:
+
+```text
+/home/chuxiao/ReGraph/.tmp_doc/evidence_sssp_hw_emu_manual_check_20260712_0101
+```
+
+The rerun used the same fixed `hw_emu` host/xclbin and passed again:
+
+```text
+mismatch_count=0
+Device[0]: program successful!
+Supersteps: 4
+Processed edges: 8; Graph edges: 5
+All the simulator processes exited successfully
+```
+
 ## Current Running HW Build Caveat
 
 As of this note, a ReGraph `hw` build is running under:
