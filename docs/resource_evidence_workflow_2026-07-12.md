@@ -91,15 +91,15 @@ ReGraph weighted SSSP fixed-source `hw_emu`:
   --note 'ReGraph weighted SSSP fixed-source hw_emu build; tiny weighted SSSP passed.'
 ```
 
-ReGraph old-source `hw` build in progress:
+ReGraph old-source `hw` complete build, resource/timing only:
 
 ```bash
 ./scripts/collect_vitis_evidence.py \
-  --label regraph_sssp_hw_oldsource_inprogress \
+  --label regraph_sssp_hw_oldsource_complete \
   --build-root /home/chuxiao/ReGraph_sssp_hw_scratch \
-  --out-dir "$BASE/regraph_sssp_hw_oldsource_inprogress" \
+  --out-dir "$BASE/regraph_sssp_hw_oldsource_complete" \
   --artifact /home/chuxiao/ReGraph_sssp_hw_scratch/host_graph_fpga_sssp \
-  --note 'In-progress old-source ReGraph hw build; useful only for compile/resource monitoring, not fixed SSSP correctness.'
+  --note 'Old-source ReGraph hw build completed; useful only for compile/resource monitoring, not fixed SSSP correctness.'
 ```
 
 Self-check for the compare script:
@@ -242,17 +242,25 @@ Important caveat: the Spine xclbin exists and the smoke test passed, but the
 selected post-route timing report still has negative WNS/TNS. Keep this visible
 when using it as a comparison baseline.
 
-ReGraph old-source `hw` routed resource-monitoring evidence:
+ReGraph old-source `hw` resource-monitoring evidence:
 
 ```text
 /home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_024815_regraph_oldsource_routed/regraph_sssp_hw_oldsource_routed
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_030317_regraph_oldsource_hw_complete/regraph_sssp_hw_oldsource_complete
 ```
 
-This evidence was collected after the old-source build reached routed reports on
-2026-07-12. It still had no final xclbin at collection time:
+The first evidence bundle was collected after the old-source build reached
+routed reports on 2026-07-12. It still had no final xclbin at collection time:
 
 ```text
 xclbins: 0
+```
+
+The later evidence bundle includes the completed old-source xclbin:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_scratch/xclbin_hw_sssp/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+sha256 0f8e9f786b35c951b76b33f9ecac30b25ef888823a99de21be50a7e58f98b76d
 ```
 
 Use this only for resource/timing monitoring. It does not prove the fixed

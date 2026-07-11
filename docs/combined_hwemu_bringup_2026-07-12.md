@@ -192,11 +192,72 @@ claims still require real `hw` evidence.
 Fixed-source ReGraph real `hw` artifacts are still the missing prerequisite for
 final combined `hw`.
 
-Build fixed-source ReGraph SSSP real hardware:
+Current preflight status, 2026-07-12:
+
+```text
+GraSU hw inputs: present
+  /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw/build/bin_search.hw.xo
+  /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw/build/dispatch.hw.xo
+  /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw/build/process_cache.hw.xo
+  /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw/build/process_ddr.hw.xo
+
+ReGraph fixed source: present
+  /home/chuxiao/grasu-regraph-integration/repos/ReGraph -> /home/chuxiao/ReGraph
+  gather init fix is present in both little and big gather headers
+
+ReGraph fixed hw scratch: missing
+  /home/chuxiao/ReGraph_sssp_hw_fixed_scratch
+```
+
+Build fixed-source ReGraph SSSP real hardware and immediately run the tiny
+weighted SSSP hardware smoke if board access is available:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
-./scripts/build_regraph_sssp.sh --target hw
+./scripts/build_regraph_sssp.sh \
+  --target hw \
+  --run-tiny \
+  --source-vertex 0 \
+  --supersteps 4 \
+  --num-dense 1
+```
+
+If only the long build should run first, omit `--run-tiny` and run the smoke
+manually after reviewing the build artifacts.
+
+Monitor the fixed-source ReGraph `hw` build:
+
+```bash
+ps -eo pid,ppid,etime,stat,pcpu,pmem,cmd | \
+  rg -i 'ReGraph_sssp_hw_fixed_scratch|v\+\+|vivado|vpl' | \
+  rg -v 'rg -i' || true
+
+tail -120 \
+  /home/chuxiao/ReGraph_sssp_hw_fixed_scratch/v++_graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.log
+
+find /home/chuxiao/ReGraph_sssp_hw_fixed_scratch -maxdepth 8 \
+  \( -name 'graph_fpga.hw*.xclbin' \
+     -o -name '*.xclbin.link_summary' \
+     -o -name '*kernel_util_routed.rpt' \
+     -o -name '*slr_util_routed.rpt' \
+     -o -name '*timing_summary*.rpt' \
+     -o -name 'dr_timing_summary.rpt' \) \
+  -printf '%TY-%Tm-%Td %TH:%TM:%TS %s %p\n' 2>/dev/null | sort | tail -120
+```
+
+Collect fixed-source ReGraph `hw` evidence after it completes:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+BASE=results/resource_evidence_$(date +%Y%m%d_%H%M%S)_regraph_fixed_hw
+mkdir -p "$BASE"
+
+./scripts/collect_vitis_evidence.py \
+  --label regraph_sssp_hw_fixed \
+  --build-root /home/chuxiao/ReGraph_sssp_hw_fixed_scratch \
+  --out-dir "$BASE/regraph_sssp_hw_fixed" \
+  --artifact /home/chuxiao/ReGraph_sssp_hw_fixed_scratch/host_graph_fpga_sssp \
+  --note 'Fixed-source ReGraph weighted SSSP real hw build.'
 ```
 
 Then link the real combined hardware:
@@ -216,20 +277,35 @@ BASE=results/resource_evidence_$(date +%Y%m%d_%H%M%S)_combined_hw
 mkdir -p "$BASE"
 
 ./scripts/collect_vitis_evidence.py \
+  --label grasu_hw_u55c \
+  --build-root /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw \
+  --out-dir "$BASE/grasu_hw" \
+  --artifact /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw/GraSU_host_u55c \
+  --note 'GraSU standalone U55C hw baseline.'
+
+./scripts/collect_vitis_evidence.py \
+  --label regraph_sssp_hw_fixed \
+  --build-root /home/chuxiao/ReGraph_sssp_hw_fixed_scratch \
+  --out-dir "$BASE/regraph_sssp_hw_fixed" \
+  --artifact /home/chuxiao/ReGraph_sssp_hw_fixed_scratch/host_graph_fpga_sssp \
+  --note 'Fixed-source ReGraph weighted SSSP real hw baseline.'
+
+./scripts/collect_vitis_evidence.py \
   --label grasu_regraph_combined_hw \
   --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_host_compatible \
   --out-dir "$BASE/combined_hw" \
+  --artifact /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_host_compatible/build/grasu_regraph_combined.hw.xclbin \
   --note 'Combined GraSU + ReGraph weighted SSSP real hw xclbin.'
 
 ./scripts/compare_vitis_resources.py \
   --label grasu_hw_vs_combined_hw \
-  --before /path/to/grasu_hw_evidence \
+  --before "$BASE/grasu_hw" \
   --after "$BASE/combined_hw" \
   --out-dir "$BASE/compare_grasu_hw_vs_combined"
 
 ./scripts/compare_vitis_resources.py \
   --label regraph_hw_vs_combined_hw \
-  --before /path/to/regraph_fixed_hw_evidence \
+  --before "$BASE/regraph_sssp_hw_fixed" \
   --after "$BASE/combined_hw" \
   --out-dir "$BASE/compare_regraph_hw_vs_combined"
 ```
