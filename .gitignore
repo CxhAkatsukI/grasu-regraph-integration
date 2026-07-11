@@ -4,6 +4,7 @@ results/*
 
 # Generated workloads can be large. Promote selected cases manually if needed.
 workloads/generated/
+workloads/sssp_benchmark_*/
 
 # Vitis/XRT build artifacts
 .Xil/

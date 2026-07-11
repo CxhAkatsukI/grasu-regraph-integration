@@ -18,7 +18,7 @@ def parse_int(text: str, base: str) -> int:
     return int(text, int(base))
 
 
-def convert(result_path: Path, out_path: Path, base: str):
+def convert(result_path: Path, out_path: Path, base: str, weight: int | None):
     edges = []
     with result_path.open("r", encoding="ascii") as src:
         for line_no, line in enumerate(src, 1):
@@ -32,7 +32,10 @@ def convert(result_path: Path, out_path: Path, base: str):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="ascii") as dst:
         for src, sink in edges:
-            dst.write(f"{src} {sink}\n")
+            if weight is None:
+                dst.write(f"{src} {sink}\n")
+            else:
+                dst.write(f"{src} {sink} {weight}\n")
 
     return len(edges)
 
@@ -47,12 +50,20 @@ def main():
         default="16",
         help="GraSU result vertex-id base. Generated workloads use base 16.",
     )
+    parser.add_argument(
+        "--weight",
+        type=int,
+        default=None,
+        help="When set, emit three-column weighted edges with this default weight.",
+    )
     args = parser.parse_args()
 
-    edge_count = convert(Path(args.input), Path(args.output), args.base)
+    if args.weight is not None and args.weight < 0:
+        raise SystemExit("--weight must be non-negative")
+
+    edge_count = convert(Path(args.input), Path(args.output), args.base, args.weight)
     print(f"converted_edges={edge_count} output={args.output}")
 
 
 if __name__ == "__main__":
     main()
-

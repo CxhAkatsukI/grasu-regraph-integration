@@ -150,3 +150,18 @@ Rebuild the host-compatible combined `hw_emu` xclbin:
 The current combined `hw_emu` proof passes both ReGraph tiny weighted SSSP and
 GraSU update smoke on the same xclbin. Real `hw` still requires fixed-source
 ReGraph `hw` artifacts first.
+
+## SSSP Benchmark Harness
+
+The next GraSU+ReGraph SSSP sweep plan and commands are recorded in:
+
+```text
+docs/sssp_benchmark_plan_2026-07-12.md
+```
+
+Generate smoke workloads and dry-run the chain:
+
+```bash
+./scripts/generate_sssp_benchmark_workloads.py --preset smoke
+./scripts/run_grasu_regraph_sssp_sweep.sh --preset smoke --dry-run
+```
