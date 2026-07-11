@@ -235,10 +235,44 @@ Evidence bundle:
 /home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_024815_regraph_oldsource_routed/regraph_sssp_hw_oldsource_routed
 ```
 
-At evidence collection time, no final `.xclbin` had been observed yet:
+At the first evidence collection time, no final `.xclbin` had been observed yet:
 
 ```text
 xclbins: 0
+```
+
+The same old-source build later completed and produced a final real-hardware
+xclbin:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_scratch/xclbin_hw_sssp/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+sha256: 0f8e9f786b35c951b76b33f9ecac30b25ef888823a99de21be50a7e58f98b76d
+```
+
+Completed-build evidence bundle:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_030317_regraph_oldsource_hw_complete/regraph_sssp_hw_oldsource_complete
+```
+
+Key routed utilization:
+
+```text
+LUT=55479
+LUTAsMem=9964
+REG=92137
+BRAM=120
+URAM=128
+DSP=0
+```
+
+Timing was closed for this old-source build:
+
+```text
+WNS=0.003 ns
+TNS=0.000 ns
+WHS=0.009 ns
+THS=0.000 ns
 ```
 
 However, that scratch tree still contains the pre-fix gather files with the
