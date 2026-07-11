@@ -176,6 +176,37 @@ Processed edges: 8; Graph edges: 5
 All the simulator processes exited successfully
 ```
 
+User-reported build artifact recheck:
+
+```text
+/home/chuxiao/ReGraph/.tmp_doc/evidence_sssp_hw_emu_check_20260712_025255
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_030037_regraph_sssp_hwemu_usercheck/regraph_sssp_hw_emu_fixed_usercheck
+```
+
+The artifact check found the fixed-source host, xclbin, and emconfig under:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch
+```
+
+The rerun used source vertex 0 on `dataset/tiny-weighted-sssp.txt` for 4
+supersteps and passed:
+
+```text
+mismatch_count=0
+Device[0]: program successful!
+Processed edges: 8; Graph edges: 5
+All the simulator processes exited successfully
+```
+
+During the first rerun, Vitis tried to reuse an existing `.run/7` hardware
+emulation cache and asked whether to overwrite files. The stale cache was not
+deleted; it was moved to:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/.run.backup_before_hwemu_check_20260712_025445
+```
+
 ## Old-source HW Build Caveat
 
 A ReGraph `hw` build has been monitored under:
