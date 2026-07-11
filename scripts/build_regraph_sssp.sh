@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/env.sh"
+
+TARGET="hw_emu"
+PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
+SCRATCH=""
+EVIDENCE_DIR=""
+RUN_TINY=0
+SOURCE_VERTEX=0
+SUPERSTEPS=4
+NUM_DENSE=1
+CONTAINER_IMAGE="${CONTAINER_IMAGE:-vivado-runner:22.04-feiyang}"
+
+usage() {
+  cat <<USAGE
+Usage: $0 [options]
+
+Build ReGraph APP=sssp from a clean scratch copied from the current ReGraph
+source tree. This avoids accidentally reusing stale _x/xclbin files.
+
+Options:
+  --target sw_emu|hw_emu|hw   Build target. Default: ${TARGET}
+  --platform NAME             Vitis platform. Default: ${PLATFORM}
+  --scratch PATH              Scratch directory. Default: /home/chuxiao/ReGraph_sssp_<target>_fixed_scratch
+  --evidence-dir PATH         Evidence/log directory. Default: <ReGraph>/.tmp_doc/evidence_sssp_<target>_fixed_<timestamp>
+  --run-tiny                  Run dataset/tiny-weighted-sssp.txt after build.
+  --source-vertex N           REGRAPH_SOURCE for --run-tiny. Default: ${SOURCE_VERTEX}
+  --supersteps N              Supersteps for --run-tiny. Default: ${SUPERSTEPS}
+  --num-dense N               ReGraph numD argument for --run-tiny. Default: ${NUM_DENSE}
+  -h, --help                  Show this help.
+USAGE
+}
+
+abs_path() {
+  case "$1" in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s/%s\n' "${PWD}" "$1" ;;
+  esac
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --target) TARGET="$2"; shift 2 ;;
+    --platform) PLATFORM="$2"; shift 2 ;;
+    --scratch) SCRATCH="$(abs_path "$2")"; shift 2 ;;
+    --evidence-dir) EVIDENCE_DIR="$(abs_path "$2")"; shift 2 ;;
+    --run-tiny) RUN_TINY=1; shift ;;
+    --source-vertex) SOURCE_VERTEX="$2"; shift 2 ;;
+    --supersteps) SUPERSTEPS="$2"; shift 2 ;;
+    --num-dense) NUM_DENSE="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+case "${TARGET}" in
+  sw_emu|hw_emu|hw) ;;
+  *) echo "Invalid --target: ${TARGET}" >&2; exit 2 ;;
+esac
+
+REGRAPH_REAL_ROOT="$(readlink -f "${REGRAPH_ROOT}")"
+if [[ ! -d "${REGRAPH_REAL_ROOT}" ]]; then
+  echo "Missing ReGraph tree: ${REGRAPH_ROOT}" >&2
+  exit 1
+fi
+
+if [[ -z "${SCRATCH}" ]]; then
+  SCRATCH="/home/chuxiao/ReGraph_sssp_${TARGET}_fixed_scratch"
+fi
+if [[ -z "${EVIDENCE_DIR}" ]]; then
+  EVIDENCE_DIR="${REGRAPH_REAL_ROOT}/.tmp_doc/evidence_sssp_${TARGET}_fixed_$(date +%Y%m%d_%H%M%S)"
+fi
+
+mkdir -p "${SCRATCH}" "${EVIDENCE_DIR}"
+
+echo "[1/5] Copying fixed ReGraph source into scratch..."
+rsync -a --delete \
+  --exclude "_x" \
+  --exclude "_x_*" \
+  --exclude ".run" \
+  --exclude ".Xil" \
+  --exclude ".ipcache" \
+  --exclude ".tmp_build" \
+  --exclude "target" \
+  --exclude "xclbin_*" \
+  --exclude "host_graph_fpga_*" \
+  --exclude "*.log" \
+  "${REGRAPH_REAL_ROOT}/" "${SCRATCH}/"
+
+echo "[2/5] Checking that the scratch contains the gather init fix..."
+rg -n "initDstTmpProp|#ifdef SW_EMU" \
+  "${SCRATCH}/acc_template/kernel_little_gs/acc_gather.h" \
+  "${SCRATCH}/acc_template/kernel_big_gs/acc_gather.h" \
+  | tee "${EVIDENCE_DIR}/source_check.txt"
+if rg -n "^[[:space:]]*#ifdef SW_EMU" \
+  "${SCRATCH}/acc_template/kernel_little_gs/acc_gather.h" \
+  "${SCRATCH}/acc_template/kernel_big_gs/acc_gather.h" >/dev/null; then
+  echo "The scratch still has an active SW_EMU-only gather init guard." >&2
+  exit 1
+fi
+
+echo "[3/5] Building ReGraph APP=sssp TARGETS=${TARGET}..."
+podman run --rm --platform linux/amd64 \
+  --userns=keep-id --user "$(id -u):$(id -g)" \
+  --network host --shm-size=8g \
+  -v /run/udev:/run/udev:ro \
+  -v /sys:/sys:ro \
+  -v /etc/machine-id:/etc/machine-id:ro \
+  -v /data/yxx/tools/xilinx:/data/yxx/tools/xilinx:ro \
+  -v /opt/xilinx:/opt/xilinx:ro \
+  -v "${SCRATCH}":/vitis_work/project \
+  -v "${EVIDENCE_DIR}":/evidence \
+  -v "${REGRAPH_REAL_ROOT}/target/opencl_vendors":/etc/OpenCL/vendors:ro \
+  -v "${REGRAPH_REAL_ROOT}/target/include/asm":/usr/include/asm:ro \
+  -e HOME=/vitis_work/project/.tmp_build/container_home \
+  -e XILINX_XRT=/opt/xilinx/xrt \
+  -e PLATFORM_REPO_PATHS=/opt/xilinx/platforms \
+  -e CPATH=/usr/include/x86_64-linux-gnu \
+  -e LANG=en_US.UTF-8 \
+  -e LC_ALL=en_US.UTF-8 \
+  -w /vitis_work/project \
+  "${CONTAINER_IMAGE}" bash -lc "
+    set -euo pipefail
+    source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+    mkdir -p \"\$HOME\"
+    make APP=sssp TARGETS=${TARGET} DEVICES=${PLATFORM} autogen 2>&1 | tee /evidence/autogen.log
+    make APP=sssp TARGETS=${TARGET} DEVICES=${PLATFORM} all 2>&1 | tee /evidence/build_${TARGET}.log
+  "
+
+echo "[4/5] Capturing build evidence..."
+find "${SCRATCH}" -maxdepth 3 \
+  \( -name "host_graph_fpga_sssp" -o -name "graph_fpga.${TARGET}*.xclbin" -o -name "emconfig.json" -o -name "*.link_summary" -o -name "*.compile_summary" \) \
+  -printf "%TY-%Tm-%Td %TH:%TM %s %p\n" | sort > "${EVIDENCE_DIR}/build_outputs.txt"
+
+if [[ -f "${SCRATCH}/xclbin_${TARGET}_sssp/graph_fpga.${TARGET}.${PLATFORM}.xclbin.link_summary" ]]; then
+  cp "${SCRATCH}/xclbin_${TARGET}_sssp/graph_fpga.${TARGET}.${PLATFORM}.xclbin.link_summary" \
+     "${EVIDENCE_DIR}/graph_fpga.${TARGET}.link_summary"
+fi
+if [[ -f "${SCRATCH}/_x/logs/link/link.steps.log" ]]; then
+  cp "${SCRATCH}/_x/logs/link/link.steps.log" "${EVIDENCE_DIR}/link.steps.log"
+fi
+(
+  cd "${SCRATCH}"
+  sha256sum \
+    host_graph_fpga_sssp \
+    "xclbin_${TARGET}_sssp/graph_fpga.${TARGET}.${PLATFORM}.xclbin" \
+    "xclbin_${TARGET}_sssp/${PLATFORM}/emconfig.json" 2>/dev/null || true
+) > "${EVIDENCE_DIR}/SHA256SUMS"
+
+if [[ "${RUN_TINY}" == "1" ]]; then
+  if [[ "${TARGET}" == "hw" ]]; then
+    EMU_ENV=()
+  else
+    EMU_ENV=(-e XCL_EMULATION_MODE="${TARGET}" -e EMCONFIG_PATH="/vitis_work/project/xclbin_${TARGET}_sssp/${PLATFORM}")
+  fi
+
+  echo "[5/5] Running tiny weighted SSSP..."
+  podman run --rm --platform linux/amd64 \
+    --userns=keep-id --user "$(id -u):$(id -g)" \
+    --network host --shm-size=8g \
+    -v /run/udev:/run/udev:ro \
+    -v /sys:/sys:ro \
+    -v /etc/machine-id:/etc/machine-id:ro \
+    -v /data/yxx/tools/xilinx:/data/yxx/tools/xilinx:ro \
+    -v /opt/xilinx:/opt/xilinx:ro \
+    -v "${SCRATCH}":/vitis_work/project \
+    -v "${EVIDENCE_DIR}":/evidence \
+    -v "${REGRAPH_REAL_ROOT}/target/opencl_vendors":/etc/OpenCL/vendors:ro \
+    "${EMU_ENV[@]}" \
+    -e HOME=/vitis_work/project/.tmp_build/container_home \
+    -e XILINX_XRT=/opt/xilinx/xrt \
+    -e PLATFORM_REPO_PATHS=/opt/xilinx/platforms \
+    -e REGRAPH_SOURCE="${SOURCE_VERTEX}" \
+    -e LD_LIBRARY_PATH=/opt/xilinx/xrt/lib \
+    -w /vitis_work/project \
+    "${CONTAINER_IMAGE}" bash -lc "
+      set -euo pipefail
+      source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+      ./host_graph_fpga_sssp \
+        xclbin_${TARGET}_sssp/graph_fpga.${TARGET}.${PLATFORM}.xclbin \
+        dataset/tiny-weighted-sssp.txt \
+        ${NUM_DENSE} ${SUPERSTEPS} 2>&1 | tee /evidence/run_tiny_weighted_sssp_${TARGET}.log
+    "
+  rg -n "mismatch|This iteration has|Processed edges|program successful|Supersteps|Starting superstep" \
+    "${EVIDENCE_DIR}/run_tiny_weighted_sssp_${TARGET}.log" \
+    > "${EVIDENCE_DIR}/run_key_lines.txt" || true
+else
+  echo "[5/5] Skipped tiny run. Add --run-tiny to execute it."
+fi
+
+echo "DONE scratch=${SCRATCH}"
+echo "DONE evidence=${EVIDENCE_DIR}"

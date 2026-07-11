@@ -99,3 +99,10 @@ proof gate are recorded in:
 ```text
 docs/regraph_weighted_sssp_status_2026-07-12.md
 ```
+
+Build ReGraph SSSP from a clean fixed-source scratch:
+
+```bash
+./scripts/build_regraph_sssp.sh --target hw_emu --run-tiny
+./scripts/build_regraph_sssp.sh --target hw
+```

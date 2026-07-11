@@ -161,5 +161,13 @@ To close ReGraph weighted SSSP item 1:
 5. collect xclbin, host, link summary, system estimates, routed utilization and timing
 ```
 
+Reusable build helper:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/build_regraph_sssp.sh --target hw_emu --run-tiny
+./scripts/build_regraph_sssp.sh --target hw
+```
+
 Only after that should the GraSU + ReGraph combined hardware build be treated as
 the next primary milestone.
