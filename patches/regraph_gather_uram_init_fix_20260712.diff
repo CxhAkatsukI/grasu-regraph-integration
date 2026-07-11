@@ -1,0 +1,58 @@
+--- old scratch: acc_template/kernel_little_gs/acc_gather.h
++++ fixed source: acc_template/kernel_little_gs/acc_gather.h
+--- /home/chuxiao/ReGraph_sssp_hwemu_scratch/acc_template/kernel_little_gs/acc_gather.h	2026-06-25 20:35:16.000000000 +0800
++++ /home/chuxiao/ReGraph/acc_template/kernel_little_gs/acc_gather.h	2026-07-12 00:13:49.210905175 +0800
+@@ -26,14 +26,15 @@
+ #pragma HLS BIND_STORAGE variable = dst_tmp_prop_buffer type = RAM_S2P impl = URAM
+ #pragma HLS dependence variable=dst_tmp_prop_buffer inter false
+ 
+-#ifdef SW_EMU
+-    for (int i = 0; i < (LITTLE_KERNEL_DST_BUFFER_SIZE >> 1); i ++)
++    initDstTmpProp:
++    for (int i = 0; i < (LITTLE_KERNEL_DST_BUFFER_SIZE >> 1); i ++){
++    #pragma HLS PIPELINE II=1
+         for (int j = 0; j < GATHER_PE_NUM; j ++){
+         #pragma HLS UNROLL
+             dst_tmp_prop_buffer[j][i].range(31,0) = 0;
+             dst_tmp_prop_buffer[j][i].range(63,32) = 0;
+         }
+-#endif
++    }
+ 
+     ap_uint<64> last_value[GATHER_PE_NUM][L + 1]; // we do not init it at this version. 
+     uint last_index[GATHER_PE_NUM][L + 1];     // we do not init it at this version. 
+@@ -160,4 +161,4 @@
+     }
+     DEBUG_PRINTF("little kernel mergeWriteResults module exits!\n");
+ }
+-#endif  // __ACC_GATHER_H__
+\ No newline at end of file
++#endif  // __ACC_GATHER_H__
+
+--- old scratch: acc_template/kernel_big_gs/acc_gather.h
++++ fixed source: acc_template/kernel_big_gs/acc_gather.h
+--- /home/chuxiao/ReGraph_sssp_hwemu_scratch/acc_template/kernel_big_gs/acc_gather.h	2026-06-25 20:35:16.000000000 +0800
++++ /home/chuxiao/ReGraph/acc_template/kernel_big_gs/acc_gather.h	2026-07-12 00:13:03.897699231 +0800
+@@ -275,13 +275,12 @@
+ #pragma HLS BIND_STORAGE variable = dst_tmp_prop_buffer type = RAM_2P impl = URAM
+ #pragma HLS dependence variable=dst_tmp_prop_buffer inter false
+ 
+-#ifdef SW_EMU
++    initDstTmpProp:
+     for (int i = 0; i < ((BIG_KERNEL_DST_BUFFER_SIZE >> 1) >> LOG2_GATHER_PE_NUM); i ++){
+-    #pragma HLS UNROLL factor=1
++    #pragma HLS PIPELINE II=1
+             dst_tmp_prop_buffer[i].range(31,0) = 0;
+             dst_tmp_prop_buffer[i].range(63,32) = 0;
+     }
+-#endif
+ 
+     ap_uint<64> last_value[L + 1]; // we do not init it at this version. 
+     uint last_index[L + 1];     // we do not init it at this version. 
+@@ -406,4 +405,4 @@
+ 
+     DEBUG_PRINTF("big kernel writeResults module exits!\n");
+ }
+-#endif  // __ACC_GATHER_H__
+\ No newline at end of file
++#endif  // __ACC_GATHER_H__

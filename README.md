@@ -90,3 +90,12 @@ The sweep writes one directory per case plus a tab-separated summary:
 ```text
 results/current_pr_sweep_<timestamp>/summary.tsv
 ```
+
+## Weighted SSSP Bring-Up
+
+The current ReGraph weighted SSSP status, evidence locations, and next hardware
+proof gate are recorded in:
+
+```text
+docs/regraph_weighted_sssp_status_2026-07-12.md
+```
