@@ -199,6 +199,49 @@ ReGraph fixed-source `hw_emu` does not provide placed/routed utilization,
 because it is not a real `hw` implementation. Its current evidence is HLS/system
 estimate plus the successful tiny weighted SSSP `hw_emu` run.
 
+Spine real `hw` baseline evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_023103_spine_hw_fixedcollector/spine_split_e2e_hw
+```
+
+Spine xclbin:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/split_e2e_hw_150_depth32_bram_20260711_2100/xclbin/spine_partitioned_split_e2e.hw.xclbin
+sha256 69145517738cc1ffff95e91c24393260c346ac683db9eef2989bbc1bdb7a3469
+```
+
+Spine smoke:
+
+```text
+PARTITIONED_CSR_E2E_HOT_COLD PASS ... maint_ms=0.357061 conv_ms=9.60089 errors=0
+```
+
+Spine routed kernel utilization, `Used Resources`:
+
+```text
+LUT       160300
+LUTAsMem   11445
+REG       185396
+BRAM          77
+URAM          16
+DSP           57
+```
+
+Spine routed timing:
+
+```text
+WNS -0.851 ns
+TNS -2468.856 ns
+WHS  0.004 ns
+THS  0.000 ns
+```
+
+Important caveat: the Spine xclbin exists and the smoke test passed, but the
+selected post-route timing report still has negative WNS/TNS. Keep this visible
+when using it as a comparison baseline.
+
 ReGraph old-source `hw` in-progress placed resources:
 
 ```text
@@ -250,3 +293,58 @@ it is not enough for final post-route resource comparison.
 Every non-zero delta should be reviewed before we use the build in performance
 claims. Some differences may be expected from floorplanning or stream wiring,
 but they need to be recorded explicitly.
+
+## Combined hw_emu Evidence Update
+
+The first host-compatible combined `hw_emu` xclbin evidence is:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_022520_combined_hwemu_host_compatible
+```
+
+Build root:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible
+```
+
+Combined xclbin:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/build/grasu_regraph_combined.hw_emu.xclbin
+sha256 daf8bb44c32295a27827993bdf913eb9d311f27e4d21efbaf46edfc57224995f
+```
+
+CU structure:
+
+```text
+GraSU:
+  bin_search:    4
+  dispatch:      1
+  process_cache: 2
+  process_ddr:   2
+
+ReGraph:
+  kernelApply:                1
+  kernelHBMWrapper:           1
+  littleKernelScatterGather:  1
+  kernelLittleGSMerger:       1
+  bigKernelScatterGather:     1
+  kernelBigGSMerger:          1
+```
+
+The same-component `hw_emu` comparison showed:
+
+```text
+GraSU baseline vs combined:
+  hls_top_area same-component changes: 0
+  kernel CU count same-kernel changes: 0
+
+ReGraph baseline vs combined:
+  hls_top_area same-component changes: 0
+  kernel CU count same-kernel changes: 0
+```
+
+This is not a routed-resource result. It proves link structure and HLS-level
+component preservation only. The final resource answer still needs fixed-source
+ReGraph real `hw`, then a combined real `hw` link, then routed reports.

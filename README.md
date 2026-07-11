@@ -116,9 +116,37 @@ documented in:
 docs/resource_evidence_workflow_2026-07-12.md
 ```
 
+The current Spine real `hw` baseline evidence is recorded in:
+
+```text
+docs/spine_hw_evidence_2026-07-12.md
+```
+
 Main commands:
 
 ```bash
 ./scripts/collect_vitis_evidence.py --label <label> --build-root <build-root> --out-dir <evidence-dir>
 ./scripts/compare_vitis_resources.py --before <baseline-evidence> --after <new-evidence> --out-dir <delta-dir>
 ```
+
+## Combined hw_emu Bring-Up
+
+The first single-xclbin GraSU + ReGraph `hw_emu` build and smoke tests are
+recorded in:
+
+```text
+docs/combined_hwemu_bringup_2026-07-12.md
+```
+
+Rebuild the host-compatible combined `hw_emu` xclbin:
+
+```bash
+./scripts/build_combined_grasu_regraph_xclbin.sh \
+  --target hw_emu \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible \
+  --link
+```
+
+The current combined `hw_emu` proof passes both ReGraph tiny weighted SSSP and
+GraSU update smoke on the same xclbin. Real `hw` still requires fixed-source
+ReGraph `hw` artifacts first.

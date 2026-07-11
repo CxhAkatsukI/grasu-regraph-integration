@@ -95,6 +95,14 @@ def top_hls_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     return out
 
 
+def count_state(rows: list[dict[str, Any]], state: str) -> int:
+    return sum(1 for row in rows if row.get("state") == state)
+
+
+def rows_with_state(rows: list[dict[str, Any]], state: str) -> list[dict[str, Any]]:
+    return [row for row in rows if row.get("state") == state]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--before", required=True, type=Path, help="Baseline evidence bundle.")
@@ -146,34 +154,51 @@ def main() -> int:
         ["row_type", "state", "kernel", "before_cu_count", "after_cu_count", "delta_cu_count"],
     )
 
-    changed_accel = [row for row in accel_delta if row["state"] != "unchanged"]
-    changed_hls = [row for row in hls_delta if row["state"] != "unchanged"]
-    changed_cu = [row for row in cu_delta if row["state"] != "unchanged"]
+    non_unchanged_accel = [row for row in accel_delta if row["state"] != "unchanged"]
+    non_unchanged_hls = [row for row in hls_delta if row["state"] != "unchanged"]
+    non_unchanged_cu = [row for row in cu_delta if row["state"] != "unchanged"]
+    changed_accel = rows_with_state(accel_delta, "changed")
+    changed_hls = rows_with_state(hls_delta, "changed")
+    changed_cu = rows_with_state(cu_delta, "changed")
 
     summary = [
         f"# {args.label}",
         "",
         f"- before: `{before}`",
         f"- after: `{after}`",
-        f"- accelerator_util changes: {len(changed_accel)}",
-        f"- hls_top_area changes: {len(changed_hls)}",
-        f"- kernel CU count changes: {len(changed_cu)}",
+        f"- accelerator_util same-component changes: {len(changed_accel)}",
+        f"- accelerator_util added/removed rows: {count_state(accel_delta, 'added')}/{count_state(accel_delta, 'removed')}",
+        f"- hls_top_area same-component changes: {len(changed_hls)}",
+        f"- hls_top_area added/removed rows: {count_state(hls_delta, 'added')}/{count_state(hls_delta, 'removed')}",
+        f"- kernel CU count same-kernel changes: {len(changed_cu)}",
+        f"- kernel CU count added/removed kernels: {count_state(cu_delta, 'added')}/{count_state(cu_delta, 'removed')}",
         "",
-        "Use this output as a review checklist: every non-zero delta should be either expected",
-        "from the integration change or investigated before using the build in experiments.",
+        "Use same-component changes as the main review checklist. Added rows are expected",
+        "when comparing a single accelerator against a combined xclbin; changed rows mean an",
+        "existing component's reported resources or CU count moved and should be explained.",
     ]
     if changed_accel[:20]:
-        summary.extend(["", "## Accelerator Util Changes", "", "| Name | State | Delta LUT | Delta REG | Delta BRAM | Delta URAM | Delta DSP |", "| ---- | ----- | --------- | --------- | ---------- | ---------- | --------- |"])
+        summary.extend(["", "## Same-Component Accelerator Util Changes", "", "| Name | State | Delta LUT | Delta REG | Delta BRAM | Delta URAM | Delta DSP |", "| ---- | ----- | --------- | --------- | ---------- | ---------- | --------- |"])
         for row in changed_accel[:20]:
             summary.append(
                 f"| {row.get('name')} | {row.get('state')} | {row.get('delta_lut')} | {row.get('delta_reg')} | {row.get('delta_bram')} | {row.get('delta_uram')} | {row.get('delta_dsp')} |"
             )
     if changed_cu[:20]:
-        summary.extend(["", "## Kernel CU Count Changes", "", "| Kernel | State | Before | After | Delta |", "| ------ | ----- | ------ | ----- | ----- |"])
+        summary.extend(["", "## Same-Kernel CU Count Changes", "", "| Kernel | State | Before | After | Delta |", "| ------ | ----- | ------ | ----- | ----- |"])
         for row in changed_cu[:20]:
             summary.append(
                 f"| {row.get('kernel')} | {row.get('state')} | {row.get('before_cu_count')} | {row.get('after_cu_count')} | {row.get('delta_cu_count')} |"
             )
+    added_cu = rows_with_state(cu_delta, "added")
+    if added_cu[:20]:
+        summary.extend(["", "## Added Kernels", "", "| Kernel | CU Count |", "| ------ | -------- |"])
+        for row in added_cu[:20]:
+            summary.append(f"| {row.get('kernel')} | {row.get('after_cu_count')} |")
+    removed_cu = rows_with_state(cu_delta, "removed")
+    if removed_cu[:20]:
+        summary.extend(["", "## Removed Kernels", "", "| Kernel | Previous CU Count |", "| ------ | ----------------- |"])
+        for row in removed_cu[:20]:
+            summary.append(f"| {row.get('kernel')} | {row.get('before_cu_count')} |")
     (out_dir / "summary.md").write_text("\n".join(summary) + "\n")
 
     print(f"Wrote comparison to {out_dir}")

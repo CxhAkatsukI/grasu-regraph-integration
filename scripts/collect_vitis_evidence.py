@@ -362,15 +362,11 @@ def parse_timing(path: Path) -> dict[str, Any]:
 
 
 def choose_stage_report(paths: list[Path], stem: str) -> Path | None:
-    candidates = [p for p in paths if p.name == f"{stem}_routed.rpt"]
-    if candidates:
-        return sorted(candidates)[-1]
-    candidates = [p for p in paths if p.name == f"{stem}_placed.rpt"]
-    if candidates:
-        return sorted(candidates)[-1]
-    candidates = [p for p in paths if p.name == f"{stem}_synthed.rpt"]
-    if candidates:
-        return sorted(candidates)[-1]
+    for stage in ("routed", "placed", "synthed"):
+        suffix = f"{stem}_{stage}.rpt"
+        candidates = [p for p in paths if p.name == suffix or p.name.endswith(f"_{suffix}")]
+        if candidates:
+            return sorted(candidates)[-1]
     return None
 
 
@@ -381,7 +377,7 @@ def choose_timing_report(paths: list[Path]) -> Path | None:
         "hw_bb_locked_timing_summary_routed.rpt",
     )
     for name in priority:
-        matches = [p for p in paths if p.name == name]
+        matches = [p for p in paths if p.name == name or p.name.endswith(f"_{name}")]
         if matches:
             return sorted(matches)[-1]
     return sorted(paths)[-1] if paths else None
@@ -419,7 +415,7 @@ def main() -> int:
     link_summaries = discover(build_root, ["*.xclbin.link_summary"])
     system_estimates = discover(build_root, ["system_estimate*.xtxt"])
     xclbins = discover(build_root, ["*.xclbin"])
-    util_reports = discover(build_root, ["kernel_util_*.rpt", "full_util_*.rpt", "slr_util_*.rpt"])
+    util_reports = discover(build_root, ["*kernel_util_*.rpt", "*full_util_*.rpt", "*slr_util_*.rpt"])
     timing_reports = discover(build_root, ["dr_timing_summary.rpt", "*timing_summary*.rpt"])
 
     extra_artifacts = [path.resolve() for path in args.artifact if path.exists()]
