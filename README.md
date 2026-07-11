@@ -106,3 +106,19 @@ Build ReGraph SSSP from a clean fixed-source scratch:
 ./scripts/build_regraph_sssp.sh --target hw_emu --run-tiny
 ./scripts/build_regraph_sssp.sh --target hw
 ```
+
+## Resource Evidence
+
+Resource collection and comparison for GraSU/ReGraph/combined hardware builds is
+documented in:
+
+```text
+docs/resource_evidence_workflow_2026-07-12.md
+```
+
+Main commands:
+
+```bash
+./scripts/collect_vitis_evidence.py --label <label> --build-root <build-root> --out-dir <evidence-dir>
+./scripts/compare_vitis_resources.py --before <baseline-evidence> --after <new-evidence> --out-dir <delta-dir>
+```
