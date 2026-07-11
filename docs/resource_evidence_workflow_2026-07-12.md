@@ -242,7 +242,24 @@ Important caveat: the Spine xclbin exists and the smoke test passed, but the
 selected post-route timing report still has negative WNS/TNS. Keep this visible
 when using it as a comparison baseline.
 
-ReGraph old-source `hw` in-progress placed resources:
+ReGraph old-source `hw` routed resource-monitoring evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_024815_regraph_oldsource_routed/regraph_sssp_hw_oldsource_routed
+```
+
+This evidence was collected after the old-source build reached routed reports on
+2026-07-12. It still had no final xclbin at collection time:
+
+```text
+xclbins: 0
+```
+
+Use this only for resource/timing monitoring. It does not prove the fixed
+weighted SSSP hardware implementation because the scratch predates the gather
+URAM initialization fix.
+
+ReGraph old-source routed kernel utilization, `Used Resources`:
 
 ```text
 LUT        55479
@@ -251,6 +268,15 @@ REG        92137
 BRAM         120
 URAM         128
 DSP            0
+```
+
+ReGraph old-source routed timing:
+
+```text
+WNS 0.003 ns
+TNS 0.000 ns
+WHS 0.009 ns
+THS 0.000 ns
 ```
 
 Important caveat: `/home/chuxiao/ReGraph_sssp_hw_scratch` is still the

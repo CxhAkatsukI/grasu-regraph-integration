@@ -42,6 +42,8 @@ Spread updates should be the balanced baseline.
 scripts/generate_sssp_benchmark_workloads.py
 scripts/run_grasu_regraph_sssp_sweep.sh
 scripts/summarize_sssp_chain_result.py
+scripts/run_spine_builtin_sweep.sh
+scripts/summarize_spine_builtin_result.py
 ```
 
 The generator writes, per case:
@@ -137,7 +139,25 @@ dominates or whether GraSU update time dominates.
 ## Spine Side
 
 The current Spine host has built-in scenarios rather than the same external
-graph-file interface. Current useful commands are:
+graph-file interface. The reusable runner is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_spine_builtin_sweep.sh \
+  --preset review \
+  --out-root /home/chuxiao/grasu-regraph-integration/results/spine_builtin_review_hw
+```
+
+Dry-run without touching the board:
+
+```bash
+./scripts/run_spine_builtin_sweep.sh \
+  --preset smoke \
+  --dry-run \
+  --out-root /home/chuxiao/grasu-regraph-integration/results/spine_builtin_dryrun
+```
+
+Current useful direct commands are:
 
 ```bash
 SPINE_PARTITIONED_SPLIT=1 \
@@ -167,3 +187,7 @@ For the final paper-style comparison, we should either:
    scenario and clearly state that the comparison is scenario-level, not
    identical-input.
 ```
+
+The Spine runner currently follows option 2. It records the original host args
+and the emitted `PARTITIONED_CSR_E2E_*` line for every case so the limitation is
+visible in the evidence.

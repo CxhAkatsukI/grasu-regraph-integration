@@ -176,9 +176,9 @@ Processed edges: 8; Graph edges: 5
 All the simulator processes exited successfully
 ```
 
-## Current Running HW Build Caveat
+## Old-source HW Build Caveat
 
-As of this note, a ReGraph `hw` build is running under:
+A ReGraph `hw` build has been monitored under:
 
 ```text
 /home/chuxiao/ReGraph_sssp_hw_scratch
@@ -190,7 +190,25 @@ Process shape:
 podman -> make APP=sssp TARGETS=hw -> v++ link -> vpl -> vivado impl_1
 ```
 
-It has live Vivado CPU activity and does not appear deadlocked.
+It reached routed reports on 2026-07-12:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_scratch/_x/link/vivado/vpl/prj/prj.runs/impl_1/kernel_util_routed.rpt
+/home/chuxiao/ReGraph_sssp_hw_scratch/_x/link/vivado/vpl/prj/prj.runs/impl_1/slr_util_routed.rpt
+/home/chuxiao/ReGraph_sssp_hw_scratch/_x/link/vivado/vpl/prj/prj.runs/impl_1/hw_bb_locked_timing_summary_routed.rpt
+```
+
+Evidence bundle:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_024815_regraph_oldsource_routed/regraph_sssp_hw_oldsource_routed
+```
+
+At evidence collection time, no final `.xclbin` had been observed yet:
+
+```text
+xclbins: 0
+```
 
 However, that scratch tree still contains the pre-fix gather files with the
 `#ifdef SW_EMU` guard around `dst_tmp_prop_buffer` initialization. If it

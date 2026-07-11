@@ -164,4 +164,5 @@ Generate smoke workloads and dry-run the chain:
 ```bash
 ./scripts/generate_sssp_benchmark_workloads.py --preset smoke
 ./scripts/run_grasu_regraph_sssp_sweep.sh --preset smoke --dry-run
+./scripts/run_spine_builtin_sweep.sh --preset smoke --dry-run
 ```
