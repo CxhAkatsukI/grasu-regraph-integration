@@ -142,6 +142,27 @@ fi
 if [[ -f "${SCRATCH}/_x/logs/link/link.steps.log" ]]; then
   cp "${SCRATCH}/_x/logs/link/link.steps.log" "${EVIDENCE_DIR}/link.steps.log"
 fi
+if [[ -f "${SCRATCH}/_x/reports/link/system_estimate_graph_fpga.${TARGET}.${PLATFORM}.xtxt" ]]; then
+  cp "${SCRATCH}/_x/reports/link/system_estimate_graph_fpga.${TARGET}.${PLATFORM}.xtxt" \
+     "${EVIDENCE_DIR}/system_estimate_graph_fpga.${TARGET}.xtxt"
+fi
+mkdir -p "${EVIDENCE_DIR}/kernel_system_estimates"
+find "${SCRATCH}/_x/reports" -maxdepth 2 -type f -name "system_estimate_*.xtxt" ! -path "*/link/*" \
+  -exec cp {} "${EVIDENCE_DIR}/kernel_system_estimates/" \;
+{
+  echo "# initDstTmpProp HLS evidence"
+  echo
+  for kernel in littleKernelScatterGather bigKernelScatterGather; do
+    echo "## ${kernel}"
+    hls_log="${SCRATCH}/_x/${kernel}.${TARGET}.${PLATFORM}/${kernel}/vitis_hls.log"
+    if [[ -f "${hls_log}" ]]; then
+      rg -n "initDstTmpProp|Loop Constraint Status|Estimated Fmax" "${hls_log}" || true
+    else
+      echo "missing ${hls_log}"
+    fi
+    echo
+  done
+} > "${EVIDENCE_DIR}/initDstTmpProp_hls_evidence.txt"
 (
   cd "${SCRATCH}"
   sha256sum \
@@ -184,9 +205,23 @@ if [[ "${RUN_TINY}" == "1" ]]; then
         dataset/tiny-weighted-sssp.txt \
         ${NUM_DENSE} ${SUPERSTEPS} 2>&1 | tee /evidence/run_tiny_weighted_sssp_${TARGET}.log
     "
-  rg -n "mismatch|This iteration has|Processed edges|program successful|Supersteps|Starting superstep" \
-    "${EVIDENCE_DIR}/run_tiny_weighted_sssp_${TARGET}.log" \
-    > "${EVIDENCE_DIR}/run_key_lines.txt" || true
+  if [[ -f "${SCRATCH}/.run/7/${TARGET}/device0/binary_0/behav_waveform/xsim/simulate.log" ]]; then
+    cp "${SCRATCH}/.run/7/${TARGET}/device0/binary_0/behav_waveform/xsim/simulate.log" \
+       "${EVIDENCE_DIR}/xsim_simulate.log"
+  fi
+  run_log="${EVIDENCE_DIR}/run_tiny_weighted_sssp_${TARGET}.log"
+  if rg -q "mismatch|This iteration has" "${run_log}"; then
+    mismatch_count="$(rg -c "mismatch|This iteration has" "${run_log}")"
+  else
+    mismatch_count=0
+  fi
+  {
+    echo "# ${TARGET} tiny weighted SSSP validation"
+    echo "mismatch_count=${mismatch_count}"
+    rg -n "Device\\[0\\]: program successful|Supersteps|Starting superstep|Processed edges|All the simulator processes exited successfully|mismatch|This iteration has" \
+      "${run_log}" || true
+  } > "${EVIDENCE_DIR}/run_validation_summary.txt"
+  cp "${EVIDENCE_DIR}/run_validation_summary.txt" "${EVIDENCE_DIR}/run_key_lines.txt"
 else
   echo "[5/5] Skipped tiny run. Add --run-tiny to execute it."
 fi

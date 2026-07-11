@@ -94,10 +94,10 @@ final line: Processed edges: 8; Graph edges: 5
 The fixed regression proves source-level compilation and software-emulation
 functionality after the gather change. It does not prove hw_emu or real hw yet.
 
-## HW Emulation Finding
+## HW Emulation Finding And Fix
 
-The user-provided hw_emu xclbin built successfully and ran through xsim, but the
-tiny weighted SSSP functional check failed:
+The first user-provided hw_emu xclbin built successfully and ran through xsim,
+but the tiny weighted SSSP functional check failed:
 
 ```text
 vertex 1: expected 3, device 0
@@ -128,6 +128,38 @@ Applied fix:
 The initialization now runs for sw_emu, hw_emu, and hw, with an explicit
 `initDstTmpProp` loop label and `PIPELINE II=1`.
 
+Fixed-source hw_emu has now been rebuilt and passed the tiny weighted SSSP run:
+
+```text
+/home/chuxiao/ReGraph/.tmp_doc/evidence_sssp_hw_emu_fixed_20260712_003353
+```
+
+Key evidence:
+
+```text
+scratch: /home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch
+xclbin:  xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+host:    host_graph_fpga_sssp
+```
+
+Validation summary:
+
+```text
+Device[0]: program successful
+Supersteps: 4
+Processed edges: 8; Graph edges: 5
+All the simulator processes exited successfully
+mismatch_count=0
+```
+
+HLS evidence shows that `initDstTmpProp` was synthesized in both scatter/gather
+kernels:
+
+```text
+littleKernelScatterGather: initDstTmpProp Final II = 1, Estimated Fmax 266.63 MHz
+bigKernelScatterGather:    initDstTmpProp Final II = 1, Estimated Fmax 281.54 MHz
+```
+
 ## Current Running HW Build Caveat
 
 As of this note, a ReGraph `hw` build is running under:
@@ -154,11 +186,9 @@ valid evidence that the weighted SSSP hardware fix works.
 To close ReGraph weighted SSSP item 1:
 
 ```text
-1. rebuild hw_emu from a refreshed scratch copied after the initDstTmpProp fix
-2. rerun tiny-weighted-sssp.txt for 4 supersteps
-3. require no mismatch
-4. then rebuild hw from the same fixed source
-5. collect xclbin, host, link summary, system estimates, routed utilization and timing
+1. rebuild hw from the same fixed source
+2. collect xclbin, host, link summary, system estimates, routed utilization and timing
+3. run a tiny or small weighted SSSP hardware smoke test if board access is available
 ```
 
 Reusable build helper:
