@@ -88,6 +88,8 @@ rsync -a --delete \
   --exclude ".Xil" \
   --exclude ".ipcache" \
   --exclude ".tmp_build" \
+  --exclude ".tmp_doc" \
+  --exclude "evidence" \
   --exclude "target" \
   --exclude "xclbin_*" \
   --exclude "host_graph_fpga_*" \
