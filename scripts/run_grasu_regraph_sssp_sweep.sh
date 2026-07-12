@@ -14,6 +14,9 @@ SKIP_GENERATE=0
 SKIP_GRASU=0
 DRY_RUN=0
 XCL_EMULATION_MODE_VALUE="${XCL_EMULATION_MODE_VALUE:-}"
+VITIS_SETTINGS="${VITIS_SETTINGS:-/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh}"
+GRASU_EMCONFIG_PATH="${GRASU_EMCONFIG_PATH:-}"
+REGRAPH_EMCONFIG_PATH="${REGRAPH_EMCONFIG_PATH:-}"
 
 GRASU_HOST="${GRASU_HOST:-${GRASU_ROOT}/.tmp_build/u55c_hbm_hw/GraSU_host_u55c}"
 GRASU_XCLBIN="${GRASU_XCLBIN:-${GRASU_ROOT}/.tmp_build/u55c_hbm_hw/build/GraSU_u55c_hbm.hw.xclbin}"
@@ -43,7 +46,12 @@ Options:
   --regraph-host PATH         ReGraph SSSP host executable.
   --regraph-xclbin PATH       ReGraph or combined xclbin.
   --combined-xclbin PATH      Use the same combined xclbin for GraSU and ReGraph.
-  --xcl-emulation-mode MODE   Set XCL_EMULATION_MODE for ReGraph, e.g. hw_emu.
+  --xcl-emulation-mode MODE   Set XCL_EMULATION_MODE for both hosts, e.g. hw_emu.
+  --vitis-settings PATH       Source Vitis settings before hw_emu runs.
+                              Default: ${VITIS_SETTINGS}
+  --grasu-emconfig-path PATH  EMCONFIG_PATH for GraSU hw_emu. Inferred if omitted.
+  --regraph-emconfig-path PATH
+                              EMCONFIG_PATH for ReGraph hw_emu. Inferred if omitted.
   --skip-generate             Reuse an existing workload manifest.
   --skip-grasu                Skip GraSU and use the expected result file directly.
   --dry-run                   Print commands without executing hardware runs.
@@ -77,6 +85,41 @@ run_local_cmd() {
   "$@"
 }
 
+first_existing_emconfig_dir() {
+  local candidate
+  for candidate in "$@"; do
+    if [[ -f "${candidate}/emconfig.json" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+infer_emconfig_path() {
+  local role="$1"
+  local xclbin="$2"
+  local xclbin_dir
+  local build_root
+
+  xclbin_dir="$(dirname "${xclbin}")"
+  build_root="$(dirname "${xclbin_dir}")"
+
+  if [[ "${role}" == "grasu" ]]; then
+    first_existing_emconfig_dir \
+      "${build_root}/run_grasu_smoke" \
+      "${build_root}/run" \
+      "${xclbin_dir}" \
+      "${build_root}" || true
+  else
+    first_existing_emconfig_dir \
+      "${build_root}/run_regraph_tiny" \
+      "${xclbin_dir}/xilinx_u55c_gen3x16_xdma_3_202210_1" \
+      "${build_root}" \
+      "${xclbin_dir}" || true
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --preset) PRESET="$2"; shift 2 ;;
@@ -91,6 +134,9 @@ while [[ $# -gt 0 ]]; do
     --regraph-xclbin) REGRAPH_XCLBIN="$(abs_under_root "$2")"; shift 2 ;;
     --combined-xclbin) GRASU_XCLBIN="$(abs_under_root "$2")"; REGRAPH_XCLBIN="${GRASU_XCLBIN}"; shift 2 ;;
     --xcl-emulation-mode) XCL_EMULATION_MODE_VALUE="$2"; shift 2 ;;
+    --vitis-settings) VITIS_SETTINGS="$(abs_under_root "$2")"; shift 2 ;;
+    --grasu-emconfig-path) GRASU_EMCONFIG_PATH="$(abs_under_root "$2")"; shift 2 ;;
+    --regraph-emconfig-path) REGRAPH_EMCONFIG_PATH="$(abs_under_root "$2")"; shift 2 ;;
     --skip-generate) SKIP_GENERATE=1; shift ;;
     --skip-grasu) SKIP_GRASU=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -138,6 +184,33 @@ if [[ "${DRY_RUN}" == "0" ]]; then
   done
 fi
 
+if [[ -n "${XCL_EMULATION_MODE_VALUE}" ]]; then
+  if [[ -z "${GRASU_EMCONFIG_PATH}" && "${SKIP_GRASU}" == "0" ]]; then
+    GRASU_EMCONFIG_PATH="$(infer_emconfig_path grasu "${GRASU_XCLBIN}")"
+  fi
+  if [[ -z "${REGRAPH_EMCONFIG_PATH}" ]]; then
+    REGRAPH_EMCONFIG_PATH="$(infer_emconfig_path regraph "${REGRAPH_XCLBIN}")"
+  fi
+  if [[ "${DRY_RUN}" == "0" ]]; then
+    if [[ -n "${VITIS_SETTINGS}" && -f "${VITIS_SETTINGS}" ]]; then
+      # XRT hw_emu needs XILINX_VITIS and Vivado runtime paths in addition to XRT.
+      # shellcheck disable=SC1090
+      source "${VITIS_SETTINGS}"
+    else
+      echo "Missing Vitis settings for hw_emu: ${VITIS_SETTINGS}" >&2
+      exit 1
+    fi
+    if [[ "${SKIP_GRASU}" == "0" && ( -z "${GRASU_EMCONFIG_PATH}" || ! -f "${GRASU_EMCONFIG_PATH}/emconfig.json" ) ]]; then
+      echo "Missing GraSU EMCONFIG_PATH for hw_emu; pass --grasu-emconfig-path." >&2
+      exit 1
+    fi
+    if [[ -z "${REGRAPH_EMCONFIG_PATH}" || ! -f "${REGRAPH_EMCONFIG_PATH}/emconfig.json" ]]; then
+      echo "Missing ReGraph EMCONFIG_PATH for hw_emu; pass --regraph-emconfig-path." >&2
+      exit 1
+    fi
+  fi
+fi
+
 printf "case\tstatus\twall_seconds\tvertices\tstatic_edges\tupdate_edges\tfinal_edges\tsource\tsupersteps\tconverted_edges\tgrasu_ms\tgrasu_mups\tregraph_e2e_ms\tregraph_mteps\tprocessed_edges\tgraph_edges\tmismatch_count\tresult_dir\n" > "${SUMMARY}"
 
 while IFS=$'\t' read -r case_name family vertices static_edges update_edges final_edges source supersteps default_weight graph result regraph_sssp_edges expected metadata; do
@@ -167,6 +240,9 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
     echo "regraph_host=${REGRAPH_HOST}"
     echo "regraph_xclbin=${REGRAPH_XCLBIN}"
     echo "regraph_num_dense=${REGRAPH_NUM_DENSE}"
+    echo "xcl_emulation_mode=${XCL_EMULATION_MODE_VALUE}"
+    echo "grasu_emconfig_path=${GRASU_EMCONFIG_PATH}"
+    echo "regraph_emconfig_path=${REGRAPH_EMCONFIG_PATH}"
     echo "skip_grasu=${SKIP_GRASU}"
     echo "dry_run=${DRY_RUN}"
   } > "${case_dir}/case.env"
@@ -179,7 +255,11 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
     if [[ "${SKIP_GRASU}" == "0" ]]; then
       echo "[1/3] Running GraSU update/check..."
       if [[ "${DRY_RUN}" == "0" ]]; then
-        (cd "${GRASU_ROOT}" && timeout "${TIMEOUT_SECONDS}s" "${GRASU_HOST}" "${GRASU_XCLBIN}" "${graph}" "${result}") > "${case_dir}/grasu.log" 2>&1
+        grasu_env=()
+        if [[ -n "${XCL_EMULATION_MODE_VALUE}" ]]; then
+          grasu_env+=(XCL_EMULATION_MODE="${XCL_EMULATION_MODE_VALUE}" EMCONFIG_PATH="${GRASU_EMCONFIG_PATH}")
+        fi
+        (cd "${GRASU_ROOT}" && timeout "${TIMEOUT_SECONDS}s" env "${grasu_env[@]}" "${GRASU_HOST}" "${GRASU_XCLBIN}" "${graph}" "${result}") > "${case_dir}/grasu.log" 2>&1
       else
         echo "+ (cd ${GRASU_ROOT} && ${GRASU_HOST} ${GRASU_XCLBIN} ${graph} ${result})"
       fi
@@ -197,11 +277,11 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
 
     echo "[3/3] Running ReGraph SSSP..."
     if [[ "${DRY_RUN}" == "0" ]]; then
+      regraph_env=(REGRAPH_SOURCE="${source}")
       if [[ -n "${XCL_EMULATION_MODE_VALUE}" ]]; then
-        (cd "${REGRAPH_ROOT}" && timeout "${TIMEOUT_SECONDS}s" env XCL_EMULATION_MODE="${XCL_EMULATION_MODE_VALUE}" REGRAPH_SOURCE="${source}" "${REGRAPH_HOST}" "${REGRAPH_XCLBIN}" "${converted_edges}" "${REGRAPH_NUM_DENSE}" "${supersteps}") > "${case_dir}/regraph.log" 2>&1
-      else
-        (cd "${REGRAPH_ROOT}" && timeout "${TIMEOUT_SECONDS}s" env REGRAPH_SOURCE="${source}" "${REGRAPH_HOST}" "${REGRAPH_XCLBIN}" "${converted_edges}" "${REGRAPH_NUM_DENSE}" "${supersteps}") > "${case_dir}/regraph.log" 2>&1
+        regraph_env+=(XCL_EMULATION_MODE="${XCL_EMULATION_MODE_VALUE}" EMCONFIG_PATH="${REGRAPH_EMCONFIG_PATH}")
       fi
+      (cd "${REGRAPH_ROOT}" && timeout "${TIMEOUT_SECONDS}s" env "${regraph_env[@]}" "${REGRAPH_HOST}" "${REGRAPH_XCLBIN}" "${converted_edges}" "${REGRAPH_NUM_DENSE}" "${supersteps}") > "${case_dir}/regraph.log" 2>&1
     else
       echo "+ (cd ${REGRAPH_ROOT} && REGRAPH_SOURCE=${source} ${REGRAPH_HOST} ${REGRAPH_XCLBIN} ${converted_edges} ${REGRAPH_NUM_DENSE} ${supersteps})"
       : > "${case_dir}/regraph.log"

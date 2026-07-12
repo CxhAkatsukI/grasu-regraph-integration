@@ -649,3 +649,105 @@ Latest monitor snapshot:
 This is forward progress beyond the earlier `Phase 2.5 Global Placement Core`
 snapshot. The build is still in `place_design -retiming`, so no combined real
 `hw` smoke can run yet.
+
+## Combined hw_emu Artifact Check, 13:17
+
+The current combined `hw_emu` product exists and was checked again:
+
+```text
+xclbin: /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/build/grasu_regraph_combined.hw_emu.xclbin
+sha256: daf8bb44c32295a27827993bdf913eb9d311f27e4d21efbaf46edfc57224995f
+evidence: /home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_130630_combined_hwemu_usercheck
+```
+
+The resource evidence confirms the combined xclbin has 15 CUs:
+
+```text
+GraSU:   bin_search x4, dispatch x1, process_cache x2, process_ddr x2
+ReGraph: kernelApply x1, kernelHBMWrapper x1,
+         littleKernelScatterGather x1, kernelLittleGSMerger x1,
+         bigKernelScatterGather x1, kernelBigGSMerger x1
+```
+
+Comparison against standalone `hw_emu` evidence:
+
+```text
+GraSU same-component resource changes: 0
+GraSU same-kernel CU count changes:    0
+GraSU same-endpoint HBM/SLR changes:   0
+
+ReGraph same-kernel CU count changes:  0
+ReGraph same-endpoint HBM/SLR changes: 0
+ReGraph HLS top area changes:          2 small FF/LUT estimate deltas
+```
+
+Functional checks found an environment issue in the sweep wrapper rather than a
+bad xclbin. The old wrapper set `XCL_EMULATION_MODE=hw_emu` only for ReGraph,
+so the GraSU host failed before simulation when asked to load a `hw_emu`
+xclbin. Manually sourcing Vitis/XRT and setting `EMCONFIG_PATH` allowed GraSU
+to enter xsim with the combined xclbin, but a tiny chain case did not finish
+within a 300 second interactive timeout:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/grasu_manual_hwemu_envcheck_20260712_130855_sourcevitis
+exit_code=124
+```
+
+This is consistent with the earlier cached combined `hw_emu` runtime evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/run_grasu_smoke/emulation_debug.log
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/run_regraph_tiny/emulation_debug.log
+```
+
+Both show `All the simulator processes exited successfully`, but host stdout was
+not fully captured there. Therefore, the current conclusion is:
+
+```text
+combined hw_emu artifact/resources: checked
+combined ReGraph/GraSU simulator runtime: known-good from cached run logs
+fresh full GraSU->ReGraph smoke in this turn: not completed; hw_emu is too slow for the 300 s interactive timeout
+```
+
+I updated `scripts/run_grasu_regraph_sssp_sweep.sh` so future `hw_emu` sweeps:
+
+```text
+source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+set XCL_EMULATION_MODE for both GraSU and ReGraph
+set EMCONFIG_PATH for both GraSU and ReGraph
+record these paths in each case.env
+```
+
+I also updated `scripts/finalize_combined_hw_build.sh` so combined `hw_emu`
+finalization passes:
+
+```text
+--grasu-emconfig-path  <build-root>/run_grasu_smoke
+--regraph-emconfig-path <build-root>/run_regraph_tiny
+```
+
+Validation:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/run_grasu_regraph_sssp_sweep.sh scripts/finalize_combined_hw_build.sh
+
+./scripts/finalize_combined_hw_build.sh \
+  --target hw_emu \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible \
+  --session '' \
+  --preset smoke \
+  --skip-evidence \
+  --dry-run
+
+./scripts/run_grasu_regraph_sssp_sweep.sh \
+  --preset smoke \
+  --grasu-host /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hwemu/GraSU_host_u55c \
+  --regraph-host /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp \
+  --combined-xclbin /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/build/grasu_regraph_combined.hw_emu.xclbin \
+  --out-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_dryrun_envcheck_20260712_131738 \
+  --xcl-emulation-mode hw_emu \
+  --grasu-emconfig-path /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/run_grasu_smoke \
+  --regraph-emconfig-path /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/run_regraph_tiny \
+  --dry-run
+```

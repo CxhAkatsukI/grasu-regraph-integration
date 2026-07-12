@@ -155,6 +155,12 @@ if [[ "${SKIP_SMOKE}" == "0" ]]; then
   )
   if [[ "${TARGET}" == "hw_emu" ]]; then
     sweep_cmd+=(--xcl-emulation-mode hw_emu)
+    if [[ -f "${BUILD_ROOT}/run_grasu_smoke/emconfig.json" ]]; then
+      sweep_cmd+=(--grasu-emconfig-path "${BUILD_ROOT}/run_grasu_smoke")
+    fi
+    if [[ -f "${BUILD_ROOT}/run_regraph_tiny/emconfig.json" ]]; then
+      sweep_cmd+=(--regraph-emconfig-path "${BUILD_ROOT}/run_regraph_tiny")
+    fi
   fi
   run_cmd "${sweep_cmd[@]}"
 fi
