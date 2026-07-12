@@ -174,3 +174,66 @@ An initial rerun failed before simulation because the shell did not have
 `XILINX_VITIS` set and `emconfig.json` was not in the run directory. Sourcing
 Vitis and copying the generated `emconfig.json` into the current directory fixed
 the runtime environment issue.
+
+## User Build Rerun
+
+After the user-reported `hw_emu` build success, I rechecked the current
+artifact and reran the tiny weighted SSSP smoke test with the generated
+`emconfig.json` visible to XRT.
+
+Evidence directory:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_user_function_check_20260712_113644_envfix
+```
+
+Artifacts:
+
+```text
+host:   /home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_user_function_check_20260712_113644_envfix/run_work/host_graph_fpga_sssp
+xclbin: /home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_user_function_check_20260712_113644_envfix/run_work/xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+emcfg:  /home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_user_function_check_20260712_113644_envfix/run_work/emconfig.json
+data:   /home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_user_function_check_20260712_113644_envfix/run_work/dataset/tiny-weighted-sssp.txt
+```
+
+Hashes:
+
+```text
+9ceb054575e63aa9c6b045875eae2de205e14788a1f211c9116b411df4fed8c8  host_graph_fpga_sssp
+5d63557f6a15d8c3ecc25e0fcbf62bb61df1bf04ef29d3c3b8393b4007662f67  graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+9aa63a3b683163fda7e374efbfeacbeadd45e2dbd58e0e5a148ccb357aa6fefd  emconfig.json
+6b7a9f58fc5579dde94deafc3b40ef768f6703a09ecd910041a87e516894a01b  tiny-weighted-sssp.txt
+```
+
+Run command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_user_function_check_20260712_113644_envfix/run_work
+source /opt/xilinx/xrt/setup.sh
+export XILINX_XRT=/opt/xilinx/xrt
+source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+env XCL_EMULATION_MODE=hw_emu EMCONFIG_PATH="$PWD" REGRAPH_SOURCE=0 \
+  ./host_graph_fpga_sssp \
+  ./xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin \
+  dataset/tiny-weighted-sssp.txt \
+  1 \
+  4
+```
+
+Result:
+
+```text
+exit_status=0
+Device[0]: program successful!
+[INFO] Supersteps: 4
+[INFO] Starting superstep 1/4
+[INFO] Starting superstep 2/4
+[INFO] Starting superstep 3/4
+[INFO] Starting superstep 4/4
+[INFO] dataset/tiny-weighted-sssp.txt,  numD: 1,  e2e: 161014 ms;  Throught: 1.24212e-07 MTEPS :
+Processed edges: 8; Graph edges: 5
+INFO: [HW-EMU 06-1] All the simulator processes exited successfully
+```
+
+No `ERROR`, `CRITICAL WARNING`, `Unable`, `failed`, or `mismatch` lines were
+found in the functional run log.
