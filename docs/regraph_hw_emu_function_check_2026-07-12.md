@@ -300,3 +300,82 @@ The run log contains no `mismatch` lines. One wrapper attempt before this rerun
 exited before launching the host because `source /opt/xilinx/xrt/setup.sh`
 does not behave well under strict `set -e`; running the environment setup from
 a normal shell resolves that wrapper issue.
+
+## Fresh User Artifact Check, 12:27
+
+I checked the current user-built `hw_emu` products in
+`/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch` and reran a fresh
+functional smoke from an isolated results directory.
+
+Build products:
+
+```text
+2026-07-12 09:08:39 +0800 3341312  /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp
+2026-07-12 09:08:24 +0800 53944318 /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+2026-07-12 09:53:47 +0800 1496     /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/emconfig.json
+2026-07-12 09:08:24 +0800 38944    /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin.link_summary
+```
+
+The xclbin is a valid AMD/Xilinx AXLF file for
+`xilinx_u55c_gen3x16_xdma_3_202210_1`, UUID
+`4feb0cd1-1c39-0365-0687-68a91b346bb0`, with 10 sections.
+
+Kernel CUs from the link estimate:
+
+```text
+bigKernelScatterGather     1
+kernelBigGSMerger          1
+kernelLittleGSMerger       1
+kernelApply                1
+kernelHBMWrapper           1
+littleKernelScatterGather  1
+```
+
+Evidence directory:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_function_check_20260712_122736_fresh_user_xrt
+```
+
+Artifact hashes:
+
+```text
+9ceb054575e63aa9c6b045875eae2de205e14788a1f211c9116b411df4fed8c8  host_graph_fpga_sssp
+5d63557f6a15d8c3ecc25e0fcbf62bb61df1bf04ef29d3c3b8393b4007662f67  xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+9aa63a3b683163fda7e374efbfeacbeadd45e2dbd58e0e5a148ccb357aa6fefd  emconfig.json
+6b7a9f58fc5579dde94deafc3b40ef768f6703a09ecd910041a87e516894a01b  dataset/tiny-weighted-sssp.txt
+```
+
+Run command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_function_check_20260712_122736_fresh_user_xrt/run_work
+source /opt/xilinx/xrt/setup.sh
+export XILINX_XRT=/opt/xilinx/xrt
+source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+env XCL_EMULATION_MODE=hw_emu EMCONFIG_PATH="$PWD" REGRAPH_SOURCE=0 \
+  ./host_graph_fpga_sssp \
+  ./xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin \
+  ./dataset/tiny-weighted-sssp.txt \
+  1 \
+  4
+```
+
+Result:
+
+```text
+exit_code=0
+Device[0]: program successful!
+[INFO] Supersteps: 4
+[INFO] Starting superstep 1/4
+[INFO] Starting superstep 2/4
+[INFO] Starting superstep 3/4
+[INFO] Starting superstep 4/4
+Processed edges: 8; Graph edges: 5
+INFO: [HW-EMU 06-1] All the simulator processes exited successfully
+```
+
+The run log contains no `mismatch` lines. A first fresh attempt failed before
+device programming because the bare shell did not have `XILINX_XRT` set; after
+sourcing `/opt/xilinx/xrt/setup.sh` and the Vitis 2024.1 settings, the same
+artifact passed the functional smoke.
