@@ -601,3 +601,27 @@ idle_warning=none
 
 This prevents long `place_design` phases from being misclassified as stuck when
 Vivado is actively updating implementation progress files.
+
+Observed status, 2026-07-12 12:51 Asia/Shanghai, using the refined monitor:
+
+```text
+tmux=running
+xclbin=missing; final placed/routed xclbin has not completed yet
+newest_log=.../tmux_driver.log
+newest_activity=.../impl_1/place_design.pb
+idle_seconds=19
+idle_warning=none
+Vitis top log: still in place_design -retiming
+Vivado progress file: place_design.pb updated at 2026-07-12 12:51:17
+```
+
+Latest monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_125135.txt
+```
+
+The build remains in placement and has not produced the final xclbin yet, but
+the implementation progress file is actively updating. The next actionable
+step is still to run `scripts/finalize_combined_hw_build.sh` once
+`build/grasu_regraph_combined.hw.xclbin` appears.
