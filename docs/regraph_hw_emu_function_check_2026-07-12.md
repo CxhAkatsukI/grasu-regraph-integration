@@ -237,3 +237,66 @@ INFO: [HW-EMU 06-1] All the simulator processes exited successfully
 
 No `ERROR`, `CRITICAL WARNING`, `Unable`, `failed`, or `mismatch` lines were
 found in the functional run log.
+
+## Isolated Rerun, 12:03
+
+I reran the same user-built `hw_emu` artifact from an isolated evidence
+directory so that the original scratch `.run` cache is left untouched.
+
+Evidence directory:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_user_function_check_20260712_120308_rerun
+```
+
+Source artifacts:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp
+/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/xclbin_hw_emu_sssp/xilinx_u55c_gen3x16_xdma_3_202210_1/emconfig.json
+/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/dataset/tiny-weighted-sssp.txt
+```
+
+Artifact hashes:
+
+```text
+9ceb054575e63aa9c6b045875eae2de205e14788a1f211c9116b411df4fed8c8  host_graph_fpga_sssp
+5d63557f6a15d8c3ecc25e0fcbf62bb61df1bf04ef29d3c3b8393b4007662f67  xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+9aa63a3b683163fda7e374efbfeacbeadd45e2dbd58e0e5a148ccb357aa6fefd  emconfig.json
+6b7a9f58fc5579dde94deafc3b40ef768f6703a09ecd910041a87e516894a01b  dataset/tiny-weighted-sssp.txt
+```
+
+Run command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_user_function_check_20260712_120308_rerun/run_work
+source /opt/xilinx/xrt/setup.sh
+export XILINX_XRT=/opt/xilinx/xrt
+source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+env XCL_EMULATION_MODE=hw_emu EMCONFIG_PATH="$PWD" REGRAPH_SOURCE=0 \
+  ./host_graph_fpga_sssp \
+  ./xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin \
+  dataset/tiny-weighted-sssp.txt \
+  1 \
+  4
+```
+
+Key result:
+
+```text
+exit_code=0
+Device[0]: program successful!
+[INFO] Supersteps: 4
+[INFO] Starting superstep 1/4
+[INFO] Starting superstep 2/4
+[INFO] Starting superstep 3/4
+[INFO] Starting superstep 4/4
+Processed edges: 8; Graph edges: 5
+INFO: [HW-EMU 06-1] All the simulator processes exited successfully
+```
+
+The run log contains no `mismatch` lines. One wrapper attempt before this rerun
+exited before launching the host because `source /opt/xilinx/xrt/setup.sh`
+does not behave well under strict `set -e`; running the environment setup from
+a normal shell resolves that wrapper issue.

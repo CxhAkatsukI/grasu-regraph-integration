@@ -82,6 +82,7 @@ TOP_LOG="${BUILD_ROOT}/tmux_driver.log"
 LINK_LOG="${BUILD_ROOT}/link_${TARGET}.log"
 VPL_LOG="${BUILD_ROOT}/build/link/link/vivado/vpl/runme.log"
 VIVADO_LOG="${BUILD_ROOT}/build/link/link/vivado/vpl/vivado.log"
+IMPL_LOG="${BUILD_ROOT}/build/link/link/vivado/vpl/prj/prj.runs/impl_1/runme.log"
 XCLBIN="${BUILD_ROOT}/build/grasu_regraph_combined.${TARGET}.xclbin"
 LINK_SUMMARY="${BUILD_ROOT}/build/grasu_regraph_combined.${TARGET}.xclbin.link_summary"
 
@@ -157,8 +158,18 @@ else
 fi
 echo
 
+echo "## Implementation Run Tail"
+if [[ -f "${IMPL_LOG}" ]]; then
+  rg -n 'Command:|Start |Finished |link_design|opt_design|place_design|phys_opt_design|route_design|write_bitstream|report_|WNS|TNS|ERROR|CRITICAL WARNING|WARNING' "${IMPL_LOG}" \
+    | tail -50 \
+    | awk '{ if (length($0) > 240) print substr($0, 1, 240) "..."; else print }' || true
+else
+  printf 'impl_log=missing (%s)\n' "${IMPL_LOG}"
+fi
+echo
+
 echo "## Recent Errors And Warnings"
-for log in "${TOP_LOG}" "${LINK_LOG}" "${VPL_LOG}" "${VIVADO_LOG}"; do
+for log in "${TOP_LOG}" "${LINK_LOG}" "${VPL_LOG}" "${VIVADO_LOG}" "${IMPL_LOG}"; do
   if [[ -f "${log}" ]]; then
     rg -n 'ERROR|CRITICAL WARNING|FATAL|Killed|failed|Failed' "${log}" \
       | tail -20 \

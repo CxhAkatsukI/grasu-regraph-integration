@@ -478,3 +478,32 @@ Block-level synthesis progressed to 88 of 262 jobs complete, 7 jobs running
 This confirms the run is still active and making forward progress. The monitor
 script should be used for later status checks before deciding whether the build
 is idle or stuck.
+
+Observed status, 2026-07-12 12:08 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final placed/routed xclbin has not completed yet
+newest log updated at 2026-07-12 12:08:02, idle_seconds=5
+VPL synth completed at 03:58:04
+VPL impl started at 03:58:04
+impl_1 is active under prj/prj.runs/impl_1/runme.log
+```
+
+Latest monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_120743.txt
+```
+
+The structured monitor now also prints an `Implementation Run Tail` section
+from:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/link/link/vivado/vpl/prj/prj.runs/impl_1/runme.log
+```
+
+This is useful once block synthesis is over because the top VPL log only says
+`Waiting for impl_1 to finish`; the implementation run log shows lower-level
+Vivado activity such as constraint parsing, implementation warnings, and later
+place/route/bitstream milestones.
