@@ -1390,3 +1390,59 @@ the individual accelerators for same components, and functionally runnable for
 both halves of the GraSU -> ReGraph flow. For routine hw_emu validation, use
 the GraSU tiny case plus ReGraph min2 gate instead of the full smoke preset.
 ```
+
+## Combined Real hw Monitor, 15:11
+
+Observed status, 2026-07-12 15:11 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final hw xclbin has not completed yet
+newest_log=.../prj/prj.runs/impl_1/runme.log
+idle_seconds=0
+idle_warning=none
+```
+
+Saved monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_1511.txt
+```
+
+Key progress since the previous checkpoint:
+
+```text
+route_design completed successfully
+report_timing_summary completed
+report_accelerator_utilization completed
+report_utilization completed
+report_power completed successfully
+Starting optional post-route physical design optimization
+[07:09:11] Phase 1 Physical Synthesis Initialization
+```
+
+Timing state after route:
+
+```text
+Estimated route timing:
+  WNS=-0.104
+  TNS=-10.735
+  WHS=0.008
+  THS=0.000
+
+Post physical optimization timing summary before optional post-route physopt:
+  WNS=-0.104
+  TNS=-8.386
+  WHS=0.009
+  THS=0.000
+```
+
+Interpretation:
+
+```text
+The build is no longer stuck in routing. It has finished routing and generated
+routed utilization/timing/power reports. The final xclbin is still missing
+because Vitis is running optional post-route physical optimization before
+write_bitstream/package. Continue monitoring; if the xclbin appears, immediately
+run the finalizer to collect resource evidence and smoke-test the combined hw.
+```
