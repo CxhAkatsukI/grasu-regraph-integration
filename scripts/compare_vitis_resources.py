@@ -11,6 +11,7 @@ from typing import Any
 
 RESOURCE_FIELDS = ("lut", "lut_as_mem", "reg", "bram", "uram", "dsp")
 HLS_FIELDS = ("ff", "lut", "bram", "uram", "dsp")
+BINDING_FIELDS = ("target",)
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
@@ -81,6 +82,61 @@ def compare_by_key(
     return rows
 
 
+def compare_text_by_key(
+    before_rows: list[dict[str, str]],
+    after_rows: list[dict[str, str]],
+    key_fields: list[str],
+    value_fields: tuple[str, ...],
+    row_type: str,
+) -> list[dict[str, Any]]:
+    before = {tuple(row.get(field, "") for field in key_fields): row for row in before_rows}
+    after = {tuple(row.get(field, "") for field in key_fields): row for row in after_rows}
+    rows: list[dict[str, Any]] = []
+    for key in sorted(set(before) | set(after)):
+        b_row = before.get(key, {})
+        a_row = after.get(key, {})
+        state = "unchanged"
+        if key not in before:
+            state = "added"
+        elif key not in after:
+            state = "removed"
+        row: dict[str, Any] = {"row_type": row_type, "state": state}
+        row.update({field: value for field, value in zip(key_fields, key)})
+        for field in value_fields:
+            b_val = b_row.get(field, "")
+            a_val = a_row.get(field, "")
+            if state == "unchanged" and b_val != a_val:
+                state = "changed"
+            row[f"before_{field}"] = b_val
+            row[f"after_{field}"] = a_val
+            row[f"delta_{field}"] = f"{b_val} -> {a_val}" if state == "changed" else ""
+        row["state"] = state
+        rows.append(row)
+    return rows
+
+
+def binding_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Keep host-memory and SLR bindings that should stay stable in integration."""
+
+    out = []
+    seen = set()
+    for row in rows:
+        if row.get("kind") not in {"sp", "slr"}:
+            continue
+        normalized = {
+            "kind": row.get("kind", ""),
+            "cu": row.get("cu", ""),
+            "port": row.get("port", ""),
+            "target": row.get("target", ""),
+        }
+        key = tuple(normalized.values())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(normalized)
+    return out
+
+
 def top_hls_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     seen = set()
     out = []
@@ -137,6 +193,13 @@ def main() -> int:
         ("cu_count",),
         "kernel_cu_count",
     )
+    binding_delta = compare_text_by_key(
+        binding_rows(read_tsv(before / "connectivity.tsv")),
+        binding_rows(read_tsv(after / "connectivity.tsv")),
+        ["kind", "cu", "port"],
+        BINDING_FIELDS,
+        "connectivity_binding",
+    )
 
     write_tsv(
         out_dir / "accelerator_util_delta.tsv",
@@ -153,13 +216,16 @@ def main() -> int:
         cu_delta,
         ["row_type", "state", "kernel", "before_cu_count", "after_cu_count", "delta_cu_count"],
     )
+    write_tsv(
+        out_dir / "connectivity_binding_delta.tsv",
+        binding_delta,
+        ["row_type", "state", "kind", "cu", "port", "before_target", "after_target", "delta_target"],
+    )
 
-    non_unchanged_accel = [row for row in accel_delta if row["state"] != "unchanged"]
-    non_unchanged_hls = [row for row in hls_delta if row["state"] != "unchanged"]
-    non_unchanged_cu = [row for row in cu_delta if row["state"] != "unchanged"]
     changed_accel = rows_with_state(accel_delta, "changed")
     changed_hls = rows_with_state(hls_delta, "changed")
     changed_cu = rows_with_state(cu_delta, "changed")
+    changed_binding = rows_with_state(binding_delta, "changed")
 
     summary = [
         f"# {args.label}",
@@ -172,10 +238,13 @@ def main() -> int:
         f"- hls_top_area added/removed rows: {count_state(hls_delta, 'added')}/{count_state(hls_delta, 'removed')}",
         f"- kernel CU count same-kernel changes: {len(changed_cu)}",
         f"- kernel CU count added/removed kernels: {count_state(cu_delta, 'added')}/{count_state(cu_delta, 'removed')}",
+        f"- connectivity binding same-endpoint changes: {len(changed_binding)}",
+        f"- connectivity binding added/removed endpoints: {count_state(binding_delta, 'added')}/{count_state(binding_delta, 'removed')}",
         "",
         "Use same-component changes as the main review checklist. Added rows are expected",
         "when comparing a single accelerator against a combined xclbin; changed rows mean an",
-        "existing component's reported resources or CU count moved and should be explained.",
+        "existing component's reported resources, CU count, HBM bank, or SLR binding moved",
+        "and should be explained.",
     ]
     if changed_accel[:20]:
         summary.extend(["", "## Same-Component Accelerator Util Changes", "", "| Name | State | Delta LUT | Delta REG | Delta BRAM | Delta URAM | Delta DSP |", "| ---- | ----- | --------- | --------- | ---------- | ---------- | --------- |"])
@@ -202,6 +271,12 @@ def main() -> int:
         for row in changed_cu[:20]:
             summary.append(
                 f"| {row.get('kernel')} | {row.get('state')} | {row.get('before_cu_count')} | {row.get('after_cu_count')} | {row.get('delta_cu_count')} |"
+            )
+    if changed_binding[:20]:
+        summary.extend(["", "## Same-Endpoint Connectivity Binding Changes", "", "| Kind | CU | Port | Before | After |", "| ---- | -- | ---- | ------ | ----- |"])
+        for row in changed_binding[:20]:
+            summary.append(
+                f"| {row.get('kind')} | {row.get('cu')} | {row.get('port')} | {row.get('before_target')} | {row.get('after_target')} |"
             )
     added_cu = rows_with_state(cu_delta, "added")
     if added_cu[:20]:

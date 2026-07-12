@@ -51,8 +51,15 @@ tables:
 accelerator_util_delta.tsv
 hls_top_area_delta.tsv
 kernel_cu_delta.tsv
+connectivity_binding_delta.tsv
 summary.md
 ```
+
+`connectivity_binding_delta.tsv` compares same-endpoint `sp` and `slr` rows,
+so it directly records whether an existing CU port moved to a different HBM
+bank or SLR after integration. Added endpoints are expected when comparing one
+standalone accelerator against the combined xclbin; changed endpoints require
+an explanation.
 
 ## Commands Run
 
@@ -506,12 +513,53 @@ The same-component `hw_emu` comparison showed:
 GraSU baseline vs combined:
   hls_top_area same-component changes: 0
   kernel CU count same-kernel changes: 0
+  connectivity binding same-endpoint changes: 0
 
 ReGraph baseline vs combined:
   hls_top_area same-component changes: 0
   kernel CU count same-kernel changes: 0
+  connectivity binding same-endpoint changes: 0
 ```
 
 This is not a routed-resource result. It proves link structure and HLS-level
 component preservation only. The final resource answer still needs fixed-source
 ReGraph real `hw`, then a combined real `hw` link, then routed reports.
+
+## Connectivity Binding Delta Update
+
+After adding explicit HBM/SLR binding comparison to
+`scripts/compare_vitis_resources.py`, I reran the existing combined `hw_emu`
+evidence comparisons:
+
+```bash
+BASE=/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_022520_combined_hwemu_host_compatible
+
+./scripts/compare_vitis_resources.py \
+  --label grasu_hwemu_binding_check \
+  --before "$BASE/grasu_hw_emu" \
+  --after "$BASE/combined_hw_emu_host_compatible" \
+  --out-dir results/tmp_compare_binding_check_grasu_20260712_123450
+
+./scripts/compare_vitis_resources.py \
+  --label regraph_hwemu_binding_check \
+  --before "$BASE/regraph_sssp_hw_emu_fixed" \
+  --after "$BASE/combined_hw_emu_host_compatible" \
+  --out-dir results/tmp_compare_binding_check_regraph_20260712_123450
+```
+
+Result:
+
+```text
+GraSU baseline vs combined:
+  connectivity binding same-endpoint changes: 0
+  connectivity binding added/removed endpoints: 13/0
+
+ReGraph baseline vs combined:
+  connectivity binding same-endpoint changes: 0
+  connectivity binding added/removed endpoints: 31/0
+```
+
+The added endpoints are the other accelerator's CUs. The same-endpoint count
+of zero means the original GraSU and ReGraph HBM/SLR bindings were preserved in
+the host-compatible combined `hw_emu` link. The final real `hw` evidence should
+be checked with the same field after the current combined build finishes.
