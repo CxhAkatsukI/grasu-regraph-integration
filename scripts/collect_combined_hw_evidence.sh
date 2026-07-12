@@ -49,6 +49,12 @@ abs_path() {
   esac
 }
 
+manifest_value() {
+  local file="$1"
+  local key="$2"
+  awk -F= -v key="${key}" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${file}"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
@@ -75,6 +81,34 @@ if [[ -z "${OUT_ROOT}" ]]; then
   OUT_ROOT="${GRI_ROOT}/results/resource_evidence_$(date +%Y%m%d_%H%M%S)_combined_${TARGET}"
 fi
 
+if [[ -z "${COMBINED_BUILD_ROOT}" ]]; then
+  if [[ "${TARGET}" == "hw_emu" ]]; then
+    COMBINED_BUILD_ROOT="${GRI_ROOT}/.tmp_build/combined_hw_emu_host_compatible"
+  else
+    COMBINED_BUILD_ROOT="${GRI_ROOT}/.tmp_build/combined_hw_coldinit_250mhz"
+  fi
+fi
+
+MANIFEST="${COMBINED_BUILD_ROOT}/manifest.env"
+MANIFEST_GRASU_BUILD_ROOT=""
+MANIFEST_REGRAPH_XCLBIN_DIR=""
+if [[ -f "${MANIFEST}" ]]; then
+  MANIFEST_GRASU_BUILD_ROOT="$(manifest_value "${MANIFEST}" GRASU_BUILD_ROOT)"
+  MANIFEST_REGRAPH_XCLBIN_DIR="$(manifest_value "${MANIFEST}" REGRAPH_XCLBIN_DIR)"
+fi
+
+if [[ -z "${GRASU_BUILD_ROOT}" && -n "${MANIFEST_GRASU_BUILD_ROOT}" ]]; then
+  GRASU_BUILD_ROOT="$(dirname "${MANIFEST_GRASU_BUILD_ROOT}")"
+fi
+if [[ -z "${REGRAPH_BUILD_ROOT}" ]]; then
+  if [[ -n "${MANIFEST_REGRAPH_XCLBIN_DIR}" ]]; then
+    REGRAPH_BUILD_ROOT="$(dirname "${MANIFEST_REGRAPH_XCLBIN_DIR}")"
+  elif [[ "${TARGET}" == "hw_emu" ]]; then
+    REGRAPH_BUILD_ROOT="/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch"
+  else
+    REGRAPH_BUILD_ROOT="/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch"
+  fi
+fi
 if [[ -z "${GRASU_BUILD_ROOT}" ]]; then
   if [[ "${TARGET}" == "hw_emu" ]]; then
     GRASU_BUILD_ROOT="${GRASU_ROOT}/.tmp_build/u55c_hbm_hwemu"
@@ -82,19 +116,10 @@ if [[ -z "${GRASU_BUILD_ROOT}" ]]; then
     GRASU_BUILD_ROOT="${GRASU_ROOT}/.tmp_build/u55c_hbm_hw"
   fi
 fi
-if [[ -z "${REGRAPH_BUILD_ROOT}" ]]; then
-  if [[ "${TARGET}" == "hw_emu" ]]; then
-    REGRAPH_BUILD_ROOT="/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch"
-  else
-    REGRAPH_BUILD_ROOT="/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch"
-  fi
-fi
-if [[ -z "${COMBINED_BUILD_ROOT}" ]]; then
-  if [[ "${TARGET}" == "hw_emu" ]]; then
-    COMBINED_BUILD_ROOT="${GRI_ROOT}/.tmp_build/combined_hw_emu_host_compatible"
-  else
-    COMBINED_BUILD_ROOT="${GRI_ROOT}/.tmp_build/combined_hw_coldinit_250mhz"
-  fi
+
+REGRAPH_LABEL="regraph_sssp_${TARGET}_manifest_baseline"
+if [[ "${REGRAPH_BUILD_ROOT}" == *coldinit* ]]; then
+  REGRAPH_LABEL="regraph_sssp_${TARGET}_coldinit_250mhz"
 fi
 
 if [[ -z "${GRASU_HOST}" ]]; then
@@ -144,12 +169,12 @@ mkdir -p "${OUT_ROOT}"
   --note "GraSU standalone U55C ${TARGET} baseline."
 
 "${SCRIPT_DIR}/collect_vitis_evidence.py" \
-  --label "regraph_sssp_${TARGET}_coldinit_250mhz" \
+  --label "${REGRAPH_LABEL}" \
   --build-root "${REGRAPH_BUILD_ROOT}" \
-  --out-dir "${OUT_ROOT}/regraph_sssp_${TARGET}_coldinit_250mhz" \
+  --out-dir "${OUT_ROOT}/${REGRAPH_LABEL}" \
   --artifact "${REGRAPH_HOST}" \
   --artifact "${REGRAPH_XCLBIN}" \
-  --note "Cold-start ReGraph weighted SSSP ${TARGET} baseline at 250 MHz."
+  --note "ReGraph weighted SSSP ${TARGET} baseline matched to the combined build manifest when available."
 
 "${SCRIPT_DIR}/collect_vitis_evidence.py" \
   --label "grasu_regraph_combined_${TARGET}" \
@@ -168,7 +193,7 @@ mkdir -p "${OUT_ROOT}"
 
 "${SCRIPT_DIR}/compare_vitis_resources.py" \
   --label "regraph_${TARGET}_vs_combined_${TARGET}" \
-  --before "${OUT_ROOT}/regraph_sssp_${TARGET}_coldinit_250mhz" \
+  --before "${OUT_ROOT}/${REGRAPH_LABEL}" \
   --after "${OUT_ROOT}/combined_${TARGET}" \
   --out-dir "${OUT_ROOT}/compare_regraph_${TARGET}_vs_combined"
 
@@ -176,7 +201,7 @@ mkdir -p "${OUT_ROOT}"
   echo "# Combined ${TARGET} Evidence Bundle"
   echo
   echo "- GraSU evidence: \`${OUT_ROOT}/grasu_${TARGET}\`"
-  echo "- ReGraph evidence: \`${OUT_ROOT}/regraph_sssp_${TARGET}_coldinit_250mhz\`"
+  echo "- ReGraph evidence: \`${OUT_ROOT}/${REGRAPH_LABEL}\`"
   echo "- Combined evidence: \`${OUT_ROOT}/combined_${TARGET}\`"
   echo "- GraSU comparison: \`${OUT_ROOT}/compare_grasu_${TARGET}_vs_combined\`"
   echo "- ReGraph comparison: \`${OUT_ROOT}/compare_regraph_${TARGET}_vs_combined\`"
@@ -188,6 +213,9 @@ mkdir -p "${OUT_ROOT}"
   printf -- "- ReGraph host: \`%s\`\n" "${REGRAPH_HOST}"
   printf -- "- ReGraph xclbin: \`%s\`\n" "${REGRAPH_XCLBIN}"
   printf -- "- Combined xclbin: \`%s\`\n" "${COMBINED_XCLBIN}"
+  if [[ -f "${MANIFEST}" ]]; then
+    printf -- "- Combined manifest: \`%s\`\n" "${MANIFEST}"
+  fi
   echo
   echo "## Review Gate"
   echo

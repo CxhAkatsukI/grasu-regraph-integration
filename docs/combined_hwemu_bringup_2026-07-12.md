@@ -245,7 +245,16 @@ Resource evidence already collected for this artifact:
 /home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_130630_combined_hwemu_usercheck
 ```
 
-Same-component review summary:
+That first usercheck compared the old host-compatible combined xclbin against
+the newer cold-start ReGraph standalone baseline. A manifest-aligned evidence
+rerun now uses the ReGraph build root recorded inside the combined build's
+`manifest.env`:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_manifest_aligned_hwemu_check
+```
+
+Same-component review summary from the manifest-aligned evidence:
 
 ```text
 GraSU vs combined:
@@ -256,14 +265,15 @@ GraSU vs combined:
 
 ReGraph vs combined:
   accelerator_util same-component changes: 0
-  hls_top_area same-component changes: 2
-    bigKernelScatterGather_1: FF -71, LUT -289
-    littleKernelScatterGather_1: FF -48, LUT -59
+  hls_top_area same-component changes: 0
   kernel CU count same-kernel changes: 0
   connectivity binding same-endpoint changes: 0
 ```
 
-Fresh combined functional command:
+The earlier two small ReGraph HLS deltas were therefore a baseline mismatch,
+not a same-component resource change in this combined `hw_emu` artifact.
+
+Fresh combined functional command that exposed the mismatch:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
@@ -276,7 +286,7 @@ TIMEOUT_SECONDS=900 ./scripts/finalize_combined_hw_build.sh \
   --smoke-out /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_fresh_20260712_133634
 ```
 
-Fresh combined smoke result:
+Fresh combined smoke result from that command:
 
 ```text
 /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_fresh_20260712_133634
@@ -327,12 +337,50 @@ FATAL_ERROR:
   .pfm_top_wrapper.pfm_top_i.static_region.sim_qdma_0.inst.simulate_single_cycle
 ```
 
-Interpretation: the combined `hw_emu` artifact is valid enough for GraSU to
-load and run successfully, and ReGraph can program the device and create its
-kernels from the same xclbin. The remaining functional blocker is a ReGraph
-runtime/simulator failure on the combined xclbin at the first SSSP superstep.
-This is different from the earlier missing-environment failure; here
-`XCL_EMULATION_MODE`, `EMCONFIG_PATH`, XRT, and Vitis settings were all present.
+Corrected interpretation: the command above mixed a combined xclbin built from
+old ReGraph `fixed_scratch` `.xo` files with the newer cold-start ReGraph host.
+The combined build manifest proves the xclbin came from:
+
+```text
+REGRAPH_XCLBIN_DIR=/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/xclbin_hw_emu_sssp
+```
+
+The failing smoke used:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp
+```
+
+Therefore the ReGraph segfault is not valid evidence against the current
+cold-start combined design. It is evidence that finalization scripts must not
+mix hosts and xclbins from different ReGraph builds.
+
+Script fix:
+
+```text
+scripts/finalize_combined_hw_build.sh
+scripts/collect_combined_hw_evidence.sh
+```
+
+Both scripts now read `manifest.env` from the combined build root. When the
+caller does not explicitly pass a ReGraph host or standalone baseline, the
+scripts derive them from the ReGraph xclbin directory recorded in the manifest.
+Dry-run check for the old host-compatible `hw_emu` artifact now selects:
+
+```text
+regraph_host=/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/host_graph_fpga_sssp
+```
+
+The active real `hw` build is already based on the current cold-start ReGraph
+`.xo` files under:
+
+```text
+/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp
+```
+
+If we need a current cold-start combined `hw_emu` artifact before the real `hw`
+build finishes, use a new build root rather than reusing the old
+`combined_hw_emu_host_compatible` directory.
 
 ## Next hw Steps
 

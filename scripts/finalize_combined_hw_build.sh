@@ -57,6 +57,12 @@ abs_under_root() {
   esac
 }
 
+manifest_value() {
+  local file="$1"
+  local key="$2"
+  awk -F= -v key="${key}" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${file}"
+}
+
 run_cmd() {
   printf '+'
   printf ' %q' "$@"
@@ -96,16 +102,28 @@ esac
 
 BUILD_ROOT="$(abs_under_root "${BUILD_ROOT}")"
 XCLBIN="${BUILD_ROOT}/build/grasu_regraph_combined.${TARGET}.xclbin"
+MANIFEST="${BUILD_ROOT}/manifest.env"
+MANIFEST_GRASU_BUILD_ROOT=""
+MANIFEST_REGRAPH_XCLBIN_DIR=""
+
+if [[ -f "${MANIFEST}" ]]; then
+  MANIFEST_GRASU_BUILD_ROOT="$(manifest_value "${MANIFEST}" GRASU_BUILD_ROOT)"
+  MANIFEST_REGRAPH_XCLBIN_DIR="$(manifest_value "${MANIFEST}" REGRAPH_XCLBIN_DIR)"
+fi
 
 if [[ -z "${GRASU_HOST}" ]]; then
-  if [[ "${TARGET}" == "hw_emu" ]]; then
+  if [[ -n "${MANIFEST_GRASU_BUILD_ROOT}" && -x "$(dirname "${MANIFEST_GRASU_BUILD_ROOT}")/GraSU_host_u55c" ]]; then
+    GRASU_HOST="$(dirname "${MANIFEST_GRASU_BUILD_ROOT}")/GraSU_host_u55c"
+  elif [[ "${TARGET}" == "hw_emu" ]]; then
     GRASU_HOST="${GRASU_ROOT}/.tmp_build/u55c_hbm_hwemu/GraSU_host_u55c"
   else
     GRASU_HOST="${GRASU_ROOT}/.tmp_build/u55c_hbm_hw/GraSU_host_u55c"
   fi
 fi
 if [[ -z "${REGRAPH_HOST}" ]]; then
-  if [[ "${TARGET}" == "hw_emu" ]]; then
+  if [[ -n "${MANIFEST_REGRAPH_XCLBIN_DIR}" && -x "$(dirname "${MANIFEST_REGRAPH_XCLBIN_DIR}")/host_graph_fpga_sssp" ]]; then
+    REGRAPH_HOST="$(dirname "${MANIFEST_REGRAPH_XCLBIN_DIR}")/host_graph_fpga_sssp"
+  elif [[ "${TARGET}" == "hw_emu" ]]; then
     REGRAPH_HOST="/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp"
   else
     REGRAPH_HOST="/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp"
@@ -132,6 +150,11 @@ if [[ ! -e "${XCLBIN}" ]]; then
 fi
 
 echo "combined_xclbin=${XCLBIN}"
+if [[ -f "${MANIFEST}" ]]; then
+  echo "combined_manifest=${MANIFEST}"
+fi
+echo "grasu_host=${GRASU_HOST}"
+echo "regraph_host=${REGRAPH_HOST}"
 run_cmd sha256sum "${XCLBIN}"
 
 if [[ "${SKIP_EVIDENCE}" == "0" ]]; then
