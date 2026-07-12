@@ -73,7 +73,7 @@ ps -eo pid,ppid,etimes,stat,cmd | \
 The build entered hardware compilation successfully:
 
 ```text
-[1/5] Copying fixed ReGraph source into scratch...
+[1/5] Copying current ReGraph source into scratch...
 [2/5] Checking that the scratch contains the gather init fix...
 [3/5] Building ReGraph APP=sssp TARGETS=hw...
 ```
@@ -93,6 +93,8 @@ bigKernelScatterGather passed real hw HLS and produced its .xo
 v++ link command included --kernel_frequency=250
 system_link completed
 vpl started and reached Step synth at 2026-07-12 09:32:26 Asia/Shanghai
+vpl synth completed at 2026-07-12 09:49:06 Asia/Shanghai
+vpl impl started at 2026-07-12 09:49:06 Asia/Shanghai
 ```
 
 Observed HLS Fmax values from the build log:
