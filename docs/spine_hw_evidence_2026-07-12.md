@@ -221,3 +221,22 @@ vivado -log ulp_spine_partconv_rdmaint_kernel_1_0.vds ... ulp_spine_partconv_rdm
 Interpretation: the 150 MHz retry is slow but still alive. The log timestamp is
 advancing and the Vivado synthesis process is consuming CPU and memory. It is
 too early to classify it as failed or stuck.
+
+Follow-up at `2026-07-12 21:42:19 CST`:
+
+```text
+The top-level v++ log still reports 210 of 211 synthesis jobs complete.
+The remaining job is ulp_spine_partconv_rdmaint_kernel_1_0_synth_1.
+That job's runme.log and .vds files were still updating at 21:42.
+The child Vivado log had reached XDC/netlist preparation with peak memory near 96.8 GB.
+```
+
+Additional child-log snapshots:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_hw_monitor_20260712_2139/split_e2e_hw_150/rdmaint_synth_runme_2142.log
+/home/chuxiao/grasu-regraph-integration/results/spine_hw_monitor_20260712_2139/split_e2e_hw_150/rdmaint_synth_vds_2142.log
+```
+
+This supports the current classification as "slow active synthesis" rather
+than a confirmed deadlock.
