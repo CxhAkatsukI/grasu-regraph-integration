@@ -27,6 +27,15 @@ spread      updates spread across vertices; stresses balanced partition traffic
 hot-dest    many sources targeting one destination; stresses gather/min hot spot
 ```
 
+Preset sizes:
+
+```text
+smoke     tiny correctness gate before trusting a new xclbin
+review    small/medium timing matrix for Spine vs GraSU+ReGraph comparison
+capacity  larger GraSU+ReGraph-only probes for maximum supported size and
+          large-graph behavior after smoke/review pass
+```
+
 Why this matters:
 
 ```text
@@ -42,6 +51,7 @@ Spread updates should be the balanced baseline.
 scripts/generate_sssp_benchmark_workloads.py
 scripts/run_grasu_regraph_sssp_sweep.sh
 scripts/summarize_sssp_chain_result.py
+scripts/finalize_combined_hw_build.sh
 scripts/run_spine_builtin_sweep.sh
 scripts/summarize_spine_builtin_result.py
 ```
@@ -154,6 +164,23 @@ REGRAPH_HOST=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_grap
   --combined-xclbin "${COMBINED_XCLBIN}" \
   --out-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_combined_hw_250mhz
 ```
+
+For larger GraSU+ReGraph capacity probes after the review sweep is stable:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/finalize_combined_hw_build.sh \
+  --target hw \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335 \
+  --session combined_hw_coldinit_250mhz_20260712_112335 \
+  --preset capacity \
+  --skip-evidence
+```
+
+The `capacity` preset is intended to answer architecture questions such as:
+how much vertex/edge state the chain can carry, whether low-diameter fanout is
+faster than balanced spread traffic, and how expensive hot-destination gather
+pressure is on larger inputs.
 
 For combined-hardware claims, both hosts must load the same combined xclbin.
 Using only `REGRAPH_XCLBIN=<combined>` while leaving `GRASU_XCLBIN` at its

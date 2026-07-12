@@ -37,6 +37,12 @@ PRESETS: dict[str, list[CaseSpec]] = {
         CaseSpec("medium_star_v65536_u8192", "hot-source", 65536, 8192, 2),
         CaseSpec("medium_spread_v65536_u16384", "spread", 65536, 16384, 32),
     ],
+    "capacity": [
+        CaseSpec("large_star_v1048576_u65536", "hot-source", 1_048_576, 65_536, 2),
+        CaseSpec("large_spread_v262144_u65536", "spread", 262_144, 65_536, 32),
+        CaseSpec("large_hotdst_v262144_u65536", "hot-dest", 262_144, 65_536, 64),
+        CaseSpec("large_chain_v4096", "chain", 4_096, 0, 4_096),
+    ],
 }
 
 

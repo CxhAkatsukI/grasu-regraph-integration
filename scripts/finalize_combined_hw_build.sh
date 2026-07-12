@@ -29,7 +29,8 @@ Options:
   --target hw|hw_emu         Build target. Default: ${TARGET}
   --build-root PATH          Combined build root. Default: ${BUILD_ROOT}
   --session NAME             Optional tmux session name for monitor output.
-  --preset smoke|review      Sweep preset. Default: ${PRESET}
+  --preset smoke|review|capacity
+                             Sweep preset. Default: ${PRESET}
   --evidence-out PATH        Evidence output root.
   --smoke-out PATH           Smoke/sweep output root.
   --grasu-host PATH          GraSU host. Default is derived from --target.
@@ -89,7 +90,7 @@ case "${TARGET}" in
 esac
 
 case "${PRESET}" in
-  smoke|review) ;;
+  smoke|review|capacity) ;;
   *) echo "Invalid --preset: ${PRESET}" >&2; exit 2 ;;
 esac
 
