@@ -20,7 +20,13 @@ Important caveat:
 ```
 
 Therefore, review evidence is stored in the ReGraph `.tmp_doc` directory and the
-latest gather initialization patch is mirrored in this integration repository:
+latest gather cold-start initialization patch is mirrored in this integration repository:
+
+```text
+patches/regraph_gather_cold_start_init_20260712.diff
+```
+
+The older always-clear patch remains useful as historical evidence only:
 
 ```text
 patches/regraph_gather_uram_init_fix_20260712.diff
@@ -118,15 +124,16 @@ The old little/big gather code cleared `dst_tmp_prop_buffer` only under
 active-looking values. For SSSP min-reduction, this can dominate the result with
 an incorrect zero-distance update.
 
-Applied fix:
+Initial applied fix:
 
 ```text
 /home/chuxiao/ReGraph/acc_template/kernel_little_gs/acc_gather.h
 /home/chuxiao/ReGraph/acc_template/kernel_big_gs/acc_gather.h
 ```
 
-The initialization now runs for sw_emu, hw_emu, and hw, with an explicit
-`initDstTmpProp` loop label and `PIPELINE II=1`.
+The first fixed-source version made `initDstTmpProp` run for sw_emu, hw_emu, and
+hw, with an explicit loop label and `PIPELINE II=1`. It proved the correctness
+issue but added a large per-superstep reset cost to the hardware path.
 
 Fixed-source hw_emu has now been rebuilt and passed the tiny weighted SSSP run:
 
@@ -229,6 +236,94 @@ host:
 xclbin:
   /home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
   sha256 e0068aabae0e2547117abd37d291d4ff561be4f2c0591ce994d80d7a3332347f
+```
+
+## Current Cold-start Reset Version
+
+The current ReGraph source no longer clears the gather temporary-property URAM
+on every hardware invocation. Instead, the host passes a new scalar control
+argument, `reset_tmp_prop`, to both little and big scatter/gather kernels:
+
+```text
+reset_tmp_prop = (super_step == 0)
+```
+
+Current source files touched:
+
+```text
+/home/chuxiao/ReGraph/acc_template/kernel_little_gs/acc_gather.h
+/home/chuxiao/ReGraph/acc_template/kernel_little_gs/kernel_scatter_gather.cpp
+/home/chuxiao/ReGraph/acc_template/kernel_big_gs/acc_gather.h
+/home/chuxiao/ReGraph/acc_template/kernel_big_gs/kernel_scatter_gather.cpp
+/home/chuxiao/ReGraph/host/host.cpp
+```
+
+Important detail:
+
+```text
+SW_EMU keeps clearing every call to preserve the C-simulation behavior.
+hw_emu/hw clear only when reset_tmp_prop is true.
+```
+
+An intermediate attempt used a static `dst_tmp_prop_initialized` flag inside the
+HLS dataflow region. That failed `hw_emu` HLS with a dataflow feedback
+dependence on the static variable, so it was abandoned.
+
+The current cold-start reset source was rebuilt in `hw_emu` and passed the tiny
+weighted SSSP functional smoke test:
+
+```text
+scratch:  /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch
+evidence: /home/chuxiao/ReGraph/.tmp_doc/evidence_sssp_hw_emu_coldinit_20260712_0900
+bundle:   /home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_091237_regraph_coldinit_hwemu/regraph_sssp_hw_emu_coldinit
+```
+
+Build/test command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/build_regraph_sssp.sh \
+  --target hw_emu \
+  --run-tiny \
+  --scratch /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch \
+  --evidence-dir /home/chuxiao/ReGraph/.tmp_doc/evidence_sssp_hw_emu_coldinit_20260712_0900
+```
+
+Cold-start `hw_emu` artifact hashes:
+
+```text
+host:
+  /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp
+  sha256 9ceb054575e63aa9c6b045875eae2de205e14788a1f211c9116b411df4fed8c8
+
+xclbin:
+  /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+  sha256 5d63557f6a15d8c3ecc25e0fcbf62bb61df1bf04ef29d3c3b8393b4007662f67
+```
+
+Validation summary:
+
+```text
+mismatch_count=0
+Device[0]: program successful!
+Supersteps: 4
+Starting superstep 1/4
+Starting superstep 2/4
+Starting superstep 3/4
+Starting superstep 4/4
+Processed edges: 8; Graph edges: 5
+All the simulator processes exited successfully
+```
+
+HLS top-module area from the cold-start `hw_emu` evidence:
+
+```text
+bigKernelScatterGather:    FF=78689, LUT=66736, BRAM=44,  URAM=64, DSP=0
+littleKernelScatterGather: FF=31199, LUT=44240, BRAM=143, URAM=64, DSP=0
+kernelApply:               FF=12465, LUT=7402,  BRAM=30,  URAM=0,  DSP=0
+kernelHBMWrapper:          FF=49696, LUT=11889, BRAM=60,  URAM=0,  DSP=0
+kernelBigGSMerger:         FF=522,   LUT=582,   BRAM=0,   URAM=0,  DSP=0
+kernelLittleGSMerger:      FF=751,   LUT=6141,  BRAM=0,   URAM=0,  DSP=0
 ```
 
 ## Old-source HW Build Caveat
@@ -341,11 +436,12 @@ The CrashLog stack points into Vivado timing-report generation
 also says constraints are not met, so this should be treated as real `hw`
 failure evidence, not as a timing-closed hardware artifact.
 
-To close ReGraph weighted SSSP item 1:
+The current `hw_emu` functional status is good. To close ReGraph weighted SSSP
+item 1 on real hardware:
 
 ```text
-1. fix or relax the fixed-source real `hw` timing/build issue
-2. rebuild hw from the same fixed source
+1. rebuild real hw from the current cold-start reset source
+2. if the default clock fails timing again, retry with an explicit lower kernel frequency
 3. collect xclbin, host, link summary, system estimates, routed utilization and timing
 4. run a tiny or small weighted SSSP hardware smoke test if board access is available
 ```
@@ -356,6 +452,7 @@ Reusable build helper:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/build_regraph_sssp.sh --target hw_emu --run-tiny
 ./scripts/build_regraph_sssp.sh --target hw
+./scripts/build_regraph_sssp.sh --target hw --kernel-frequency-mhz 250
 ```
 
 Only after that should the GraSU + ReGraph combined hardware build be treated as

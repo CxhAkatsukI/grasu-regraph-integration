@@ -91,6 +91,17 @@ ReGraph weighted SSSP fixed-source `hw_emu`:
   --note 'ReGraph weighted SSSP fixed-source hw_emu build; tiny weighted SSSP passed.'
 ```
 
+ReGraph weighted SSSP cold-start reset `hw_emu`:
+
+```bash
+./scripts/collect_vitis_evidence.py \
+  --label regraph_sssp_hw_emu_coldinit \
+  --build-root /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch \
+  --out-dir "$BASE/regraph_sssp_hw_emu_coldinit" \
+  --artifact /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp \
+  --note 'ReGraph weighted SSSP hw_emu with host-controlled reset_tmp_prop cold-start gather initialization; tiny weighted SSSP passed.'
+```
+
 ReGraph old-source `hw` complete build, resource/timing only:
 
 ```bash
@@ -198,6 +209,46 @@ kernelBigGSMerger:          1 CU
 ReGraph fixed-source `hw_emu` does not provide placed/routed utilization,
 because it is not a real `hw` implementation. Its current evidence is HLS/system
 estimate plus the successful tiny weighted SSSP `hw_emu` run.
+
+Latest cold-start reset `hw_emu` evidence:
+
+```text
+/home/chuxiao/ReGraph/.tmp_doc/evidence_sssp_hw_emu_coldinit_20260712_0900
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_091237_regraph_coldinit_hwemu/regraph_sssp_hw_emu_coldinit
+```
+
+Latest cold-start reset artifact hashes:
+
+```text
+host:
+  /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp
+  sha256 9ceb054575e63aa9c6b045875eae2de205e14788a1f211c9116b411df4fed8c8
+
+xclbin:
+  /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+  sha256 5d63557f6a15d8c3ecc25e0fcbf62bb61df1bf04ef29d3c3b8393b4007662f67
+```
+
+Latest cold-start reset run summary:
+
+```text
+mismatch_count=0
+Device[0]: program successful!
+Supersteps: 4
+Processed edges: 8; Graph edges: 5
+All the simulator processes exited successfully
+```
+
+Latest cold-start reset HLS top-module area:
+
+```text
+bigKernelScatterGather:    FF=78689, LUT=66736, BRAM=44,  URAM=64, DSP=0
+littleKernelScatterGather: FF=31199, LUT=44240, BRAM=143, URAM=64, DSP=0
+kernelApply:               FF=12465, LUT=7402,  BRAM=30,  URAM=0,  DSP=0
+kernelHBMWrapper:          FF=49696, LUT=11889, BRAM=60,  URAM=0,  DSP=0
+kernelBigGSMerger:         FF=522,   LUT=582,   BRAM=0,   URAM=0,  DSP=0
+kernelLittleGSMerger:      FF=751,   LUT=6141,  BRAM=0,   URAM=0,  DSP=0
+```
 
 Latest fixed-source `hw_emu` functional recheck evidence:
 

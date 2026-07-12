@@ -13,6 +13,7 @@ SOURCE_VERTEX=0
 SUPERSTEPS=4
 NUM_DENSE=1
 CONTAINER_IMAGE="${CONTAINER_IMAGE:-vivado-runner:22.04-feiyang}"
+KERNEL_FREQUENCY_MHZ=""
 
 usage() {
   cat <<USAGE
@@ -30,6 +31,8 @@ Options:
   --source-vertex N           REGRAPH_SOURCE for --run-tiny. Default: ${SOURCE_VERTEX}
   --supersteps N              Supersteps for --run-tiny. Default: ${SUPERSTEPS}
   --num-dense N               ReGraph numD argument for --run-tiny. Default: ${NUM_DENSE}
+  --kernel-frequency-mhz N    Append --kernel_frequency=N to scratch CLFLAGS/LDCLFLAGS.
+                              Useful for timing-closure experiments; leaves source tree unchanged.
   -h, --help                  Show this help.
 USAGE
 }
@@ -51,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --source-vertex) SOURCE_VERTEX="$2"; shift 2 ;;
     --supersteps) SUPERSTEPS="$2"; shift 2 ;;
     --num-dense) NUM_DENSE="$2"; shift 2 ;;
+    --kernel-frequency-mhz) KERNEL_FREQUENCY_MHZ="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -95,11 +99,38 @@ rg -n "initDstTmpProp|#ifdef SW_EMU" \
   "${SCRATCH}/acc_template/kernel_little_gs/acc_gather.h" \
   "${SCRATCH}/acc_template/kernel_big_gs/acc_gather.h" \
   | tee "${EVIDENCE_DIR}/source_check.txt"
-if rg -n "^[[:space:]]*#ifdef SW_EMU" \
-  "${SCRATCH}/acc_template/kernel_little_gs/acc_gather.h" \
-  "${SCRATCH}/acc_template/kernel_big_gs/acc_gather.h" >/dev/null; then
+if awk '
+  /^[[:space:]]*#ifdef SW_EMU/ { guard_line = NR }
+  /initDstTmpProp:/ && guard_line && NR - guard_line <= 2 { bad = 1 }
+  END { exit bad ? 0 : 1 }
+' "${SCRATCH}/acc_template/kernel_little_gs/acc_gather.h" \
+  "${SCRATCH}/acc_template/kernel_big_gs/acc_gather.h"; then
   echo "The scratch still has an active SW_EMU-only gather init guard." >&2
   exit 1
+fi
+
+if [[ -n "${KERNEL_FREQUENCY_MHZ}" ]]; then
+  if ! [[ "${KERNEL_FREQUENCY_MHZ}" =~ ^[0-9]+$ ]]; then
+    echo "Invalid --kernel-frequency-mhz: ${KERNEL_FREQUENCY_MHZ}" >&2
+    exit 2
+  fi
+  cat >> "${SCRATCH}/host/host.mk" <<EOF
+
+# Added by scripts/build_regraph_sssp.sh for a reproducible timing experiment.
+CLFLAGS += --kernel_frequency=${KERNEL_FREQUENCY_MHZ}
+LDCLFLAGS += --kernel_frequency=${KERNEL_FREQUENCY_MHZ}
+EOF
+  {
+    echo "target=${TARGET}"
+    echo "kernel_frequency_mhz=${KERNEL_FREQUENCY_MHZ}"
+    echo "scratch=${SCRATCH}"
+  } > "${EVIDENCE_DIR}/build_options.txt"
+else
+  {
+    echo "target=${TARGET}"
+    echo "kernel_frequency_mhz=default"
+    echo "scratch=${SCRATCH}"
+  } > "${EVIDENCE_DIR}/build_options.txt"
 fi
 
 echo "[3/5] Building ReGraph APP=sssp TARGETS=${TARGET}..."

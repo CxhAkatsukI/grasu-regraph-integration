@@ -1,0 +1,148 @@
+--- a/acc_template/kernel_little_gs/acc_gather.h
++++ b/acc_template/kernel_little_gs/acc_gather.h
+@@ -16,7 +16,8 @@
+     //uint32_t                    part_dst_offset,
+     ap_uint<32>                 part_edge_num,
+     hls::stream<update_set_dt>  &update_set_stm,
+-    hls::stream<ap_uint<64>>    (&tmp_prop_stm)[GATHER_PE_NUM]
++    hls::stream<ap_uint<64>>    (&tmp_prop_stm)[GATHER_PE_NUM],
++    bool                        reset_tmp_prop
+ ){
+ 
+     // as we can buffer two vertices in one row with width of 64-bit, we can let the depth go as MAX_VERTICES_IN_ONE_PARTITION / 2.
+@@ -26,6 +27,12 @@
+ #pragma HLS BIND_STORAGE variable = dst_tmp_prop_buffer type = RAM_S2P impl = URAM
+ #pragma HLS dependence variable=dst_tmp_prop_buffer inter false
+ 
++#ifdef SW_EMU
++    const bool should_reset_tmp_prop = true;
++#else
++    const bool should_reset_tmp_prop = reset_tmp_prop;
++#endif
++    if (should_reset_tmp_prop) {
+     initDstTmpProp:
+     for (int i = 0; i < (LITTLE_KERNEL_DST_BUFFER_SIZE >> 1); i ++){
+     #pragma HLS PIPELINE II=1
+@@ -35,6 +42,7 @@
+             dst_tmp_prop_buffer[j][i].range(63,32) = 0;
+         }
+     }
++    }
+ 
+     ap_uint<64> last_value[GATHER_PE_NUM][L + 1]; // we do not init it at this version. 
+     uint last_index[GATHER_PE_NUM][L + 1];     // we do not init it at this version. 
+--- a/acc_template/kernel_little_gs/kernel_scatter_gather.cpp
++++ b/acc_template/kernel_little_gs/kernel_scatter_gather.cpp
+@@ -25,6 +25,7 @@
+         uint             part_edge_num,
+         uint             compressed_group_count,
+         uint             part_dst_offset,
++        bool             reset_tmp_prop,
+         hls::stream<l_ppb_request_pkt>    &l_ppb_request_stm,
+         hls::stream<l_ppb_response_pkt>   &l_ppb_response_stm,
+         hls::stream<l_tmp_prop_pkt> &l_tmp_prop_stm
+@@ -46,6 +47,7 @@
+ #pragma HLS INTERFACE s_axilite port=part_edge_num        bundle=control
+ #pragma HLS INTERFACE s_axilite port=compressed_group_count bundle=control
+ #pragma HLS INTERFACE s_axilite port=part_dst_offset      bundle=control
++#pragma HLS INTERFACE s_axilite port=reset_tmp_prop      bundle=control
+ #pragma HLS INTERFACE s_axilite port=return         bundle=control
+ 
+         hls::stream<edge_burst_dt>           edge_burst_stm;
+@@ -155,7 +157,7 @@
+         KDEBUG_PRINTF("[KDEBUG] little: accGather begin\n");
+ #endif
+ 
+-        accGather(part_edge_num, update_set_stm, tmp_prop_stm);
++        accGather(part_edge_num, update_set_stm, tmp_prop_stm, reset_tmp_prop);
+ #ifdef SW_EMU
+         KDEBUG_PRINTF("[KDEBUG] little: accGather done\n");
+         KDEBUG_PRINTF("[KDEBUG] little: mergeWriteResults begin\n");
+--- a/acc_template/kernel_big_gs/acc_gather.h
++++ b/acc_template/kernel_big_gs/acc_gather.h
+@@ -267,20 +267,31 @@
+     //ap_uint<64> dst_tmp_prop_buffer[(BIG_KERNEL_DST_BUFFER_SIZE >> 1) >> LOG2_GATHER_PE_NUM],    
+     hls::stream<update_tuple_dt> &update_tuple_stm,
+     hls::stream<ap_uint<64>> &tmp_prop_stm,
+-    uint32_t                 part_dst_offset
++    uint32_t                 part_dst_offset,
++    int                      gather_pe_id,
++    bool                     reset_tmp_prop
+ ){
++#pragma HLS function_instantiate variable=gather_pe_id
++    (void)gather_pe_id;
+ //#pragma HLS function_instantiate variable=update_tuple_stm
+ // as we can buffer two vertices in one row with width of 64-bit, we can let the depth go as MAX_VERTICES_IN_ONE_PARTITION / 2.
+     ap_uint<64> dst_tmp_prop_buffer[(BIG_KERNEL_DST_BUFFER_SIZE >> 1) >> LOG2_GATHER_PE_NUM]; 
+ #pragma HLS BIND_STORAGE variable = dst_tmp_prop_buffer type = RAM_2P impl = URAM
+ #pragma HLS dependence variable=dst_tmp_prop_buffer inter false
+ 
++#ifdef SW_EMU
++    const bool should_reset_tmp_prop = true;
++#else
++    const bool should_reset_tmp_prop = reset_tmp_prop;
++#endif
++    if (should_reset_tmp_prop) {
+     initDstTmpProp:
+     for (int i = 0; i < ((BIG_KERNEL_DST_BUFFER_SIZE >> 1) >> LOG2_GATHER_PE_NUM); i ++){
+     #pragma HLS PIPELINE II=1
+             dst_tmp_prop_buffer[i].range(31,0) = 0;
+             dst_tmp_prop_buffer[i].range(63,32) = 0;
+     }
++    }
+ 
+     ap_uint<64> last_value[L + 1]; // we do not init it at this version. 
+     uint last_index[L + 1];     // we do not init it at this version. 
+--- a/acc_template/kernel_big_gs/kernel_scatter_gather.cpp
++++ b/acc_template/kernel_big_gs/kernel_scatter_gather.cpp
+@@ -19,6 +19,7 @@
+         uint             part_edge_num,
+         uint             compressed_group_count,
+         uint             part_dst_offset,        // the offset of destination vertices buffered in current gs kernel. e.g., 0 to 0 + BUFFERED_MAX_NUM_VERTEX
++        bool             reset_tmp_prop,
+         hls::stream<b_cacheline_request_pkt>    &b_cacheline_request_stm,
+         hls::stream<b_cacheline_response_pkt>   &b_cacheline_response_stm,
+         hls::stream<b_tmp_prop_pkt>   &b_tmp_prop_stm
+@@ -39,6 +40,7 @@
+ #pragma HLS INTERFACE s_axilite port=part_edge_num        bundle=control
+ #pragma HLS INTERFACE s_axilite port=compressed_group_count bundle=control
+ #pragma HLS INTERFACE s_axilite port=part_dst_offset      bundle=control
++#pragma HLS INTERFACE s_axilite port=reset_tmp_prop      bundle=control
+ #pragma HLS INTERFACE s_axilite port=return         bundle=control
+ 
+ 
+@@ -232,7 +234,7 @@
+         for(int i = 0; i < GATHER_PE_NUM; i++)
+         {
+         #pragma HLS UNROLL
+-            accGather(update_tuple_stm_l3[i], tmp_prop_stm[i], part_dst_offset);
++            accGather(update_tuple_stm_l3[i], tmp_prop_stm[i], part_dst_offset, i, reset_tmp_prop);
+         }
+         writeResults(tmp_prop_stm, part_dst_offset, b_tmp_prop_stm);
+     }
+--- a/host/host.cpp
++++ b/host/host.cpp
+@@ -122,6 +122,7 @@
+     {
+         std::cout << "[INFO] Starting superstep " << (super_step + 1)
+                   << "/" << num_super_step << std::endl;
++        bool reset_tmp_prop = (super_step == 0);
+         // enqueue the hbm wrapper kernel 
+         int argvi = 0;
+         for (int i = 0; i < NUM_KERNEL; i ++){
+@@ -165,6 +166,7 @@
+                 OCL_CHECK(err, err = acc.little_gs_krnls[krnl_id].setArg(2, compressed_group_count));
+ #endif
+                 OCL_CHECK(err, err = acc.little_gs_krnls[krnl_id].setArg(3, part_dst_offset));
++                OCL_CHECK(err, err = acc.little_gs_krnls[krnl_id].setArg(4, reset_tmp_prop));
+                 // Invoking the kernel
+                 DEBUG_PRINTF("%dth DP: %dth subP -> CU %d : %d edges (%0.2f%%)...\n", i, subpart_id, krnl_id, part_edge_num, double(part_edge_num)/num_edge*100);
+                 OCL_CHECK(err, err = acc.little_gs_queue[krnl_id].enqueueTask(acc.little_gs_krnls[krnl_id], NULL, &partition_container.DP[i].subP[subpart_id].event));                
+@@ -190,6 +192,7 @@
+                 OCL_CHECK(err, err = acc.big_gs_krnls[krnl_id- LITTLE_KERNEL_NUM].setArg(2, compressed_group_count));
+ #endif
+                 OCL_CHECK(err, err = acc.big_gs_krnls[krnl_id- LITTLE_KERNEL_NUM].setArg(3, part_dst_offset));
++                OCL_CHECK(err, err = acc.big_gs_krnls[krnl_id- LITTLE_KERNEL_NUM].setArg(4, reset_tmp_prop));
+                 // Invoking the kernel
+                 OCL_CHECK(err, err = acc.big_gs_queue[krnl_id - LITTLE_KERNEL_NUM].enqueueTask(acc.big_gs_krnls[krnl_id - LITTLE_KERNEL_NUM], NULL, &partition_container.SP[i].subP[subpart_id].event));                
+             }
