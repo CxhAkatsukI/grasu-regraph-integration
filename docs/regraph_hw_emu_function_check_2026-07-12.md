@@ -106,6 +106,27 @@ INFO: [HW-EMU 06-1] All the simulator processes exited successfully
 mismatch_count=0
 ```
 
+Fresh local rerun for artifact/function inspection:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_function_check_20260712_111222_fresh
+```
+
+The fresh rerun copied the host, xclbin, and dataset into an isolated
+`run_work` directory and completed all four supersteps. It printed
+`Device[0]: program successful!`, `Processed edges: 8; Graph edges: 5`, and
+`All the simulator processes exited successfully`, with no `mismatch` lines.
+This rerun did not copy `emconfig.json` into the isolated run directory, so XRT
+printed `Unable to find emconfig.json` and used its default hw-em device model.
+The functional result still matches the earlier clean repeat check above; use
+the clean repeat check command for final reproducibility.
+
+Fresh evidence bundle:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_111630_regraph_hwemu_fresh_function/regraph_sssp_hw_emu_coldinit
+```
+
 The repeated run used the same artifact hashes:
 
 ```text
