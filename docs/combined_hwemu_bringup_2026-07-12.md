@@ -187,6 +187,31 @@ ReGraph baseline vs combined:
 This is `hw_emu`, so there is no placed/routed utilization. Final resource
 claims still require real `hw` evidence.
 
+Automation added after this bring-up:
+
+```text
+/home/chuxiao/grasu-regraph-integration/scripts/collect_combined_hw_evidence.sh
+```
+
+The script collects standalone GraSU, standalone ReGraph, and combined xclbin
+evidence in one bundle, then runs both resource comparisons. A `hw_emu` smoke
+of that script was written to:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_104941_combined_hwemu_script_smoke2
+```
+
+That smoke intentionally compares the latest cold-start ReGraph `hw_emu`
+standalone artifact against the older host-compatible combined `hw_emu` xclbin,
+whose manifest still points to:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/xclbin_hw_emu_sssp
+```
+
+Therefore its small ReGraph HLS differences are a useful regression-test of the
+comparison flow, not a final combined-resource conclusion.
+
 ## Next hw Steps
 
 Cold-start ReGraph real `hw` artifacts are still the missing prerequisite for
@@ -312,6 +337,7 @@ mkdir -p "$BASE"
   --build-root /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch \
   --out-dir "$BASE/regraph_sssp_hw_coldinit_250mhz" \
   --artifact /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \
+  --artifact /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin \
   --note 'Cold-start ReGraph weighted SSSP real hw build at 250 MHz.'
 ```
 
@@ -329,39 +355,11 @@ cd /home/chuxiao/grasu-regraph-integration
 After real `hw` completes, collect and compare evidence:
 
 ```bash
-BASE=results/resource_evidence_$(date +%Y%m%d_%H%M%S)_combined_hw
-mkdir -p "$BASE"
-
-./scripts/collect_vitis_evidence.py \
-  --label grasu_hw_u55c \
-  --build-root /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw \
-  --out-dir "$BASE/grasu_hw" \
-  --artifact /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw/GraSU_host_u55c \
-  --note 'GraSU standalone U55C hw baseline.'
-
-./scripts/collect_vitis_evidence.py \
-  --label regraph_sssp_hw_coldinit_250mhz \
-  --build-root /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch \
-  --out-dir "$BASE/regraph_sssp_hw_coldinit_250mhz" \
-  --artifact /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \
-  --note 'Cold-start ReGraph weighted SSSP real hw baseline at 250 MHz.'
-
-./scripts/collect_vitis_evidence.py \
-  --label grasu_regraph_combined_hw \
-  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz \
-  --out-dir "$BASE/combined_hw" \
-  --artifact /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz/build/grasu_regraph_combined.hw.xclbin \
-  --note 'Combined GraSU + ReGraph weighted SSSP real hw xclbin.'
-
-./scripts/compare_vitis_resources.py \
-  --label grasu_hw_vs_combined_hw \
-  --before "$BASE/grasu_hw" \
-  --after "$BASE/combined_hw" \
-  --out-dir "$BASE/compare_grasu_hw_vs_combined"
-
-./scripts/compare_vitis_resources.py \
-  --label regraph_hw_vs_combined_hw \
-  --before "$BASE/regraph_sssp_hw_coldinit_250mhz" \
-  --after "$BASE/combined_hw" \
-  --out-dir "$BASE/compare_regraph_hw_vs_combined"
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/collect_combined_hw_evidence.sh --target hw
 ```
+
+The resulting top-level `README.md` points to the exact standalone and combined
+evidence bundles plus both comparison summaries. Same-component HLS,
+accelerator-utilization, or CU-count changes must be explained before using the
+combined xclbin for final performance claims.

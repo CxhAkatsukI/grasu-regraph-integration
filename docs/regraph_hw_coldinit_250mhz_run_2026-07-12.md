@@ -184,6 +184,8 @@ post-run analysis:
 ```text
 Intermediate Timing Summary: WNS=-0.021 ns, TNS=-0.173 ns, WHS=-0.178 ns, THS=-65.556 ns
 Intermediate Timing Summary: WNS=-0.021 ns, TNS=-0.064 ns, WHS=-0.186 ns, THS=-111.286 ns
+Intermediate Timing Summary: WNS=-0.098 ns, TNS=-0.393 ns, WHS=N/A, THS=N/A
+Intermediate Timing Summary: WNS=-0.017 ns, TNS=-0.132 ns, WHS=0.008 ns, THS=0.000 ns
 Local routing congestion detected: at least 372 CLBs have high pin utilization
 Estimated Global/Short routing congestion: level 5 (32x32)
 High bus-skew violations detected during initial routing
@@ -192,6 +194,11 @@ High bus-skew violations detected during initial routing
 These are intermediate route values. The final judgment still depends on
 routed timing, post-route physical optimization, and bitstream/xclbin
 generation.
+
+As of the latest check, the Vivado process is still active in route. The hold
+side has improved to non-negative WHS/THS in the most recent intermediate
+summary, but setup still has small negative slack and must not be treated as
+closed until final routed timing is emitted.
 
 ## Completion Criteria
 

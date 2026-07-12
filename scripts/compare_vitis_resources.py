@@ -183,6 +183,20 @@ def main() -> int:
             summary.append(
                 f"| {row.get('name')} | {row.get('state')} | {row.get('delta_lut')} | {row.get('delta_reg')} | {row.get('delta_bram')} | {row.get('delta_uram')} | {row.get('delta_dsp')} |"
             )
+    if changed_hls[:20]:
+        summary.extend(
+            [
+                "",
+                "## Same-Component HLS Top Area Changes",
+                "",
+                "| Kernel | Compute Unit | Delta FF | Delta LUT | Delta BRAM | Delta URAM | Delta DSP |",
+                "| ------ | ------------ | -------- | --------- | ---------- | ---------- | --------- |",
+            ]
+        )
+        for row in changed_hls[:20]:
+            summary.append(
+                f"| {row.get('kernel')} | {row.get('compute_unit')} | {row.get('delta_ff')} | {row.get('delta_lut')} | {row.get('delta_bram')} | {row.get('delta_uram')} | {row.get('delta_dsp')} |"
+            )
     if changed_cu[:20]:
         summary.extend(["", "## Same-Kernel CU Count Changes", "", "| Kernel | State | Before | After | Delta |", "| ------ | ----- | ------ | ----- | ----- |"])
         for row in changed_cu[:20]:
