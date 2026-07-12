@@ -101,6 +101,8 @@ placement reached global placement phase 2.1.1.4 at 2026-07-12 10:06:22 Asia/Sha
 global placement core completed at 2026-07-12 10:19:04 Asia/Shanghai
 detail placement completed at 2026-07-12 10:23:08 Asia/Shanghai
 post-placement optimization started at 2026-07-12 10:23:08 Asia/Shanghai
+place_design completed successfully at 2026-07-12 10:28:02 Asia/Shanghai
+placed kernel utilization report was generated at 2026-07-12 10:28:03 Asia/Shanghai
 ```
 
 Observed HLS Fmax values from the build log:
@@ -151,6 +153,16 @@ bigKernelScatterGather_1:    SLR1
 Treat the warning as an item to preserve in evidence, not as a current failure.
 The final routed reports should be used to confirm the actual physical
 placement and timing.
+
+Placed-stage timing is close but not final:
+
+```text
+Estimated Timing Summary: WNS=-0.006 ns, TNS=-0.049 ns
+Post Placement Timing Summary: WNS=-0.006 ns
+```
+
+Do not use these values as final timing closure evidence. Route and post-route
+physical optimization may still change timing materially.
 
 ## Completion Criteria
 
