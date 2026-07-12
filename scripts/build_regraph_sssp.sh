@@ -31,7 +31,7 @@ Options:
   --source-vertex N           REGRAPH_SOURCE for --run-tiny. Default: ${SOURCE_VERTEX}
   --supersteps N              Supersteps for --run-tiny. Default: ${SUPERSTEPS}
   --num-dense N               ReGraph numD argument for --run-tiny. Default: ${NUM_DENSE}
-  --kernel-frequency-mhz N    Append --kernel_frequency=N to scratch CLFLAGS/LDCLFLAGS.
+  --kernel-frequency-mhz N    Append --kernel_frequency=N to scratch LDCLFLAGS.
                               Useful for timing-closure experiments; leaves source tree unchanged.
   -h, --help                  Show this help.
 USAGE
@@ -117,7 +117,6 @@ if [[ -n "${KERNEL_FREQUENCY_MHZ}" ]]; then
   cat >> "${SCRATCH}/host/host.mk" <<EOF
 
 # Added by scripts/build_regraph_sssp.sh for a reproducible timing experiment.
-CLFLAGS += --kernel_frequency=${KERNEL_FREQUENCY_MHZ}
 LDCLFLAGS += --kernel_frequency=${KERNEL_FREQUENCY_MHZ}
 EOF
   {
