@@ -350,9 +350,32 @@ Interpretation:
 
 ```text
 Spine did not crash here. The large hot-destination input entered a very slow
-maintenance path after the first full batch. This is a separate architecture or
-scheduling optimization target from the ReGraph host verification crash.
+maintenance path after the first full batch. Later offline capacity analysis
+showed that this input exceeds L1 per-destination-partition capacity during
+carry, so it should be treated as a Spine level-layout capacity stress case,
+not as a normal performance timing point.
 ```
+
+Offline capacity classifier:
+
+```text
+/home/chuxiao/grasu-regraph-integration/scripts/analyze_spine_edge_capacity.py
+```
+
+Capacity classification evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_capacity_analysis_20260712_212825/large_capacity_verifyfix_capacity.tsv
+```
+
+Classification:
+
+| case | classification | note |
+| --- | --- | --- |
+| large_chain_v4096 | FITS | Valid Spine capacity/performance point. |
+| large_hotdst_v262144_u65536 | UNSUPPORTED_CAPACITY | Fails L1 partition capacity: partition 0 needs 262144 edges, capacity is 16384. |
+| large_spread_v262144_u65536 | UNSUPPORTED_CAPACITY | Same partition-capacity issue under current vertex-id placement. |
+| large_star_v1048576_u65536 | UNSUPPORTED_CAPACITY | Same partition-capacity issue under current vertex-id placement. |
 
 ## Spine Batch-Threshold Follow-Up
 
@@ -372,8 +395,8 @@ Key result:
 
 ```text
 One-batch edge files pass, including hot-destination inputs up to 131071 edges.
-As soon as the edge file crosses the 131072-edge batch boundary, the current
-edge-file path becomes unreliable:
+The original concentrated chain/hot-destination threshold files fail as soon as
+they cross the 131072-edge batch boundary:
 
 chain_v131074_e131073:
   one full batch + one edge; batch 2 maintenance timed out.
@@ -385,9 +408,10 @@ hotdst_v98304_u32770_e131073:
 Interpretation:
 
 ```text
-The large hot-destination symptom is primarily a multi-batch / level-carry
-issue in the current Spine edge-file path, not only a hot-destination reduction
-hotspot.
+The earlier "multi-batch / level-carry issue" phrasing was too broad. Follow-up
+balanced 131072+1 edge-file probes pass on split-CU, while one-partition
+131072+1 probes fail. The more precise issue is per-destination-partition
+capacity during level carry.
 ```
 
 ## Current Conclusions
@@ -402,10 +426,11 @@ hotspot.
 4. GraSU+ReGraph large low-diameter cases show strong ReGraph kernel throughput
    with full verification passing, while the high-diameter chain remains slow
    because it requires thousands of supersteps.
-5. Spine's large hot-destination path is a separate slow-maintenance issue:
-   the board stays responsive, but maintenance does not finish in a practical
-   time for the tested batch. Follow-up threshold probing narrows this to the
-   edge-file multi-batch / level-carry path.
+5. Spine's large hot-destination path is a separate level-layout capacity issue:
+   the board stays responsive, but the tested graph concentrates too many edges
+   into one destination partition for L1 carry. Follow-up threshold and offline
+   capacity probes narrow this to per-destination-partition capacity, not a
+   generic second-batch failure.
 ```
 
 ## Next Work
@@ -413,6 +438,6 @@ hotspot.
 ```text
 1. Fold the ReGraph verification buffer-size patch into the source branch used
    for future builds, not only the local hard-linked working copy.
-2. Debug Spine edge-file multi-batch level-carry behavior around the 131072-edge
-   boundary.
+2. Use the offline capacity classifier before running future Spine comparisons,
+   and separate FITS timing cases from UNSUPPORTED_CAPACITY layout stress cases.
 ```

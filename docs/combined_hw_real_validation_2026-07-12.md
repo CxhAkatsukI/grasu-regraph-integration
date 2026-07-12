@@ -575,14 +575,13 @@ Capacity findings:
    hot-destination 245.134 MTEPS.
 3. ReGraph large_chain_v4096 remains slow, about 1091.32 ms, because the test
    intentionally requires 4096 supersteps.
-4. Spine split large_chain_v4096 passes, but large_hotdst_v262144_u65536 enters
-   a very slow maintenance path: after batch 1 completed in 250.563 ms, batch 2
-   was still RUNNING after 630 s and the run was stopped.
-5. A follow-up threshold scan shows the issue appears immediately after
-   crossing the 131072-edge batch boundary. One-batch hot-destination inputs
-   pass; two-batch inputs either time out in maintenance or fail level-carry
-   diagnostics. The next Spine target is multi-batch/level-carry handling, not
-   hot-destination reduction alone.
+4. Spine split large_chain_v4096 passes, but large_hotdst_v262144_u65536 is not
+   a valid normal timing point for the current Spine level layout: offline
+   capacity analysis shows it exceeds L1 per-destination-partition capacity.
+5. A follow-up threshold scan plus balanced/manual probes narrows the Spine
+   issue: split-CU can carry balanced two-batch inputs, including 131072+1
+   edges. The failing hot-destination/chain-like large cases are better
+   described as per-destination-partition level-capacity stress cases.
 ```
 
 ## Current Status
@@ -612,8 +611,8 @@ Remaining:
    we want it as a permanent source change rather than a scratch patch helper.
 2. Fold the ReGraph verification buffer-size patch into the source branch used
    for future builds, not only the local hard-linked working copy.
-3. Debug Spine edge-file multi-batch level-carry behavior around the 131072-edge
-   boundary.
+3. Use the Spine edge capacity classifier to split future comparison cases into
+   valid FITS timing cases and UNSUPPORTED_CAPACITY layout stress cases.
 4. Decide whether to optimize timing/SLR/HBM placement for a stable requested
    clock, or simply report the current xclbin at its achieved 243.8 MHz clock.
 ```

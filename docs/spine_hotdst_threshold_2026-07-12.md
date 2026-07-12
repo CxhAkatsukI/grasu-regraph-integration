@@ -123,13 +123,13 @@ Interpretation:
 
 ```text
 The threshold is sharply tied to crossing the first 131072-edge batch.
-One-batch edge files pass, including hot-destination inputs. Once a second
-batch is introduced, the current edge-file path either times out in maintenance
-or fails the level-carry diagnostic.
+One-batch edge files pass, including hot-destination inputs. The original
+threshold cases fail once they introduce a second batch, but follow-up balanced
+131072+1 probes show this is not a generic second-batch failure.
 
 Therefore the observed large_hotdst problem is not purely caused by a
-hot-destination reduction hotspot. It is primarily a multi-batch / level-carry
-problem in the current Spine edge-file path.
+hot-destination reduction hotspot. The more precise follow-up conclusion is a
+per-destination-partition capacity/layout issue during level carry.
 ```
 
 ## Single-CU Auxiliary Run

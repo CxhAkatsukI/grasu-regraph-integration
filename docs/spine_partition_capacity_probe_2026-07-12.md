@@ -97,6 +97,74 @@ Without this, the host exits before programming the device with:
 | split edge-file one-partition full+1 | generated `131072+1` edge file, all dst in one partition | FAIL | Hardware reports overflow on batch 2; host expected model did not account for per-partition L1 capacity. |
 | split edge-file balanced full+1 | generated `131072+1` edge file, dst balanced across 16 partitions | PASS | Same two-batch asymmetry passes when per-partition capacity is respected. |
 
+## Offline Capacity Classifier
+
+Added:
+
+```text
+/home/chuxiao/grasu-regraph-integration/scripts/analyze_spine_edge_capacity.py
+```
+
+The script reads Spine edge files, splits raw input rows into `MAX_SORT_N`
+batches, applies the same sort/coalesce rule as the host model, then simulates
+ratio-2 level insertion while checking both:
+
+```text
+level total capacity
+level per-destination-partition capacity
+```
+
+This lets future benchmark tables separate ordinary timing results from inputs
+that the current Spine level layout cannot store.
+
+Validation:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile scripts/analyze_spine_edge_capacity.py
+```
+
+Capacity-analysis evidence root:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_capacity_analysis_20260712_212825
+```
+
+Files:
+
+```text
+review_combined_capacity.tsv
+large_capacity_verifyfix_capacity.tsv
+threshold_capacity.tsv
+manual_probe_capacity.tsv
+manifest.env
+```
+
+Summary:
+
+| group | FITS | UNSUPPORTED_CAPACITY | note |
+| --- | ---: | ---: | --- |
+| review small/medium same-edge workloads | 6 | 0 | Existing strict small/medium performance comparison is structurally valid for Spine. |
+| threshold workloads | 3 | 3 | The three crossing-batch chain/hotdst cases exceed L1 partition capacity. |
+| large capacity workloads | 1 | 3 | `large_chain_v4096` fits; `large_star`, `large_spread`, and `large_hotdst` are partition-capacity stress cases. |
+| manual probes | 1 | 1 | Balanced `131072+1` fits; one-partition `131072+1` does not. |
+
+Representative classifier output:
+
+```text
+split_edge_file_fanout_full_plus_one    UNSUPPORTED_CAPACITY  raw_edges=131073  first_failure_batch=2  failure_level=1  failure_partition=0  failure_partition_edges=131073  failure_partition_capacity=16384
+split_edge_file_balanced_full_plus_one  FITS                  raw_edges=131073  final_edges=131073     final_max_level=1  max_partition_edges=8193
+```
+
+For the existing capacity sweep:
+
+```text
+large_chain_v4096            FITS
+large_hotdst_v262144_u65536  UNSUPPORTED_CAPACITY  failure_partition_edges=262144  failure_partition_capacity=16384
+large_spread_v262144_u65536  UNSUPPORTED_CAPACITY  failure_partition_edges=262144  failure_partition_capacity=16384
+large_star_v1048576_u65536   UNSUPPORTED_CAPACITY  failure_partition_edges=262144  failure_partition_capacity=16384
+```
+
 ## Exact Reproduction Commands
 
 Single-kernel full carry:
@@ -269,4 +337,3 @@ Validation command:
 cd /home/chuxiao/grasu-regraph-integration
 python3 -m py_compile scripts/summarize_spine_builtin_result.py
 ```
-
