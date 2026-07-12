@@ -11,7 +11,8 @@ CHAIN_OUT="${GRI_ROOT}/results/grasu_regraph_sssp_review_combined_hw_$(date +%Y%
 COMPARE_OUT="${GRI_ROOT}/results/spine_vs_grasu_regraph_review_combined_hw_$(date +%Y%m%d_%H%M%S)"
 SPINE_SUMMARY="${GRI_ROOT}/results/spine_builtin_review_hw_20260712_121941/summary.tsv"
 CHAIN_SUMMARY=""
-REGRAPH_HOST="/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp"
+GRASU_HOST=""
+REGRAPH_HOST=""
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-600}"
 DRY_RUN=0
 
@@ -31,7 +32,8 @@ Options:
   --chain-summary PATH        Reuse an existing chain summary instead of running.
   --compare-out PATH          Comparison output root.
   --spine-summary PATH        Spine summary TSV. Default: ${SPINE_SUMMARY}
-  --regraph-host PATH         ReGraph SSSP host. Default: ${REGRAPH_HOST}
+  --grasu-host PATH           GraSU host. Default is derived from --target.
+  --regraph-host PATH         ReGraph SSSP host. Default is derived from --target.
   --timeout SECONDS           Per-chain-case timeout. Default: ${TIMEOUT_SECONDS}
   --dry-run                   Print commands without executing hardware.
   -h, --help                  Show this help.
@@ -63,6 +65,7 @@ while [[ $# -gt 0 ]]; do
     --chain-summary) CHAIN_SUMMARY="$(abs_under_root "$2")"; shift 2 ;;
     --compare-out) COMPARE_OUT="$(abs_under_root "$2")"; shift 2 ;;
     --spine-summary) SPINE_SUMMARY="$(abs_under_root "$2")"; shift 2 ;;
+    --grasu-host) GRASU_HOST="$(abs_under_root "$2")"; shift 2 ;;
     --regraph-host) REGRAPH_HOST="$(abs_under_root "$2")"; shift 2 ;;
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -78,6 +81,22 @@ esac
 
 BUILD_ROOT="$(abs_under_root "${BUILD_ROOT}")"
 XCLBIN="${BUILD_ROOT}/build/grasu_regraph_combined.${TARGET}.xclbin"
+
+if [[ -z "${GRASU_HOST}" ]]; then
+  if [[ "${TARGET}" == "hw_emu" ]]; then
+    GRASU_HOST="${GRASU_ROOT}/.tmp_build/u55c_hbm_hwemu/GraSU_host_u55c"
+  else
+    GRASU_HOST="${GRASU_ROOT}/.tmp_build/u55c_hbm_hw/GraSU_host_u55c"
+  fi
+fi
+
+if [[ -z "${REGRAPH_HOST}" ]]; then
+  if [[ "${TARGET}" == "hw_emu" ]]; then
+    REGRAPH_HOST="/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp"
+  else
+    REGRAPH_HOST="/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp"
+  fi
+fi
 
 if [[ -z "${CHAIN_SUMMARY}" && ! -e "${XCLBIN}" && "${DRY_RUN}" == "0" ]]; then
   echo "Combined xclbin is not ready yet: ${XCLBIN}" >&2
@@ -100,6 +119,7 @@ if [[ -z "${CHAIN_SUMMARY}" ]]; then
     "${SCRIPT_DIR}/run_grasu_regraph_sssp_sweep.sh"
     --preset review
     --timeout "${TIMEOUT_SECONDS}"
+    --grasu-host "${GRASU_HOST}"
     --regraph-host "${REGRAPH_HOST}"
     --combined-xclbin "${XCLBIN}"
     --out-root "${CHAIN_OUT}"

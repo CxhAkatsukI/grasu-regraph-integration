@@ -377,3 +377,36 @@ Dry-run format check completed without touching hardware:
 
 That dry-check only validates parsing/output shape; the Spine side was a
 `DRY_RUN`, so it is not performance evidence.
+
+## Wrapper Sanity Check
+
+At 2026-07-12 13:22 Asia/Shanghai, I updated
+`scripts/run_combined_review_compare.sh` so target-specific hosts are selected
+before launching `scripts/run_grasu_regraph_sssp_sweep.sh`:
+
+```text
+target=hw:
+  GraSU host   /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw/GraSU_host_u55c
+  ReGraph host /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp
+
+target=hw_emu:
+  GraSU host   /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hwemu/GraSU_host_u55c
+  ReGraph host /home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp
+```
+
+Validation command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/run_combined_review_compare.sh
+
+./scripts/run_combined_review_compare.sh \
+  --target hw_emu \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible \
+  --session '' \
+  --dry-run
+```
+
+The dry-run showed the expected `hw_emu` GraSU host, ReGraph host, combined
+`hw_emu` xclbin, and `--xcl-emulation-mode hw_emu`. The lower-level sweep now
+infers or accepts the required `EMCONFIG_PATH` values for both host runs.
