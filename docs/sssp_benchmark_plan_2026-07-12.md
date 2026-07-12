@@ -131,6 +131,22 @@ After the combined real `hw` xclbin exists:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
+./scripts/finalize_combined_hw_build.sh \
+  --target hw \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335 \
+  --session combined_hw_coldinit_250mhz_20260712_112335 \
+  --preset smoke
+```
+
+This one command checks the final combined xclbin, records its hash, collects
+combined-vs-standalone resource evidence, and runs the GraSU->ReGraph SSSP
+smoke sweep with both hosts loading the same combined xclbin. It exits before
+running anything if the xclbin is still missing.
+
+For the full review sweep after smoke passes:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
 COMBINED_XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz/build/grasu_regraph_combined.hw.xclbin \
 REGRAPH_HOST=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \
 ./scripts/run_grasu_regraph_sssp_sweep.sh \
