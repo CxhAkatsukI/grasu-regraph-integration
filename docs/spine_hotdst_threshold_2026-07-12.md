@@ -185,23 +185,51 @@ two-batch chain input.
    existing combined xclbin after the ReGraph host verification fix.
 2. Spine's latest split-CU edge-file path is reliable for one-batch inputs up
    to 131071 edges in this threshold scan.
-3. Spine's edge-file path becomes unreliable immediately after crossing the
-   131072-edge batch boundary:
+3. The original threshold evidence showed failures immediately after crossing
+   the 131072-edge batch boundary for chain and hot-destination cases:
    - pure chain with one extra edge times out in batch 2 maintenance;
    - hot-destination with one extra edge fails level-carry diagnostics.
-4. The next Spine optimization/debug target is the multi-batch level-carry
-   path, not hot-destination reduction alone.
+4. Follow-up capacity probes narrow this down: split-CU two-batch carry is not
+   generally broken. Balanced 131072+1 edge-file input passes. Concentrated
+   one-partition 131072+1 input overflows during L1 carry because L1 has
+   per-destination-partition capacity, not only total level capacity.
+5. The next Spine optimization/debug target is therefore the level-carry
+   storage layout / per-partition capacity path, and the host reference model
+   should explicitly classify per-partition capacity overflow instead of
+   treating these as ordinary performance failures.
+6. The summary tool now maps explicit `overflow=1` logs to
+   `UNSUPPORTED_CAPACITY`, so future sweep tables can separate capacity
+   limitations from ordinary failures.
+```
+
+## Follow-up: Partition Capacity Probe
+
+Evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/docs/spine_partition_capacity_probe_2026-07-12.md
+/home/chuxiao/grasu-regraph-integration/results/spine_measure_carry_probe_hw_20260712_211600
+```
+
+Important correction:
+
+```text
+The earlier phrase "multi-batch / level-carry problem" was too broad.
+Split-CU can carry L0 to L1 for balanced two-batch inputs, including a
+131072+1 edge-file. The failing hot-destination/chain-like cases are better
+explained by destination-partition concentration exceeding L1 per-partition
+capacity during carry.
 ```
 
 ## Next Steps
 
 ```text
-1. Inspect host/kernel expectations around expected_target=1 vs target_level=0
-   for batch 2 in edge-file mode.
-2. Add a smaller software-only or hw_emu reproducer if available, so the
-   multi-batch level-carry issue can be debugged without repeated real-hw
-   timeout runs.
-3. For final performance comparison tables, mark Spine multi-batch edge-file
-   results as invalid until this carry path is fixed; use one-batch cases for
-   strict same-edge timing claims.
+1. Update the host reference model / summarizer to account for per-destination
+   partition capacity at each level.
+2. Split final comparison cases into:
+   - valid performance cases where per-partition capacity is respected;
+   - capacity-limited cases where Spine cannot place the graph after carry.
+3. Keep using one-batch cases and balanced multi-batch cases for strict timing
+   claims; report concentrated hot-destination and chain-like large cases as
+   architecture/layout capacity stress cases.
 ```

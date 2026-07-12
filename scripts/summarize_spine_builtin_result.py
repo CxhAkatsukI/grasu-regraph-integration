@@ -72,6 +72,10 @@ def parse_result_line(text: str) -> tuple[str, dict[str, str]]:
     return fallback
 
 
+def has_capacity_overflow(text: str) -> bool:
+    return re.search(r"\boverflow=1\b", text) is not None
+
+
 def summarize_dir(result_dir: Path) -> dict[str, str]:
     env = read_env(result_dir / "case.env")
     log = read_text(result_dir / "spine.log")
@@ -81,6 +85,8 @@ def summarize_dir(result_dir: Path) -> dict[str, str]:
     status = fields.get("status", "FAIL")
     if env.get("dry_run", "0") == "1":
         status = "DRY_RUN"
+    elif status == "FAIL" and has_capacity_overflow(log):
+        status = "UNSUPPORTED_CAPACITY"
 
     return {
         "case": env.get("case", result_dir.name),
