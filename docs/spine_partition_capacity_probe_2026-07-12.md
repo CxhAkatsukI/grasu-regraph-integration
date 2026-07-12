@@ -127,7 +127,7 @@ python3 -m py_compile scripts/analyze_spine_edge_capacity.py
 Capacity-analysis evidence root:
 
 ```text
-/home/chuxiao/grasu-regraph-integration/results/spine_capacity_analysis_20260712_212825
+/home/chuxiao/grasu-regraph-integration/results/spine_capacity_analysis_20260712_212808
 ```
 
 Files:

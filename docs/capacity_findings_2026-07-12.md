@@ -365,7 +365,7 @@ Offline capacity classifier:
 Capacity classification evidence:
 
 ```text
-/home/chuxiao/grasu-regraph-integration/results/spine_capacity_analysis_20260712_212825/large_capacity_verifyfix_capacity.tsv
+/home/chuxiao/grasu-regraph-integration/results/spine_capacity_analysis_20260712_212808/large_capacity_verifyfix_capacity.tsv
 ```
 
 Classification:
