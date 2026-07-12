@@ -320,9 +320,11 @@ The comparison joiner is:
 
 ```text
 scripts/compare_spine_chain_summaries.py
+scripts/run_combined_review_compare.sh
 ```
 
-It does not run hardware. It reads the two `summary.tsv` files and writes:
+The lower-level joiner does not run hardware. It reads the two `summary.tsv`
+files and writes:
 
 ```text
 comparison.tsv
@@ -342,12 +344,26 @@ Use explicit pairs so the scenario-level nature of the comparison is visible:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_combined_review_compare.sh \
+  --target hw \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335 \
+  --session combined_hw_coldinit_250mhz_20260712_112335 \
+  --spine-summary /home/chuxiao/grasu-regraph-integration/results/spine_builtin_review_hw_20260712_121941/summary.tsv
+```
+
+The wrapper runs the combined GraSU+ReGraph review sweep, then calls the
+lower-level joiner with the fixed scenario pairs. To join an already completed
+chain summary manually:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
 ./scripts/compare_spine_chain_summaries.py \
   --chain-summary /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_combined_hw_250mhz/summary.tsv \
-  --spine-summary /home/chuxiao/grasu-regraph-integration/results/spine_builtin_review_hw/summary.tsv \
+  --spine-summary /home/chuxiao/grasu-regraph-integration/results/spine_builtin_review_hw_20260712_121941/summary.tsv \
   --pair small_chain_v64=carry_l1:small_high_diameter \
   --pair small_star_v4096_u1024=star_4096:small_hot_source \
   --pair small_spread_v4096_u1024=fanout_4096_s64:small_spread_fanout \
+  --pair small_hotdst_v4096_u1024=duplicate_heavy_4096:small_hot_destination \
   --pair medium_star_v65536_u8192=star_65536:medium_hot_source \
   --pair medium_spread_v65536_u16384=fanout_65536_s256:medium_spread_fanout \
   --out-dir /home/chuxiao/grasu-regraph-integration/results/spine_vs_grasu_regraph_review_combined_hw_250mhz
