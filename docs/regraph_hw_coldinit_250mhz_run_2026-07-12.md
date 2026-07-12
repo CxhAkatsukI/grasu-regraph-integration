@@ -105,6 +105,7 @@ place_design completed successfully at 2026-07-12 10:28:02 Asia/Shanghai
 placed kernel utilization report was generated at 2026-07-12 10:28:03 Asia/Shanghai
 post-placement phys_opt_design completed successfully at 2026-07-12 10:30:46 Asia/Shanghai
 route_design started at 2026-07-12 10:30:46 Asia/Shanghai
+route reached rip-up and reroute global iteration 0 at 2026-07-12 10:35:51 Asia/Shanghai
 ```
 
 Observed HLS Fmax values from the build log:
@@ -174,6 +175,23 @@ kernel_util_placed.rpt
 slr_util_placed.rpt
 full_util_placed.rpt
 ```
+
+## Routing Notes
+
+Early route has not failed, but it shows pressure that should be preserved for
+post-run analysis:
+
+```text
+Intermediate Timing Summary: WNS=-0.021 ns, TNS=-0.173 ns, WHS=-0.178 ns, THS=-65.556 ns
+Intermediate Timing Summary: WNS=-0.021 ns, TNS=-0.064 ns, WHS=-0.186 ns, THS=-111.286 ns
+Local routing congestion detected: at least 372 CLBs have high pin utilization
+Estimated Global/Short routing congestion: level 5 (32x32)
+High bus-skew violations detected during initial routing
+```
+
+These are intermediate route values. The final judgment still depends on
+routed timing, post-route physical optimization, and bitstream/xclbin
+generation.
 
 ## Completion Criteria
 
