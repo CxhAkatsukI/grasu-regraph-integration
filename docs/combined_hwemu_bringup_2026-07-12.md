@@ -1270,3 +1270,123 @@ not emitted the final xclbin yet, but timing is moving in the right direction.
 Continue monitoring for route completion, post-route phys-opt, write_bitstream,
 package, and xclbin emission.
 ```
+
+## Combined hw_emu Recheck, 14:42-15:00
+
+The user reported the combined `hw_emu` build had completed. I rechecked the
+current artifact and ran a functional gate on the combined xclbin.
+
+Artifact:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/build/grasu_regraph_combined.hw_emu.xclbin
+sha256=daf8bb44c32295a27827993bdf913eb9d311f27e4d21efbaf46edfc57224995f
+```
+
+Manifest-selected hosts:
+
+```text
+GraSU host:
+  /home/chuxiao/grasu-regraph-integration/repos/GraSU/.tmp_build/u55c_hbm_hwemu/GraSU_host_u55c
+ReGraph host:
+  /home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/host_graph_fpga_sssp
+```
+
+Evidence command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/finalize_combined_hw_build.sh \
+  --target hw_emu \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible \
+  --session '' \
+  --preset smoke \
+  --evidence-out /home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_144205_combined_hwemu_recheck \
+  --smoke-out /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_recheck_20260712_144205
+```
+
+Resource evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_144205_combined_hwemu_recheck
+```
+
+Same-component resource deltas remained zero:
+
+```text
+GraSU vs combined:
+  accelerator_util=0
+  hls_top_area=0
+  kernel CU count=0
+  connectivity binding=0
+
+ReGraph vs combined:
+  accelerator_util=0
+  hls_top_area=0
+  kernel CU count=0
+  connectivity binding=0
+```
+
+GraSU functional result on the combined xclbin:
+
+```text
+log=/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_recheck_20260712_144205/tiny_chain_v16/grasu.log
+case=tiny_chain_v16
+key lines:
+  check result passed
+  kernel finish
+  INFO: [HW-EMU 06-1] All the simulator processes exited successfully
+```
+
+Converted ReGraph SSSP input:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_recheck_20260712_144205/tiny_chain_v16/tiny_chain_v16.from_grasu.sssp.edges
+converted_edges=15
+```
+
+The full `smoke` chain case asks ReGraph to run 16 supersteps and is too slow
+for repeated hw_emu checks. I stopped that long run after it had completed the
+first ReGraph superstep and entered the second, then ran the same converted
+input through a shorter ReGraph gate:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -lc '
+set -u
+source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+source /home/chuxiao/grasu-regraph-integration/scripts/env.sh
+OUT=/home/chuxiao/grasu-regraph-integration/results/regraph_hwemu_min2_combined_recheck_20260712_145544
+mkdir -p "$OUT"
+XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/build/grasu_regraph_combined.hw_emu.xclbin
+HOST=/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/host_graph_fpga_sssp
+EDGES=/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_recheck_20260712_144205/tiny_chain_v16/tiny_chain_v16.from_grasu.sssp.edges
+EMCONFIG=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/run_regraph_tiny
+timeout 600s env REGRAPH_SOURCE=0 XCL_EMULATION_MODE=hw_emu EMCONFIG_PATH="$EMCONFIG" \
+  "$HOST" "$XCLBIN" "$EDGES" 1 2 \
+  > "$OUT/regraph_min2.log" 2>&1
+'
+```
+
+ReGraph short-gate evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/regraph_hwemu_min2_combined_recheck_20260712_145544
+exit_code=0
+key lines:
+  Device[0]: program successful!
+  [INFO] Supersteps: 2
+  [INFO] Starting superstep 1/2
+  [INFO] Starting superstep 2/2
+  Processed edges: 16; Graph edges: 15
+  INFO: [HW-EMU 06-1] All the simulator processes exited successfully
+```
+
+Interpretation:
+
+```text
+The combined hw_emu artifact is present, hash-stable, resource-equivalent to
+the individual accelerators for same components, and functionally runnable for
+both halves of the GraSU -> ReGraph flow. For routine hw_emu validation, use
+the GraSU tiny case plus ReGraph min2 gate instead of the full smoke preset.
+```
