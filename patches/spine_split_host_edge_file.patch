@@ -13,11 +13,11 @@
  #include <thread>
  #include <vector>
  
-@@ -853,6 +855,75 @@
+@@ -853,6 +855,84 @@
      };
  }
  
-+static std::vector<PartitionedCsrEdgeRef> load_edge_file(
++static std::vector<std::vector<PartitionedCsrEdgeRef>> load_edge_file_batches(
 +    const std::string &path
 +) {
 +    std::ifstream input(path);
@@ -25,7 +25,10 @@
 +        throw std::runtime_error("failed to open edge file: " + path);
 +    }
 +
++    std::vector<std::vector<PartitionedCsrEdgeRef>> batches;
 +    std::vector<PartitionedCsrEdgeRef> edges;
++    edges.reserve((size_t)HOST_PARTITIONED_RATIO2_MAX_SORT_N);
++    size_t total_edges = 0;
 +    std::string line;
 +    size_t line_no = 0;
 +    while (std::getline(input, line)) {
@@ -75,21 +78,27 @@
 +
 +        edges.push_back({(uint32_t)src, (uint32_t)dst,
 +                         (uint16_t)weight, (int16_t)diff});
-+        if (edges.size() > (size_t)HOST_PARTITIONED_RATIO2_MAX_SORT_N) {
-+            throw std::runtime_error("edge file exceeds one-batch MAX_SORT_N");
++        total_edges++;
++        if (edges.size() == (size_t)HOST_PARTITIONED_RATIO2_MAX_SORT_N) {
++            batches.push_back(std::move(edges));
++            edges = {};
++            edges.reserve((size_t)HOST_PARTITIONED_RATIO2_MAX_SORT_N);
 +        }
 +    }
 +
-+    if (edges.empty()) {
++    if (!edges.empty()) {
++        batches.push_back(std::move(edges));
++    }
++    if (total_edges == 0) {
 +        throw std::runtime_error("edge file contains no edges: " + path);
 +    }
-+    return edges;
++    return batches;
 +}
 +
  struct E2eScenario {
      std::string label;
      std::vector<std::vector<PartitionedCsrEdgeRef>> batches;
-@@ -1029,6 +1100,13 @@
+@@ -1029,6 +1109,13 @@
          scenario.label = "carry_l3";
          scenario.batches = make_carry_l3_batches();
          scenario.compare_l0_graph_image = false;
@@ -98,12 +107,12 @@
 +            throw std::runtime_error("--edge-file requires a path");
 +        }
 +        scenario.label = "edge_file";
-+        scenario.batches.push_back(load_edge_file(args[1]));
++        scenario.batches = load_edge_file_batches(args[1]);
 +        scenario.compare_l0_graph_image = true;
      } else if (!args.empty() && args[0] == "--star") {
          scenario.label = "star";
          size_t edge_count = (args.size() >= 2)
-@@ -2557,7 +2635,7 @@
+@@ -2557,7 +2644,7 @@
  int main(int argc, char **argv) {
      if (argc < 2) {
          std::cerr << "Usage: " << argv[0]

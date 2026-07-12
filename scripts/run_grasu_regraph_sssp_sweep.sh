@@ -13,6 +13,8 @@ RESULT_BASE="${RESULT_BASE:-16}"
 SKIP_GENERATE=0
 SKIP_GRASU=0
 DRY_RUN=0
+ALLOW_PASS_ON_NONZERO_EXIT=0
+REGRAPH_SKIP_VERIFY=0
 XCL_EMULATION_MODE_VALUE="${XCL_EMULATION_MODE_VALUE:-}"
 VITIS_SETTINGS="${VITIS_SETTINGS:-/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh}"
 GRASU_EMCONFIG_PATH="${GRASU_EMCONFIG_PATH:-}"
@@ -54,6 +56,12 @@ Options:
                               EMCONFIG_PATH for ReGraph hw_emu. Inferred if omitted.
   --skip-generate             Reuse an existing workload manifest.
   --skip-grasu                Skip GraSU and use the expected result file directly.
+  --allow-pass-on-nonzero-exit
+                              Continue when a case summary is PASS even if the
+                              wrapped host exits non-zero during teardown.
+  --regraph-skip-verify       Set REGRAPH_SKIP_VERIFY=1 for ReGraph. The
+                              summarizer reports these runs as PERF_ONLY, not
+                              PASS, because hardware output is not read back.
   --dry-run                   Print commands without executing hardware runs.
   -h, --help                  Show this help.
 
@@ -139,6 +147,8 @@ while [[ $# -gt 0 ]]; do
     --regraph-emconfig-path) REGRAPH_EMCONFIG_PATH="$(abs_under_root "$2")"; shift 2 ;;
     --skip-generate) SKIP_GENERATE=1; shift ;;
     --skip-grasu) SKIP_GRASU=1; shift ;;
+    --allow-pass-on-nonzero-exit) ALLOW_PASS_ON_NONZERO_EXIT=1; shift ;;
+    --regraph-skip-verify) REGRAPH_SKIP_VERIFY=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -244,6 +254,8 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
     echo "grasu_emconfig_path=${GRASU_EMCONFIG_PATH}"
     echo "regraph_emconfig_path=${REGRAPH_EMCONFIG_PATH}"
     echo "skip_grasu=${SKIP_GRASU}"
+    echo "allow_pass_on_nonzero_exit=${ALLOW_PASS_ON_NONZERO_EXIT}"
+    echo "regraph_skip_verify=${REGRAPH_SKIP_VERIFY}"
     echo "dry_run=${DRY_RUN}"
   } > "${case_dir}/case.env"
 
@@ -278,12 +290,15 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
     echo "[3/3] Running ReGraph SSSP..."
     if [[ "${DRY_RUN}" == "0" ]]; then
       regraph_env=(REGRAPH_SOURCE="${source}")
+      if [[ "${REGRAPH_SKIP_VERIFY}" == "1" ]]; then
+        regraph_env+=(REGRAPH_SKIP_VERIFY=1)
+      fi
       if [[ -n "${XCL_EMULATION_MODE_VALUE}" ]]; then
         regraph_env+=(XCL_EMULATION_MODE="${XCL_EMULATION_MODE_VALUE}" EMCONFIG_PATH="${REGRAPH_EMCONFIG_PATH}")
       fi
       (cd "${REGRAPH_ROOT}" && timeout "${TIMEOUT_SECONDS}s" env "${regraph_env[@]}" "${REGRAPH_HOST}" "${REGRAPH_XCLBIN}" "${converted_edges}" "${REGRAPH_NUM_DENSE}" "${supersteps}") > "${case_dir}/regraph.log" 2>&1
     else
-      echo "+ (cd ${REGRAPH_ROOT} && REGRAPH_SOURCE=${source} ${REGRAPH_HOST} ${REGRAPH_XCLBIN} ${converted_edges} ${REGRAPH_NUM_DENSE} ${supersteps})"
+      echo "+ (cd ${REGRAPH_ROOT} && REGRAPH_SOURCE=${source} REGRAPH_SKIP_VERIFY=${REGRAPH_SKIP_VERIFY} ${REGRAPH_HOST} ${REGRAPH_XCLBIN} ${converted_edges} ${REGRAPH_NUM_DENSE} ${supersteps})"
       : > "${case_dir}/regraph.log"
     fi
   ) > "${case_dir}/runner.log" 2>&1
@@ -294,10 +309,16 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
   printf "wall_seconds\t%d.%03d\n" "$(( elapsed_ms / 1000 ))" "$(( elapsed_ms % 1000 ))" > "${case_dir}/wall_time.tsv"
   printf "exit_code\t%d\n" "${rc}" >> "${case_dir}/wall_time.tsv"
 
-  "${SCRIPT_DIR}/summarize_sssp_chain_result.py" --no-header "${case_dir}" >> "${SUMMARY}"
-  tail -n 1 "${SUMMARY}"
+  summary_line="$("${SCRIPT_DIR}/summarize_sssp_chain_result.py" --no-header "${case_dir}")"
+  printf '%s\n' "${summary_line}" >> "${SUMMARY}"
+  printf '%s\n' "${summary_line}"
+  case_status="$(printf '%s\n' "${summary_line}" | cut -f2)"
 
   if [[ "${rc}" -ne 0 ]]; then
+    if [[ "${ALLOW_PASS_ON_NONZERO_EXIT}" == "1" && "${case_status}" == "PASS" ]]; then
+      echo "Case exited ${rc} after producing a PASS summary; continuing because --allow-pass-on-nonzero-exit is set." >&2
+      continue
+    fi
     echo "Case failed: ${case_name}; see ${case_dir}/runner.log" >&2
     exit "${rc}"
   fi

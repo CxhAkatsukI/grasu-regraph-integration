@@ -87,7 +87,15 @@ def summarize_dir(result_dir: Path) -> dict[str, str]:
         row["status"] = "DRY_RUN"
         return row
 
-    regraph_ok = "Device[0]: program successful!" in regraph and mismatch_count == 0
+    regraph_programmed = "Device[0]: program successful!" in regraph
+    regraph_skip_verify = env.get("regraph_skip_verify", "0") == "1"
+    regraph_ok = regraph_programmed and mismatch_count == 0
+    if regraph_skip_verify:
+        regraph_ok = regraph_ok and "Skipping hardware result verification" in regraph
+        if grasu_ok and convert_ok and regraph_ok:
+            row["status"] = "PERF_ONLY"
+        return row
+
     regraph_ok = regraph_ok and bool(row["processed_edges"])
     if grasu_ok and convert_ok and regraph_ok:
         row["status"] = "PASS"

@@ -1,0 +1,33 @@
+--- a/host/host.cpp
++++ b/host/host.cpp
+@@ -19,6 +19,16 @@
+ 
+ using namespace std;
+ 
++static bool envFlagEnabled(const char *name) {
++    const char *value = std::getenv(name);
++    if (value == nullptr || value[0] == '\0') return false;
++    return std::strcmp(value, "0") != 0 &&
++           std::strcmp(value, "false") != 0 &&
++           std::strcmp(value, "FALSE") != 0 &&
++           std::strcmp(value, "off") != 0 &&
++           std::strcmp(value, "OFF") != 0;
++}
++
+ int main(int argc, char **argv) {
+         
+     if(argc < 3){
+@@ -314,7 +324,12 @@
+     //********************************************************************************************************//
+ 
+     //******************************************* verifyResults **********************************************//
+-    verifyResults(partition_container, acc, csr, (*read_prop_dev)[0], *read_prop_host, num_super_step);
++    if (envFlagEnabled("REGRAPH_SKIP_VERIFY")) {
++        std::cout << "[INFO] Skipping hardware result verification because "
++                  << "REGRAPH_SKIP_VERIFY is set." << std::endl;
++    } else {
++        verifyResults(partition_container, acc, csr, (*read_prop_dev)[0], *read_prop_host, num_super_step);
++    }
+     //********************************************************************************************************//   
+ 
+     //**************** free resources ************************************************************************//

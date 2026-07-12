@@ -209,6 +209,17 @@ single scheduled hardware dataflow measurement; it is the current host-level
 composition and remains useful because it isolates whether ReGraph SSSP compute
 dominates or whether GraSU update time dominates.
 
+For capacity/debug runs, `run_grasu_regraph_sssp_sweep.sh` also supports:
+
+```text
+--regraph-skip-verify
+```
+
+This sets `REGRAPH_SKIP_VERIFY=1` for the ReGraph host. The summarizer reports
+those rows as `PERF_ONLY`, not `PASS`, because the hardware output buffer is
+not read back and checked. This mode is useful for separating kernel execution
+time from the currently fragile ReGraph host verification/readback path.
+
 ## Spine Side
 
 The current Spine host has built-in scenarios rather than the same external
