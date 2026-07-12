@@ -217,6 +217,123 @@ whose manifest still points to:
 Therefore its small ReGraph HLS differences are a useful regression-test of the
 comparison flow, not a final combined-resource conclusion.
 
+## Fresh User Build Check, 2026-07-12 13:36 CST
+
+The current host-compatible combined `hw_emu` product was rechecked after the
+user reported that the `hw_emu` build had completed.
+
+Artifact check:
+
+```text
+xclbin:
+  /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/build/grasu_regraph_combined.hw_emu.xclbin
+  size 108956445 bytes
+  sha256 daf8bb44c32295a27827993bdf913eb9d311f27e4d21efbaf46edfc57224995f
+
+link summary:
+  /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/build/grasu_regraph_combined.hw_emu.xclbin.link_summary
+  sha256 26431f3dd3b74c0f0e60b9aa00dc767049c93ec6194311ea1e729a48ceaa2a32
+
+emconfig:
+  /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/run_grasu_smoke/emconfig.json
+  /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/run_regraph_tiny/emconfig.json
+```
+
+Resource evidence already collected for this artifact:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_130630_combined_hwemu_usercheck
+```
+
+Same-component review summary:
+
+```text
+GraSU vs combined:
+  accelerator_util same-component changes: 0
+  hls_top_area same-component changes: 0
+  kernel CU count same-kernel changes: 0
+  connectivity binding same-endpoint changes: 0
+
+ReGraph vs combined:
+  accelerator_util same-component changes: 0
+  hls_top_area same-component changes: 2
+    bigKernelScatterGather_1: FF -71, LUT -289
+    littleKernelScatterGather_1: FF -48, LUT -59
+  kernel CU count same-kernel changes: 0
+  connectivity binding same-endpoint changes: 0
+```
+
+Fresh combined functional command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+TIMEOUT_SECONDS=900 ./scripts/finalize_combined_hw_build.sh \
+  --target hw_emu \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible \
+  --session '' \
+  --preset smoke \
+  --skip-evidence \
+  --smoke-out /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_fresh_20260712_133634
+```
+
+Fresh combined smoke result:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_fresh_20260712_133634
+
+tiny_chain_v16:
+  status FAIL
+  wall_seconds 555.888
+  exit_code 139
+```
+
+The first stage, GraSU on the combined xclbin, did pass:
+
+```text
+check result passed
+scheduler config ert(1), dataflow(1), slots(32), cudma(0), cuisr(0), cdma(0), cus(15)
+kernel start running...
+kernel finish
+time is 494053.490105 ms
+All the simulator processes exited successfully
+```
+
+The generated GraSU result was converted into ReGraph weighted SSSP input:
+
+```text
+converted_edges=15
+output=/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_fresh_20260712_133634/tiny_chain_v16/tiny_chain_v16.from_grasu.sssp.edges
+```
+
+The failure occurs in the second stage, ReGraph on the same combined xclbin:
+
+```text
+Device[0]: program successful!
+Creating a big kernel [bigKernelScatterGather:{bigKernelScatterGather_1}] for CU(1)
+Creating a little kernel [littleKernelScatterGather:{littleKernelScatterGather_1}] for CU(1)
+Creating the apply kernel [kernelApply:{kernelApply_1}]
+Creating the hbm kernel [kernelHBMWrapper:{kernelHBMWrapper_1}]
+[INFO] Starting superstep 1/16
+Segmentation fault
+```
+
+Simulator evidence for the failed ReGraph stage:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/.run/2765907/hw_emu/device0/binary_0/behav_waveform/xsim
+
+FATAL_ERROR:
+  sim_qdma.cpp, line 105, in SystemC process
+  .pfm_top_wrapper.pfm_top_i.static_region.sim_qdma_0.inst.simulate_single_cycle
+```
+
+Interpretation: the combined `hw_emu` artifact is valid enough for GraSU to
+load and run successfully, and ReGraph can program the device and create its
+kernels from the same xclbin. The remaining functional blocker is a ReGraph
+runtime/simulator failure on the combined xclbin at the first SSSP superstep.
+This is different from the earlier missing-environment failure; here
+`XCL_EMULATION_MODE`, `EMCONFIG_PATH`, XRT, and Vitis settings were all present.
+
 ## Next hw Steps
 
 Cold-start ReGraph real `hw` artifacts are now available and have passed a tiny
