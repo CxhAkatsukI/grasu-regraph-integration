@@ -421,6 +421,27 @@ INFO: [SYSTEM_LINK 82-70] Extracting xo v3 file .../kernelApply.hw.xilinx_u55c_g
 INFO: [SYSTEM_LINK 82-53] Creating IP database .../xd_ip_db.xml
 ```
 
+Latest observed status, 2026-07-12 11:30 Asia/Shanghai:
+
+```text
+tmux session is still running
+system_link completed
+VPL create_project completed
+VPL create_bd completed
+VPL generate_target completed
+VPL config_hw_runs started
+Vivado launched synth runs under prj/prj.runs
+active vivado process is consuming CPU, so this is not the earlier "running but idle" failure mode
+```
+
+Useful live logs:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/tmux_driver.log
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/link/link/vivado/vpl/runme.log
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/link/link/vivado/vpl/vivado.log
+```
+
 Monitor:
 
 ```bash

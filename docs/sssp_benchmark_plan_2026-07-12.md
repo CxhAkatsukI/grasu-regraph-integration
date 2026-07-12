@@ -100,6 +100,31 @@ REGRAPH_XCLBIN=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_
   --out-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_coldinit_hw_250mhz
 ```
 
+Standalone smoke run completed on real U55C hardware:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_standalone_hw_20260712_113110
+```
+
+This run uses separate standalone xclbins: GraSU first, then ReGraph weighted
+SSSP on the checked/converted final edge set. It is a current two-stage
+baseline, not the final unified-xclbin measurement.
+
+```text
+case                 status  grasu_ms  regraph_e2e_ms  processed_edges  graph_edges  mismatch_count
+tiny_chain_v16       PASS    1.831960  4.52812         16               15           0
+tiny_star_v16_u12    PASS    1.624356  0.948191        32               28           0
+tiny_hotdst_v64_u32  PASS    1.632106  4.37758         96               95           0
+```
+
+Key evidence in each case log:
+
+```text
+GraSU:  check result passed
+ReGraph: Device[0]: program successful!
+ReGraph: Processed edges ...; mismatch_count=0
+```
+
 ## Combined hw Run
 
 After the combined real `hw` xclbin exists:
