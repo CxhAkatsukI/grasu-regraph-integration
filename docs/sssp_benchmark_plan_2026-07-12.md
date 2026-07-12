@@ -9,8 +9,8 @@ GraSU update + ReGraph weighted SSSP
 ```
 
 The scripts added here do not claim final performance yet. They make the test
-matrix reproducible so we can run it immediately after fixed-source ReGraph
-`hw` and combined GraSU+ReGraph `hw` are available.
+matrix reproducible so we can run it immediately after cold-start ReGraph `hw`
+and combined GraSU+ReGraph `hw` are available.
 
 ## Workload Intent
 
@@ -87,17 +87,17 @@ cd /home/chuxiao/grasu-regraph-integration
   --out-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_dryrun
 ```
 
-## Real Fixed-ReGraph hw Run
+## Real Cold-start ReGraph hw Run
 
-After fixed-source ReGraph `hw` exists:
+After the cold-start ReGraph 250 MHz `hw` build exists:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
-REGRAPH_HOST=/home/chuxiao/ReGraph_sssp_hw_fixed_scratch/host_graph_fpga_sssp \
-REGRAPH_XCLBIN=/home/chuxiao/ReGraph_sssp_hw_fixed_scratch/xclbin_hw_sssp/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin \
+REGRAPH_HOST=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \
+REGRAPH_XCLBIN=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin \
 ./scripts/run_grasu_regraph_sssp_sweep.sh \
   --preset review \
-  --out-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_fixed_hw
+  --out-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_coldinit_hw_250mhz
 ```
 
 ## Combined hw Run
@@ -106,11 +106,11 @@ After the combined real `hw` xclbin exists:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
-REGRAPH_HOST=/home/chuxiao/ReGraph_sssp_hw_fixed_scratch/host_graph_fpga_sssp \
-REGRAPH_XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_host_compatible/build/grasu_regraph_combined.hw.xclbin \
+REGRAPH_HOST=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \
+REGRAPH_XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz/build/grasu_regraph_combined.hw.xclbin \
 ./scripts/run_grasu_regraph_sssp_sweep.sh \
   --preset review \
-  --out-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_combined_hw
+  --out-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_combined_hw_250mhz
 ```
 
 Expected summary:

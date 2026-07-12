@@ -40,9 +40,9 @@ Options:
 
 Expected default inputs:
   hw_emu GraSU:  /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hwemu/build
-  hw_emu ReGraph:/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/xclbin_hw_emu_sssp
+  hw_emu ReGraph:/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/xclbin_hw_emu_sssp
   hw GraSU:      /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw/build
-  hw ReGraph:    /home/chuxiao/ReGraph_sssp_hw_fixed_scratch/xclbin_hw_sssp
+  hw ReGraph:    /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp
 USAGE
 }
 
@@ -97,9 +97,9 @@ fi
 
 if [[ -z "${REGRAPH_XCLBIN_DIR}" ]]; then
   if [[ "${TARGET}" == "hw_emu" ]]; then
-    REGRAPH_XCLBIN_DIR="/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/xclbin_hw_emu_sssp"
+    REGRAPH_XCLBIN_DIR="/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/xclbin_hw_emu_sssp"
   else
-    REGRAPH_XCLBIN_DIR="/home/chuxiao/ReGraph_sssp_hw_fixed_scratch/xclbin_hw_sssp"
+    REGRAPH_XCLBIN_DIR="/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp"
   fi
 fi
 
@@ -121,13 +121,16 @@ if [[ ! -f "${GRASU_LINK_CFG}" || ! -f "${GRASU_STREAM_CFG}" ]]; then
 fi
 if [[ ! -f "${REGRAPH_CONNECTIVITY_CFG}" ]]; then
   echo "Missing ReGraph connectivity config: ${REGRAPH_CONNECTIVITY_CFG}" >&2
-  if [[ "${TARGET}" == "hw" && "${REGRAPH_XCLBIN_DIR}" == "/home/chuxiao/ReGraph_sssp_hw_fixed_scratch/xclbin_hw_sssp" ]]; then
+  if [[ "${TARGET}" == "hw" && "${REGRAPH_XCLBIN_DIR}" == "/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp" ]]; then
     cat >&2 <<'MSG'
 
-For final hw integration, build fixed-source ReGraph SSSP first:
+For final hw integration, build cold-start ReGraph SSSP real hardware first:
 
   cd /home/chuxiao/grasu-regraph-integration
-  ./scripts/build_regraph_sssp.sh --target hw
+  ./scripts/build_regraph_sssp.sh \
+    --target hw \
+    --scratch /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch \
+    --kernel-frequency-mhz 250
 
 You can pass --regraph-xclbin-dir explicitly for a non-default scratch, but do
 not use old-source ReGraph hw artifacts for final correctness claims.
@@ -162,10 +165,13 @@ if [[ "${missing}" == "1" ]]; then
   if [[ "${TARGET}" == "hw" ]]; then
     cat >&2 <<'MSG'
 
-For final hw integration, build fixed-source ReGraph SSSP first:
+For final hw integration, build cold-start ReGraph SSSP real hardware first:
 
   cd /home/chuxiao/grasu-regraph-integration
-  ./scripts/build_regraph_sssp.sh --target hw
+  ./scripts/build_regraph_sssp.sh \
+    --target hw \
+    --scratch /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch \
+    --kernel-frequency-mhz 250
 
 You can pass --regraph-xclbin-dir explicitly for a non-default scratch, but do
 not use old-source ReGraph hw artifacts for final correctness claims.

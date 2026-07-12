@@ -189,7 +189,7 @@ claims still require real `hw` evidence.
 
 ## Next hw Steps
 
-Fixed-source ReGraph real `hw` artifacts are still the missing prerequisite for
+Cold-start ReGraph real `hw` artifacts are still the missing prerequisite for
 final combined `hw`.
 
 Current preflight status, 2026-07-12:
@@ -201,21 +201,31 @@ GraSU hw inputs: present
   /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw/build/process_cache.hw.xo
   /home/chuxiao/GraSU/.tmp_build/u55c_hbm_hw/build/process_ddr.hw.xo
 
-ReGraph fixed source: present
+ReGraph cold-start source: present
   /home/chuxiao/grasu-regraph-integration/repos/ReGraph -> /home/chuxiao/ReGraph
-  gather init fix is present in both little and big gather headers
+  reset_tmp_prop cold-start gather init is present in little and big kernels
 
-ReGraph fixed hw scratch: missing
-  /home/chuxiao/ReGraph_sssp_hw_fixed_scratch
+ReGraph cold-start 250 MHz hw scratch: running
+  /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch
+  all 6 ReGraph hw .xo files are present
+  Vitis/Vivado is currently in vpl synth
+
+Combined real-hw link preflight: generated
+  /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_preflight
+  inputs.tsv records hashes for 4 GraSU .xo files and 6 ReGraph .xo files
 ```
 
-Build fixed-source ReGraph SSSP real hardware and immediately run the tiny
-weighted SSSP hardware smoke if board access is available:
+Build cold-start ReGraph SSSP real hardware and immediately run the tiny
+weighted SSSP hardware smoke if board access is available. The current run uses
+the same command shape, without `--run-tiny`, inside tmux:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/build_regraph_sssp.sh \
   --target hw \
+  --scratch /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch \
+  --evidence-dir /home/chuxiao/ReGraph/.tmp_doc/evidence_sssp_hw_coldinit_250mhz_20260712_092221 \
+  --kernel-frequency-mhz 250 \
   --run-tiny \
   --source-vertex 0 \
   --supersteps 4 \
@@ -225,17 +235,15 @@ cd /home/chuxiao/grasu-regraph-integration
 If only the long build should run first, omit `--run-tiny` and run the smoke
 manually after reviewing the build artifacts.
 
-Monitor the fixed-source ReGraph `hw` build:
+Monitor the cold-start ReGraph `hw` build:
 
 ```bash
-ps -eo pid,ppid,etime,stat,pcpu,pmem,cmd | \
-  rg -i 'ReGraph_sssp_hw_fixed_scratch|v\+\+|vivado|vpl' | \
-  rg -v 'rg -i' || true
+tmux has-session -t regraph_hw_coldinit_250mhz_20260712_092221 && echo running || echo stopped
 
 tail -120 \
-  /home/chuxiao/ReGraph_sssp_hw_fixed_scratch/v++_graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.log
+  /home/chuxiao/ReGraph/.tmp_doc/regraph_hw_coldinit_250mhz_20260712_092221.tmux.log
 
-find /home/chuxiao/ReGraph_sssp_hw_fixed_scratch -maxdepth 8 \
+find /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch -maxdepth 8 \
   \( -name 'graph_fpga.hw*.xclbin' \
      -o -name '*.xclbin.link_summary' \
      -o -name '*kernel_util_routed.rpt' \
@@ -245,19 +253,19 @@ find /home/chuxiao/ReGraph_sssp_hw_fixed_scratch -maxdepth 8 \
   -printf '%TY-%Tm-%Td %TH:%TM:%TS %s %p\n' 2>/dev/null | sort | tail -120
 ```
 
-Collect fixed-source ReGraph `hw` evidence after it completes:
+Collect cold-start ReGraph `hw` evidence after it completes:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
-BASE=results/resource_evidence_$(date +%Y%m%d_%H%M%S)_regraph_fixed_hw
+BASE=results/resource_evidence_$(date +%Y%m%d_%H%M%S)_regraph_coldinit_hw_250mhz
 mkdir -p "$BASE"
 
 ./scripts/collect_vitis_evidence.py \
-  --label regraph_sssp_hw_fixed \
-  --build-root /home/chuxiao/ReGraph_sssp_hw_fixed_scratch \
-  --out-dir "$BASE/regraph_sssp_hw_fixed" \
-  --artifact /home/chuxiao/ReGraph_sssp_hw_fixed_scratch/host_graph_fpga_sssp \
-  --note 'Fixed-source ReGraph weighted SSSP real hw build.'
+  --label regraph_sssp_hw_coldinit_250mhz \
+  --build-root /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch \
+  --out-dir "$BASE/regraph_sssp_hw_coldinit_250mhz" \
+  --artifact /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \
+  --note 'Cold-start ReGraph weighted SSSP real hw build at 250 MHz.'
 ```
 
 Then link the real combined hardware:
@@ -266,7 +274,8 @@ Then link the real combined hardware:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/build_combined_grasu_regraph_xclbin.sh \
   --target hw \
-  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_host_compatible \
+  --kernel-frequency 250 \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz \
   --link
 ```
 
@@ -284,17 +293,17 @@ mkdir -p "$BASE"
   --note 'GraSU standalone U55C hw baseline.'
 
 ./scripts/collect_vitis_evidence.py \
-  --label regraph_sssp_hw_fixed \
-  --build-root /home/chuxiao/ReGraph_sssp_hw_fixed_scratch \
-  --out-dir "$BASE/regraph_sssp_hw_fixed" \
-  --artifact /home/chuxiao/ReGraph_sssp_hw_fixed_scratch/host_graph_fpga_sssp \
-  --note 'Fixed-source ReGraph weighted SSSP real hw baseline.'
+  --label regraph_sssp_hw_coldinit_250mhz \
+  --build-root /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch \
+  --out-dir "$BASE/regraph_sssp_hw_coldinit_250mhz" \
+  --artifact /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \
+  --note 'Cold-start ReGraph weighted SSSP real hw baseline at 250 MHz.'
 
 ./scripts/collect_vitis_evidence.py \
   --label grasu_regraph_combined_hw \
-  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_host_compatible \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz \
   --out-dir "$BASE/combined_hw" \
-  --artifact /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_host_compatible/build/grasu_regraph_combined.hw.xclbin \
+  --artifact /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz/build/grasu_regraph_combined.hw.xclbin \
   --note 'Combined GraSU + ReGraph weighted SSSP real hw xclbin.'
 
 ./scripts/compare_vitis_resources.py \
@@ -305,7 +314,7 @@ mkdir -p "$BASE"
 
 ./scripts/compare_vitis_resources.py \
   --label regraph_hw_vs_combined_hw \
-  --before "$BASE/regraph_sssp_hw_fixed" \
+  --before "$BASE/regraph_sssp_hw_coldinit_250mhz" \
   --after "$BASE/combined_hw" \
   --out-dir "$BASE/compare_regraph_hw_vs_combined"
 ```

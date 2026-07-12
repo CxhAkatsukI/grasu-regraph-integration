@@ -17,8 +17,8 @@ XCL_EMULATION_MODE_VALUE="${XCL_EMULATION_MODE_VALUE:-}"
 
 GRASU_HOST="${GRASU_HOST:-${GRASU_ROOT}/.tmp_build/u55c_hbm_hw/GraSU_host_u55c}"
 GRASU_XCLBIN="${GRASU_XCLBIN:-${GRASU_ROOT}/.tmp_build/u55c_hbm_hw/build/GraSU_u55c_hbm.hw.xclbin}"
-REGRAPH_HOST="${REGRAPH_HOST:-/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/host_graph_fpga_sssp}"
-REGRAPH_XCLBIN="${REGRAPH_XCLBIN:-/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin}"
+REGRAPH_HOST="${REGRAPH_HOST:-/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/host_graph_fpga_sssp}"
+REGRAPH_XCLBIN="${REGRAPH_XCLBIN:-/home/chuxiao/ReGraph_sssp_hw_emu_coldinit_scratch/xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin}"
 
 usage() {
   cat <<USAGE
@@ -47,15 +47,16 @@ Options:
   --dry-run                   Print commands without executing hardware runs.
   -h, --help                  Show this help.
 
-Typical real-hw fixed ReGraph run after the fixed hw build exists:
+Typical real-hw cold-start ReGraph run after the 250 MHz hw build exists:
 
-  REGRAPH_HOST=/home/chuxiao/ReGraph_sssp_hw_fixed_scratch/host_graph_fpga_sssp \\
-  REGRAPH_XCLBIN=/home/chuxiao/ReGraph_sssp_hw_fixed_scratch/xclbin_hw_sssp/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin \\
+  REGRAPH_HOST=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \\
+  REGRAPH_XCLBIN=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin \\
   $0 --preset review
 
 Typical combined-hw run:
 
-  REGRAPH_XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_host_compatible/build/grasu_regraph_combined.hw.xclbin \\
+  REGRAPH_HOST=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \\
+  REGRAPH_XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz/build/grasu_regraph_combined.hw.xclbin \\
   $0 --preset review
 USAGE
 }

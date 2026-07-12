@@ -80,7 +80,7 @@ fi
 
 mkdir -p "${SCRATCH}" "${EVIDENCE_DIR}"
 
-echo "[1/5] Copying fixed ReGraph source into scratch..."
+echo "[1/5] Copying current ReGraph source into scratch..."
 rsync -a --delete \
   --exclude "_x" \
   --exclude "_x_*" \
