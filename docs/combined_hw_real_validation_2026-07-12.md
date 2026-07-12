@@ -416,7 +416,7 @@ faster there. For low-diameter fanout/spread/hot-destination inputs, the
 GraSU+ReGraph chain wins by roughly 4x to 67x in these six cases.
 ```
 
-Important caveat:
+Remaining caveat after this first same-edge run:
 
 ```text
 This strict same-edge comparison uses a matching single-CU Spine xclbin, not the
@@ -424,6 +424,114 @@ latest split-CU Spine xclbin. It proves the edge-file comparison path and gives
 useful optimization evidence, but the final latest-Spine comparison still needs
 edge-file support on the split-CU host/source or a matching split-capable host
 in the local Spine branch.
+```
+
+## Strict Same-Edge Split-CU Spine Comparison
+
+We then reproduced the same `--edge-file` patch on the split-capable Spine host
+source in a scratch build directory, without modifying the source checkout under
+`/home/feiyang`.
+
+Reproducible helper files:
+
+```text
+/home/chuxiao/grasu-regraph-integration/patches/spine_split_host_edge_file.patch
+/home/chuxiao/grasu-regraph-integration/scripts/build_spine_split_edge_host.sh
+```
+
+Build command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+BUILD_ROOT=/home/chuxiao/grasu-regraph-integration/.tmp_build/spine_split_edge_host_repro2_20260712_201833 \
+  ./scripts/build_spine_split_edge_host.sh --target hw
+```
+
+Generated split-edge host:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/spine_split_edge_host_repro2_20260712_201833/host_partitioned_csr_e2e_smoke_edge
+sha256 7e12888aabc8f7716a8e37031145db63df27c66394c84ff189b1185099154b15
+```
+
+Split xclbin:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/split_e2e_hw_150_depth32_bram_20260711_2100/xclbin/spine_partitioned_split_e2e.hw.xclbin
+sha256 69145517738cc1ffff95e91c24393260c346ac683db9eef2989bbc1bdb7a3469
+```
+
+Smoke evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_split_edge_file_smoke_repro_20260712_201900
+```
+
+Key smoke result:
+
+```text
+PARTITIONED_CSR_E2E_SMOKE PASS
+case=edge_file
+vertices=16
+input_edges=15
+persisted=15
+traversed_edges=15
+maint_ms=0.283418
+conv_ms=1.41676
+kernel_e2e_ms=1.70018
+errors=0
+```
+
+Six-case split-CU sweep command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+SPINE_HOST=/home/chuxiao/grasu-regraph-integration/.tmp_build/spine_split_edge_host_20260712_201407/host_partitioned_csr_e2e_smoke_edge \
+SPINE_XCLBIN=/data/feiyang/spine-dynamic-graph-builds/split_e2e_hw_150_depth32_bram_20260711_2100/xclbin/spine_partitioned_split_e2e.hw.xclbin \
+SPINE_PARTITIONED_SPLIT_VALUE=1 \
+OUT_ROOT=/home/chuxiao/grasu-regraph-integration/results/spine_split_edge_file_review_hw_20260712_201541 \
+./scripts/run_spine_edge_file_sweep.sh \
+  --chain-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_combined_hw_20260712_195628 \
+  --timeout 300
+```
+
+Split-CU same-edge summary:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_split_edge_file_review_hw_20260712_201541/summary.tsv
+```
+
+Split-CU comparison output:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_split_vs_grasu_regraph_edge_file_hw_20260712_201607/comparison.md
+/home/chuxiao/grasu-regraph-integration/results/spine_split_vs_grasu_regraph_edge_file_hw_20260712_201607/comparison.tsv
+```
+
+Results:
+
+| case | GraSU+ReGraph ms | Spine split same-edge ms | chain / Spine split | interpretation |
+| --- | ---: | ---: | ---: | --- |
+| small_chain_v64 | 17.4392 | 2.17218 | 8.02845 | Spine split is faster on tiny high-diameter chain input. |
+| small_star_v4096_u1024 | 3.23011 | 64.8235 | 0.0498293 | GraSU+ReGraph is faster on low-diameter hot-source fanout. |
+| small_spread_v4096_u1024 | 6.01264 | 65.358 | 0.0919954 | GraSU+ReGraph is faster on spread fanout. |
+| small_hotdst_v4096_u1024 | 9.88242 | 65.1231 | 0.15175 | GraSU+ReGraph is faster on hot-destination updates. |
+| medium_star_v65536_u8192 | 9.92411 | 997.137 | 0.00995261 | GraSU+ReGraph is much faster on medium hot-source fanout. |
+| medium_spread_v65536_u16384 | 15.2861 | 1023 | 0.0149425 | GraSU+ReGraph is much faster on medium spread fanout. |
+
+Interpretation:
+
+```text
+Using the latest available split-CU Spine xclbin does not change the qualitative
+conclusion: Spine wins only on the tiny high-diameter chain; GraSU+ReGraph wins
+on low-diameter fanout/spread/hot-destination workloads, especially as graph
+size grows.
+
+In this edge-file path, the split-CU Spine run is slower than the matching
+single-CU Spine run. That is consistent with the split host reporting zero fast
+path/gather use and forcing full-path tile processing in this build. It should
+be treated as an implementation/architecture signal to inspect, not as a proof
+that split is universally worse.
 ```
 
 ## Current Status
@@ -439,13 +547,15 @@ Completed:
 6. First combined real hw review sweep and Spine scenario comparison completed.
 7. First strict same-edge Spine comparison path completed with a matching
    single-CU Spine xclbin.
+8. Strict same-edge comparison also completed for the latest available
+   split-CU Spine xclbin using a reproducible scratch host patch/build helper.
 ```
 
 Remaining:
 
 ```text
-1. Port or reproduce the edge-file comparison path on the latest split-CU Spine
-   xclbin/host so the final comparison uses the current Spine hardware variant.
+1. Upstream the split-CU edge-file host change into the chosen Spine branch if
+   we want it as a permanent source change rather than a scratch patch helper.
 2. Extend capacity/large-graph testing once the comparison front end is aligned.
 3. Decide whether to optimize timing/SLR/HBM placement for a stable requested
    clock, or simply report the current xclbin at its achieved 243.8 MHz clock.

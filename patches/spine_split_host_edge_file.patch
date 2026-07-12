@@ -1,0 +1,114 @@
+--- host_partitioned_csr_e2e_smoke.cpp
++++ host_partitioned_csr_e2e_smoke.cpp
+@@ -4,10 +4,12 @@
+ #include <chrono>
+ #include <cstdint>
+ #include <cstdlib>
++#include <fstream>
+ #include <iostream>
+ #include <limits>
+ #include <stdexcept>
+ #include <string>
++#include <sstream>
+ #include <thread>
+ #include <vector>
+ 
+@@ -853,6 +855,75 @@
+     };
+ }
+ 
++static std::vector<PartitionedCsrEdgeRef> load_edge_file(
++    const std::string &path
++) {
++    std::ifstream input(path);
++    if (!input) {
++        throw std::runtime_error("failed to open edge file: " + path);
++    }
++
++    std::vector<PartitionedCsrEdgeRef> edges;
++    std::string line;
++    size_t line_no = 0;
++    while (std::getline(input, line)) {
++        line_no++;
++        size_t comment = line.find('#');
++        if (comment != std::string::npos) {
++            line.resize(comment);
++        }
++
++        std::istringstream iss(line);
++        uint64_t src = 0;
++        uint64_t dst = 0;
++        uint64_t weight = 1;
++        int64_t diff = 1;
++        if (!(iss >> src)) {
++            continue;
++        }
++        if (!(iss >> dst)) {
++            throw std::runtime_error("edge file missing dst at line " +
++                                     std::to_string(line_no));
++        }
++        if (!(iss >> weight)) {
++            weight = 1;
++        }
++        if (!(iss >> diff)) {
++            diff = 1;
++        }
++
++        std::string extra;
++        if (iss >> extra) {
++            throw std::runtime_error("edge file has extra token at line " +
++                                     std::to_string(line_no));
++        }
++        if (src >= (uint64_t)MAX_N || dst >= (uint64_t)MAX_N) {
++            throw std::runtime_error("edge file vertex id exceeds MAX_N at line " +
++                                     std::to_string(line_no));
++        }
++        if (weight > (uint64_t)std::numeric_limits<uint16_t>::max()) {
++            throw std::runtime_error("edge file weight exceeds uint16 at line " +
++                                     std::to_string(line_no));
++        }
++        if (diff < (int64_t)std::numeric_limits<int16_t>::min() ||
++            diff > (int64_t)std::numeric_limits<int16_t>::max()) {
++            throw std::runtime_error("edge file diff exceeds int16 at line " +
++                                     std::to_string(line_no));
++        }
++
++        edges.push_back({(uint32_t)src, (uint32_t)dst,
++                         (uint16_t)weight, (int16_t)diff});
++        if (edges.size() > (size_t)HOST_PARTITIONED_RATIO2_MAX_SORT_N) {
++            throw std::runtime_error("edge file exceeds one-batch MAX_SORT_N");
++        }
++    }
++
++    if (edges.empty()) {
++        throw std::runtime_error("edge file contains no edges: " + path);
++    }
++    return edges;
++}
++
+ struct E2eScenario {
+     std::string label;
+     std::vector<std::vector<PartitionedCsrEdgeRef>> batches;
+@@ -1029,6 +1100,13 @@
+         scenario.label = "carry_l3";
+         scenario.batches = make_carry_l3_batches();
+         scenario.compare_l0_graph_image = false;
++    } else if (!args.empty() && args[0] == "--edge-file") {
++        if (args.size() < 2) {
++            throw std::runtime_error("--edge-file requires a path");
++        }
++        scenario.label = "edge_file";
++        scenario.batches.push_back(load_edge_file(args[1]));
++        scenario.compare_l0_graph_image = true;
+     } else if (!args.empty() && args[0] == "--star") {
+         scenario.label = "star";
+         size_t edge_count = (args.size() >= 2)
+@@ -2557,7 +2635,7 @@
+ int main(int argc, char **argv) {
+     if (argc < 2) {
+         std::cerr << "Usage: " << argv[0]
+-                  << " <partitioned_e2e.xclbin> [generated_edge_count|--star [edge_count]|--star-onepart [edge_count]|--sparse-wide|--hot-cold|--repeat-star [edge_count] [batch_count]|--repeat-star-dense [edge_count] [batch_count]|--fanout [edge_count] [source_count]|--duplicate-heavy [raw_edge_count]|--tiny-mixed-fallback|--tiny-stale-poison|--tiny-multilevel-duplicate|--repeat-fanout [edge_count] [batch_count] [source_count]|--measure-carry [target_level] [batch_edges] [source_count]|--carry-l1|--carry-l3|--overflow-full|--stale-l0|--stale-l0-empty|--stale-l0-seeded|--stale-l0-empty-seeded|--stale-l0-seeded-onepart|--stale-l0-empty-seeded-onepart] [--full-vertices] [--timeout seconds]"
++                  << " <partitioned_e2e.xclbin> [generated_edge_count|--edge-file path|--star [edge_count]|--star-onepart [edge_count]|--sparse-wide|--hot-cold|--repeat-star [edge_count] [batch_count]|--repeat-star-dense [edge_count] [batch_count]|--fanout [edge_count] [source_count]|--duplicate-heavy [raw_edge_count]|--tiny-mixed-fallback|--tiny-stale-poison|--tiny-multilevel-duplicate|--repeat-fanout [edge_count] [batch_count] [source_count]|--measure-carry [target_level] [batch_edges] [source_count]|--carry-l1|--carry-l3|--overflow-full|--stale-l0|--stale-l0-empty|--stale-l0-seeded|--stale-l0-empty-seeded|--stale-l0-seeded-onepart|--stale-l0-empty-seeded-onepart] [--full-vertices] [--timeout seconds]"
+                   << std::endl;
+         return 1;
+     }
