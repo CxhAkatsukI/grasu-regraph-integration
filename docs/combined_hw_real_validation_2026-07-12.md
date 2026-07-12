@@ -1,0 +1,289 @@
+# Combined GraSU + ReGraph Real HW Validation
+
+Date: 2026-07-12
+
+## Scope
+
+This note records the first complete real-hardware validation of the combined
+GraSU + ReGraph weighted-SSSP xclbin. It covers:
+
+- the final `hw` artifact and observed clock behavior;
+- resource/CU/HBM/SLR evidence against standalone GraSU and ReGraph builds;
+- a real U55C functional smoke test;
+- the first review-scenario performance sweep against the existing Spine
+  baseline.
+
+## Build Artifact
+
+Combined xclbin:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin
+sha256 d4296714739acea95a8f6a2f66e113849f089fe8e026fd72e7ee40c9e56f05b0
+size   72 MiB
+```
+
+The build command requested 250 MHz:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/link_command.sh
+```
+
+The generated command contains:
+
+```text
+v++ --target hw --link --kernel_frequency 250 ...
+```
+
+This is a requested experiment frequency, not a functional correctness
+requirement. Vitis completed with `exit_status=0`, but it auto-scaled the
+kernel clock because timing did not meet the requested 250 MHz:
+
+```text
+WARNING: [AUTO-FREQ-SCALING-04]
+original frequency equal to 250 MHz
+automatically changed to 243.8 MHz
+```
+
+Use `243.8 MHz` as the actual clock when interpreting performance numbers from
+this xclbin.
+
+## Resource Evidence
+
+Evidence command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/collect_combined_hw_evidence.sh \
+  --target hw \
+  --combined-build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335 \
+  --combined-xclbin /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin \
+  --out-root /home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_195442_combined_hw_user_check
+```
+
+Evidence bundle:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_195442_combined_hw_user_check
+```
+
+Inputs:
+
+```text
+GraSU host:
+  /home/chuxiao/grasu-regraph-integration/repos/GraSU/.tmp_build/u55c_hbm_hw/GraSU_host_u55c
+GraSU xclbin:
+  /home/chuxiao/grasu-regraph-integration/repos/GraSU/.tmp_build/u55c_hbm_hw/build/GraSU_u55c_hbm.hw.xclbin
+ReGraph host:
+  /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp
+ReGraph xclbin:
+  /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+Combined xclbin:
+  /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin
+```
+
+Review-gate summaries:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_195442_combined_hw_user_check/compare_grasu_hw_vs_combined/summary.md
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_195442_combined_hw_user_check/compare_regraph_hw_vs_combined/summary.md
+```
+
+Same-component invariants that passed:
+
+```text
+GraSU vs combined:
+  hls_top_area same-component changes: 0
+  kernel CU count same-kernel changes: 0
+  connectivity binding same-endpoint changes: 0
+
+ReGraph vs combined:
+  hls_top_area same-component changes: 0
+  kernel CU count same-kernel changes: 0
+  connectivity binding same-endpoint changes: 0
+```
+
+Expected additions:
+
+```text
+When comparing standalone GraSU to combined, ReGraph kernels are added:
+  bigKernelScatterGather, kernelApply, kernelBigGSMerger, kernelHBMWrapper,
+  kernelLittleGSMerger, littleKernelScatterGather
+
+When comparing standalone ReGraph to combined, GraSU kernels are added:
+  bin_search, dispatch, process_cache, process_ddr
+```
+
+Observed implementation-level deltas:
+
+```text
+GraSU vs combined:
+  accelerator_util same-component changes: 17
+
+ReGraph vs combined:
+  accelerator_util same-component changes: 12
+```
+
+Interpretation:
+
+```text
+The kernel inventory, CU count, HLS top-area records, and HBM/SLR connectivity
+bindings are stable for same components. The post-implementation accelerator
+utilization report still shows small LUT/REG deltas for several same-named
+components. Treat those as physical implementation differences from linking the
+two accelerators together, not as evidence that the HLS modules or CU counts
+changed. Keep the delta TSVs with the final experiment package.
+```
+
+## Functional Smoke
+
+The real-hw smoke uses the same combined xclbin for both hosts:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+set +u
+source /opt/xilinx/xrt/setup.sh
+set -u
+
+XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin
+GRASU_HOST=/home/chuxiao/grasu-regraph-integration/repos/GraSU/.tmp_build/u55c_hbm_hw/GraSU_host_u55c
+REGRAPH_HOST=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp
+GRAPH=/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_smoke/tiny_chain_v16/tiny_chain_v16.graph
+RESULT=/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_smoke/tiny_chain_v16/tiny_chain_v16.result
+CONVERTED=/home/chuxiao/grasu-regraph-integration/results/hw_function_check_20260712_195536_combined/tiny_chain_v16.from_grasu.sssp.edges
+
+(cd repos/GraSU && "$GRASU_HOST" "$XCLBIN" "$GRAPH" "$RESULT")
+./scripts/grasu_result_to_regraph.py --input "$RESULT" --output "$CONVERTED" --base 16 --weight 1
+(cd repos/ReGraph && REGRAPH_SOURCE=0 "$REGRAPH_HOST" "$XCLBIN" "$CONVERTED" 1 2)
+```
+
+Evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/hw_function_check_20260712_195536_combined
+```
+
+Key result:
+
+```text
+exit_code=0
+GraSU:
+  check result passed
+  kernel finish
+  kernel time: 1.650496 ms
+
+Conversion:
+  converted_edges=15
+
+ReGraph:
+  Device[0]: program successful!
+  Supersteps: 2
+  Processed edges: 16; Graph edges: 15
+  e2e: 0.898685 ms
+  mismatch_count=0
+
+Wall time:
+  GraSU phase:   11.046 s
+  ReGraph phase:  1.129 s
+  Total:         12.175 s
+```
+
+This proves the integrated real `hw` artifact can run both accelerators on a
+real U55C with the same xclbin.
+
+## Review Performance Sweep
+
+Command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+set +u
+source /opt/xilinx/xrt/setup.sh
+set -u
+
+./scripts/run_combined_review_compare.sh \
+  --target hw \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335 \
+  --timeout 600
+```
+
+GraSU + ReGraph summary:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_combined_hw_20260712_195628/summary.tsv
+```
+
+Spine comparison:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_vs_grasu_regraph_review_combined_hw_20260712_195628/comparison.md
+/home/chuxiao/grasu-regraph-integration/results/spine_vs_grasu_regraph_review_combined_hw_20260712_195628/comparison.tsv
+```
+
+GraSU + ReGraph review cases:
+
+| case | status | vertices | final_edges | supersteps | GraSU ms | ReGraph ms | chain ms |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| small_chain_v64 | PASS | 64 | 63 | 64 | 1.529942 | 15.9093 | 17.4392 |
+| small_star_v4096_u1024 | PASS | 4096 | 5120 | 2 | 2.259353 | 0.970757 | 3.23011 |
+| small_spread_v4096_u1024 | PASS | 4096 | 5120 | 16 | 1.651135 | 4.3615 | 6.01264 |
+| small_hotdst_v4096_u1024 | PASS | 4096 | 5119 | 32 | 1.833711 | 8.04871 | 9.88242 |
+| medium_star_v65536_u8192 | PASS | 65536 | 73728 | 2 | 8.870644 | 1.05347 | 9.92411 |
+| medium_spread_v65536_u16384 | PASS | 65536 | 81920 | 32 | 4.517045 | 10.7691 | 15.2861 |
+
+Scenario-level comparison against the existing Spine review baseline:
+
+| label | chain case | Spine case | chain ms | Spine kernel ms | chain / Spine |
+| --- | --- | --- | ---: | ---: | ---: |
+| small_high_diameter | small_chain_v64 | carry_l1 | 17.4392 | 9.98364 | 1.74678 |
+| small_hot_source | small_star_v4096_u1024 | star_4096 | 3.23011 | 234.1 | 0.013798 |
+| small_spread_fanout | small_spread_v4096_u1024 | fanout_4096_s64 | 6.01264 | 241.932 | 0.0248526 |
+| small_hot_destination | small_hotdst_v4096_u1024 | duplicate_heavy_4096 | 9.88242 | 234.19 | 0.0421983 |
+| medium_hot_source | medium_star_v65536_u8192 | star_65536 | 9.92411 | 1865.91 | 0.00531865 |
+| medium_spread_fanout | medium_spread_v65536_u16384 | fanout_65536_s256 | 15.2861 | 1912.48 | 0.00799284 |
+
+Important caveat:
+
+```text
+This comparison is scenario-level, not strict same-input. The current Spine
+builtin baseline allocates much larger vertex spaces in several cases, while
+the GraSU+ReGraph review workloads use direct generated graphs with the listed
+vertex/edge counts. Use the table as directional evidence only. The next
+stronger experiment should either run both systems on identical generated
+graphs, or explicitly normalize/justify the different graph front ends.
+```
+
+Preliminary interpretation:
+
+```text
+GraSU+ReGraph is slower than Spine only on the tiny high-diameter chain-like
+pair in this review table. This is consistent with the concern that repeated
+SSSP levels/supersteps create overhead on small high-diameter graphs.
+
+GraSU+ReGraph is much faster on the fanout/spread/hot-destination review
+pairs, but the comparison is not yet strict same-input. Treat this as an
+optimization signal, not a final publishable claim.
+```
+
+## Current Status
+
+Completed:
+
+```text
+1. ReGraph weighted SSSP implemented and validated in hw_emu and standalone hw.
+2. GraSU + ReGraph linked into one combined hw_emu and real hw xclbin.
+3. Combined hw_emu functional check passed.
+4. Combined real hw resource evidence collected.
+5. Combined real hw functional smoke passed.
+6. First combined real hw review sweep and Spine scenario comparison completed.
+```
+
+Remaining:
+
+```text
+1. Build a stricter same-input comparison path for Spine vs GraSU+ReGraph.
+2. Extend capacity/large-graph testing once the comparison front end is aligned.
+3. Decide whether to optimize timing/SLR/HBM placement for a stable requested
+   clock, or simply report the current xclbin at its achieved 243.8 MHz clock.
+```

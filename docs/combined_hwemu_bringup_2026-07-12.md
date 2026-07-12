@@ -1446,3 +1446,14 @@ because Vitis is running optional post-route physical optimization before
 write_bitstream/package. Continue monitoring; if the xclbin appears, immediately
 run the finalizer to collect resource evidence and smoke-test the combined hw.
 ```
+
+## Combined Real hw Final Validation
+
+The combined real `hw` build later completed, produced a runnable xclbin, and
+passed the first board-level GraSU -> ReGraph smoke plus review sweep. See the
+focused validation note for artifact hashes, achieved clock, resource deltas,
+functional logs, and the first Spine comparison:
+
+```text
+/home/chuxiao/grasu-regraph-integration/docs/combined_hw_real_validation_2026-07-12.md
+```
