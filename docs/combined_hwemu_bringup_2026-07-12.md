@@ -625,3 +625,27 @@ The build remains in placement and has not produced the final xclbin yet, but
 the implementation progress file is actively updating. The next actionable
 step is still to run `scripts/finalize_combined_hw_build.sh` once
 `build/grasu_regraph_combined.hw.xclbin` appears.
+
+Observed status, 2026-07-12 12:58 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final placed/routed xclbin has not completed yet
+newest_log=.../build/link/link/vivado/vpl/vivado.log
+newest_activity=.../build/link/link/vivado/vpl/vivado.pb
+idle_seconds=0
+idle_warning=none
+placement progressed to:
+  Phase 2.5.1 UpdateTiming Before Physical Synthesis
+  Phase 2.5.2 Physical Synthesis In Placer
+```
+
+Latest monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_125841.txt
+```
+
+This is forward progress beyond the earlier `Phase 2.5 Global Placement Core`
+snapshot. The build is still in `place_design -retiming`, so no combined real
+`hw` smoke can run yet.
