@@ -448,3 +448,33 @@ Monitor:
 tmux has-session -t combined_hw_coldinit_250mhz_20260712_112335 && echo running || echo stopped
 tail -120 /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/tmux_driver.log
 ```
+
+Structured monitor helper added:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/monitor_combined_hw_build.sh \
+  --build-root .tmp_build/combined_hw_coldinit_250mhz_20260712_112335 \
+  --session combined_hw_coldinit_250mhz_20260712_112335 \
+  --idle-warn-minutes 10
+```
+
+Latest monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_114413.txt
+```
+
+Observed status, 2026-07-12 11:44 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final link has not completed yet
+newest log updated at 2026-07-12 11:44:13, idle_seconds=0
+VPL step: synth
+Block-level synthesis progressed to 88 of 262 jobs complete, 7 jobs running
+```
+
+This confirms the run is still active and making forward progress. The monitor
+script should be used for later status checks before deciding whether the build
+is idle or stuck.
