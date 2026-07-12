@@ -85,6 +85,35 @@ Full run evidence:
 /home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_function_check_20260712_095347
 ```
 
+Repeat check after the user's successful `hw_emu` build:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/regraph_hw_emu_function_check_20260712_103942
+```
+
+Key lines from the repeat check:
+
+```text
+Device[0]: program successful!
+[INFO] Supersteps: 4
+[INFO] Starting superstep 1/4
+[INFO] Starting superstep 2/4
+[INFO] Starting superstep 3/4
+[INFO] Starting superstep 4/4
+[INFO] dataset/tiny-weighted-sssp.txt,  numD: 1,  e2e: 156017 ms;  Throught: 1.28192e-07 MTEPS :
+Processed edges: 8; Graph edges: 5
+INFO: [HW-EMU 06-1] All the simulator processes exited successfully
+mismatch_count=0
+```
+
+The repeated run used the same artifact hashes:
+
+```text
+9ceb054575e63aa9c6b045875eae2de205e14788a1f211c9116b411df4fed8c8  host_graph_fpga_sssp
+5d63557f6a15d8c3ecc25e0fcbf62bb61df1bf04ef29d3c3b8393b4007662f67  graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+9aa63a3b683163fda7e374efbfeacbeadd45e2dbd58e0e5a148ccb357aa6fefd  emconfig.json
+```
+
 ## Resource Evidence
 
 Collected evidence bundle:
