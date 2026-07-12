@@ -559,6 +559,9 @@ ReGraph perf-only after host skip-verify support:
 
 Spine split chunked edge-file capacity probe:
   /home/chuxiao/grasu-regraph-integration/results/spine_split_edge_file_capacity_hw_20260712_202812/summary.tsv
+
+Spine edge-file batch-threshold probe:
+  /home/chuxiao/grasu-regraph-integration/results/spine_hotdst_threshold_split_hw_20260712_205947/summary.tsv
 ```
 
 Capacity findings:
@@ -575,6 +578,11 @@ Capacity findings:
 4. Spine split large_chain_v4096 passes, but large_hotdst_v262144_u65536 enters
    a very slow maintenance path: after batch 1 completed in 250.563 ms, batch 2
    was still RUNNING after 630 s and the run was stopped.
+5. A follow-up threshold scan shows the issue appears immediately after
+   crossing the 131072-edge batch boundary. One-batch hot-destination inputs
+   pass; two-batch inputs either time out in maintenance or fail level-carry
+   diagnostics. The next Spine target is multi-batch/level-carry handling, not
+   hot-destination reduction alone.
 ```
 
 ## Current Status
@@ -604,8 +612,8 @@ Remaining:
    we want it as a permanent source change rather than a scratch patch helper.
 2. Fold the ReGraph verification buffer-size patch into the source branch used
    for future builds, not only the local hard-linked working copy.
-3. Binary-search Spine hot-destination size/fan-in to locate the maintenance
-   slow-path threshold.
+3. Debug Spine edge-file multi-batch level-carry behavior around the 131072-edge
+   boundary.
 4. Decide whether to optimize timing/SLR/HBM placement for a stable requested
    clock, or simply report the current xclbin at its achieved 243.8 MHz clock.
 ```

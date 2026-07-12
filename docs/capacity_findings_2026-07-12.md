@@ -354,6 +354,42 @@ maintenance path after the first full batch. This is a separate architecture or
 scheduling optimization target from the ReGraph host verification crash.
 ```
 
+## Spine Batch-Threshold Follow-Up
+
+Detailed notes:
+
+```text
+/home/chuxiao/grasu-regraph-integration/docs/spine_hotdst_threshold_2026-07-12.md
+```
+
+Split-CU threshold evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_hotdst_threshold_split_hw_20260712_205947/summary.tsv
+```
+
+Key result:
+
+```text
+One-batch edge files pass, including hot-destination inputs up to 131071 edges.
+As soon as the edge file crosses the 131072-edge batch boundary, the current
+edge-file path becomes unreliable:
+
+chain_v131074_e131073:
+  one full batch + one edge; batch 2 maintenance timed out.
+
+hotdst_v98304_u32770_e131073:
+  one full batch + one edge; batch 2 reported persisted=0 instead of 131073.
+```
+
+Interpretation:
+
+```text
+The large hot-destination symptom is primarily a multi-batch / level-carry
+issue in the current Spine edge-file path, not only a hot-destination reduction
+hotspot.
+```
+
 ## Current Conclusions
 
 ```text
@@ -368,7 +404,8 @@ scheduling optimization target from the ReGraph host verification crash.
    because it requires thousands of supersteps.
 5. Spine's large hot-destination path is a separate slow-maintenance issue:
    the board stays responsive, but maintenance does not finish in a practical
-   time for the tested batch.
+   time for the tested batch. Follow-up threshold probing narrows this to the
+   edge-file multi-batch / level-carry path.
 ```
 
 ## Next Work
@@ -376,6 +413,6 @@ scheduling optimization target from the ReGraph host verification crash.
 ```text
 1. Fold the ReGraph verification buffer-size patch into the source branch used
    for future builds, not only the local hard-linked working copy.
-2. Add a smaller binary search around Spine hot-destination fan-in and batch
-   size to find where the maintenance slow path begins.
+2. Debug Spine edge-file multi-batch level-carry behavior around the 131072-edge
+   boundary.
 ```

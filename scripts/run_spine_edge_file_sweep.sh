@@ -8,6 +8,7 @@ CHAIN_ROOT="${GRI_ROOT}/results/grasu_regraph_sssp_review_combined_hw_20260712_1
 OUT_ROOT="${OUT_ROOT:-${GRI_ROOT}/results/spine_edge_file_review_hw_$(date +%Y%m%d_%H%M%S)}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-300}"
 DRY_RUN=0
+CONTINUE_ON_FAIL=0
 SOURCE_XRT=1
 SPINE_HOST="${SPINE_HOST:-/home/chuxiao/spine-dynamic-graph/tests/test_integration/host_partitioned_csr_e2e_smoke}"
 SPINE_XCLBIN="${SPINE_XCLBIN:-/home/feiyang/dev_space/spine-dynamic-graph/tests/test_integration/xclbin/spine_partitioned_e2e.hw.xclbin}"
@@ -29,6 +30,8 @@ Options:
                               Default: ${TIMEOUT_SECONDS}
   --spine-host PATH           Spine host executable. Default: ${SPINE_HOST}
   --spine-xclbin PATH         Spine xclbin. Default: ${SPINE_XCLBIN}
+  --continue-on-fail          Continue running later edge files after a case
+                              exits non-zero or times out.
   --no-source-xrt             Do not source /opt/xilinx/xrt/setup.sh.
   --dry-run                   Print commands without executing hardware runs.
   -h, --help                  Show this help.
@@ -53,6 +56,7 @@ while [[ $# -gt 0 ]]; do
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
     --spine-host) SPINE_HOST="$(abs_under_root "$2")"; shift 2 ;;
     --spine-xclbin) SPINE_XCLBIN="$(abs_under_root "$2")"; shift 2 ;;
+    --continue-on-fail) CONTINUE_ON_FAIL=1; shift ;;
     --no-source-xrt) SOURCE_XRT=0; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -103,6 +107,7 @@ fi
   echo "dry_run=${DRY_RUN}"
   echo "source_xrt=${SOURCE_XRT}"
   echo "spine_partitioned_split=${SPINE_PARTITIONED_SPLIT_VALUE}"
+  echo "continue_on_fail=${CONTINUE_ON_FAIL}"
   if [[ "${DRY_RUN}" == "0" ]]; then
     sha256sum "${SPINE_HOST}" "${SPINE_XCLBIN}"
   fi
@@ -153,6 +158,10 @@ for edge_file in "${EDGE_FILES[@]}"; do
   tail -n 1 "${SUMMARY}"
 
   if [[ "${rc}" -ne 0 ]]; then
+    if [[ "${CONTINUE_ON_FAIL}" == "1" ]]; then
+      echo "Case failed: ${case_dir_name}; continuing because --continue-on-fail is set. See ${case_dir}/spine.log" >&2
+      continue
+    fi
     echo "Case failed: ${case_dir_name}; see ${case_dir}/spine.log" >&2
     exit "${rc}"
   fi
