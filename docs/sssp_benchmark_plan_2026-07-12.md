@@ -221,6 +221,31 @@ cd /home/chuxiao/grasu-regraph-integration
   --out-root /home/chuxiao/grasu-regraph-integration/results/spine_builtin_review_hw
 ```
 
+Smoke baseline completed on real hardware:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_builtin_smoke_hw_20260712_121740
+```
+
+Artifacts:
+
+```text
+host sha256:   b1e88bc593da7e598452d7676bcc3e7f0cf0c0c9fb192049912364e30a888349
+xclbin sha256: 69145517738cc1ffff95e91c24393260c346ac683db9eef2989bbc1bdb7a3469
+```
+
+Smoke summary:
+
+```text
+fanout_1024_s64  PASS  maint_ms=27.4725  conv_ms=128.139  kernel_e2e_ms=155.611  errors=0
+hot_cold         PASS  maint_ms=0.424933 conv_ms=9.57297                    errors=0
+star_1024        PASS  maint_ms=27.4768  conv_ms=125.289  kernel_e2e_ms=152.766  errors=0
+```
+
+Parser note: `PARTITIONED_CSR_E2E_BATCH` is an intermediate line and does not
+carry final `PASS/FAIL`; the summarizer now prefers the later
+`PARTITIONED_CSR_E2E_SMOKE PASS ...` line when present.
+
 Dry-run without touching the board:
 
 ```bash

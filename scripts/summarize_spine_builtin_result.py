@@ -50,19 +50,26 @@ def first_match(text: str, pattern: str, default: str = "") -> str:
 
 
 def parse_result_line(text: str) -> tuple[str, dict[str, str]]:
+    fallback: tuple[str, dict[str, str]] = ("", {})
     for line in text.splitlines():
         if not line.startswith("PARTITIONED_CSR_E2E_"):
             continue
         parts = line.split()
         tag = parts[0]
-        fields: dict[str, str] = {"status": parts[1] if len(parts) > 1 else ""}
-        for part in parts[2:]:
+        fields: dict[str, str] = {}
+        for part in parts[1:]:
+            if part in {"PASS", "FAIL"}:
+                fields["status"] = part
+                continue
             if "=" not in part:
                 continue
             key, value = part.split("=", 1)
             fields[key] = value
-        return tag, fields
-    return "", {}
+        if "status" in fields:
+            return tag, fields
+        if not fallback[0]:
+            fallback = (tag, fields)
+    return fallback
 
 
 def summarize_dir(result_dir: Path) -> dict[str, str]:
