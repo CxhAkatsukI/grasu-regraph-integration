@@ -812,3 +812,30 @@ Latest monitor snapshot:
 
 The build is still active and has not reached route completion. The congestion
 warning is now the main risk to watch.
+
+## Combined Real hw Monitor, 13:24
+
+Observed status, 2026-07-12 13:24 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final xclbin has not completed yet
+newest_log=.../build/link/link/vivado/vpl/vivado.log
+newest_activity=.../build/link/link/vivado/vpl/vivado.pb
+idle_seconds=52
+idle_warning=none
+place_design completed successfully
+place_design elapsed time: 01:05:19
+place_design CPU time:     02:36:30
+peak memory:               21179.605 MB
+post placement WNS:        -0.144
+```
+
+Latest monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_132455.txt
+```
+
+This clears the placement stage. The next decisive gates are phys-opt, route,
+final timing, bitstream/package, and xclbin emission.
