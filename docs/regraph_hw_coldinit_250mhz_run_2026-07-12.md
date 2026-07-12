@@ -17,9 +17,70 @@ This is a timing-closure experiment. If it succeeds, it gives us a real
 hardware artifact to test. If it fails, its routed reports become the next
 optimization target.
 
+## Final Outcome
+
+The 250 MHz cold-start ReGraph weighted SSSP real `hw` build produced valid
+hardware artifacts and closed timing. The wrapper script exited with status 1
+after artifact generation because its post-build evidence tee/copy path tried
+to write under `/evidence/build_hw.log`, but the Vitis build itself reached
+bitstream generation and wrote the final xclbin.
+
+Final artifacts:
+
+```text
+host:
+  /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp
+  sha256 9ceb054575e63aa9c6b045875eae2de205e14788a1f211c9116b411df4fed8c8
+
+xclbin:
+  /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+  sha256 79387e94b0f8be912db5a74daf72f43b5d6fcb1dfe9f36959ef9f7f5205c5def
+
+link summary:
+  /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/graph_fpga.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin.link_summary
+  sha256 ddc1ee371117f197e4b590c1e862c335b180a1dc6e2bb26e417d5a581faf7ed7
+```
+
+Evidence bundles:
+
+```text
+build/resource/timing evidence:
+  /home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_111915_regraph_coldinit_hw_250mhz/regraph_sssp_hw_coldinit_250mhz
+
+function smoke evidence:
+  /home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_112112_regraph_coldinit_hw_250mhz_function/regraph_sssp_hw_coldinit_250mhz
+
+raw real-hw run log:
+  /home/chuxiao/grasu-regraph-integration/results/regraph_hw_function_check_20260712_112040_tiny/run_tiny_weighted_sssp_hw.log
+```
+
+Routed resource and timing summary from the evidence bundle:
+
+```text
+Used Resources: LUT=55945, LUTAsMem=9973, REG=92623, BRAM=120, URAM=128, DSP=0
+Timing: WNS=0.003 ns, TNS=0.000 ns, WHS=0.009 ns, THS=0.000 ns
+```
+
+Real U55C smoke test:
+
+```text
+Device[0]: program successful!
+[INFO] Supersteps: 4
+[INFO] Starting superstep 1/4
+[INFO] Starting superstep 2/4
+[INFO] Starting superstep 3/4
+[INFO] Starting superstep 4/4
+[INFO] ./dataset/tiny-weighted-sssp.txt,  numD: 1,  e2e: 1.39169 ms;  Throught: 0.014371 MTEPS :
+Processed edges: 8; Graph edges: 5
+mismatch_count=0
+```
+
+This completes the standalone ReGraph weighted SSSP `hw_emu` and real `hw`
+bring-up needed before final GraSU+ReGraph combined hardware linking.
+
 ## Running Session
 
-The build is running in tmux:
+The build ran in tmux:
 
 ```text
 session:  regraph_hw_coldinit_250mhz_20260712_092221

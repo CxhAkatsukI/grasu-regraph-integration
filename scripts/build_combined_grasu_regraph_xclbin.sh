@@ -316,6 +316,7 @@ podman run --rm --platform linux/amd64 \
   -v /sys:/sys:ro \
   -v /etc/machine-id:/etc/machine-id:ro \
   -v /data/yxx/tools/xilinx:/data/yxx/tools/xilinx:ro \
+  -v /data:/data \
   -v /opt/xilinx:/opt/xilinx:ro \
   -v /home/chuxiao:/home/chuxiao \
   -e HOME="${BUILD_ROOT}/container_home" \

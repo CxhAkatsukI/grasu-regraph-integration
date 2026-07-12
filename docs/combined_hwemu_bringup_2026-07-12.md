@@ -25,6 +25,11 @@ The script:
 - writes a manifest, input hashes, generated config, and exact link command;
 - optionally runs `v++ --link` inside `vivado-runner:22.04-feiyang`.
 
+For final real `hw`, the script must mount both `/home/chuxiao` and `/data`
+into the Vitis container. GraSU `.xo` files live under `/home/chuxiao`, while
+the successful cold-start ReGraph real `hw` `.xo` files live under
+`/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch`.
+
 Default ReGraph HBM offset is `0` because the current ReGraph host uses fixed
 HBM bank IDs in `host/preprocess/partition_schedule.cpp`. A non-zero offset can
 compile, but it also requires matching host-side buffer bank changes.
@@ -214,10 +219,11 @@ comparison flow, not a final combined-resource conclusion.
 
 ## Next hw Steps
 
-Cold-start ReGraph real `hw` artifacts are still the missing prerequisite for
-final combined `hw`.
+Cold-start ReGraph real `hw` artifacts are now available and have passed a tiny
+real-board smoke test. They are no longer the missing prerequisite; the active
+long-running step is final combined `hw` linking.
 
-Current preflight status, 2026-07-12:
+Historical preflight status before the ReGraph real `hw` run completed:
 
 ```text
 GraSU hw inputs: present
@@ -363,3 +369,61 @@ The resulting top-level `README.md` points to the exact standalone and combined
 evidence bundles plus both comparison summaries. Same-component HLS,
 accelerator-utilization, or CU-count changes must be explained before using the
 combined xclbin for final performance claims.
+
+## Combined Real HW Attempt
+
+Standalone ReGraph cold-start weighted SSSP real `hw` completed at 250 MHz and
+passed a tiny real-board smoke test. The final ReGraph inputs for combined
+linking are:
+
+```text
+/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/kernelApply.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/kernelHBMWrapper.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/littleKernelScatterGather.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/kernelLittleGSMerger.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/bigKernelScatterGather.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/kernelBigGSMerger.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+```
+
+First combined real `hw` link attempt:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112243
+```
+
+This failed immediately because the podman container did not mount `/data`, so
+`v++` could not see the six ReGraph `.xo` files:
+
+```text
+ERROR: [v++ 60-602] Source file does not exist:
+  /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp/kernelApply.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+```
+
+Script fix:
+
+```text
+scripts/build_combined_grasu_regraph_xclbin.sh now mounts /data:/data
+```
+
+Second combined real `hw` link attempt:
+
+```text
+session:    combined_hw_coldinit_250mhz_20260712_112335
+build root: /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335
+log:        /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/tmux_driver.log
+```
+
+This run has passed input extraction and entered normal Vitis `system_link`:
+
+```text
+INFO: [SYSTEM_LINK 82-70] Extracting xo v3 file .../bin_search.hw.xo
+INFO: [SYSTEM_LINK 82-70] Extracting xo v3 file .../kernelApply.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+INFO: [SYSTEM_LINK 82-53] Creating IP database .../xd_ip_db.xml
+```
+
+Monitor:
+
+```bash
+tmux has-session -t combined_hw_coldinit_250mhz_20260712_112335 && echo running || echo stopped
+tail -120 /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/tmux_driver.log
+```
