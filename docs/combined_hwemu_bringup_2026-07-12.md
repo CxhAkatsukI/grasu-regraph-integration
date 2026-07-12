@@ -507,3 +507,26 @@ This is useful once block synthesis is over because the top VPL log only says
 `Waiting for impl_1 to finish`; the implementation run log shows lower-level
 Vivado activity such as constraint parsing, implementation warnings, and later
 place/route/bitstream milestones.
+
+Observed status, 2026-07-12 12:15 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final placed/routed xclbin has not completed yet
+newest log updated at 2026-07-12 12:14:57, idle_seconds=6
+Vitis top log: Finished 2nd of 6 tasks, FPGA linking synthesized kernels to platform
+Vitis top log: Starting logic optimization
+Vivado impl log: link_design completed successfully
+Vivado impl log: Command: opt_design
+```
+
+Latest monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_121503.txt
+```
+
+This is stronger evidence than the earlier synthesis-progress snapshots: the
+combined design passed the `link_design` stage and is now in real implementation
+optimization. There are still warnings/critical warnings, but no fatal error or
+stale log condition has appeared in this snapshot.
