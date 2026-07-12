@@ -266,6 +266,166 @@ pairs, but the comparison is not yet strict same-input. Treat this as an
 optimization signal, not a final publishable claim.
 ```
 
+## Strict Same-Edge Spine Comparison
+
+After the scenario-level comparison, we added a stricter Spine front end that
+can load the exact `.from_grasu.sssp.edges` files exported by the
+GraSU+ReGraph sweep.
+
+Spine host change:
+
+```text
+/home/chuxiao/spine-dynamic-graph/tests/test_integration/host_partitioned_csr_e2e_smoke.cpp
+```
+
+New host option:
+
+```text
+--edge-file PATH
+```
+
+Edge file format:
+
+```text
+src dst [weight [diff]]
+```
+
+The loader defaults `weight=1` and `diff=1`, ignores trailing `#` comments,
+validates vertex IDs against `MAX_N`, validates weight/diff width, and rejects
+files larger than one `HOST_PARTITIONED_RATIO2_MAX_SORT_N` batch.
+
+The first attempt used the latest split xclbin:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/split_e2e_hw_150_depth32_bram_20260711_2100/xclbin/spine_partitioned_split_e2e.hw.xclbin
+```
+
+That failed because the current local host expected:
+
+```text
+spine_partitioned_e2e_kernel
+```
+
+but the split xclbin exposes:
+
+```text
+spine_partconv_rdmaint_kernel
+spine_partconv_compute_kernel
+```
+
+For the first strict same-edge run, we therefore used the matching single-CU
+Spine xclbin:
+
+```text
+/home/feiyang/dev_space/spine-dynamic-graph/tests/test_integration/xclbin/spine_partitioned_e2e.hw.xclbin
+sha256 ae591fba01896ba6f6835eab866793e932315ffd28459e5e0b7e5c3c2e7ce20c
+```
+
+The local Spine host used for this run:
+
+```text
+/home/chuxiao/spine-dynamic-graph/tests/test_integration/host_partitioned_csr_e2e_smoke
+sha256 05aa95bfa1f6859b256dea0936db049b76c89930012df94eceabc1e647fe9713
+```
+
+Smoke command:
+
+```bash
+cd /home/chuxiao/spine-dynamic-graph
+set +u
+source /opt/xilinx/xrt/setup.sh
+set -u
+
+./tests/test_integration/host_partitioned_csr_e2e_smoke \
+  /home/feiyang/dev_space/spine-dynamic-graph/tests/test_integration/xclbin/spine_partitioned_e2e.hw.xclbin \
+  --edge-file /home/chuxiao/grasu-regraph-integration/results/hw_function_check_20260712_195536_combined/tiny_chain_v16.from_grasu.sssp.edges \
+  --timeout 120
+```
+
+Smoke evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_edge_file_smoke_single_kernel_20260712_200738
+```
+
+Key smoke result:
+
+```text
+PARTITIONED_CSR_E2E_SMOKE PASS
+case=edge_file
+vertices=16
+input_edges=15
+persisted=15
+traversed_edges=15
+maint_ms=0.261607
+conv_ms=1.04556
+kernel_e2e_ms=1.30717
+errors=0
+```
+
+Sweep command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_spine_edge_file_sweep.sh \
+  --chain-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_combined_hw_20260712_195628 \
+  --timeout 300
+```
+
+Spine same-edge sweep evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_edge_file_review_hw_20260712_200934/summary.tsv
+```
+
+Comparison command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/compare_spine_chain_summaries.py \
+  --chain-summary /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_combined_hw_20260712_195628/summary.tsv \
+  --spine-summary /home/chuxiao/grasu-regraph-integration/results/spine_edge_file_review_hw_20260712_200934/summary.tsv \
+  --out-dir /home/chuxiao/grasu-regraph-integration/results/spine_vs_grasu_regraph_edge_file_hw_20260712_201000
+```
+
+Strict same-edge comparison evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_vs_grasu_regraph_edge_file_hw_20260712_201000/comparison.md
+/home/chuxiao/grasu-regraph-integration/results/spine_vs_grasu_regraph_edge_file_hw_20260712_201000/comparison.tsv
+```
+
+Results:
+
+| case | GraSU+ReGraph ms | Spine same-edge ms | chain / Spine | interpretation |
+| --- | ---: | ---: | ---: | --- |
+| small_chain_v64 | 17.4392 | 1.77427 | 9.82897 | Spine is faster on tiny high-diameter chain input. |
+| small_star_v4096_u1024 | 3.23011 | 43.1007 | 0.0749433 | GraSU+ReGraph is faster on low-diameter hot-source fanout. |
+| small_spread_v4096_u1024 | 6.01264 | 43.55 | 0.138063 | GraSU+ReGraph is faster on spread fanout. |
+| small_hotdst_v4096_u1024 | 9.88242 | 43.3577 | 0.227928 | GraSU+ReGraph is faster on hot-destination updates. |
+| medium_star_v65536_u8192 | 9.92411 | 668.18 | 0.0148525 | GraSU+ReGraph is much faster on medium hot-source fanout. |
+| medium_spread_v65536_u16384 | 15.2861 | 678.25 | 0.0225376 | GraSU+ReGraph is much faster on medium spread fanout. |
+
+Interpretation:
+
+```text
+The strict same-edge run supports the earlier directional conclusion but makes
+the small-chain exception sharper. GraSU+ReGraph pays heavily when SSSP needs
+many supersteps on a tiny graph; Spine's local maintenance+convergence path is
+faster there. For low-diameter fanout/spread/hot-destination inputs, the
+GraSU+ReGraph chain wins by roughly 4x to 67x in these six cases.
+```
+
+Important caveat:
+
+```text
+This strict same-edge comparison uses a matching single-CU Spine xclbin, not the
+latest split-CU Spine xclbin. It proves the edge-file comparison path and gives
+useful optimization evidence, but the final latest-Spine comparison still needs
+edge-file support on the split-CU host/source or a matching split-capable host
+in the local Spine branch.
+```
+
 ## Current Status
 
 Completed:
@@ -277,12 +437,15 @@ Completed:
 4. Combined real hw resource evidence collected.
 5. Combined real hw functional smoke passed.
 6. First combined real hw review sweep and Spine scenario comparison completed.
+7. First strict same-edge Spine comparison path completed with a matching
+   single-CU Spine xclbin.
 ```
 
 Remaining:
 
 ```text
-1. Build a stricter same-input comparison path for Spine vs GraSU+ReGraph.
+1. Port or reproduce the edge-file comparison path on the latest split-CU Spine
+   xclbin/host so the final comparison uses the current Spine hardware variant.
 2. Extend capacity/large-graph testing once the comparison front end is aligned.
 3. Decide whether to optimize timing/SLR/HBM placement for a stable requested
    clock, or simply report the current xclbin at its achieved 243.8 MHz clock.
