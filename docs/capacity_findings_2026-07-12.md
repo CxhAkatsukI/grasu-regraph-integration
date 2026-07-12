@@ -21,11 +21,12 @@ Combined xclbin:
 sha256 d4296714739acea95a8f6a2f66e113849f089fe8e026fd72e7ee40c9e56f05b0
 ```
 
-ReGraph host with `REGRAPH_SKIP_VERIFY` support:
+ReGraph host with `REGRAPH_SKIP_VERIFY` support and the verification-buffer
+size fix:
 
 ```text
 /home/chuxiao/ReGraph/host_graph_fpga_sssp
-sha256 c03fc7398563aa379fa058a31400c71f05bfa44bbb77c5a52bb1180a46f4a32c
+sha256 fae2422595fed58b0e019663e3875214f5b991a273e4cd57b3bdfc8a79747a68
 ```
 
 The host-only rebuild command was:
@@ -46,6 +47,7 @@ Patch recorded for review:
 
 ```text
 /home/chuxiao/grasu-regraph-integration/patches/regraph_host_skip_verify_perf_only_20260712.diff
+/home/chuxiao/grasu-regraph-integration/patches/regraph_verify_buffer_size_fix_20260712.diff
 ```
 
 ## ReGraph Large Runs With Full Verification
@@ -211,6 +213,84 @@ strong evidence that the current blocker is ReGraph host software, not the
 combined hardware bitstream.
 ```
 
+## Verification Buffer-Size Fix
+
+Root cause found:
+
+```text
+partition_schedule.cpp may resize partition_container.vertex_property,
+dst_tmp_prop_host, and outdegree_host above NUM_VERTEX_ALIGNED when the
+accelerator partition layout needs additional destination space.
+
+verify.cpp still allocated dst_tmp_prop_verfication,
+dst_tmp_prop_verfication_e2e, and software_next at NUM_VERTEX_ALIGNED.
+
+At the end of software verification, it copied the larger software_prop vector
+into the smaller dst_tmp_prop_verfication vector. This is a host memory
+overwrite and explains the previous large_star double-free and spread/hotdst
+segfaults near result readback.
+```
+
+Fix:
+
+```text
+Use verification_vertices =
+  max(NUM_VERTEX_ALIGNED, partition_container.vertex_property.size())
+
+Allocate the software verification arrays with verification_vertices.
+```
+
+Host-only rebuild:
+
+```bash
+cd /home/chuxiao/ReGraph
+set +e +u
+source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+source /opt/xilinx/xrt/setup.sh
+set -u
+make APP=sssp TARGETS=hw DEVICES=xilinx_u55c_gen3x16_xdma_3_202210_1 exe
+```
+
+Re-run command with full verification:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+set +u
+source /opt/xilinx/xrt/setup.sh
+set -u
+
+OUT_ROOT=/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_capacity_verifyfix_hw_20260712_205303
+REGRAPH_HOST=/home/chuxiao/ReGraph/host_graph_fpga_sssp \
+./scripts/run_grasu_regraph_sssp_sweep.sh \
+  --preset capacity \
+  --combined-xclbin /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin \
+  --allow-pass-on-nonzero-exit \
+  --timeout 900 \
+  --out-root "${OUT_ROOT}"
+```
+
+Evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_capacity_verifyfix_hw_20260712_205303/summary.tsv
+```
+
+Full-verification results after the fix:
+
+| case | status | vertices | final edges | supersteps | GraSU ms | ReGraph ms | processed edges | mismatch count |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| large_star_v1048576_u65536 | PASS | 1048576 | 1114112 | 2 | 76.240819 | 8.17581 | 1115336 | 0 |
+| large_spread_v262144_u65536 | PASS | 262144 | 327680 | 32 | 12.205769 | 41.1394 | 327912 | 0 |
+| large_hotdst_v262144_u65536 | PASS | 262144 | 327679 | 64 | 12.144246 | 85.551 | 327752 | 0 |
+| large_chain_v4096 | PASS | 4096 | 4095 | 4096 | 1.667694 | 1091.32 | 4096 | 0 |
+
+Conclusion:
+
+```text
+The large-spread and large-hotdst failures were fixed by a host-only
+verification buffer sizing change. No hardware rebuild was required.
+```
+
 ## Spine Capacity Probe
 
 The Spine `--edge-file` host was extended to split input files into batches of
@@ -277,15 +357,16 @@ scheduling optimization target from the ReGraph host verification crash.
 ## Current Conclusions
 
 ```text
-1. Do not rebuild the combined GraSU+ReGraph hardware just for the current
-   large-spread / large-hotdst failure. The evidence points to ReGraph host
-   readback/verification/teardown.
-2. Keep reporting skip-verify large results as PERF_ONLY only. They are useful
+1. The former ReGraph large-spread / large-hotdst crash was a host verification
+   memory overwrite, fixed by sizing verification arrays from the actual
+   partition_container property buffer.
+2. No combined GraSU+ReGraph hardware rebuild was needed for this failure.
+3. Keep reporting skip-verify large results as PERF_ONLY only. They are useful
    for timing and capacity, not correctness.
-3. GraSU+ReGraph large low-diameter cases show strong ReGraph kernel throughput
-   once verification is bypassed, while the high-diameter chain remains slow
+4. GraSU+ReGraph large low-diameter cases show strong ReGraph kernel throughput
+   with full verification passing, while the high-diameter chain remains slow
    because it requires thousands of supersteps.
-4. Spine's large hot-destination path is a separate slow-maintenance issue:
+5. Spine's large hot-destination path is a separate slow-maintenance issue:
    the board stays responsive, but maintenance does not finish in a practical
    time for the tested batch.
 ```
@@ -293,12 +374,8 @@ scheduling optimization target from the ReGraph host verification crash.
 ## Next Work
 
 ```text
-1. Fix ReGraph host verification robustly:
-   - audit result buffer host backing memory;
-   - avoid ambiguous duplicate CL_MEM_USE_HOST_PTR mappings if needed;
-   - size verification arrays from actual partition_container vectors rather
-     than assuming NUM_VERTEX_ALIGNED everywhere.
-2. Re-run the capacity preset with full verification after the host fix.
-3. Add a smaller binary search around Spine hot-destination fan-in and batch
+1. Fold the ReGraph verification buffer-size patch into the source branch used
+   for future builds, not only the local hard-linked working copy.
+2. Add a smaller binary search around Spine hot-destination fan-in and batch
    size to find where the maintenance slow path begins.
 ```

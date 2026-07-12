@@ -551,6 +551,9 @@ Full ReGraph verification:
   /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_sweep_20260712_202642/summary.tsv
   /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_sweep_20260712_202719/summary.tsv
 
+Full ReGraph verification after host buffer-size fix:
+  /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_capacity_verifyfix_hw_20260712_205303/summary.tsv
+
 ReGraph perf-only after host skip-verify support:
   /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_capacity_perf_only_hw_20260712_204718/summary.tsv
 
@@ -561,14 +564,14 @@ Spine split chunked edge-file capacity probe:
 Capacity findings:
 
 ```text
-1. The large ReGraph spread/hot-destination cases fail with full verification
-   near result readback, but complete as PERF_ONLY when verification is skipped.
-   This points to host-side readback/verification/teardown rather than a need to
-   rebuild the combined hardware xclbin.
-2. ReGraph large low-diameter cases maintain high kernel throughput in perf-only
-   mode: star 273.878 MTEPS, spread 241.818 MTEPS, hot-destination 249.369 MTEPS.
-3. ReGraph large_chain_v4096 remains slow, about 1016.92 ms perf-only, because
-   the test intentionally requires 4096 supersteps.
+1. The large ReGraph spread/hot-destination crashes were fixed by a host-only
+   verification buffer-size change; all four capacity cases now PASS with
+   mismatch_count=0 on the existing combined xclbin.
+2. ReGraph large low-diameter cases maintain high kernel throughput with full
+   verification: star 272.539 MTEPS, spread 254.884 MTEPS,
+   hot-destination 245.134 MTEPS.
+3. ReGraph large_chain_v4096 remains slow, about 1091.32 ms, because the test
+   intentionally requires 4096 supersteps.
 4. Spine split large_chain_v4096 passes, but large_hotdst_v262144_u65536 enters
    a very slow maintenance path: after batch 1 completed in 250.563 ms, batch 2
    was still RUNNING after 630 s and the run was stopped.
@@ -589,8 +592,9 @@ Completed:
    single-CU Spine xclbin.
 8. Strict same-edge comparison also completed for the latest available
    split-CU Spine xclbin using a reproducible scratch host patch/build helper.
-9. Capacity probes completed. ReGraph full-verification failures were narrowed
-   to host software, and a perf-only path was added for large timing runs.
+9. Capacity probes completed. ReGraph full-verification failures were fixed by
+   a host-only verification buffer-size patch; perf-only mode remains available
+   for timing isolation.
 ```
 
 Remaining:
@@ -598,8 +602,8 @@ Remaining:
 ```text
 1. Upstream the split-CU edge-file host change into the chosen Spine branch if
    we want it as a permanent source change rather than a scratch patch helper.
-2. Fix ReGraph host verification/readback so large spread/hot-destination cases
-   can be marked PASS rather than PERF_ONLY.
+2. Fold the ReGraph verification buffer-size patch into the source branch used
+   for future builds, not only the local hard-linked working copy.
 3. Binary-search Spine hot-destination size/fan-in to locate the maintenance
    slow-path threshold.
 4. Decide whether to optimize timing/SLR/HBM placement for a stable requested
