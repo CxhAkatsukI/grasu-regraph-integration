@@ -106,12 +106,17 @@ After the combined real `hw` xclbin exists:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
+COMBINED_XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz/build/grasu_regraph_combined.hw.xclbin \
 REGRAPH_HOST=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \
-REGRAPH_XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz/build/grasu_regraph_combined.hw.xclbin \
 ./scripts/run_grasu_regraph_sssp_sweep.sh \
   --preset review \
+  --combined-xclbin "${COMBINED_XCLBIN}" \
   --out-root /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_combined_hw_250mhz
 ```
+
+For combined-hardware claims, both hosts must load the same combined xclbin.
+Using only `REGRAPH_XCLBIN=<combined>` while leaving `GRASU_XCLBIN` at its
+default would measure a mixed setup instead of the unified hardware binary.
 
 Expected summary:
 

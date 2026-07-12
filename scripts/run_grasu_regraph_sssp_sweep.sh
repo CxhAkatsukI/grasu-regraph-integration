@@ -41,6 +41,7 @@ Options:
   --grasu-xclbin PATH         GraSU xclbin.
   --regraph-host PATH         ReGraph SSSP host executable.
   --regraph-xclbin PATH       ReGraph or combined xclbin.
+  --combined-xclbin PATH      Use the same combined xclbin for GraSU and ReGraph.
   --xcl-emulation-mode MODE   Set XCL_EMULATION_MODE for ReGraph, e.g. hw_emu.
   --skip-generate             Reuse an existing workload manifest.
   --skip-grasu                Skip GraSU and use the expected result file directly.
@@ -55,9 +56,9 @@ Typical real-hw cold-start ReGraph run after the 250 MHz hw build exists:
 
 Typical combined-hw run:
 
+  COMBINED_XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz/build/grasu_regraph_combined.hw.xclbin \\
   REGRAPH_HOST=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \\
-  REGRAPH_XCLBIN=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz/build/grasu_regraph_combined.hw.xclbin \\
-  $0 --preset review
+  $0 --preset review --combined-xclbin "\${COMBINED_XCLBIN}"
 USAGE
 }
 
@@ -87,6 +88,7 @@ while [[ $# -gt 0 ]]; do
     --grasu-xclbin) GRASU_XCLBIN="$(abs_under_root "$2")"; shift 2 ;;
     --regraph-host) REGRAPH_HOST="$(abs_under_root "$2")"; shift 2 ;;
     --regraph-xclbin) REGRAPH_XCLBIN="$(abs_under_root "$2")"; shift 2 ;;
+    --combined-xclbin) GRASU_XCLBIN="$(abs_under_root "$2")"; REGRAPH_XCLBIN="${GRASU_XCLBIN}"; shift 2 ;;
     --xcl-emulation-mode) XCL_EMULATION_MODE_VALUE="$2"; shift 2 ;;
     --skip-generate) SKIP_GENERATE=1; shift ;;
     --skip-grasu) SKIP_GRASU=1; shift ;;
