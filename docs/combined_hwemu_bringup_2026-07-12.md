@@ -1232,3 +1232,41 @@ hw combined host selection:
   grasu_host=/home/chuxiao/grasu-regraph-integration/repos/GraSU/.tmp_build/u55c_hbm_hw/GraSU_host_u55c
   regraph_host=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp
 ```
+
+## Combined Real hw Monitor, 14:33
+
+Observed status, 2026-07-12 14:33 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final xclbin has not completed yet
+newest_log=.../tmux_driver.log
+idle_seconds=7
+idle_warning=none
+current command: route_design
+```
+
+Routing progress since the previous checkpoint:
+
+```text
+[06:28:32] Phase 5.6 Global Iteration 5
+[06:33:10] Phase 5.7 Global Iteration 6
+```
+
+Intermediate route timing continued to improve:
+
+```text
+WNS/TNS progression:
+  -0.232 / -66.504
+  -0.185 / -48.331
+  -0.143 / -26.361
+```
+
+Interpretation:
+
+```text
+The real-hw combined build is still alive and making routing progress. It has
+not emitted the final xclbin yet, but timing is moving in the right direction.
+Continue monitoring for route completion, post-route phys-opt, write_bitstream,
+package, and xclbin emission.
+```
