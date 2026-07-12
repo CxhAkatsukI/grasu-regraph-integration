@@ -118,3 +118,106 @@ impl_1_hw_bb_locked_timing_summary_postroute_physopted.rpt
 
 The previous matcher only recognized exact names like
 `kernel_util_routed.rpt`, so it missed the Spine routed utilization reports.
+
+## Later Split-CU Build Monitor, 2026-07-12 21:39 CST
+
+Evidence snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_hw_monitor_20260712_2139
+```
+
+### 200 MHz Retry
+
+Build root:
+
+```text
+/data/feiyang/spine-dynamic-graph/target/split_e2e_hw_200
+```
+
+The retry generated both kernel object files but did not generate the final
+hardware xclbin:
+
+```text
+/data/feiyang/spine-dynamic-graph/target/split_e2e_hw_200/xclbin/spine_partconv_rdmaint_kernel.hw.xo
+/data/feiyang/spine-dynamic-graph/target/split_e2e_hw_200/xclbin/spine_partconv_compute_kernel.hw.xo
+missing: /data/feiyang/spine-dynamic-graph/target/split_e2e_hw_200/xclbin/spine_partitioned_split_e2e.hw.xclbin
+```
+
+Failure evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_hw_monitor_20260712_2139/split_e2e_hw_200/v++_spine_partitioned_split_e2e.hw.log
+/home/chuxiao/grasu-regraph-integration/results/spine_hw_monitor_20260712_2139/split_e2e_hw_200/link.steps.log
+/home/chuxiao/grasu-regraph-integration/results/spine_hw_monitor_20260712_2139/split_e2e_hw_200/impl_1_runme.log
+```
+
+Key log lines:
+
+```text
+[21:35:47] Run vpl: FINISHED. Run Status: impl ERROR
+ERROR: [VPL 18-1000] Routing results verification failed due to partially-conflicted nets
+ERROR: [VPL 12-13638] Failed runs(s) : 'impl_1'
+ERROR: [v++ 60-661] v++ link run 'run_link' failed
+```
+
+The implementation log reports a legal-routing failure:
+
+```text
+CRITICAL WARNING: [Route 35-2] Design is not legally routed. There are 18816 node overlaps.
+ERROR: [Constraints 18-1000] Routing results verification failed due to partially-conflicted nets
+route_design failed
+```
+
+Interpretation: this 200 MHz retry is not stuck and is not a host/runtime
+crash. It reached Vivado implementation and failed during route verification.
+The conflicted nets are inside `spine_partconv_rdmaint_kernel_1`, including
+`gmem_p2_m_axi` and `gmem_meta_m_axi` paths, so the next useful action is
+physical-closure/placement/routing relief rather than changing the benchmark
+host.
+
+Note: an earlier 200 MHz attempt in
+`/data/feiyang/spine-dynamic-graph/target/split_e2e_hw_200_build.log` failed
+at block-design creation with:
+
+```text
+You have run out of port connections on /hmss_0. All 33 connections are used
+```
+
+That older failure involved the pre-split/three-kernel connectivity. The later
+retry progressed further with the current two-kernel split link, so the current
+authoritative 200 MHz blocker is the route-verification failure above.
+
+### 150 MHz Retry
+
+Build root:
+
+```text
+/data/feiyang/spine-dynamic-graph/target/split_e2e_hw_150
+```
+
+Monitor command:
+
+```bash
+ps -eo pid,ppid,stat,etime,%cpu,%mem,cmd | rg -n "spine_partitioned_split_e2e|v\\+\\+|vivado|runme|hw_150"
+tail -n 120 /data/feiyang/spine-dynamic-graph/target/split_e2e_hw_150/logs/v++_spine_partitioned_split_e2e.hw.log
+```
+
+Status at `2026-07-12 21:39:11 CST`:
+
+```text
+v++ link process is still active.
+Vivado block-level synthesis is active.
+No final xclbin exists yet.
+Latest progress: Block-level synthesis in progress, 210 of 211 jobs complete, 1 job running.
+```
+
+Important active process:
+
+```text
+vivado -log ulp_spine_partconv_rdmaint_kernel_1_0.vds ... ulp_spine_partconv_rdmaint_kernel_1_0.tcl
+```
+
+Interpretation: the 150 MHz retry is slow but still alive. The log timestamp is
+advancing and the Vivado synthesis process is consuming CPU and memory. It is
+too early to classify it as failed or stuck.
