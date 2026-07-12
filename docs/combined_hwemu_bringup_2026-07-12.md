@@ -546,3 +546,30 @@ Vivado log: Multithreading enabled for place_design using a maximum of 8 CPUs
 This means the combined build has passed synthesis, `link_design`, and
 `opt_design`, and is now in placement. It is still active; there is no xclbin
 yet and no stale-log warning.
+
+Observed status, 2026-07-12 12:36 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final placed/routed xclbin has not completed yet
+newest log updated at 2026-07-12 12:36:11, idle_seconds=4
+Vitis top log: still in logic placement
+placement progressed through:
+  Phase 2.1.1.1 PBP: Partition Driven Placement
+  Phase 2.1.1.2 PBP: Clock Region Placement
+  Phase 2.1.1.3 PBP: Discrete Incremental
+  Phase 2.1.1.4 PBP: Compute Congestion
+  Phase 2.1.1.5 PBP: Macro Placement
+  Phase 2.1.1.6 PBP: UpdateTiming
+  Phase 2.2 Physical Synthesis After Floorplan
+```
+
+Latest monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_123614.txt
+```
+
+This snapshot confirms the build is still making forward progress inside
+placement. The current warnings include expected placement/SLR messages, but
+there is still no fatal error and no idle-log warning.
