@@ -1144,3 +1144,50 @@ minutes. For hw_emu, use this as the recommended functional gate:
 3. convert the GraSU result to ReGraph weighted SSSP input
 4. run a 2-superstep ReGraph minimal check through the same combined xclbin
 ```
+
+## Combined Real hw Monitor, 14:24
+
+Observed status, 2026-07-12 14:24 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final xclbin has not completed yet
+newest_log=.../build/link/link/vivado/vpl/vivado.log
+newest_activity=.../build/link/link/vivado/vpl/vivado.pb
+idle_seconds=2
+idle_warning=none
+current command: route_design
+```
+
+Routing progress:
+
+```text
+[05:35:33] Starting logic routing..
+[05:47:53] Phase 5 Rip-up And Reroute
+[05:47:53] Phase 5.1 Global Iteration 0
+[06:12:35] Phase 5.2 Global Iteration 1
+[06:16:11] Phase 5.3 Global Iteration 2
+[06:19:47] Phase 5.4 Global Iteration 3
+[06:23:54] Phase 5.5 Global Iteration 4
+```
+
+Current intermediate route timing:
+
+```text
+WNS moved through:
+  -0.642
+  -0.426
+  -0.356
+  -0.232
+latest TNS=-66.504
+```
+
+Interpretation:
+
+```text
+The build is still active and not idle. Route is making forward progress and
+WNS has improved since earlier route iterations, but the design still has
+negative route timing and known congestion/SLL/bus-skew warnings. No action
+needed yet; continue monitoring until route completion, timing failure, or
+xclbin emission.
+```
