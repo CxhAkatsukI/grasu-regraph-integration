@@ -98,6 +98,9 @@ vpl impl started at 2026-07-12 09:49:06 Asia/Shanghai
 vpl finished logic optimization at 2026-07-12 09:59:46 Asia/Shanghai
 vpl placement started at 2026-07-12 09:59:46 Asia/Shanghai
 placement reached global placement phase 2.1.1.4 at 2026-07-12 10:06:22 Asia/Shanghai
+global placement core completed at 2026-07-12 10:19:04 Asia/Shanghai
+detail placement completed at 2026-07-12 10:23:08 Asia/Shanghai
+post-placement optimization started at 2026-07-12 10:23:08 Asia/Shanghai
 ```
 
 Observed HLS Fmax values from the build log:
