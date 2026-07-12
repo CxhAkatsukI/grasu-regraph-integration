@@ -530,3 +530,19 @@ This is stronger evidence than the earlier synthesis-progress snapshots: the
 combined design passed the `link_design` stage and is now in real implementation
 optimization. There are still warnings/critical warnings, but no fatal error or
 stale log condition has appeared in this snapshot.
+
+Observed status, 2026-07-12 12:20 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final placed/routed xclbin has not completed yet
+newest log updated at 2026-07-12 12:18:36, idle_seconds=125
+Vitis top log: Finished 3rd of 6 tasks, FPGA logic optimization
+Vitis top log: Starting logic placement
+Vivado log: Command: place_design -retiming
+Vivado log: Multithreading enabled for place_design using a maximum of 8 CPUs
+```
+
+This means the combined build has passed synthesis, `link_design`, and
+`opt_design`, and is now in placement. It is still active; there is no xclbin
+yet and no stale-log warning.

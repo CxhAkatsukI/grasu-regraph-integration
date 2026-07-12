@@ -246,6 +246,30 @@ Parser note: `PARTITIONED_CSR_E2E_BATCH` is an intermediate line and does not
 carry final `PASS/FAIL`; the summarizer now prefers the later
 `PARTITIONED_CSR_E2E_SMOKE PASS ...` line when present.
 
+Review baseline completed on real hardware:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/spine_builtin_review_hw_20260712_121941
+```
+
+All 10 review scenarios passed:
+
+```text
+hot_cold                    PASS  maint_ms=0.410352  conv_ms=9.59798
+star_4096                  PASS  maint_ms=108.733   conv_ms=125.367  kernel_e2e_ms=234.1
+star_65536                 PASS  maint_ms=1733.54   conv_ms=132.365  kernel_e2e_ms=1865.91
+fanout_4096_s64            PASS  maint_ms=108.745   conv_ms=133.188  kernel_e2e_ms=241.932
+fanout_65536_s256          PASS  maint_ms=1733.88   conv_ms=178.6    kernel_e2e_ms=1912.48
+repeat_star_4096_b4        PASS  maint_ms=443.525   conv_ms=126.64   kernel_e2e_ms=570.165
+repeat_fanout_4096_b4_s64  PASS  maint_ms=902.566   conv_ms=162.568  kernel_e2e_ms=1065.13
+duplicate_heavy_4096       PASS  maint_ms=108.704   conv_ms=125.487  kernel_e2e_ms=234.19
+carry_l1                   PASS  maint_ms=0.466734  conv_ms=9.5169   kernel_e2e_ms=9.98364
+carry_l3                   PASS  maint_ms=1.85856   conv_ms=25.9946  kernel_e2e_ms=27.8531
+```
+
+Use this summary for the first Spine-vs-chain join unless a newer Spine review
+run is explicitly recorded.
+
 Dry-run without touching the board:
 
 ```bash
