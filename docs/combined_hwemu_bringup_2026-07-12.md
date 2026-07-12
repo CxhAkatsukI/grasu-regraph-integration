@@ -1028,3 +1028,119 @@ Latest monitor snapshot:
 
 This confirms the build moved past placement into post-placement physical
 optimization. The next stage to watch is `route_design`.
+
+## Combined hw_emu User-Success Check, 14:19
+
+Observed status, 2026-07-12 14:19 Asia/Shanghai:
+
+```text
+combined_xclbin=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/build/grasu_regraph_combined.hw_emu.xclbin
+sha256=daf8bb44c32295a27827993bdf913eb9d311f27e4d21efbaf46edfc57224995f
+manifest=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/manifest.env
+grasu_host=/home/chuxiao/grasu-regraph-integration/repos/GraSU/.tmp_build/u55c_hbm_hwemu/GraSU_host_u55c
+grasu_host_sha256=9fb21cc3000f9d3219e194d7cdf6df7fd8a5a592c65e2767247fd0b8af43d34a
+regraph_host=/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/host_graph_fpga_sssp
+regraph_host_sha256=15db9e29a1cb9dc6ebc572c96214e390d331be1996ba1635145bbb0261f39032
+```
+
+Important manifest detail:
+
+```text
+REGRAPH_XCLBIN_DIR=/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/xclbin_hw_emu_sssp
+```
+
+So this artifact must be tested with the matching `fixed_scratch` ReGraph host,
+not the newer cold-init ReGraph host.
+
+Evidence collection command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/finalize_combined_hw_build.sh \
+  --target hw_emu \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible \
+  --session '' \
+  --preset smoke \
+  --evidence-out /home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_hwemu_user_success_check \
+  --smoke-out /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_user_success_check
+```
+
+Evidence directory:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_hwemu_user_success_check
+```
+
+Resource comparison summary:
+
+```text
+GraSU same-component changes:
+  accelerator_util=0
+  hls_top_area=0
+  kernel CU count=0
+  connectivity binding=0
+
+ReGraph same-component changes:
+  accelerator_util=0
+  hls_top_area=0
+  kernel CU count=0
+  connectivity binding=0
+```
+
+Added rows/kernels/endpoints in the comparison are expected because the after
+side is the combined xclbin. The review signal is the same-component delta,
+which is zero for both accelerators in this hw_emu artifact.
+
+Functional evidence:
+
+```text
+GraSU combined-xclbin run:
+  log=/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_user_success_check/tiny_chain_v16/grasu.log
+  result=passed
+  key lines:
+    check result passed
+    kernel finish
+    INFO: [HW-EMU 06-1] All the simulator processes exited successfully
+  hw_emu kernel time: 498047.352124 ms
+
+GraSU result converted to ReGraph SSSP input:
+  edges=/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_user_success_check/tiny_chain_v16/tiny_chain_v16.from_grasu.sssp.edges
+  converted_edges=15
+
+ReGraph combined-xclbin minimal run:
+  log=/home/chuxiao/grasu-regraph-integration/results/regraph_hwemu_min2_combined_user_success_check/regraph_min2.log
+  input=GraSU-converted 16-vertex chain, 15 weighted edges
+  source=0
+  num_dense=1
+  supersteps=2
+  result=exit code 0
+  key lines:
+    Device[0]: program successful!
+    [INFO] Starting superstep 1/2
+    [INFO] Starting superstep 2/2
+    BIG_KERNEL finished
+    Verifying end-to-end on hardware vs. end-to-end on software...
+    Processed edges: 16; Graph edges: 15
+    INFO: [HW-EMU 06-1] All the simulator processes exited successfully
+```
+
+Manual ReGraph minimal command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+mkdir -p results/regraph_hwemu_min2_combined_user_success_check
+bash -lc 'source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh; export XILINX_XRT=/opt/xilinx/xrt; export LD_LIBRARY_PATH=/opt/xilinx/xrt/lib:${LD_LIBRARY_PATH:-}; cd /home/chuxiao/grasu-regraph-integration/repos/ReGraph; timeout 420s env REGRAPH_SOURCE=0 XCL_EMULATION_MODE=hw_emu EMCONFIG_PATH=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/run_regraph_tiny /home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/host_graph_fpga_sssp /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/build/grasu_regraph_combined.hw_emu.xclbin /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_smoke_combined_hwemu_user_success_check/tiny_chain_v16/tiny_chain_v16.from_grasu.sssp.edges 1 2' \
+  > /home/chuxiao/grasu-regraph-integration/results/regraph_hwemu_min2_combined_user_success_check/regraph_min2.log 2>&1
+```
+
+The default `smoke` preset is too slow for full chained hw_emu validation: the
+first GraSU tiny-chain case alone took about 498 seconds, and the ReGraph
+16-superstep half was still running at superstep 4/16 after several more
+minutes. For hw_emu, use this as the recommended functional gate:
+
+```text
+1. collect combined evidence and same-component resource deltas
+2. run one GraSU tiny case through the combined xclbin
+3. convert the GraSU result to ReGraph weighted SSSP input
+4. run a 2-superstep ReGraph minimal check through the same combined xclbin
+```
