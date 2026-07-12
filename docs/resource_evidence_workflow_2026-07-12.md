@@ -183,6 +183,28 @@ Block RAM:     SLR0 78.5,   SLR1 124,    SLR2 102.5
 URAM:          SLR0 256,    SLR1 0,      SLR2 256
 ```
 
+Latest current GraSU `hw` baseline collected for the final combined-hardware
+comparison:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_100208_grasu_hw_baseline_for_combined/grasu_hw
+```
+
+This bundle reuses the same completed standalone hardware build and records:
+
+```text
+host sha256:
+  9fb21cc3000f9d3219e194d7cdf6df7fd8a5a592c65e2767247fd0b8af43d34a
+xclbin sha256:
+  66ce4ab566fe78c4fafdc3c6798a41394c0d7d56ae17fdc5f599d60fa61469d9
+CU counts:
+  bin_search=4, dispatch=1, process_cache=2, process_ddr=2
+routed resources:
+  LUT=244390, LUTAsMem=7000, REG=178172, BRAM=104, URAM=512, DSP=0
+timing:
+  WNS=0.003 ns, TNS=0.000 ns, WHS=0.009 ns, THS=0.000 ns
+```
+
 ReGraph fixed-source `hw_emu` artifact hashes:
 
 ```text
