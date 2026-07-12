@@ -573,3 +573,31 @@ Latest monitor snapshot:
 This snapshot confirms the build is still making forward progress inside
 placement. The current warnings include expected placement/SLR messages, but
 there is still no fatal error and no idle-log warning.
+
+## Monitor Activity Refinement
+
+At 2026-07-12 12:44 Asia/Shanghai the text logs had not advanced for about
+492 seconds, but the Vivado implementation process was still using CPU and
+`place_design.pb` was being updated:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/link/link/vivado/vpl/prj/prj.runs/impl_1/place_design.pb
+```
+
+I updated `scripts/monitor_combined_hw_build.sh` so `idle_warning` is now based
+on the newest log or Vivado progress file (`*.pb`, `*.rst`, `*.json`, `*.xutil`)
+rather than logs only. The monitor still prints `newest_log`, but it now also
+prints `newest_activity`.
+
+Validation snapshot:
+
+```text
+checked_at=2026-07-12T12:45:37+08:00
+newest_log=.../tmux_driver.log
+newest_activity=.../impl_1/place_design.pb
+idle_seconds=1
+idle_warning=none
+```
+
+This prevents long `place_design` phases from being misclassified as stuck when
+Vivado is actively updating implementation progress files.

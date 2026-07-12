@@ -19,7 +19,7 @@ This is intended for long real-hw builds where the visible log can sit at
 Options:
   --build-root PATH        Combined build root. Default: newest combined_hw_coldinit_250mhz_*.
   --session NAME           Tmux session name. Default: basename of build root.
-  --idle-warn-minutes N    Warn if no log file changed for N minutes. Default: ${IDLE_WARN_MINUTES}.
+  --idle-warn-minutes N    Warn if no log/progress file changed for N minutes. Default: ${IDLE_WARN_MINUTES}.
   -h, --help               Show this help.
 USAGE
 }
@@ -87,6 +87,7 @@ XCLBIN="${BUILD_ROOT}/build/grasu_regraph_combined.${TARGET}.xclbin"
 LINK_SUMMARY="${BUILD_ROOT}/build/grasu_regraph_combined.${TARGET}.xclbin.link_summary"
 
 newest_log_line=""
+newest_activity_line=""
 if [[ -d "${BUILD_ROOT}" ]]; then
   newest_log_line="$(
     find "${BUILD_ROOT}" -type f \( -name '*.log' -o -name '*.jou' -o -name '*.str' \) \
@@ -94,11 +95,20 @@ if [[ -d "${BUILD_ROOT}" ]]; then
       | sort -nr \
       | head -1 || true
   )"
+  newest_activity_line="$(
+    find "${BUILD_ROOT}" -type f \( \
+      -name '*.log' -o -name '*.jou' -o -name '*.str' -o \
+      -name '*.pb' -o -name '*.rst' -o -name '*.json' -o -name '*.xutil' \
+    \) \
+      -printf '%T@ %TY-%Tm-%TdT%TH:%TM:%TS %s %p\n' 2>/dev/null \
+      | sort -nr \
+      | head -1 || true
+  )"
 fi
 
 idle_seconds=""
-if [[ -n "${newest_log_line}" ]]; then
-  newest_epoch="$(awk '{ print int($1) }' <<<"${newest_log_line}")"
+if [[ -n "${newest_activity_line}" ]]; then
+  newest_epoch="$(awk '{ print int($1) }' <<<"${newest_activity_line}")"
   now_epoch="$(date +%s)"
   idle_seconds=$(( now_epoch - newest_epoch ))
 fi
@@ -129,14 +139,19 @@ echo
 echo "## Log Activity"
 if [[ -n "${newest_log_line}" ]]; then
   printf 'newest_log=%s\n' "$(awk '{ $1=""; sub(/^ /, ""); print }' <<<"${newest_log_line}")"
+else
+  echo "newest_log=none"
+fi
+if [[ -n "${newest_activity_line}" ]]; then
+  printf 'newest_activity=%s\n' "$(awk '{ $1=""; sub(/^ /, ""); print }' <<<"${newest_activity_line}")"
   printf 'idle_seconds=%s\n' "${idle_seconds}"
   if (( idle_seconds >= IDLE_WARN_MINUTES * 60 )); then
-    printf 'idle_warning=latest log is older than %s minutes\n' "${IDLE_WARN_MINUTES}"
+    printf 'idle_warning=latest activity is older than %s minutes\n' "${IDLE_WARN_MINUTES}"
   else
     printf 'idle_warning=none\n'
   fi
 else
-  echo "newest_log=none"
+  echo "newest_activity=none"
 fi
 echo
 
