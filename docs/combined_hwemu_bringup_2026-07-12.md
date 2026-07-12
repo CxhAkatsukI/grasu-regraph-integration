@@ -1191,3 +1191,44 @@ negative route timing and known congestion/SLL/bus-skew warnings. No action
 needed yet; continue monitoring until route completion, timing failure, or
 xclbin emission.
 ```
+
+## Review-Compare Script Manifest Alignment, 14:26
+
+I aligned `scripts/run_combined_review_compare.sh` with the existing finalizer
+and evidence scripts so post-build review comparisons read the combined
+`manifest.env` before choosing default hosts. This prevents the same class of
+mistake seen during hw_emu, where an xclbin built from one ReGraph scratch tree
+was accidentally tested with a different ReGraph host.
+
+Validation:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/run_combined_review_compare.sh
+
+./scripts/run_combined_review_compare.sh \
+  --target hw_emu \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible \
+  --chain-out /tmp/chain_hwemu_dry \
+  --compare-out /tmp/compare_hwemu_dry \
+  --dry-run
+
+./scripts/run_combined_review_compare.sh \
+  --target hw \
+  --build-root /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335 \
+  --chain-out /tmp/chain_hw_dry \
+  --compare-out /tmp/compare_hw_dry \
+  --dry-run
+```
+
+Observed host selection:
+
+```text
+hw_emu combined host selection:
+  grasu_host=/home/chuxiao/grasu-regraph-integration/repos/GraSU/.tmp_build/u55c_hbm_hwemu/GraSU_host_u55c
+  regraph_host=/home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/host_graph_fpga_sssp
+
+hw combined host selection:
+  grasu_host=/home/chuxiao/grasu-regraph-integration/repos/GraSU/.tmp_build/u55c_hbm_hw/GraSU_host_u55c
+  regraph_host=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp
+```
