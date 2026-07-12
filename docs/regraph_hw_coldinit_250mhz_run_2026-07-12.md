@@ -95,6 +95,8 @@ system_link completed
 vpl started and reached Step synth at 2026-07-12 09:32:26 Asia/Shanghai
 vpl synth completed at 2026-07-12 09:49:06 Asia/Shanghai
 vpl impl started at 2026-07-12 09:49:06 Asia/Shanghai
+vpl finished logic optimization at 2026-07-12 09:59:46 Asia/Shanghai
+vpl placement started at 2026-07-12 09:59:46 Asia/Shanghai
 ```
 
 Observed HLS Fmax values from the build log:

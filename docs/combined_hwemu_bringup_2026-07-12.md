@@ -215,6 +215,53 @@ Combined real-hw link preflight: generated
   inputs.tsv records hashes for 4 GraSU .xo files and 6 ReGraph .xo files
 ```
 
+Latest current real-hw preflight, 2026-07-12 10:00 Asia/Shanghai:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_current_preflight
+```
+
+This generate-only run succeeded with current inputs:
+
+```text
+target: hw
+kernel_frequency: 250
+GraSU build root:
+  /home/chuxiao/grasu-regraph-integration/repos/GraSU/.tmp_build/u55c_hbm_hw/build
+ReGraph xclbin/xo dir:
+  /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/xclbin_hw_sssp
+link config:
+  /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_current_preflight/config/grasu_regraph_combined_hw.cfg
+link command:
+  /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_current_preflight/link_command.sh
+input hash table:
+  /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_current_preflight/inputs.tsv
+```
+
+The generated config keeps the same CU counts as the standalone designs:
+
+```text
+GraSU:
+  bin_search:    4
+  dispatch:      1
+  process_cache: 2
+  process_ddr:   2
+
+ReGraph:
+  kernelApply:                1
+  kernelHBMWrapper:           1
+  littleKernelScatterGather:  1
+  kernelLittleGSMerger:       1
+  bigKernelScatterGather:     1
+  kernelBigGSMerger:          1
+```
+
+The current config keeps `REGRAPH_HBM_OFFSET=0` for host compatibility. That
+means ReGraph still uses HBM[0], HBM[1], HBM[2], HBM[3], and HBM[30], while
+GraSU also uses HBM[0..3]. This is correct for functional compatibility, but it
+must be called out when explaining combined-hardware performance because the two
+accelerators are not isolated onto disjoint HBM banks yet.
+
 Build cold-start ReGraph SSSP real hardware and immediately run the tiny
 weighted SSSP hardware smoke if board access is available. The current run uses
 the same command shape, without `--run-tiny`, inside tmux:
