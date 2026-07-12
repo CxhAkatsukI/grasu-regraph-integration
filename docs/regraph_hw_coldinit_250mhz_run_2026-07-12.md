@@ -103,6 +103,8 @@ detail placement completed at 2026-07-12 10:23:08 Asia/Shanghai
 post-placement optimization started at 2026-07-12 10:23:08 Asia/Shanghai
 place_design completed successfully at 2026-07-12 10:28:02 Asia/Shanghai
 placed kernel utilization report was generated at 2026-07-12 10:28:03 Asia/Shanghai
+post-placement phys_opt_design completed successfully at 2026-07-12 10:30:46 Asia/Shanghai
+route_design started at 2026-07-12 10:30:46 Asia/Shanghai
 ```
 
 Observed HLS Fmax values from the build log:
@@ -159,10 +161,19 @@ Placed-stage timing is close but not final:
 ```text
 Estimated Timing Summary: WNS=-0.006 ns, TNS=-0.049 ns
 Post Placement Timing Summary: WNS=-0.006 ns
+Post-placement phys_opt Estimated Timing Summary: WNS=0.003 ns, TNS=0.000 ns
 ```
 
 Do not use these values as final timing closure evidence. Route and post-route
 physical optimization may still change timing materially.
+
+Placed-stage reports generated so far:
+
+```text
+kernel_util_placed.rpt
+slr_util_placed.rpt
+full_util_placed.rpt
+```
 
 ## Completion Criteria
 
