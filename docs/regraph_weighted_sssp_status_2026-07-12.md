@@ -207,6 +207,30 @@ deleted; it was moved to:
 /home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/.run.backup_before_hwemu_check_20260712_025445
 ```
 
+The recheck used this command shape:
+
+```bash
+cd /home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch
+REGRAPH_SOURCE=0 \
+  ./host_graph_fpga_sssp \
+  xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin \
+  dataset/tiny-weighted-sssp.txt \
+  1 \
+  4
+```
+
+Artifact hashes from the same fixed-source `hw_emu` scratch:
+
+```text
+host:
+  /home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/host_graph_fpga_sssp
+  sha256 15db9e29a1cb9dc6ebc572c96214e390d331be1996ba1635145bbb0261f39032
+
+xclbin:
+  /home/chuxiao/ReGraph_sssp_hw_emu_fixed_scratch/xclbin_hw_emu_sssp/graph_fpga.hw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xclbin
+  sha256 e0068aabae0e2547117abd37d291d4ff561be4f2c0591ce994d80d7a3332347f
+```
+
 ## Old-source HW Build Caveat
 
 A ReGraph `hw` build has been monitored under:
@@ -282,12 +306,48 @@ valid evidence that the weighted SSSP hardware fix works.
 
 ## Next Proof Required
 
+Fixed-source real `hw` was attempted from:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_fixed_scratch
+```
+
+The attempt reached routed/post-route reports but failed during the `impl_1`
+bitstream/write-bitstream flow, so it did not produce a runnable real-hardware
+xclbin or host executable:
+
+```text
+xclbins: 0
+host_graph_fpga_sssp: missing
+```
+
+Failure evidence bundle:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_083525_regraph_fixed_hw_failed/regraph_sssp_hw_fixed_failed
+```
+
+Important failure signals:
+
+```text
+Vivado/VPL: Failed runs(s): impl_1
+CrashLog:  /home/chuxiao/ReGraph_sssp_hw_fixed_scratch/_x/logs/link/CrashLog/hs_err_pid27009.log
+Timing:    WNS=-1.160 ns, TNS=-9465.562 ns, WHS=0.008 ns, THS=0.000 ns
+Resources: LUT=55886, LUTAsMem=9964, REG=93490, BRAM=120, URAM=128, DSP=0
+```
+
+The CrashLog stack points into Vivado timing-report generation
+(`librdi_timing.so`) after post-route physical optimization. The timing report
+also says constraints are not met, so this should be treated as real `hw`
+failure evidence, not as a timing-closed hardware artifact.
+
 To close ReGraph weighted SSSP item 1:
 
 ```text
-1. rebuild hw from the same fixed source
-2. collect xclbin, host, link summary, system estimates, routed utilization and timing
-3. run a tiny or small weighted SSSP hardware smoke test if board access is available
+1. fix or relax the fixed-source real `hw` timing/build issue
+2. rebuild hw from the same fixed source
+3. collect xclbin, host, link summary, system estimates, routed utilization and timing
+4. run a tiny or small weighted SSSP hardware smoke test if board access is available
 ```
 
 Reusable build helper:

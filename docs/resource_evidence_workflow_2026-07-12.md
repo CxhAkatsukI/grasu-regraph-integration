@@ -199,6 +199,23 @@ ReGraph fixed-source `hw_emu` does not provide placed/routed utilization,
 because it is not a real `hw` implementation. Its current evidence is HLS/system
 estimate plus the successful tiny weighted SSSP `hw_emu` run.
 
+Latest fixed-source `hw_emu` functional recheck evidence:
+
+```text
+/home/chuxiao/ReGraph/.tmp_doc/evidence_sssp_hw_emu_check_20260712_025255/run_tiny_weighted_sssp_hw_emu_after_cache_backup.log
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_030037_regraph_sssp_hwemu_usercheck/regraph_sssp_hw_emu_fixed_usercheck
+```
+
+The recheck programmed the `hw_emu` device, ran source vertex 0 for 4
+supersteps on `tiny-weighted-sssp.txt`, and finished with:
+
+```text
+Device[0]: program successful!
+Supersteps: 4
+Processed edges: 8; Graph edges: 5
+All the simulator processes exited successfully
+```
+
 Spine real `hw` baseline evidence:
 
 ```text
@@ -290,6 +307,49 @@ THS 0.000 ns
 Important caveat: `/home/chuxiao/ReGraph_sssp_hw_scratch` is still the
 pre-fix/old-source build scratch. It is useful for resource monitoring only. It
 does not prove the fixed weighted SSSP hardware implementation.
+
+ReGraph fixed-source real `hw` failed-build evidence:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/resource_evidence_20260712_083525_regraph_fixed_hw_failed/regraph_sssp_hw_fixed_failed
+```
+
+This build root was:
+
+```text
+/home/chuxiao/ReGraph_sssp_hw_fixed_scratch
+```
+
+It reached routed/post-route reports but did not emit a final real-hardware
+xclbin or host executable:
+
+```text
+xclbins: 0
+host_graph_fpga_sssp: missing
+```
+
+Selected failure reports and logs copied into the evidence bundle:
+
+```text
+build_hw.log
+v++.log
+vivado.log
+impl_1_runme.log
+hs_err_pid27009.log
+```
+
+Failure summary:
+
+```text
+VPL failed run: impl_1
+CrashLog: hs_err_pid27009.log
+Timing: WNS=-1.160 ns, TNS=-9465.562 ns, WHS=0.008 ns, THS=0.000 ns
+Routed Used Resources: LUT=55886, LUTAsMem=9964, REG=93490, BRAM=120, URAM=128, DSP=0
+```
+
+Do not use this fixed-source failed build as the final ReGraph `hw` baseline.
+It is useful for debugging timing/resource pressure only. The next valid
+resource baseline needs a fixed-source `hw` build that emits a real xclbin.
 
 ## How To Use For The Combined Build
 
