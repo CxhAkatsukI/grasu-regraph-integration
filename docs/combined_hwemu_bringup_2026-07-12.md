@@ -839,3 +839,27 @@ Latest monitor snapshot:
 
 This clears the placement stage. The next decisive gates are phys-opt, route,
 final timing, bitstream/package, and xclbin emission.
+
+## Combined Real hw Monitor, 13:26
+
+Observed status, 2026-07-12 13:26 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final xclbin has not completed yet
+newest_log=.../build/link/link/vivado/vpl/vivado.log
+newest_activity=.../build/link/link/vivado/vpl/vivado.pb
+idle_seconds=12
+idle_warning=none
+place_design completed successfully
+current command: phys_opt_design
+```
+
+Latest monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_132640.txt
+```
+
+This confirms the build moved past placement into post-placement physical
+optimization. The next stage to watch is `route_design`.
