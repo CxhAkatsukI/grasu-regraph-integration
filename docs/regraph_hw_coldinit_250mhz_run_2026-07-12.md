@@ -85,6 +85,34 @@ kernelApply.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
 kernelApply estimated Fmax: 293.28 MHz
 ```
 
+Later status from the same run:
+
+```text
+all 6 kernel .xo files were generated
+bigKernelScatterGather passed real hw HLS and produced its .xo
+v++ link command included --kernel_frequency=250
+system_link completed
+vpl started and reached Step synth at 2026-07-12 09:32:26 Asia/Shanghai
+```
+
+Observed HLS Fmax values from the build log:
+
+```text
+kernelApply:                293.28 MHz
+kernelHBMWrapper:           405.02 MHz
+littleKernelScatterGather:  266.63 MHz
+kernelLittleGSMerger:       447.16 MHz
+bigKernelScatterGather:     281.54 MHz
+kernelBigGSMerger:          869.57 MHz
+```
+
+`bigKernelScatterGather` completed HLS successfully; use its per-kernel report
+for exact loop/Fmax details if needed:
+
+```text
+/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/_x/reports/bigKernelScatterGather.hw.xilinx_u55c_gen3x16_xdma_3_202210_1/system_estimate_bigKernelScatterGather.hw.xilinx_u55c_gen3x16_xdma_3_202210_1.xtxt
+```
+
 The compile command did not include `--kernel_frequency` in the per-kernel
 compile stage. The helper now applies the frequency option only to `LDCLFLAGS`,
 matching ReGraph's original `host.mk` comment and avoiding accidental compile
