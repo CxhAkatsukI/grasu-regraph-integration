@@ -221,3 +221,51 @@ For the final paper-style comparison, we should either:
 The Spine runner currently follows option 2. It records the original host args
 and the emitted `PARTITIONED_CSR_E2E_*` line for every case so the limitation is
 visible in the evidence.
+
+## Cross Summary Join
+
+The comparison joiner is:
+
+```text
+scripts/compare_spine_chain_summaries.py
+```
+
+It does not run hardware. It reads the two `summary.tsv` files and writes:
+
+```text
+comparison.tsv
+comparison.md
+```
+
+Important derived columns:
+
+```text
+chain_total_ms = grasu_ms + regraph_e2e_ms
+spine_maint_conv_ms = maint_ms + conv_ms
+chain_over_spine_kernel = chain_total_ms / spine_kernel_e2e_ms
+chain_over_spine_maint_conv = chain_total_ms / spine_maint_conv_ms
+```
+
+Use explicit pairs so the scenario-level nature of the comparison is visible:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/compare_spine_chain_summaries.py \
+  --chain-summary /home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_review_combined_hw_250mhz/summary.tsv \
+  --spine-summary /home/chuxiao/grasu-regraph-integration/results/spine_builtin_review_hw/summary.tsv \
+  --pair small_chain_v64=carry_l1:small_high_diameter \
+  --pair small_star_v4096_u1024=star_4096:small_hot_source \
+  --pair small_spread_v4096_u1024=fanout_4096_s64:small_spread_fanout \
+  --pair medium_star_v65536_u8192=star_65536:medium_hot_source \
+  --pair medium_spread_v65536_u16384=fanout_65536_s256:medium_spread_fanout \
+  --out-dir /home/chuxiao/grasu-regraph-integration/results/spine_vs_grasu_regraph_review_combined_hw_250mhz
+```
+
+Dry-run format check completed without touching hardware:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/compare_spine_chain_drycheck_20260712_114640
+```
+
+That dry-check only validates parsing/output shape; the Spine side was a
+`DRY_RUN`, so it is not performance evidence.
