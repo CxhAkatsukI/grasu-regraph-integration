@@ -751,3 +751,35 @@ bash -n scripts/run_grasu_regraph_sssp_sweep.sh scripts/finalize_combined_hw_bui
   --regraph-emconfig-path /home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_emu_host_compatible/run_regraph_tiny \
   --dry-run
 ```
+
+## Combined Real hw Monitor, 13:20
+
+Observed status, 2026-07-12 13:20 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final placed/routed xclbin has not completed yet
+newest_log=.../tmux_driver.log
+newest_activity=.../tmux_driver.log
+idle_seconds=189
+idle_warning=none
+placement progressed through:
+  Phase 3.3 Small Shape DP
+  Phase 3.4 Place Remaining
+  Phase 3.6 Pipeline Register Optimization
+  Phase 4 Post Placement Optimization and Clean-Up
+  Phase 4.1.1.3 Post Placement Timing Optimization
+current estimated timing after placement physopt:
+  WNS=-0.666
+  TNS=-25.051
+```
+
+Latest monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_132011.txt
+```
+
+This is still forward progress. The negative WNS is not yet the final routed
+timing result, but it is important evidence to keep because it may explain a
+future route/timing failure if the build cannot close timing.
