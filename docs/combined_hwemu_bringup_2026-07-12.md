@@ -783,3 +783,32 @@ Latest monitor snapshot:
 This is still forward progress. The negative WNS is not yet the final routed
 timing result, but it is important evidence to keep because it may explain a
 future route/timing failure if the build cannot close timing.
+
+## Combined Real hw Monitor, 13:23
+
+Observed status, 2026-07-12 13:23 Asia/Shanghai:
+
+```text
+tmux=running
+xclbin=missing; final placed/routed xclbin has not completed yet
+newest_log=.../build/link/link/vivado/vpl/vivado.log
+newest_activity=.../build/link/link/vivado/vpl/vivado.pb
+idle_seconds=1
+idle_warning=none
+placement progressed through:
+  Phase 4.1.1.4 Replication
+  Phase 4.2 Post Placement Cleanup
+post-placement timing:
+  WNS improved from -0.666 to -0.144 after replication
+important warning:
+  placer reports the design is highly congested and may have difficulty routing
+```
+
+Latest monitor snapshot:
+
+```text
+/home/chuxiao/grasu-regraph-integration/results/combined_hw_monitor_20260712_132307.txt
+```
+
+The build is still active and has not reached route completion. The congestion
+warning is now the main risk to watch.
