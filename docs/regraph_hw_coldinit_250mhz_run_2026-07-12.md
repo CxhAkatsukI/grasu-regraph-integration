@@ -97,6 +97,7 @@ vpl synth completed at 2026-07-12 09:49:06 Asia/Shanghai
 vpl impl started at 2026-07-12 09:49:06 Asia/Shanghai
 vpl finished logic optimization at 2026-07-12 09:59:46 Asia/Shanghai
 vpl placement started at 2026-07-12 09:59:46 Asia/Shanghai
+placement reached global placement phase 2.1.1.4 at 2026-07-12 10:06:22 Asia/Shanghai
 ```
 
 Observed HLS Fmax values from the build log:
@@ -121,6 +122,32 @@ The compile command did not include `--kernel_frequency` in the per-kernel
 compile stage. The helper now applies the frequency option only to `LDCLFLAGS`,
 matching ReGraph's original `host.mk` comment and avoiding accidental compile
 option incompatibility.
+
+## Placement Notes
+
+During placement, Vivado printed warnings like:
+
+```text
+WARNING: [Place 30-1239] Failed to find partition obeying USER_SLR_ASSIGNMENT constraint, SLR -1, for Cell level0_i/ulp/<ReGraph CU>/inst.
+```
+
+This warning is not new to the cold-start build: the previous old-source
+ReGraph standalone `hw` implementation logged the same warning for the same six
+ReGraph CUs. The current link evidence still records the intended SLR
+connectivity:
+
+```text
+kernelLittleGSMerger_1:      SLR1
+kernelBigGSMerger_1:         SLR1
+kernelApply_1:               SLR1
+kernelHBMWrapper_1:          SLR0
+littleKernelScatterGather_1: SLR0
+bigKernelScatterGather_1:    SLR1
+```
+
+Treat the warning as an item to preserve in evidence, not as a current failure.
+The final routed reports should be used to confirm the actual physical
+placement and timing.
 
 ## Completion Criteria
 
