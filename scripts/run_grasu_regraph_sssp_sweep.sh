@@ -15,6 +15,7 @@ SKIP_GRASU=0
 DRY_RUN=0
 ALLOW_PASS_ON_NONZERO_EXIT=0
 REGRAPH_SKIP_VERIFY=0
+DEVICE_GRAPH_EXPORT=0
 XCL_EMULATION_MODE_VALUE="${XCL_EMULATION_MODE_VALUE:-}"
 VITIS_SETTINGS="${VITIS_SETTINGS:-/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh}"
 GRASU_EMCONFIG_PATH="${GRASU_EMCONFIG_PATH:-}"
@@ -32,7 +33,7 @@ Usage: $0 [options]
 Run a reproducible GraSU -> ReGraph weighted-SSSP sweep:
   1. generate or reuse GraSU graph/result workloads
   2. run GraSU update/check
-  3. convert the final result edge set to ReGraph's weighted SSSP input
+  3. export the actual post-update device graph, or use the labeled expected-result baseline
   4. run ReGraph SSSP with the requested source/supersteps
 
 Options:
@@ -62,6 +63,10 @@ Options:
   --regraph-skip-verify       Set REGRAPH_SKIP_VERIFY=1 for ReGraph. The
                               summarizer reports these runs as PERF_ONLY, not
                               PASS, because hardware output is not read back.
+  --device-graph-export       Pass an export path to a compatible GraSU host,
+                              feed that actual post-update graph to ReGraph,
+                              and use the expected result only for byte-level
+                              verification. Incompatible with --skip-grasu.
   --dry-run                   Print commands without executing hardware runs.
   -h, --help                  Show this help.
 
@@ -149,6 +154,7 @@ while [[ $# -gt 0 ]]; do
     --skip-grasu) SKIP_GRASU=1; shift ;;
     --allow-pass-on-nonzero-exit) ALLOW_PASS_ON_NONZERO_EXIT=1; shift ;;
     --regraph-skip-verify) REGRAPH_SKIP_VERIFY=1; shift ;;
+    --device-graph-export) DEVICE_GRAPH_EXPORT=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -159,6 +165,11 @@ case "${PRESET}" in
   smoke|review|capacity) ;;
   *) echo "Invalid --preset: ${PRESET}" >&2; exit 2 ;;
 esac
+
+if [[ "${DEVICE_GRAPH_EXPORT}" == "1" && "${SKIP_GRASU}" == "1" ]]; then
+  echo "--device-graph-export cannot be combined with --skip-grasu" >&2
+  exit 2
+fi
 
 if [[ -z "${WORKLOAD_ROOT}" ]]; then
   WORKLOAD_ROOT="${GRI_ROOT}/workloads/sssp_benchmark_${PRESET}"
@@ -228,6 +239,7 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
   case_dir="${OUT_ROOT}/${case_name}"
   mkdir -p "${case_dir}"
   converted_edges="${case_dir}/${case_name}.from_grasu.sssp.edges"
+  expected_converted_edges="${case_dir}/${case_name}.expected.sssp.edges"
 
   {
     echo "case=${case_name}"
@@ -243,6 +255,7 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
     echo "result=${result}"
     echo "generated_regraph_sssp_edges=${regraph_sssp_edges}"
     echo "converted_regraph_sssp_edges=${converted_edges}"
+    echo "expected_converted_regraph_sssp_edges=${expected_converted_edges}"
     echo "expected=${expected}"
     echo "metadata=${metadata}"
     echo "grasu_host=${GRASU_HOST}"
@@ -256,6 +269,7 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
     echo "skip_grasu=${SKIP_GRASU}"
     echo "allow_pass_on_nonzero_exit=${ALLOW_PASS_ON_NONZERO_EXIT}"
     echo "regraph_skip_verify=${REGRAPH_SKIP_VERIFY}"
+    echo "device_graph_export=${DEVICE_GRAPH_EXPORT}"
     echo "dry_run=${DRY_RUN}"
   } > "${case_dir}/case.env"
 
@@ -271,21 +285,39 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
         if [[ -n "${XCL_EMULATION_MODE_VALUE}" ]]; then
           grasu_env+=(XCL_EMULATION_MODE="${XCL_EMULATION_MODE_VALUE}" EMCONFIG_PATH="${GRASU_EMCONFIG_PATH}")
         fi
-        (cd "${GRASU_ROOT}" && timeout "${TIMEOUT_SECONDS}s" env "${grasu_env[@]}" "${GRASU_HOST}" "${GRASU_XCLBIN}" "${graph}" "${result}") > "${case_dir}/grasu.log" 2>&1
+        grasu_args=("${GRASU_XCLBIN}" "${graph}" "${result}")
+        if [[ "${DEVICE_GRAPH_EXPORT}" == "1" ]]; then
+          grasu_args+=("${converted_edges}")
+        fi
+        (cd "${GRASU_ROOT}" && timeout "${TIMEOUT_SECONDS}s" env "${grasu_env[@]}" "${GRASU_HOST}" "${grasu_args[@]}") > "${case_dir}/grasu.log" 2>&1
       else
-        echo "+ (cd ${GRASU_ROOT} && ${GRASU_HOST} ${GRASU_XCLBIN} ${graph} ${result})"
+        if [[ "${DEVICE_GRAPH_EXPORT}" == "1" ]]; then
+          echo "+ (cd ${GRASU_ROOT} && ${GRASU_HOST} ${GRASU_XCLBIN} ${graph} ${result} ${converted_edges})"
+        else
+          echo "+ (cd ${GRASU_ROOT} && ${GRASU_HOST} ${GRASU_XCLBIN} ${graph} ${result})"
+        fi
       fi
     else
       echo "[1/3] Skipping GraSU update/check."
       : > "${case_dir}/grasu.log"
     fi
 
-    echo "[2/3] Converting GraSU result to ReGraph weighted SSSP input..."
+    echo "[2/3] Verifying/selecting ReGraph weighted SSSP input..."
+    conversion_output="${converted_edges}"
+    if [[ "${DEVICE_GRAPH_EXPORT}" == "1" ]]; then
+      conversion_output="${expected_converted_edges}"
+    fi
     run_local_cmd "${SCRIPT_DIR}/grasu_result_to_regraph.py" \
       --input "${result}" \
-      --output "${converted_edges}" \
+      --output "${conversion_output}" \
       --base "${RESULT_BASE}" \
       --weight "${default_weight}" | tee "${case_dir}/convert.log"
+    if [[ "${DEVICE_GRAPH_EXPORT}" == "1" && "${DRY_RUN}" == "0" ]]; then
+      cmp "${converted_edges}" "${expected_converted_edges}"
+      sha256sum "${converted_edges}" "${expected_converted_edges}" \
+        > "${case_dir}/device_graph_export.sha256"
+      echo "device graph export matches expected final edge set"
+    fi
 
     echo "[3/3] Running ReGraph SSSP..."
     if [[ "${DRY_RUN}" == "0" ]]; then
