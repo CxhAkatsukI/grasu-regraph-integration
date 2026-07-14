@@ -26,6 +26,7 @@ record = {
     "warmup": False,
     "correct": True,
     "performance_claim_eligible": False,
+    "resident_batch_end_to_end_ms": 8.0,
     "workload_end_to_end_ms": 10.0,
     "host_sha256": "host",
     "xclbin_sha256": "xclbin",
@@ -42,9 +43,10 @@ eligible_records = []
 for index in range(10):
     candidate = dict(record)
     candidate["performance_claim_eligible"] = True
+    candidate["resident_batch_end_to_end_ms"] = float(index + 1)
     candidate["workload_end_to_end_ms"] = float(index + 1)
     eligible_records.append(candidate)
 summary = summarize_group(eligible_records, expected, minimum_repeats=10)
 assert summary["claim_eligible"] is True
-assert summary["statistics"]["workload_end_to_end_ms"]["median"] == 5.5
+assert summary["statistics"]["resident_batch_end_to_end_ms"]["median"] == 5.5
 print("test_summarize_canonical_comparison PASS")

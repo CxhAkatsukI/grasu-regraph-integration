@@ -13,12 +13,14 @@ all three groups for a case satisfy every gate:
 - all records explicitly permit a performance claim;
 - source commits exist and tracked worktrees are clean;
 - each host/xclbin identity is unique within the group;
-- every measured run has comparable `workload_end_to_end_ms`.
+- every measured run has comparable `resident_batch_end_to_end_ms`.
 
-Device-only and process-wall metrics are retained as diagnostics, but are not
-silently substituted for missing workload E2E time. In particular, the current
-GraSU+ReGraph host pipeline wall includes host/program startup and therefore
-cannot be compared directly with Spine's measured workload boundary.
+The resident-batch boundary starts after base-graph preload and includes the
+ordered update/state input transfer through verified output. Device-only,
+cold-workload, and process-wall metrics are retained as diagnostics, but are
+not silently substituted when that field is missing. In particular, the
+current GraSU+ReGraph host pipeline wall includes host/program startup and
+therefore cannot be compared directly with Spine's resident-batch boundary.
 
 Current diagnostic use:
 

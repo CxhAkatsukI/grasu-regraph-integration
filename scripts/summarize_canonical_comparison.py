@@ -10,6 +10,8 @@ from pathlib import Path
 
 
 METRICS = (
+    "resident_batch_end_to_end_ms",
+    "cold_workload_end_to_end_ms",
     "workload_end_to_end_ms",
     "update_device_ms",
     "compute_device_ms",
@@ -123,9 +125,9 @@ def summarize_group(records: list[dict[str, object]], expected: dict[str, object
         blockers.append("source_provenance_missing_or_dirty")
     if not artifact_identity_ok(measured):
         blockers.append("artifact_pair_not_unique")
-    if "workload_end_to_end_ms" not in stats or (
-            stats["workload_end_to_end_ms"]["count"] != len(measured)):
-        blockers.append("comparable_workload_end_to_end_missing")
+    if "resident_batch_end_to_end_ms" not in stats or (
+            stats["resident_batch_end_to_end_ms"]["count"] != len(measured)):
+        blockers.append("comparable_resident_batch_end_to_end_missing")
     return {
         "runs_total": len(records),
         "warmups": len(records) - len(measured),
@@ -180,14 +182,14 @@ def main() -> int:
         if eligible:
             medians = {
                 system: groups[case_id][system]["statistics"]
-                ["workload_end_to_end_ms"]["median"]
+                ["resident_batch_end_to_end_ms"]["median"]
                 for system in REQUIRED_SYSTEMS
             }
             winner = min(medians, key=medians.get)
             rankings[case_id] = {
                 "eligible": True,
                 "winner": winner,
-                "median_workload_end_to_end_ms": medians,
+                "median_resident_batch_end_to_end_ms": medians,
             }
         else:
             rankings[case_id] = {
@@ -197,7 +199,7 @@ def main() -> int:
             }
 
     summary = {
-        "schema_version": 1,
+        "schema_version": 2,
         "selection_sha256": sha256(selection_path),
         "minimum_repeats": args.minimum_repeats,
         "input_sha256": input_hashes,
@@ -214,13 +216,13 @@ def main() -> int:
     markdown = [
         "# Canonical Cross-System Summary",
         "",
-        "| Case | System | Measured | Correct | Median workload E2E (ms) | Eligible | Blockers |",
+        "| Case | System | Measured | Correct | Median resident-batch E2E (ms) | Eligible | Blockers |",
         "| --- | --- | ---: | ---: | ---: | --- | --- |",
     ]
     for case_id in case_ids:
         for system in REQUIRED_SYSTEMS:
             group = groups[case_id][system]
-            workload = group["statistics"].get("workload_end_to_end_ms")
+            workload = group["statistics"].get("resident_batch_end_to_end_ms")
             median = "" if workload is None else f"{workload['median']:.6f}"
             markdown.append(
                 f"| {case_id} | {system} | {group['measured_runs']} | "
