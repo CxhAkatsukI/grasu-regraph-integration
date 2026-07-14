@@ -3845,3 +3845,126 @@ dd10bd8729840e1a1c8a59e9c2dd59b8c156f73f7724bc7dc65daee83bcb8608  .tmp_build/pur
 fc92e105b0413af9c66ba4a26344bd012726833af3ec8aa8fcc23b5bdc10e6cf  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/audit/audit.json
 fb4cfc29d58744d933a248b4146b762db364cc921abe3b127937b312637d58f8  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/evidence_bundle/summary.md
 ```
+
+## 2026-07-15 Build Script Contract Audit
+
+The source-contract gate now also checks that the generated `hw_emu` and `hw`
+build scripts actually cover the intended pure pipeline. This avoids a subtle
+failure mode where source files look correct, but the long Vitis build would be
+launched with a stale or incomplete manifest, compile command, link command, or
+connectivity config.
+
+New required proof:
+
+```text
+target_build_scripts_cover_pure_pipeline
+```
+
+It checks both `.tmp_build/pure_pipeline_hw_emu_stage0` and
+`.tmp_build/pure_pipeline_hw_stage0` for:
+
+```text
+manifest.env:
+  TARGET, LINK_CFG, OUT_XCLBIN, COMPILE_COMMANDS, LINK_COMMAND
+compile_commands.sh:
+  GraSU process_cache/process_ddr with GRASU_ENABLE_COMPLETION_TOKEN
+  pma_completion_barrier, pma_to_regraph_adapter, lksg_stream
+  ReGraph kernelApply and kernelHBMWrapper
+link_command.sh:
+  target-specific v++ --link command
+  target-specific grasu_regraph_pure_pipeline.<target>.xclbin
+  all required .xo inputs
+pure_pipeline_<target>.cfg:
+  process_cache/process_ddr instances
+  four completion_token streams into pma_completion_barrier
+  pma_to_regraph_adapter -> lksg_stream AXI stream
+  adapter PMA HBM bindings and ReGraph apply/HBM stream
+```
+
+Source commit:
+
+```text
+558b4ac913fb9184f3485624968a69f669ff2cd2
+```
+
+Changed files:
+
+```text
+scripts/audit_pure_pipeline_status.py
+scripts/check_pure_pipeline_source_contracts.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/check_pure_pipeline_source_contracts.py \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label build_script_contract_dirty \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_build_script_contract_dirty.tsv
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --label launch_packet_build_script_contract_after_558b4ac \
+  --flow-label after_558b4ac
+```
+
+Result:
+
+```text
+required_count=10
+failed_count=0
+target_build_scripts_cover_pure_pipeline ok=yes
+launch_packet_exit=3
+readiness_status=3
+active_builders external=10
+hw_emu xclbin=MISSING
+```
+
+The launch packet still exits nonzero because an unrelated Spine hardware link
+is active. The source-contract part is now stronger and passes all ten required
+proofs.
+
+Launch-packet artifacts:
+
+```text
+.tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/source_contracts.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/readiness_hw_emu.txt
+.tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/audit/audit.json
+.tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/evidence_bundle/summary.md
+.tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/evidence_bundle/source_proof_matrix.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/launch_command.sh
+```
+
+Evidence hashes:
+
+```text
+c40c5e3c67d49f8beef11c8e226981794bd779594e1554f7224ef5bf3a2a061f  scripts/audit_pure_pipeline_status.py
+2bfb60a2fd5b013fda960bc4edc0d8cb4fa11aeb845a143e4789743df59ccf11  scripts/check_pure_pipeline_source_contracts.py
+0bb424143146be4d2acb062f4c7763a4740bca09e75ab0b8e9565a4272095ea0  .tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/source_contracts.tsv
+ffcea023b31696188472602142f3689b99a081d9fe26a686e313c220d53169ae  .tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/readiness_hw_emu.txt
+af19b5d7437617f65aaebaac316ac3901498e217e87366712a5907647084c537  .tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/audit/audit.json
+64dfc7e4819299f08f922fb08db3176128df1367db5a1a8e698ccc88f7053259  .tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/evidence_bundle/summary.md
+eefc5b093642a4ad98f89ca7a950f2db993b2dbe891c753742809fd7bb50e608  .tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/evidence_bundle/source_proof_matrix.tsv
+23b2fda96f2c5bc4fd1b5d7fa2d4c43b819467580aedb133fb0ff20d5cb62a11  .tmp_build/pure_pipeline_launch_packet_launch_packet_build_script_contract_after_558b4ac/launch_command.sh
+```
+
+Next launch command after external builders are idle:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_558b4ac \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
