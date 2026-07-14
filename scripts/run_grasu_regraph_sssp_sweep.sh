@@ -38,7 +38,7 @@ Run a reproducible GraSU -> ReGraph weighted-SSSP sweep:
   4. run ReGraph SSSP with the requested source/supersteps
 
 Options:
-  --preset smoke|review|boundary|capacity
+  --preset smoke|review|boundary|pure_stage0|capacity
                               Workload preset. Default: ${PRESET}
   --workload-root PATH        Workload root. Default: workloads/sssp_benchmark_<preset>
   --out-root PATH             Result directory. Default: ${OUT_ROOT}
@@ -163,7 +163,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "${PRESET}" in
-  smoke|review|boundary|capacity) ;;
+  smoke|review|boundary|pure_stage0|capacity) ;;
   *) echo "Invalid --preset: ${PRESET}" >&2; exit 2 ;;
 esac
 
