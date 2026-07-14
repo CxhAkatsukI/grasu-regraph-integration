@@ -106,6 +106,10 @@ def default_xclbin(repo: Path, target: str) -> Path:
     return repo / f".tmp_build/pure_pipeline_{target}_stage0/build/grasu_regraph_pure_pipeline.{target}.xclbin"
 
 
+def expected_xclbin_name(target: str) -> str:
+    return f"grasu_regraph_pure_pipeline.{target}.xclbin"
+
+
 def row(check: str, ok: bool, detail: str) -> dict[str, str]:
     return {"check": check, "ok": "yes" if ok else "no", "detail": detail}
 
@@ -125,6 +129,12 @@ def contains_all(text: str, needles: tuple[str, ...]) -> list[str]:
 
 def run_check(repo: Path, target: str, xclbin: Path, info: Path) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
+    expected_name = expected_xclbin_name(target)
+    rows.append(row(
+        "xclbin_name_contract",
+        xclbin.name == expected_name,
+        f"expected={expected_name} actual={xclbin.name}",
+    ))
     rows.append(row("xclbin_exists", xclbin.is_file(), display_path(repo, xclbin)))
     if xclbin.is_file():
         rows.append(row("xclbin_sha256", True, sha256(xclbin)))
