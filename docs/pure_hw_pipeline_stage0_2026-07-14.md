@@ -1217,6 +1217,9 @@ as the authoritative `sw_emu` smoke evidence.
 After a pure-pipeline xclbin is produced, run the finalization wrapper. It
 collects artifact hashes, runs the smoke correctness suite, and generates the
 same-input comparison against the current host/zero-cost and Spine baselines.
+The wrapper can optionally run a single gate case first. The gate is only a
+bring-up shortcut; after it passes, the wrapper still runs the full four-family
+smoke suite.
 
 Status-only check before the xclbin exists:
 
@@ -1258,7 +1261,9 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/finalize_pure_pipeline_build.sh \
   --target hw_emu \
   --label after_7623a8c \
-  --build-host
+  --build-host \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
 ```
 
 When the `hw` xclbin exists, run:
@@ -1268,7 +1273,9 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/finalize_pure_pipeline_build.sh \
   --target hw \
   --label after_7623a8c \
-  --build-host
+  --build-host \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
 ```
 
 The finalization wrapper writes:
@@ -1276,9 +1283,33 @@ The finalization wrapper writes:
 ```text
 .tmp_build/pure_pipeline_<target>_stage0/run_logs/finalize_<label>.env
 .tmp_build/pure_pipeline_<target>_stage0/run_logs/finalize_<label>_evidence.tsv
+results/pure_pipeline_<target>_smoke_gate_<label>/summary.tsv
 results/pure_pipeline_<target>_smoke_<label>/summary.tsv
 results/pure_pipeline_<target>_compare_<label>/comparison.tsv
 results/pure_pipeline_<target>_compare_<label>/comparison.md
+```
+
+Gate dry-run regression, without requiring an xclbin:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/finalize_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label gate_dryrun_check \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 45 \
+  --timeout 123 \
+  --dry-run
+```
+
+Evidence:
+
+```text
+69a29969a4e707c8580fb158ff515010148ac5f32520c85e65a9c61b6d809b27  scripts/finalize_pure_pipeline_build.sh
+12744cc861cc96c92004cfada15ebedda24a2288fe08a2385842ae22d6810ab9  scripts/audit_pure_pipeline_status.py
+d6170cea7d928d4c46f0272f09e0bb68c252073c5957bda6247015666f25721c  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_gate_dryrun_check.env
+7a3244073b433f24b6a980b640638b1814b8d6bf7510dcd78918f76176add865  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_gate_dryrun_check_evidence.tsv
+bac57a120c3aca4624699bf9c77f2671c08af795abd9b743b3b2f963538cfcce  /tmp/finalize_gate_dryrun_check.log
 ```
 
 ## Not Yet True

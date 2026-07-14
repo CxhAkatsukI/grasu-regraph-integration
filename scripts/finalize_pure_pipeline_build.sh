@@ -10,6 +10,7 @@ HOST="${GRI_ROOT}/.tmp_build/pure_pipeline_host_stage0/pure_pipeline_host"
 XCLBIN=""
 LABEL=""
 SMOKE_OUT=""
+GATE_OUT=""
 COMPARE_OUT=""
 HOST_SUMMARY="${GRI_ROOT}/results/grasu_regraph_smoke_device_export_combined_hw_stage1/summary.tsv"
 SPINE_SUMMARY="${GRI_ROOT}/results/spine_edge_file_smoke_hw_stage2_split_xclbin/summary.tsv"
@@ -17,6 +18,8 @@ TIMEOUT_SECONDS=""
 VITIS_SETTINGS="/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh"
 PLATFORM_XPFM="/opt/xilinx/platforms/xilinx_u55c_gen3x16_xdma_3_202210_1/xilinx_u55c_gen3x16_xdma_3_202210_1.xpfm"
 EMCONFIG_PATH=""
+GATE_CASE=""
+GATE_TIMEOUT_SECONDS=""
 BUILD_HOST=0
 SKIP_SMOKE=0
 SKIP_COMPARE=0
@@ -38,6 +41,9 @@ Options:
   --xclbin PATH               Pure-pipeline xclbin. Default inferred from target/build-root.
   --label NAME                Result/evidence suffix. Default: current git short hash.
   --smoke-out PATH            Smoke output dir. Default: results/pure_pipeline_<target>_smoke_<label>
+  --gate-case NAME            Run this smoke case first; continue only if it passes.
+  --gate-out PATH             Gate output dir. Default: results/pure_pipeline_<target>_smoke_gate_<label>
+  --gate-timeout SECONDS      Per-case gate timeout. Default: same as --timeout.
   --compare-out PATH          Comparison dir. Default: results/pure_pipeline_<target>_compare_<label>
   --host-summary PATH         Host baseline summary. Default: ${HOST_SUMMARY}
   --spine-summary PATH        Spine summary. Default: ${SPINE_SUMMARY}
@@ -108,6 +114,9 @@ write_finalize_env() {
     printf 'label=%s\n' "${LABEL}"
     printf 'host=%s\n' "${HOST}"
     printf 'xclbin=%s\n' "${XCLBIN}"
+    printf 'gate_case=%s\n' "${GATE_CASE}"
+    printf 'gate_out=%s\n' "${GATE_OUT}"
+    printf 'gate_timeout_seconds=%s\n' "${GATE_TIMEOUT_SECONDS}"
     printf 'smoke_out=%s\n' "${SMOKE_OUT}"
     printf 'compare_out=%s\n' "${COMPARE_OUT}"
     printf 'host_summary=%s\n' "${HOST_SUMMARY}"
@@ -144,6 +153,8 @@ write_evidence() {
       "${BUILD_ROOT}/inputs.tsv" \
       "${BUILD_ROOT}/compile_commands.sh" \
       "${BUILD_ROOT}/link_command.sh" \
+      "${GATE_OUT}/run.env" \
+      "${GATE_OUT}/summary.tsv" \
       "${SMOKE_OUT}/run.env" \
       "${SMOKE_OUT}/summary.tsv" \
       "${COMPARE_OUT}/comparison.tsv" \
@@ -174,6 +185,9 @@ while [[ $# -gt 0 ]]; do
     --xclbin) XCLBIN="$(abs_path "$2")"; shift 2 ;;
     --label) LABEL="$2"; shift 2 ;;
     --smoke-out) SMOKE_OUT="$(abs_path "$2")"; shift 2 ;;
+    --gate-case) GATE_CASE="$2"; shift 2 ;;
+    --gate-out) GATE_OUT="$(abs_path "$2")"; shift 2 ;;
+    --gate-timeout) GATE_TIMEOUT_SECONDS="$2"; shift 2 ;;
     --compare-out) COMPARE_OUT="$(abs_path "$2")"; shift 2 ;;
     --host-summary) HOST_SUMMARY="$(abs_path "$2")"; shift 2 ;;
     --spine-summary) SPINE_SUMMARY="$(abs_path "$2")"; shift 2 ;;
@@ -217,6 +231,12 @@ fi
 if [[ -z "${SMOKE_OUT}" ]]; then
   SMOKE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_smoke_${LABEL}"
 fi
+if [[ -z "${GATE_OUT}" ]]; then
+  GATE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_smoke_gate_${LABEL}"
+fi
+if [[ -z "${GATE_TIMEOUT_SECONDS}" ]]; then
+  GATE_TIMEOUT_SECONDS="${TIMEOUT_SECONDS}"
+fi
 if [[ -z "${COMPARE_OUT}" ]]; then
   COMPARE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_compare_${LABEL}"
 fi
@@ -253,6 +273,24 @@ if [[ "${DRY_RUN}" == "0" ]]; then
 fi
 
 if [[ "${SKIP_SMOKE}" == "0" ]]; then
+  if [[ -n "${GATE_CASE}" ]]; then
+    gate_cmd=(
+      "${SCRIPT_DIR}/run_pure_pipeline_smoke.sh"
+      --target "${TARGET}"
+      --host "${HOST}"
+      --xclbin "${XCLBIN}"
+      --out-dir "${GATE_OUT}"
+      --timeout "${GATE_TIMEOUT_SECONDS}"
+      --case "${GATE_CASE}"
+      --vitis-settings "${VITIS_SETTINGS}"
+      --platform-xpfm "${PLATFORM_XPFM}"
+    )
+    if [[ -n "${EMCONFIG_PATH}" ]]; then
+      gate_cmd+=(--emconfig-path "${EMCONFIG_PATH}")
+    fi
+    run_cmd "${gate_cmd[@]}"
+  fi
+
   smoke_cmd=(
     "${SCRIPT_DIR}/run_pure_pipeline_smoke.sh"
     --target "${TARGET}"
