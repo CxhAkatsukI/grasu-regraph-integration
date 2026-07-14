@@ -2001,3 +2001,49 @@ d579a5f0d94131aaa7c0e93224f01fce865ac139924c83d0f0206248716502fc  .tmp_build/pur
 ae620a950698139188fc1948bb7743492c95546bd6b780916656562f0e809a0b  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_5953922.txt
 dc0570a42cdb8ff850e5efd8df8df613d9573f468b0d265045cdd535f3f7578e  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_5953922.txt
 ```
+
+## Builder Breakdown Evidence
+
+The readiness report and compact evidence bundle now include a process-type
+breakdown for active builders. This makes the current blocker easier to read
+without opening the full process list.
+
+Clean-code refresh at HEAD `2b4a85b`:
+
+```bash
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_after_2b4a85b
+```
+
+The audit reports:
+
+```text
+branch=codex/pure-hw-pipeline
+head=2b4a85b2631839b3c9ea510b5bbdbcbcfde150a6
+dirty=false
+```
+
+Current strict readiness:
+
+```text
+target  xclbin  smoke  readiness  blocking  related  external  external_breakdown
+hw      no      no     no         1         0        10        total=10 v++=2 vivado=4 vpl=2 vrs=2
+hw_emu  no      no     no         1         0        10        total=10 v++=2 vivado=4 vpl=2 vrs=2
+sw_emu  yes     yes    n/a        n/a       n/a      n/a       n/a
+```
+
+This means the pure GraSU -> ReGraph `hw_emu` and `hw` build inputs are ready,
+but the machine is still occupied by unrelated Vitis/Vivado builders. No pure
+pipeline `hw_emu` or `hw` xclbin has been produced yet.
+
+Evidence hashes:
+
+```text
+7bc40d534eea9d89d4795209470fcee4eae17352cb7e815e3ba4f0e75acc817e  scripts/check_pure_pipeline_build_readiness.sh
+afcfea16f53bccddaad730e9993efb3d0a1f8c30a71f55f5ab0744fa160b9030  scripts/export_pure_pipeline_evidence_bundle.py
+21dbd7f6e183800ac9d6dada3e67d5bfbafff7dd50dbb89df4baf3c117b965b7  results/pure_pipeline_evidence_bundle_refresh_after_2b4a85b/summary.md
+b49cfb2b0eadb4de4f858ad2cd0fc48308a8bd8a00ce49c2c09a37961c38e7d4  results/pure_pipeline_evidence_bundle_refresh_after_2b4a85b/target_matrix.tsv
+329ee42f47721b754d9b8d30a3d94754281cfed8894ac70f74f9ac2c77d5d6f1  results/pure_pipeline_requirement_audit_refresh_after_2b4a85b/audit.md
+d61a1ccbfdae96ea0881eb08082d3821ec248af6c2c4460e464c2a8b13b37d11  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_2b4a85b.txt
+13357c0a9a4d12f43fc3f27db91e9d71d2d3702221dcf96702f56398df30456d  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_2b4a85b.txt
+```
