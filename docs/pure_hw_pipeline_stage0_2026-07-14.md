@@ -5420,3 +5420,77 @@ ca917f5f9335c874e0f52e082065307b3e18cbd2e36628448d86942637492611  results/pure_p
 
 No Vitis build was launched in this step. The next hardware action remains the
 `hw_emu` target flow after the external Spine link releases build resources.
+
+## Launch packet matrix hashes
+
+As of 2026-07-15 04:19 Asia/Shanghai, the launch-packet script records the
+new evidence-bundle matrices directly in `artifact_hashes.tsv` and the packet
+README. This makes a packet self-contained for handoff: the person launching
+`hw_emu` or `hw` can inspect the requirement matrix, target matrix,
+case-target matrix, input-identity matrix, source-proof matrix, and artifact
+matrix without first opening the bundle manifest.
+
+Changed file:
+
+```text
+scripts/create_pure_pipeline_launch_packet.sh
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/create_pure_pipeline_launch_packet.sh
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --label launch_packet_matrix_precommit \
+  --flow-label matrix_precommit \
+  --no-prepare \
+  --allow-active-builders
+
+rg -n \
+  "case_target_matrix|requirement_matrix|input_identity_matrix|source_proof_matrix|artifact_matrix" \
+  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_precommit/artifact_hashes.tsv \
+  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_precommit/README.md
+```
+
+Result:
+
+```text
+source_contract_status=0
+readiness_status=0
+audit_status=0
+bundle_status=0
+integration_tracked_dirty=dirty
+case_target_matrix_listed_in_readme=yes
+case_target_matrix_listed_in_artifact_hashes=yes
+```
+
+This validation used `--allow-active-builders`, so the packet records the
+external Spine `hw` link as a readiness warning and does not launch Vitis. The
+actual generated command remains:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label matrix_precommit \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Evidence hashes:
+
+```text
+75416c6320464c43d5796594c2489d5bc5f40ad30ee6f4b6f761f00d9c1f84a6  scripts/create_pure_pipeline_launch_packet.sh
+6418816e89f3acc65d5f6ae41955d48e029179d7e2a5e9105eb4f34b01c0d068  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_precommit/README.md
+0f98db1ab88480c8470a20f0b7e8766de18fd41531ecc5ec0d757e36c1eeb607  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_precommit/artifact_hashes.tsv
+e297c02d8ad59dcddbde9e4c97a4b76bad54a6a0704eeed57f98e3f8881457da  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_precommit/evidence_bundle/case_target_matrix.tsv
+e0cc6bd2a40fc5179776b93066db862e7c56365fb75393c73a5303b2861897b3  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_precommit/evidence_bundle/bundle_manifest.json
+```

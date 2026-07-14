@@ -328,7 +328,13 @@ chmod +x "${COMMANDS_SH}"
     "${AUDIT_DIR}/audit.md" \
     "${BUNDLE_DIR}/summary.md" \
     "${BUNDLE_DIR}/bundle_manifest.json" \
+    "${BUNDLE_DIR}/requirement_matrix.tsv" \
     "${BUNDLE_DIR}/target_matrix.tsv" \
+    "${BUNDLE_DIR}/case_target_matrix.tsv" \
+    "${BUNDLE_DIR}/case_matrix.tsv" \
+    "${BUNDLE_DIR}/input_identity_matrix.tsv" \
+    "${BUNDLE_DIR}/source_proof_matrix.tsv" \
+    "${BUNDLE_DIR}/artifact_matrix.tsv" \
     "${COMMANDS_SH}" \
     "${PACKET_ENV}"; do
     printf 'artifact\t%s\t%s\t%s\n' "${artifact}" "$(sha_or_missing "${artifact}")" "$(size_or_missing "${artifact}")"
@@ -361,6 +367,10 @@ launch_line="$(printf '%q ' "${launch_cmd[@]}")"
   printf '%s\n' "${RUNLOG_READINESS_OUT}"
   printf '%s\n' "${AUDIT_DIR}/audit.json"
   printf '%s\n' "${BUNDLE_DIR}/summary.md"
+  printf '%s\n' "${BUNDLE_DIR}/requirement_matrix.tsv"
+  printf '%s\n' "${BUNDLE_DIR}/target_matrix.tsv"
+  printf '%s\n' "${BUNDLE_DIR}/case_target_matrix.tsv"
+  printf '%s\n' "${BUNDLE_DIR}/input_identity_matrix.tsv"
   printf '%s\n' "${HASHES_TSV}"
   printf '```\n\n'
   printf '## Current XCLBIN State\n\n'
