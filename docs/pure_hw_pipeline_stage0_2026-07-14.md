@@ -7524,3 +7524,151 @@ efb81dbb22c02755cf8529038339b736e0456750055721605d6407c777f2e43e  .tmp_build/pur
 52f6e1b485ca9e69c9a2d72e7e837f227011d42b9443e0320117e16db3d9684c  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_9e7c4bb_packet_readme.env
 86e16823cf510c6d39e96813f8f4270e3d41f1db37168e485ffe6b6b26d90aeb  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_9e7c4bb_packet_readme.env
 ```
+
+## Pure Xclbin Name Contract Guard, 2026-07-15
+
+To avoid confusing historical `combined` artifacts with the current pure
+hardware pipeline, `scripts/check_pure_pipeline_xclbin_contract.py` now checks
+the xclbin basename before reading the rest of the metadata contract. A valid
+pure-pipeline artifact must be named:
+
+```text
+grasu_regraph_pure_pipeline.<target>.xclbin
+```
+
+This does not require the artifact to stay in `.tmp_build`; copied release
+artifacts can still pass as long as their target-specific basename and metadata
+are correct. It does reject old combined artifacts such as
+`grasu_regraph_combined.hw.xclbin`.
+
+Code validation:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile scripts/check_pure_pipeline_xclbin_contract.py
+git diff --check
+
+./scripts/check_pure_pipeline_xclbin_contract.py \
+  --target sw_emu \
+  --label name_contract_positive \
+  --out-file .tmp_build/pure_pipeline_xclbin_contracts/xclbin_contract_sw_emu_name_contract_positive.tsv
+
+./scripts/check_pure_pipeline_xclbin_contract.py \
+  --target hw \
+  --xclbin .tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin \
+  --info .tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin.info \
+  --label combined_negative \
+  --out-file .tmp_build/pure_pipeline_xclbin_contracts/xclbin_contract_hw_combined_negative.tsv
+```
+
+Expected results:
+
+```text
+sw_emu positive: PASS, xclbin_name_contract ok=yes
+combined negative: rc=3, failed checks include xclbin_name_contract
+```
+
+After committing the guard as `28af0e5b6757c20ac6c5c00ea32cbe3d7790267b`,
+the build-relevant source fingerprint became:
+
+```text
+e814be495124f11a01417ebabae9d703f30fdb89f93f211629a240edad8310f7
+```
+
+Fresh hardware launch packets and no-build prelaunch evidence were regenerated:
+
+```bash
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label after_28af0e5 \
+  --label hw_emu_after_28af0e5_allow_active \
+  --allow-active-builders
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw \
+  --flow-label after_28af0e5 \
+  --label hw_after_28af0e5_allow_active \
+  --allow-active-builders
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label prelaunch_after_28af0e5_name_contract \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label prelaunch_after_28af0e5_name_contract \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+The existing `sw_emu` xclbin was revalidated with the new contract:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target sw_emu \
+  --label postrun_after_28af0e5_name_contract \
+  --skip-build \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 180 \
+  --timeout 300
+```
+
+Postrun result:
+
+```text
+acceptance_check_postrun: PASS=11, SKIP=2
+xclbin_contract_sw_emu_postrun_after_28af0e5_name_contract.tsv: xclbin_name_contract ok=yes
+chain: PASS, mismatches=0, vertices=16, final_edges=15, supersteps=16
+hot-source: PASS, mismatches=0, vertices=16, final_edges=28, supersteps=2
+spread: PASS, mismatches=0, vertices=16, final_edges=24, supersteps=16
+hot-dest: PASS, mismatches=0, vertices=64, final_edges=95, supersteps=16
+```
+
+Current status after the refresh:
+
+```text
+head=28af0e5b6757c20ac6c5c00ea32cbe3d7790267b
+source_fingerprint_sha256=e814be495124f11a01417ebabae9d703f30fdb89f93f211629a240edad8310f7
+dirty=false
+
+sw_emu xclbin=yes postrun=pass:PASS=11,SKIP=2 flow_current=yes
+hw_emu xclbin=no postrun=waiting_xclbin flow_current=yes packet_current=yes
+hw xclbin=no postrun=waiting_xclbin flow_current=yes packet_current=yes
+
+active_builders=related:0 external:2
+next_target=hw_emu
+next_action=build
+next_commands=.tmp_build/pure_pipeline_launch_packet_hw_emu_after_28af0e5_allow_active/launch_command.sh
+```
+
+Evidence hashes:
+
+```text
+8260420660b004e6ddecb350d2448d3626a34f4d95795dddf89c95e8b675ca73  scripts/check_pure_pipeline_xclbin_contract.py
+1cc3d8e5ad44862262cbb1294a3b0b6b0a685bf49aefb132325dad28060adcd3  .tmp_build/pure_pipeline_xclbin_contracts/xclbin_contract_sw_emu_name_contract_positive.tsv
+a47b39fdb6a1b4916ab4fb173230fe89c6283a87edcb9a3d5e2ae1f2dd9313dd  .tmp_build/pure_pipeline_xclbin_contracts/xclbin_contract_hw_combined_negative.tsv
+1cc3d8e5ad44862262cbb1294a3b0b6b0a685bf49aefb132325dad28060adcd3  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/xclbin_contract_sw_emu_postrun_after_28af0e5_name_contract.tsv
+6bd9b4a67a06fa3d896e42d9c634c8be17168cea23ab2163e7b44201db482555  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/acceptance_check_postrun_target_flow_postrun_after_28af0e5_name_contract.tsv
+64376e5c37e53fc937fb9ed2e8e6239931e1f6f6749d523fd2cfa72cbed4bddd  results/pure_pipeline_sw_emu_smoke_postrun_after_28af0e5_name_contract/summary.tsv
+3b48e7163716c11b4384f8214368ad7ffb823b255711e71703cd0d5c228c3807  results/pure_pipeline_sw_emu_compare_postrun_after_28af0e5_name_contract/comparison.tsv
+3ce5e50aac95abebf76294f702e8fd5c1c1cf0953144d93ab0068fa514731b70  results/pure_pipeline_requirement_audit_postrun_after_28af0e5_name_contract/audit.json
+44e79e3851b4fea70143f68eff91aa370650b5be54e9430c93e42de1800f3dbe  results/pure_pipeline_evidence_bundle_postrun_after_28af0e5_name_contract/summary.md
+fa9bf3f5760ac20faef0d34540414bb665086e0068f7b963f42fdb49be6281ad  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_28af0e5_allow_active/launch_command.sh
+e57e40d17c15b7e55b7db2997e5214aa01cb2be0c6da2c877fd7392e321cf26e  .tmp_build/pure_pipeline_launch_packet_hw_after_28af0e5_allow_active/launch_command.sh
+ffd1092c5fce87ac97a14fa44b6f2c9bf70989767b16be69e4c236a694d59e82  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_28af0e5_name_contract.env
+2123c57b880ffc477f73a0415e4df5a18cc81c601ad758221af6c98bf172d8cd  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_28af0e5_name_contract.env
+```
