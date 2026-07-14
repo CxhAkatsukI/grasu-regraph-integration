@@ -18,6 +18,17 @@ from typing import Any
 
 TARGETS = ("sw_emu", "hw_emu", "hw")
 TARGET_TIMEOUTS = {"sw_emu": 180, "hw_emu": 900, "hw": 300}
+SOURCE_ROLES = (
+    ("integration_scripts", ("scripts",), (".sh", ".py")),
+    ("integration_kernels", ("kernels",), (".cpp", ".h", ".hpp")),
+    ("integration_tools", ("tools",), (".cpp", ".h", ".hpp")),
+    ("grasu_kernel_src", ("repos", "GraSU", "GraSU", "GraSU_kernels", "src"), (".cpp", ".h", ".hpp")),
+    ("grasu_host_src", ("repos", "GraSU", "GraSU", "GraSU", "src"), (".cpp", ".h", ".hpp")),
+    ("grasu_u55c_scripts", ("repos", "GraSU", "u55c_hbm"), (".sh", ".cfg", ".ini")),
+    ("regraph_acc_template", ("repos", "ReGraph", "acc_template"), (".cpp", ".h", ".hpp", ".cfg", ".mk")),
+    ("regraph_acc_udfs", ("repos", "ReGraph", "acc_udfs"), (".cpp", ".h", ".hpp")),
+    ("regraph_host_src", ("repos", "ReGraph", "host"), (".cpp", ".h", ".hpp", ".mk")),
+)
 BUILDER_COMMANDS = {
     "v++",
     "vpl",
@@ -58,6 +69,10 @@ def sha256(path: Path) -> str | None:
     return digest.hexdigest()
 
 
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
 def rel(repo: Path, path: Path) -> str:
     try:
         return str(path.resolve().relative_to(repo.resolve()))
@@ -85,13 +100,65 @@ def parse_kv_file(path: Path | None) -> dict[str, str]:
     return values
 
 
+def read_source_fingerprints(path: Path | None) -> dict[str, str]:
+    if path is None or not path.is_file():
+        return {}
+    rows: dict[str, str] = {}
+    for line in path.read_text(encoding="ascii", errors="replace").splitlines():
+        if not line or line.startswith("role\t"):
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 3:
+            rows[parts[0]] = parts[2]
+    return rows
+
+
+def hash_source_role(root: Path, suffixes: tuple[str, ...]) -> tuple[str, str]:
+    if not root.is_dir():
+        return "missing", "-"
+    files = sorted(
+        path
+        for path in root.rglob("*")
+        if path.is_file() and path.name.endswith(suffixes)
+    )
+    if not files:
+        return "empty", "-"
+    lines = []
+    for path in files:
+        digest = sha256(path)
+        lines.append(f"{digest}  {path}\n")
+    return "present", sha256_bytes("".join(lines).encode("utf-8"))
+
+
+def current_source_fingerprints(repo: Path) -> dict[str, str]:
+    fingerprints: dict[str, str] = {}
+    for role, root_parts, suffixes in SOURCE_ROLES:
+        _status, digest = hash_source_role(repo.joinpath(*root_parts), suffixes)
+        fingerprints[role] = digest
+    return fingerprints
+
+
+def fingerprints_match(recorded: dict[str, str], current: dict[str, str]) -> bool | None:
+    if not recorded:
+        return None
+    for role, digest in current.items():
+        if recorded.get(role) != digest:
+            return False
+    return True
+
+
 def target_xclbin(repo: Path, target: str) -> Path:
     return repo / ".tmp_build" / f"pure_pipeline_{target}_stage0" / "build" / (
         f"grasu_regraph_pure_pipeline.{target}.xclbin"
     )
 
 
-def target_state(repo: Path, target: str, current_head: str) -> dict[str, Any]:
+def target_state(
+    repo: Path,
+    target: str,
+    current_head: str,
+    current_fingerprints: dict[str, str],
+) -> dict[str, Any]:
     build_root = repo / ".tmp_build" / f"pure_pipeline_{target}_stage0"
     run_logs = build_root / "run_logs"
     xclbin = target_xclbin(repo, target)
@@ -103,6 +170,13 @@ def target_state(repo: Path, target: str, current_head: str) -> dict[str, Any]:
     target_flow_matches_head = None
     if target_flow_head:
         target_flow_matches_head = target_flow_head == current_head
+    source_fingerprints_path_text = target_flow_values.get("source_fingerprints_out")
+    source_fingerprints_path = Path(source_fingerprints_path_text) if source_fingerprints_path_text else None
+    source_fingerprints = read_source_fingerprints(source_fingerprints_path)
+    source_fingerprints_match = fingerprints_match(source_fingerprints, current_fingerprints)
+    flow_matches_current = source_fingerprints_match
+    if flow_matches_current is None:
+        flow_matches_current = target_flow_matches_head
     acceptance_prelaunch = newest(list(run_logs.glob("acceptance_check_prelaunch*.tsv")))
     acceptance_postrun = newest(list(run_logs.glob("acceptance_check_postrun*.tsv")))
     return {
@@ -119,6 +193,9 @@ def target_state(repo: Path, target: str, current_head: str) -> dict[str, Any]:
         "latest_target_flow_env": rel(repo, target_flow_env) if target_flow_env else None,
         "latest_target_flow_git_head": target_flow_head,
         "latest_target_flow_matches_head": target_flow_matches_head,
+        "latest_source_fingerprints": rel(repo, source_fingerprints_path) if source_fingerprints_path else None,
+        "latest_source_fingerprints_match_current": source_fingerprints_match,
+        "latest_flow_matches_current": flow_matches_current,
         "latest_acceptance_prelaunch": rel(repo, acceptance_prelaunch) if acceptance_prelaunch else None,
         "latest_acceptance_postrun": rel(repo, acceptance_postrun) if acceptance_postrun else None,
     }
@@ -196,13 +273,14 @@ def target_flow_command(target: str, git_short: str) -> str:
 def make_report(repo: Path) -> dict[str, Any]:
     git_short = run_git(repo, ["rev-parse", "--short", "HEAD"])
     current_head = run_git(repo, ["rev-parse", "HEAD"])
-    states = [target_state(repo, target, current_head) for target in TARGETS]
+    current_fingerprints = current_source_fingerprints(repo)
+    states = [target_state(repo, target, current_head, current_fingerprints) for target in TARGETS]
     builders = classify_builders(repo, ps_rows())
     next_target = first_missing_target(states)
     stale_targets = [
         state["target"]
         for state in states
-        if state["latest_target_flow_matches_head"] is False
+        if state["latest_flow_matches_current"] is False
     ]
     next_commands: list[str]
     if next_target is None:
@@ -243,10 +321,10 @@ def print_text(report: dict[str, Any]) -> None:
     print("targets")
     print("target\txclbin\tsha256\treadiness_ready\tflow_current\tlatest_readiness")
     for state in report["targets"]:
-        if state["latest_target_flow_matches_head"] is None:
+        if state["latest_flow_matches_current"] is None:
             flow_current = ""
         else:
-            flow_current = "yes" if state["latest_target_flow_matches_head"] else "no"
+            flow_current = "yes" if state["latest_flow_matches_current"] else "no"
         print(
             "\t".join([
                 state["target"],

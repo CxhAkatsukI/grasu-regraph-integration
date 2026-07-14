@@ -6137,3 +6137,108 @@ e010594277d0bdd627f2770e92f0b0a93c33b22afcce4a045abcc80315d6f86a  .tmp_build/pur
 79aa99a2473b89819cfd74ccde7af71ba6b59e31f250412b8afee7ef6478c69e  results/pure_pipeline_evidence_bundle_prelaunch_after_f823169/summary.md
 80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  results/pure_pipeline_evidence_bundle_prelaunch_after_f823169/source_proof_matrix.tsv
 ```
+
+## Source-Fingerprint Target Freshness
+
+After the `7d227b7` documentation refresh, the target-flow status helper was
+updated to avoid a false stale signal from documentation-only commits. The old
+check compared the latest target-flow `git_head` to the current commit. That was
+too strict because target-flow evidence is about build-relevant source state,
+not about experiment notes.
+
+`scripts/report_pure_pipeline_next_steps.py` now compares the recorded
+`source_fingerprints.tsv` from the latest target-flow run with the current
+build-relevant source tree. It falls back to the recorded `git_head` only when a
+target-flow run does not include source fingerprints.
+
+This does not change the hardware status: the current pure pipeline still has a
+successful `sw_emu` xclbin only. The current `hw_emu` and `hw` targets are
+prelaunch-ready but do not yet have target xclbins.
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile scripts/report_pure_pipeline_next_steps.py
+./scripts/report_pure_pipeline_next_steps.py
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label prelaunch_after_7d227b7_sourcefp \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label prelaunch_after_7d227b7_sourcefp \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Observed status after the no-build refresh:
+
+```text
+branch=codex/pure-hw-pipeline
+head=7d227b740da1e52dc24b1bdcaf60cf8db5d535e5
+sw_emu xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+hw_emu xclbin=no readiness_ready=yes flow_current=yes
+hw xclbin=no readiness_ready=yes flow_current=yes
+next_target=hw_emu
+```
+
+Prelaunch checks:
+
+```text
+source_contracts_required_count=17
+source_contracts_failed_count=0
+hw_emu_prelaunch_acceptance_status_counts={"PASS": 4, "PENDING": 9}
+hw_prelaunch_acceptance_status_counts={"PASS": 4, "PENDING": 9}
+audit_status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+```
+
+Postrun checks are still expected to fail until real target xclbins and smoke
+runs exist:
+
+```text
+status_counts={"FAIL": 7, "PASS": 6}
+failed_gates=compile_log,link_log,target_xclbin,xclbin_contract,gate_smoke,full_smoke,same_input_compare
+```
+
+Evidence hashes:
+
+```text
+b35a91111d4f9fe24aa94ed786774202ebbe0b01f83eb1fc101e4aea87126a9f  scripts/report_pure_pipeline_next_steps.py
+c91bbe703460d75493d16d1cd9d275ee0d65d8af6da6643bbe3956cc5cb40f9e  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_7d227b7_sourcefp.env
+dcdc07dcfefe198f67a13563fb7de6bff04e0b9e9486eff1c9887871405993f5  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_7d227b7_sourcefp_replay.sh
+c025fd530cd63762a226d1e1c8f98d808e0a03fd4d60510d6fcdf87435e1638f  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_gates_target_flow_prelaunch_after_7d227b7_sourcefp.tsv
+b898f7e9653310d1ba26f745ec975917ece8b9eb8f3a5718713c3bc5d5c85d40  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_check_prelaunch_target_flow_prelaunch_after_7d227b7_sourcefp.tsv
+d4f2fb57a51ee24ade566789b3849807a417699193f7b8412925836dbdb967ec  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_check_postrun_target_flow_prelaunch_after_7d227b7_sourcefp_expected_missing.tsv
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_target_flow_prelaunch_after_7d227b7_sourcefp.tsv
+f6ce92f699bf37cfcc6db5237e561ef506fe7bf685348b7f746b783180f64533  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_fingerprints_target_flow_prelaunch_after_7d227b7_sourcefp.tsv
+9977f81edd5af32ce8ef8a214538a89b3f7146b110f99ba2ce05efc836898580  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_target_flow_prelaunch_after_7d227b7_sourcefp.txt
+49be0ecbcc555aa0851227b7016ff2155484ab32e81210437a581eb50d8d5015  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_after_prelaunch_after_7d227b7_sourcefp.txt
+43521159ddc1ae1325a7c0262c9058bc9dba2d605f4165c818b89f4688b58e71  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_7d227b7_sourcefp.env
+6c8c8ce58e103b95c77023f079a25390a833dc9056a7f3913e14dd7cacd276af  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_7d227b7_sourcefp_replay.sh
+c7133687740f249743b71b86474bb7fe8b52ad17ed4d5ba922d60241a68ef0cf  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_gates_target_flow_prelaunch_after_7d227b7_sourcefp.tsv
+24d45554297d3c3264132dd93ac6b5fd737d033c251f0f0b23445a4af53d1b83  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_check_prelaunch_target_flow_prelaunch_after_7d227b7_sourcefp.tsv
+6827125655dfeb9f0e220d6f5cb92da814ce294e95108ee2954052e437416702  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_check_postrun_target_flow_prelaunch_after_7d227b7_sourcefp_expected_missing.tsv
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_hw_stage0/run_logs/source_contracts_target_flow_prelaunch_after_7d227b7_sourcefp.tsv
+f6ce92f699bf37cfcc6db5237e561ef506fe7bf685348b7f746b783180f64533  .tmp_build/pure_pipeline_hw_stage0/run_logs/source_fingerprints_target_flow_prelaunch_after_7d227b7_sourcefp.tsv
+be6ad039a73de293894314e93d7297cafa7df069a1cf637106283d1cf7d40e57  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_target_flow_prelaunch_after_7d227b7_sourcefp.txt
+bacd1ad697cfee4a7e37c8fb60a57fcbd8f42743a72b8c3a0fba5e0987086a4e  .tmp_build/pure_pipeline_hw_stage0/run_logs/monitor_after_prelaunch_after_7d227b7_sourcefp.txt
+8302cfebebc59ee35a7ce6d2d3ec645b93aceac425816ea5ab0df51a1e583433  results/pure_pipeline_requirement_audit_prelaunch_after_7d227b7_sourcefp/audit.json
+0942c78c94a6470662c0ce85ab7e67be4459b9587362865edb47d2d047e3632d  results/pure_pipeline_evidence_bundle_prelaunch_after_7d227b7_sourcefp/summary.md
+80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  results/pure_pipeline_evidence_bundle_prelaunch_after_7d227b7_sourcefp/source_proof_matrix.tsv
+```

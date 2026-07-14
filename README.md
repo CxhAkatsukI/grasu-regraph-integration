@@ -204,8 +204,9 @@ xclbins, active Vitis/Vivado builders, and the next target-flow command:
 ```
 
 The `flow_current` column shows whether the latest target-flow evidence for a
-target was produced from the current integration commit. `no` means the next
-target-flow invocation should refresh prelaunch evidence before relying on it.
+target matches the current build-relevant source fingerprints. Documentation-only
+commits do not invalidate it; `no` means the next target-flow invocation should
+refresh prelaunch evidence before relying on it.
 
 Current reproducible target flow:
 
