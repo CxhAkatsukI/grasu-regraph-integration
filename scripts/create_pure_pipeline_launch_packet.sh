@@ -184,6 +184,8 @@ PACKET_ENV="${OUT_DIR}/launch_packet.env"
 SUMMARY_MD="${OUT_DIR}/README.md"
 HASHES_TSV="${OUT_DIR}/artifact_hashes.tsv"
 ACCEPTANCE_TSV="${OUT_DIR}/acceptance_gates.tsv"
+ACCEPTANCE_CHECK_PRELAUNCH="${OUT_DIR}/acceptance_check_prelaunch.tsv"
+ACCEPTANCE_CHECK_POSTRUN="${OUT_DIR}/acceptance_check_postrun.tsv"
 
 OUT_XCLBIN="${BUILD_ROOT}/build/grasu_regraph_pure_pipeline.${TARGET}.xclbin"
 HOST_BIN="${GRI_ROOT}/.tmp_build/pure_pipeline_host_stage0/pure_pipeline_host"
@@ -291,35 +293,6 @@ fi
 chmod +x "${COMMANDS_SH}"
 
 {
-  printf 'target=%s\n' "${TARGET}"
-  printf 'label=%s\n' "${LABEL}"
-  printf 'flow_label=%s\n' "${FLOW_LABEL}"
-  printf 'out_dir=%s\n' "${OUT_DIR}"
-  printf 'build_root=%s\n' "${BUILD_ROOT}"
-  printf 'out_xclbin=%s\n' "${OUT_XCLBIN}"
-  printf 'source_contract_out=%s\n' "${SOURCE_CONTRACT_OUT}"
-  printf 'source_fingerprints_out=%s\n' "${SOURCE_FINGERPRINTS_OUT}"
-  printf 'source_fingerprint_status=%s\n' "${source_fingerprint_status}"
-  printf 'source_contract_status=%s\n' "${source_status}"
-  printf 'readiness_out=%s\n' "${READINESS_OUT}"
-  printf 'runlog_readiness_out=%s\n' "${RUNLOG_READINESS_OUT}"
-  printf 'readiness_status=%s\n' "${readiness_status}"
-  printf 'audit_dir=%s\n' "${AUDIT_DIR}"
-  printf 'audit_status=%s\n' "${audit_status}"
-  printf 'bundle_dir=%s\n' "${BUNDLE_DIR}"
-  printf 'bundle_status=%s\n' "${bundle_status}"
-  printf 'acceptance_gates=%s\n' "${ACCEPTANCE_TSV}"
-  printf 'launch_command=%s\n' "${COMMANDS_SH}"
-  printf 'integration_branch=%s\n' "$(git_value "${GRI_ROOT}" branch)"
-  printf 'integration_head=%s\n' "$(git_value "${GRI_ROOT}" head)"
-  printf 'integration_tracked_dirty=%s\n' "$(git_value "${GRI_ROOT}" tracked_dirty)"
-  printf 'grasu_head=%s\n' "$(git_value "${GRASU_ROOT}" head)"
-  printf 'grasu_tracked_dirty=%s\n' "$(git_value "${GRASU_ROOT}" tracked_dirty)"
-  printf 'regraph_head=%s\n' "$(git_value "${REGRAPH_ROOT}" head)"
-  printf 'regraph_tracked_dirty=%s\n' "$(git_value "${REGRAPH_ROOT}" tracked_dirty)"
-} > "${PACKET_ENV}"
-
-{
   printf 'gate\trequired\tevidence_path\tpass_condition\n'
   printf 'source_fingerprints\tyes\t%s\tsource_fingerprint_status=0 and source tree hashes are recorded before launch\n' "${SOURCE_FINGERPRINTS_OUT}"
   printf 'source_contracts\tyes\t%s\tsource_contract_status=0 with all required pure-pipeline proofs ok=yes\n' "${SOURCE_CONTRACT_OUT}"
@@ -339,6 +312,48 @@ chmod +x "${COMMANDS_SH}"
   printf 'requirement_audit\tyes\t%s\taudit.json exists after target flow and records requirement status for target=%s\n' "${AUDIT_FLOW_DIR}/audit.json" "${TARGET}"
   printf 'evidence_bundle\tyes\t%s\tbundle exists with requirement_matrix.tsv, target_matrix.tsv, case_target_matrix.tsv, input_identity_matrix.tsv, source_proof_matrix.tsv, and artifact_matrix.tsv\n' "${BUNDLE_FLOW_DIR}"
 } > "${ACCEPTANCE_TSV}"
+
+acceptance_check_status=0
+if run_capture_status "${SCRIPT_DIR}/check_pure_pipeline_acceptance_gates.py" \
+  --acceptance-gates "${ACCEPTANCE_TSV}" \
+  --mode prelaunch \
+  --out-file "${ACCEPTANCE_CHECK_PRELAUNCH}"; then
+  acceptance_check_status=0
+else
+  acceptance_check_status=$?
+fi
+
+{
+  printf 'target=%s\n' "${TARGET}"
+  printf 'label=%s\n' "${LABEL}"
+  printf 'flow_label=%s\n' "${FLOW_LABEL}"
+  printf 'out_dir=%s\n' "${OUT_DIR}"
+  printf 'build_root=%s\n' "${BUILD_ROOT}"
+  printf 'out_xclbin=%s\n' "${OUT_XCLBIN}"
+  printf 'source_contract_out=%s\n' "${SOURCE_CONTRACT_OUT}"
+  printf 'source_fingerprints_out=%s\n' "${SOURCE_FINGERPRINTS_OUT}"
+  printf 'source_fingerprint_status=%s\n' "${source_fingerprint_status}"
+  printf 'source_contract_status=%s\n' "${source_status}"
+  printf 'readiness_out=%s\n' "${READINESS_OUT}"
+  printf 'runlog_readiness_out=%s\n' "${RUNLOG_READINESS_OUT}"
+  printf 'readiness_status=%s\n' "${readiness_status}"
+  printf 'audit_dir=%s\n' "${AUDIT_DIR}"
+  printf 'audit_status=%s\n' "${audit_status}"
+  printf 'bundle_dir=%s\n' "${BUNDLE_DIR}"
+  printf 'bundle_status=%s\n' "${bundle_status}"
+  printf 'acceptance_gates=%s\n' "${ACCEPTANCE_TSV}"
+  printf 'acceptance_check_prelaunch=%s\n' "${ACCEPTANCE_CHECK_PRELAUNCH}"
+  printf 'acceptance_check_postrun=%s\n' "${ACCEPTANCE_CHECK_POSTRUN}"
+  printf 'acceptance_check_status=%s\n' "${acceptance_check_status}"
+  printf 'launch_command=%s\n' "${COMMANDS_SH}"
+  printf 'integration_branch=%s\n' "$(git_value "${GRI_ROOT}" branch)"
+  printf 'integration_head=%s\n' "$(git_value "${GRI_ROOT}" head)"
+  printf 'integration_tracked_dirty=%s\n' "$(git_value "${GRI_ROOT}" tracked_dirty)"
+  printf 'grasu_head=%s\n' "$(git_value "${GRASU_ROOT}" head)"
+  printf 'grasu_tracked_dirty=%s\n' "$(git_value "${GRASU_ROOT}" tracked_dirty)"
+  printf 'regraph_head=%s\n' "$(git_value "${REGRAPH_ROOT}" head)"
+  printf 'regraph_tracked_dirty=%s\n' "$(git_value "${REGRAPH_ROOT}" tracked_dirty)"
+} > "${PACKET_ENV}"
 
 {
   printf 'role\tpath\tsha256\tsize_bytes\n'
@@ -365,6 +380,8 @@ chmod +x "${COMMANDS_SH}"
     "${BUNDLE_DIR}/source_proof_matrix.tsv" \
     "${BUNDLE_DIR}/artifact_matrix.tsv" \
     "${ACCEPTANCE_TSV}" \
+    "${ACCEPTANCE_CHECK_PRELAUNCH}" \
+    "${SCRIPT_DIR}/check_pure_pipeline_acceptance_gates.py" \
     "${COMMANDS_SH}" \
     "${PACKET_ENV}"; do
     printf 'artifact\t%s\t%s\t%s\n' "${artifact}" "$(sha_or_missing "${artifact}")" "$(size_or_missing "${artifact}")"
@@ -402,12 +419,22 @@ launch_line="$(printf '%q ' "${launch_cmd[@]}")"
   printf '%s\n' "${BUNDLE_DIR}/case_target_matrix.tsv"
   printf '%s\n' "${BUNDLE_DIR}/input_identity_matrix.tsv"
   printf '%s\n' "${ACCEPTANCE_TSV}"
+  printf '%s\n' "${ACCEPTANCE_CHECK_PRELAUNCH}"
   printf '%s\n' "${HASHES_TSV}"
   printf '```\n\n'
   printf '## Acceptance Gates\n\n'
   printf 'The packet writes a machine-readable acceptance checklist:\n\n'
   printf '```text\n%s\n```\n\n' "${ACCEPTANCE_TSV}"
-  printf 'A successful target run must satisfy every row marked `required=yes`.\n\n'
+  printf 'Prelaunch check output:\n\n'
+  printf '```text\n%s\n```\n\n' "${ACCEPTANCE_CHECK_PRELAUNCH}"
+  printf 'A successful target run must satisfy every row marked `required=yes`.\n'
+  printf 'After the target flow finishes, run:\n\n'
+  printf '```bash\n'
+  printf 'python3 scripts/check_pure_pipeline_acceptance_gates.py \\\n'
+  printf '  --acceptance-gates %q \\\n' "${ACCEPTANCE_TSV}"
+  printf '  --mode postrun \\\n'
+  printf '  --out-file %q\n' "${ACCEPTANCE_CHECK_POSTRUN}"
+  printf '```\n\n'
   printf '## Current XCLBIN State\n\n'
   printf '```text\n'
   printf 'sw_emu %s %s bytes %s\n' "$(sha_or_missing "${SW_XCLBIN}")" "$(size_or_missing "${SW_XCLBIN}")" "${SW_XCLBIN}"
@@ -423,6 +450,8 @@ echo "DONE source_fingerprints_out=${SOURCE_FINGERPRINTS_OUT}"
 echo "DONE readiness_out=${READINESS_OUT}"
 echo "DONE audit_dir=${AUDIT_DIR}"
 echo "DONE bundle_dir=${BUNDLE_DIR}"
+echo "DONE acceptance_gates=${ACCEPTANCE_TSV}"
+echo "DONE acceptance_check_prelaunch=${ACCEPTANCE_CHECK_PRELAUNCH}"
 
 if (( source_status != 0 )); then
   exit "${source_status}"
@@ -432,6 +461,9 @@ if (( source_fingerprint_status != 0 )); then
 fi
 if (( readiness_status != 0 )); then
   exit "${readiness_status}"
+fi
+if (( acceptance_check_status != 0 )); then
+  exit "${acceptance_check_status}"
 fi
 if (( audit_status != 0 )); then
   exit "${audit_status}"

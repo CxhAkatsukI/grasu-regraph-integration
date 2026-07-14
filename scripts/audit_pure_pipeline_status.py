@@ -678,7 +678,11 @@ def launch_packet_records_acceptance_gates(repo: Path) -> dict[str, Any]:
     return {
         "ok": source_contains(launch_packet, [
             'ACCEPTANCE_TSV="${OUT_DIR}/acceptance_gates.tsv"',
+            'ACCEPTANCE_CHECK_PRELAUNCH="${OUT_DIR}/acceptance_check_prelaunch.tsv"',
+            'ACCEPTANCE_CHECK_POSTRUN="${OUT_DIR}/acceptance_check_postrun.tsv"',
             'printf \'acceptance_gates=%s\\n\' "${ACCEPTANCE_TSV}"',
+            'printf \'acceptance_check_prelaunch=%s\\n\' "${ACCEPTANCE_CHECK_PRELAUNCH}"',
+            "check_pure_pipeline_acceptance_gates.py",
             "gate\\trequired\\tevidence_path\\tpass_condition",
             "source_fingerprints\\tyes",
             "source_contracts\\tyes",
@@ -696,6 +700,36 @@ def launch_packet_records_acceptance_gates(repo: Path) -> dict[str, Any]:
         ]),
         "path": display_path(repo, launch_packet),
         "contract": "launch packet emits acceptance_gates.tsv that names the required target xclbin, smoke, comparison, audit, and evidence-bundle pass conditions",
+    }
+
+
+def acceptance_gate_checker_covers_required_outputs(repo: Path) -> dict[str, Any]:
+    checker = repo / "scripts/check_pure_pipeline_acceptance_gates.py"
+    return {
+        "ok": source_contains(checker, [
+            'choices=("prelaunch", "postrun")',
+            'PRELAUNCH_GATES = {"source_fingerprints", "source_contracts", "readiness", "launch_command"}',
+            '"tiny_chain_v16"',
+            '"tiny_star_v16_u12"',
+            '"tiny_spread_v16_u8"',
+            '"tiny_hotdst_v64_u32"',
+            'TIMING_KEYS = ("grasu_ms", "barrier_ms", "adapter_ms", "lksg_ms", "apply_ms", "event_e2e_ms")',
+            '"source_fingerprints": check_source_fingerprints',
+            '"source_contracts": check_source_contracts',
+            '"readiness": check_readiness',
+            '"launch_command": check_launch_command',
+            '"target_xclbin": check_plain_artifact',
+            '"xclbin_contract": check_xclbin_contract',
+            '"gate_smoke": check_gate_smoke',
+            '"full_smoke": check_full_smoke',
+            '"same_input_compare": check_same_input_compare',
+            '"requirement_audit": check_requirement_audit',
+            '"evidence_bundle": check_evidence_bundle',
+            'write_report(out_file, rows)',
+            'status_counts=',
+        ]),
+        "path": display_path(repo, checker),
+        "contract": "acceptance checker validates prelaunch gates separately from postrun xclbin, smoke, comparison, audit, and evidence-bundle gates",
     }
 
 
@@ -890,6 +924,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
         "host_runtime_matches_generated_config": host_runtime_matches_generated_config(repo),
         "target_flow_exports_evidence_bundle": target_flow_exports_evidence_bundle(repo),
         "launch_packet_records_acceptance_gates": launch_packet_records_acceptance_gates(repo),
+        "acceptance_gate_checker_covers_required_outputs": acceptance_gate_checker_covers_required_outputs(repo),
     }
 
 

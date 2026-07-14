@@ -32,6 +32,7 @@ DEFAULT_REQUIRED_PROOFS = (
     "host_runtime_matches_generated_config",
     "target_flow_exports_evidence_bundle",
     "launch_packet_records_acceptance_gates",
+    "acceptance_gate_checker_covers_required_outputs",
 )
 
 
