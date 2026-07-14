@@ -6038,3 +6038,102 @@ c043171f8cc99ccca457b093946232f2c86fc4dd6549809a0c825c6adc10f0ec  .tmp_build/pur
 7dbdc520f560f0f2b773f875fa5eca769d9f45c9b8038d668824cf21e01d54c0  results/pure_pipeline_evidence_bundle_target_flow_acceptance_hw_status_sync_b759c5c/summary.md
 80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  results/pure_pipeline_evidence_bundle_target_flow_acceptance_hw_status_sync_b759c5c/source_proof_matrix.tsv
 ```
+
+## Current-Commit Target Prelaunch Refresh
+
+As of commit `f823169a3443463c6d8945813a5cc43f2ed32ac7`, both target
+prelaunch snapshots have been refreshed from the current integration commit.
+This is still a no-build refresh: it intentionally does not launch Vitis
+compile/link and does not claim `hw_emu` or `hw` xclbin success.
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label prelaunch_after_f823169 \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label prelaunch_after_f823169 \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Result:
+
+```text
+hw_emu_git_head=f823169a3443463c6d8945813a5cc43f2ed32ac7
+hw_git_head=f823169a3443463c6d8945813a5cc43f2ed32ac7
+source_contracts_required_count=17
+source_contracts_failed_count=0
+hw_emu_readiness_ready=yes
+hw_readiness_ready=yes
+hw_emu_prelaunch_acceptance_status_counts={"PASS": 4, "PENDING": 9}
+hw_prelaunch_acceptance_status_counts={"PASS": 4, "PENDING": 9}
+audit_status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+```
+
+The read-only status helper now reports current target-flow evidence for both
+missing hardware targets:
+
+```bash
+./scripts/report_pure_pipeline_next_steps.py
+```
+
+Observed status:
+
+```text
+hw_emu flow_current=yes xclbin=no
+hw flow_current=yes xclbin=no
+next_target=hw_emu
+```
+
+Postrun acceptance checks are expected to fail until the real target build and
+smoke runs exist:
+
+```text
+status_counts={"FAIL": 7, "PASS": 6}
+failed_gates=compile_log,link_log,target_xclbin,xclbin_contract,gate_smoke,full_smoke,same_input_compare
+```
+
+Evidence hashes:
+
+```text
+d689f468a5c4035592105a633bf46a9f90be3c592a2bc1c264b473f405f5af7f  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_f823169.env
+c09741a9365b8e48f418db71721f0377926bcde1eec715edda41187ab00b034e  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_f823169_replay.sh
+31f7821176a34fcbf38e082355b8054803ede05c47d7983592ba9a063a0de401  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_gates_target_flow_prelaunch_after_f823169.tsv
+b0196ac27853b051a46468ba5164284cf58ad8a622d82883a56ad56b168c6384  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_check_prelaunch_target_flow_prelaunch_after_f823169.tsv
+4a1e037d800952bf9a59c2328d98425e90315970b3b20410bcea86d85c90023d  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_check_postrun_target_flow_prelaunch_after_f823169_expected_missing.tsv
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_target_flow_prelaunch_after_f823169.tsv
+e010594277d0bdd627f2770e92f0b0a93c33b22afcce4a045abcc80315d6f86a  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_fingerprints_target_flow_prelaunch_after_f823169.tsv
+02cd6159cc076a622197d899313a410bf8694e7c5a68e7bc0b40231cb0aa8a25  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_target_flow_prelaunch_after_f823169.txt
+185349f10c39df48ec3bcb59931095240726159df25556225264ef4c110c6537  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_after_prelaunch_after_f823169.txt
+c2f53afe1258f5ec4fe586654ba2c1f22c3912966ec6993f925157a5cef74d6d  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_f823169.env
+957ea48dc774dcd3f49a43f2a04f3cb269c6da6e951a4c931cba1e6124afa8eb  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_f823169_replay.sh
+181310522f9e995c17e9703ffa6a63c2ea06ab55dbdfdfd8809a479ad2dd6015  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_gates_target_flow_prelaunch_after_f823169.tsv
+ab896eee4b18db812b5ebaf84a9e81d18febb259a7b00e1389d355cc2095a785  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_check_prelaunch_target_flow_prelaunch_after_f823169.tsv
+c1e27dcd290b9754c148943bd4e037ae729c8d3149fe0647563e4d7a0c55589a  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_check_postrun_target_flow_prelaunch_after_f823169_expected_missing.tsv
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_hw_stage0/run_logs/source_contracts_target_flow_prelaunch_after_f823169.tsv
+e010594277d0bdd627f2770e92f0b0a93c33b22afcce4a045abcc80315d6f86a  .tmp_build/pure_pipeline_hw_stage0/run_logs/source_fingerprints_target_flow_prelaunch_after_f823169.tsv
+955543253abfa764e12a5aba027f47487e74bac3700382f4b69e98901c18a79f  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_target_flow_prelaunch_after_f823169.txt
+17fce607a3175d591328a24b032005d2a66ba90cf2b8207fc9ab309deb045a8f  .tmp_build/pure_pipeline_hw_stage0/run_logs/monitor_after_prelaunch_after_f823169.txt
+5b418a7decd9148c26f8936cbe187ef04c3cf6980a7b36b4f9f4171a67e3b04e  results/pure_pipeline_requirement_audit_prelaunch_after_f823169/audit.json
+79aa99a2473b89819cfd74ccde7af71ba6b59e31f250412b8afee7ef6478c69e  results/pure_pipeline_evidence_bundle_prelaunch_after_f823169/summary.md
+80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  results/pure_pipeline_evidence_bundle_prelaunch_after_f823169/source_proof_matrix.tsv
+```
