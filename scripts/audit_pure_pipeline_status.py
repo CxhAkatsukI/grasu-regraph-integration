@@ -345,6 +345,128 @@ def target_build_scripts_cover_pure_pipeline(repo: Path) -> dict[str, Any]:
     }
 
 
+def host_runtime_matches_generated_config(repo: Path) -> dict[str, Any]:
+    host = repo / "tools/pure_pipeline_host.cpp"
+    configs = {
+        target: repo / f".tmp_build/pure_pipeline_{target}_stage0/config/pure_pipeline_{target}.cfg"
+        for target in ("hw_emu", "hw")
+    }
+    paths = [display_path(repo, host)] + [display_path(repo, path) for path in configs.values()]
+
+    host_checks = {
+        "host:kernel_cu_names": [
+            'cl::Kernel bin_search_1(program, "bin_search:{bin_search_1}"',
+            'cl::Kernel bin_search_2(program, "bin_search:{bin_search_2}"',
+            'cl::Kernel bin_search_3(program, "bin_search:{bin_search_3}"',
+            'cl::Kernel bin_search_4(program, "bin_search:{bin_search_4}"',
+            'cl::Kernel dispatch(program, "dispatch:{dispatch_1}"',
+            'cl::Kernel process_cache_1(program, "process_cache:{process_cache_1}"',
+            'cl::Kernel process_cache_2(program, "process_cache:{process_cache_2}"',
+            'cl::Kernel process_ddr_1(program, "process_ddr:{process_ddr_1}"',
+            'cl::Kernel process_ddr_2(program, "process_ddr:{process_ddr_2}"',
+            'cl::Kernel barrier(program, "pma_completion_barrier:{pma_completion_barrier_1}"',
+            'cl::Kernel adapter(program, "pma_to_regraph_adapter:{pma_to_regraph_adapter_1}"',
+            'cl::Kernel lksg(program, "lksg_stream:{lksg_stream_1}"',
+            'cl::Kernel apply(program, "kernelApply:{kernelApply_1}"',
+            'cl::Kernel hbm(program, "kernelHBMWrapper:{kernelHBMWrapper_1}"',
+        ],
+        "host:actual_pma_adapter_args": [
+            "adapter.setArg(0, pma_dev[0])",
+            "adapter.setArg(1, pma_dev[1])",
+            "adapter.setArg(2, pma_dev[2])",
+            "adapter.setArg(3, pma_dev[3])",
+            "adapter.setArg(4, row_dev[0])",
+            "adapter.setArg(5, static_cast<unsigned>(dataset.node_size))",
+            "adapter.setArg(6, static_cast<unsigned>(prepared.pma_slot_count))",
+            "adapter.setArg(7, static_cast<unsigned>(MAX_CACHE_SEGMENT))",
+        ],
+        "host:grasu_writer_args": [
+            "process_cache_1.setArg(0, pma_dev[0])",
+            "process_cache_2.setArg(0, pma_dev[2])",
+            "process_ddr_1.setArg(arg, pma_dev[1])",
+            "process_ddr_2.setArg(arg, pma_dev[3])",
+        ],
+        "host:regraph_args": [
+            "hbm.setArg(0, *read_props[0])",
+            "hbm.setArg(1, *read_props[1])",
+            "hbm.setArg(2, *write_props[0])",
+            "hbm.setArg(3, *write_props[1])",
+            "apply.setArg(0, apply_prop_dev)",
+            "lksg.setArg(1, part_edge_num)",
+            "lksg.setArg(4, reset_tmp_prop)",
+        ],
+        "host:barrier_and_pipeline_events": [
+            "pipeline_queue.enqueueTask(barrier, nullptr, &barrier_event)",
+            "adapter_wait_events.push_back(barrier_event)",
+            "pipeline_queue.enqueueTask(adapter, adapter_wait_list, &adapter_event)",
+            "pipeline_queue.enqueueTask(lksg, nullptr, &lksg_event)",
+            "pipeline_queue.enqueueTask(hbm, nullptr, &hbm_event)",
+            "pipeline_queue.enqueueTask(apply, nullptr, &apply_event)",
+        ],
+        "host:timing_record": [
+            "PURE_PIPELINE_TIMING",
+            "grasu_ms=",
+            "barrier_ms=",
+            "adapter_ms=",
+            "lksg_ms=",
+            "apply_ms=",
+            "event_e2e_ms=",
+        ],
+    }
+
+    config_checks = {
+        "config:kernel_cu_names": [
+            "nk=bin_search:4:bin_search_1.bin_search_2.bin_search_3.bin_search_4",
+            "nk=dispatch:1:dispatch_1",
+            "nk=process_cache:2:process_cache_1.process_cache_2",
+            "nk=process_ddr:2:process_ddr_1.process_ddr_2",
+            "nk=pma_completion_barrier:1:pma_completion_barrier_1",
+            "nk=pma_to_regraph_adapter:1:pma_to_regraph_adapter_1",
+            "nk=lksg_stream:1:lksg_stream_1",
+            "nk=kernelApply:1",
+            "nk=kernelHBMWrapper:1",
+        ],
+        "config:pma_to_barrier_and_regraph_streams": [
+            "stream_connect=process_cache_1.completion_token:pma_completion_barrier_1.done0:16",
+            "stream_connect=process_ddr_1.completion_token:pma_completion_barrier_1.done1:16",
+            "stream_connect=process_cache_2.completion_token:pma_completion_barrier_1.done2:16",
+            "stream_connect=process_ddr_2.completion_token:pma_completion_barrier_1.done3:16",
+            "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32",
+        ],
+        "config:pma_and_regraph_hbm_ports": [
+            "sp=pma_to_regraph_adapter_1.pma0:HBM[0]",
+            "sp=pma_to_regraph_adapter_1.pma1:HBM[1]",
+            "sp=pma_to_regraph_adapter_1.pma2:HBM[2]",
+            "sp=pma_to_regraph_adapter_1.pma3:HBM[3]",
+            "sp=pma_to_regraph_adapter_1.row_offset:HBM[0]",
+            "sp=kernelApply_1.vertex_prop:HBM[30]",
+            "sp=kernelHBMWrapper_1.src_prop_1:HBM[1]",
+            "sp=kernelHBMWrapper_1.src_prop_2:HBM[3]",
+        ],
+    }
+
+    missing: dict[str, list[str]] = {}
+    host_text = host.read_text(encoding="ascii", errors="replace") if host.is_file() else ""
+    for check_name, needles in host_checks.items():
+        absent = [needle for needle in needles if needle not in host_text]
+        if absent:
+            missing[check_name] = absent
+
+    for target, config in configs.items():
+        text = config.read_text(encoding="ascii", errors="replace") if config.is_file() else ""
+        for check_name, needles in config_checks.items():
+            absent = [needle for needle in needles if needle not in text]
+            if absent:
+                missing[f"{target}:{check_name}"] = absent
+
+    return {
+        "ok": not missing,
+        "paths": paths,
+        "contract": "host runtime opens the generated CU names and binds PMA, barrier, stream ReGraph, apply, HBM, and timing arguments consistently with hw_emu/hw link configs",
+        "missing": missing,
+    }
+
+
 def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     host = repo / "tools/pure_pipeline_host.cpp"
     adapter = repo / "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
@@ -463,6 +585,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
             "path": display_path(repo, host),
         },
         "target_build_scripts_cover_pure_pipeline": target_build_scripts_cover_pure_pipeline(repo),
+        "host_runtime_matches_generated_config": host_runtime_matches_generated_config(repo),
     }
 
 
