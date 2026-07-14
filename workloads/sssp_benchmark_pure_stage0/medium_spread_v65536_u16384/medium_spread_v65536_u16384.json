@@ -1,0 +1,18 @@
+{
+  "case": "medium_spread_v65536_u16384",
+  "default_weight": 1,
+  "expected": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/medium_spread_v65536_u16384/medium_spread_v65536_u16384.expected.tsv",
+  "family": "spread",
+  "final_edges": 81920,
+  "graph": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/medium_spread_v65536_u16384/medium_spread_v65536_u16384.graph",
+  "intent": "Updates spread across vertices: tests balanced partition traffic.",
+  "metadata": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/medium_spread_v65536_u16384/medium_spread_v65536_u16384.json",
+  "regraph_sssp_edges": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/medium_spread_v65536_u16384/medium_spread_v65536_u16384.sssp.edges",
+  "result": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/medium_spread_v65536_u16384/medium_spread_v65536_u16384.result",
+  "source": 0,
+  "static_edges": 65536,
+  "supersteps": 32,
+  "unit_weight_note": "Use unit weights for fair SSSP comparison with Spine.",
+  "update_edges": 16384,
+  "vertices": 65536
+}

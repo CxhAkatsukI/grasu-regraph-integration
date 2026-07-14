@@ -1,0 +1,18 @@
+{
+  "case": "small_chain_v64",
+  "default_weight": 1,
+  "expected": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/small_chain_v64/small_chain_v64.expected.tsv",
+  "family": "chain",
+  "final_edges": 63,
+  "graph": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/small_chain_v64/small_chain_v64.graph",
+  "intent": "High-diameter graph: stresses fixed per-superstep overhead and many SSSP levels.",
+  "metadata": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/small_chain_v64/small_chain_v64.json",
+  "regraph_sssp_edges": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/small_chain_v64/small_chain_v64.sssp.edges",
+  "result": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/small_chain_v64/small_chain_v64.result",
+  "source": 0,
+  "static_edges": 63,
+  "supersteps": 64,
+  "unit_weight_note": "Use unit weights for fair SSSP comparison with Spine.",
+  "update_edges": 0,
+  "vertices": 64
+}

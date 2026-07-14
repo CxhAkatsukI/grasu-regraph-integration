@@ -1,0 +1,18 @@
+{
+  "case": "tiny_star_v16_u12",
+  "default_weight": 1,
+  "expected": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/tiny_star_v16_u12/tiny_star_v16_u12.expected.tsv",
+  "family": "hot-source",
+  "final_edges": 28,
+  "graph": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/tiny_star_v16_u12/tiny_star_v16_u12.graph",
+  "intent": "Low-diameter fanout from the source: stresses broad early frontier and edge throughput.",
+  "metadata": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/tiny_star_v16_u12/tiny_star_v16_u12.json",
+  "regraph_sssp_edges": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/tiny_star_v16_u12/tiny_star_v16_u12.sssp.edges",
+  "result": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/tiny_star_v16_u12/tiny_star_v16_u12.result",
+  "source": 0,
+  "static_edges": 16,
+  "supersteps": 2,
+  "unit_weight_note": "Use unit weights for fair SSSP comparison with Spine.",
+  "update_edges": 12,
+  "vertices": 16
+}

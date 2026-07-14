@@ -1,0 +1,18 @@
+{
+  "case": "small_hotdst_v4096_u1024",
+  "default_weight": 1,
+  "expected": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/small_hotdst_v4096_u1024/small_hotdst_v4096_u1024.expected.tsv",
+  "family": "hot-dest",
+  "final_edges": 5119,
+  "graph": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/small_hotdst_v4096_u1024/small_hotdst_v4096_u1024.graph",
+  "intent": "Many updates converge on one destination: stresses gather/min reduction hot spot behavior.",
+  "metadata": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/small_hotdst_v4096_u1024/small_hotdst_v4096_u1024.json",
+  "regraph_sssp_edges": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/small_hotdst_v4096_u1024/small_hotdst_v4096_u1024.sssp.edges",
+  "result": "/home/chuxiao/grasu-regraph-integration/workloads/sssp_benchmark_pure_stage0/small_hotdst_v4096_u1024/small_hotdst_v4096_u1024.result",
+  "source": 0,
+  "static_edges": 4095,
+  "supersteps": 32,
+  "unit_weight_note": "Use unit weights for fair SSSP comparison with Spine.",
+  "update_edges": 1024,
+  "vertices": 4096
+}
