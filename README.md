@@ -220,7 +220,11 @@ Current reproducible target flow:
 The launch packet regenerates target compile/link/config scripts before its
 preflight checks by default, so its source-contract and readiness evidence match
 the scripts the target flow will launch. Use `--no-prepare` only when inspecting
-an existing generated build directory.
+an existing generated build directory. It also writes `source_fingerprints.tsv`
+with tree hashes for the integration scripts/kernels/tools, GraSU source, and
+ReGraph source directories. This is required because the local ReGraph tree is
+not currently a git repository, so the launch packet must record a content hash
+in addition to git commit IDs.
 
 Run the same wrapper with `--target hw` after `hw_emu` passes. The wrapper
 records the build parameters, checks source-level PMA/stream/barrier contracts,

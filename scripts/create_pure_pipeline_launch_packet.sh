@@ -112,6 +112,30 @@ git_value() {
   esac
 }
 
+hash_tree() {
+  local role="$1"
+  local root="$2"
+  shift 2
+
+  if [[ ! -d "${root}" ]]; then
+    printf '%s\tmissing\t-\t%s\n' "${role}" "${root}"
+    return
+  fi
+
+  local list_file="${OUT_DIR}/${role}.files"
+  local hashes_file="${OUT_DIR}/${role}.sha256s"
+  find "${root}" -type f "$@" -print | LC_ALL=C sort > "${list_file}"
+  if [[ ! -s "${list_file}" ]]; then
+    printf '%s\tempty\t-\t%s\n' "${role}" "${root}"
+    return
+  fi
+
+  xargs -r sha256sum < "${list_file}" > "${hashes_file}"
+  local digest
+  digest="$(sha256sum "${hashes_file}" | awk '{print $1}')"
+  printf '%s\tpresent\t%s\t%s\n' "${role}" "${digest}" "${root}"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
@@ -174,6 +198,7 @@ mkdir -p "${OUT_DIR}"
 
 BUILD_ROOT="${GRI_ROOT}/.tmp_build/pure_pipeline_${TARGET}_stage0"
 SOURCE_CONTRACT_OUT="${OUT_DIR}/source_contracts.tsv"
+SOURCE_FINGERPRINTS_OUT="${OUT_DIR}/source_fingerprints.tsv"
 RUNLOG_READINESS_OUT="${BUILD_ROOT}/run_logs/readiness_${LABEL}.txt"
 READINESS_OUT="${OUT_DIR}/readiness_${TARGET}.txt"
 AUDIT_DIR="${OUT_DIR}/audit"
@@ -192,6 +217,28 @@ if [[ "${PREPARE}" == "1" ]]; then
     --target "${TARGET}" \
     --build-root "${BUILD_ROOT}"
 fi
+
+{
+  printf 'role\tstatus\ttree_sha256\troot\n'
+  hash_tree integration_scripts "${GRI_ROOT}/scripts" \
+    \( -name '*.sh' -o -name '*.py' \)
+  hash_tree integration_kernels "${GRI_ROOT}/kernels" \
+    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
+  hash_tree integration_tools "${GRI_ROOT}/tools" \
+    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
+  hash_tree grasu_kernel_src "${GRASU_ROOT}/GraSU/GraSU_kernels/src" \
+    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
+  hash_tree grasu_host_src "${GRASU_ROOT}/GraSU/GraSU/src" \
+    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
+  hash_tree grasu_u55c_scripts "${GRASU_ROOT}/u55c_hbm" \
+    \( -name '*.sh' -o -name '*.cfg' -o -name '*.ini' \)
+  hash_tree regraph_acc_template "${REGRAPH_ROOT}/acc_template" \
+    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.cfg' -o -name '*.mk' \)
+  hash_tree regraph_acc_udfs "${REGRAPH_ROOT}/acc_udfs" \
+    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
+  hash_tree regraph_host_src "${REGRAPH_ROOT}/host" \
+    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.mk' \)
+} > "${SOURCE_FINGERPRINTS_OUT}"
 
 source_status=0
 if run_capture_status "${SCRIPT_DIR}/check_pure_pipeline_source_contracts.py" \
@@ -281,6 +328,7 @@ chmod +x "${COMMANDS_SH}"
   printf 'build_root=%s\n' "${BUILD_ROOT}"
   printf 'out_xclbin=%s\n' "${OUT_XCLBIN}"
   printf 'source_contract_out=%s\n' "${SOURCE_CONTRACT_OUT}"
+  printf 'source_fingerprints_out=%s\n' "${SOURCE_FINGERPRINTS_OUT}"
   printf 'source_contract_status=%s\n' "${source_status}"
   printf 'readiness_out=%s\n' "${READINESS_OUT}"
   printf 'runlog_readiness_out=%s\n' "${RUNLOG_READINESS_OUT}"
@@ -309,6 +357,7 @@ chmod +x "${COMMANDS_SH}"
     "${BUILD_ROOT}/compile_commands.sh" \
     "${BUILD_ROOT}/link_command.sh" \
     "${SOURCE_CONTRACT_OUT}" \
+    "${SOURCE_FINGERPRINTS_OUT}" \
     "${READINESS_OUT}" \
     "${RUNLOG_READINESS_OUT}" \
     "${AUDIT_DIR}/audit.json" \
@@ -343,6 +392,7 @@ launch_line="$(printf '%q ' "${launch_cmd[@]}")"
   printf '## Evidence Files\n\n'
   printf '```text\n'
   printf '%s\n' "${SOURCE_CONTRACT_OUT}"
+  printf '%s\n' "${SOURCE_FINGERPRINTS_OUT}"
   printf '%s\n' "${READINESS_OUT}"
   printf '%s\n' "${RUNLOG_READINESS_OUT}"
   printf '%s\n' "${AUDIT_DIR}/audit.json"
@@ -360,6 +410,7 @@ launch_line="$(printf '%q ' "${launch_cmd[@]}")"
 echo "DONE launch_packet=${OUT_DIR}"
 echo "DONE launch_command=${COMMANDS_SH}"
 echo "DONE source_contract_out=${SOURCE_CONTRACT_OUT}"
+echo "DONE source_fingerprints_out=${SOURCE_FINGERPRINTS_OUT}"
 echo "DONE readiness_out=${READINESS_OUT}"
 echo "DONE audit_dir=${AUDIT_DIR}"
 echo "DONE bundle_dir=${BUNDLE_DIR}"
