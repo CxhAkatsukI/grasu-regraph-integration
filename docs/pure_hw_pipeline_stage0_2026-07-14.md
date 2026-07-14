@@ -4094,3 +4094,117 @@ cd /home/chuxiao/grasu-regraph-integration
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 ```
+
+## Smoke input identity gate
+
+The baseline comparison now has an explicit same-input checker:
+
+```text
+scripts/check_smoke_input_identity.py
+```
+
+The checker verifies the tracked smoke manifest against:
+
+```text
+workloads/sssp_benchmark_smoke/manifest.tsv
+results/grasu_regraph_smoke_device_export_combined_hw_stage1/summary.tsv
+results/spine_edge_file_smoke_hw_stage2_split_xclbin/summary.tsv
+results/pure_pipeline_sw_emu_smoke_swemu_refresh_after_d2ae298/summary.tsv
+```
+
+For each case it checks:
+
+```text
+vertices
+final edge count
+source vertex
+superstep count
+host baseline status and mismatch count
+Spine status and error count
+pure-pipeline status and mismatch count
+SHA256(manifest .sssp.edges)
+SHA256(host-exported .from_grasu.sssp.edges)
+SHA256(Spine --edge-file)
+```
+
+This is deliberately stricter than matching case names. It proves that the
+current host baseline, zero-cost handoff baseline, Spine edge-file baseline,
+and pure `sw_emu` smoke result are aligned on the same generated smoke inputs.
+
+Source commit:
+
+```text
+8fb03ba2623e7e1ce38248c7d6d800d84edf1c34
+```
+
+Changed files:
+
+```text
+scripts/check_smoke_input_identity.py
+scripts/audit_pure_pipeline_status.py
+scripts/export_pure_pipeline_evidence_bundle.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/check_smoke_input_identity.py \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py
+
+./scripts/check_smoke_input_identity.py \
+  --label after_8fb03ba
+
+./scripts/audit_pure_pipeline_status.py \
+  --label after_8fb03ba \
+  --out-dir results/pure_pipeline_requirement_audit_after_8fb03ba_identity
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_after_8fb03ba_identity/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_after_8fb03ba_identity
+```
+
+Result:
+
+```text
+identity case_count=4
+identity failed_count=0
+requirement 9 status=proven
+bundle includes input_identity_matrix.tsv
+```
+
+Identity rows:
+
+```text
+tiny_chain_v16       ok=yes vertices=16 final_edges=15 source=0 supersteps=16 edge_sha256=711894d41cd1e0e07540996af0b323bfdc5702cf520ddb09de940a4eef226a1c
+tiny_star_v16_u12    ok=yes vertices=16 final_edges=28 source=0 supersteps=2  edge_sha256=4faccf735da914557d790f1699de1cd11c490a5726e92e115d0a46ae6c2f5d96
+tiny_spread_v16_u8   ok=yes vertices=16 final_edges=24 source=0 supersteps=16 edge_sha256=21c74c7c65edb2c5ee0c7317190f3a5c6a972d0616407a517ab0bbeba58c0a8f
+tiny_hotdst_v64_u32  ok=yes vertices=64 final_edges=95 source=0 supersteps=16 edge_sha256=70e040c2e5f8da3ad51410094f8c1d99e0fadeea36c40bd147373dc0529f28a7
+```
+
+Artifacts:
+
+```text
+results/smoke_input_identity_after_8fb03ba/identity.tsv
+results/smoke_input_identity_after_8fb03ba/identity.md
+results/pure_pipeline_requirement_audit_after_8fb03ba_identity/audit.json
+results/pure_pipeline_evidence_bundle_after_8fb03ba_identity/summary.md
+results/pure_pipeline_evidence_bundle_after_8fb03ba_identity/input_identity_matrix.tsv
+results/pure_pipeline_evidence_bundle_after_8fb03ba_identity/bundle_manifest.json
+```
+
+Evidence hashes:
+
+```text
+329692c8d7f1f8330b4862dd2293d0b34dbc41e3fa4c4420f1782ddc49d6ebf7  scripts/check_smoke_input_identity.py
+336d66fdf694b168cbb9899263dcbdeddda1ac9af6c55b77cd7c7ee2f220621c  scripts/audit_pure_pipeline_status.py
+b57a06e40524c1788696bdab1a9ba907e3e8f08fbb73efed6d8638e9fb299f01  scripts/export_pure_pipeline_evidence_bundle.py
+a4bb92d0bc393fb051570aff3f3ebd2f54be825cad24592bcc4d1916b7448242  results/smoke_input_identity_after_8fb03ba/identity.tsv
+d7352a68754037743b4226401969d8356c36efa264edde61c438eea4e5674f87  results/smoke_input_identity_after_8fb03ba/identity.md
+d0404a5518faa86e35b988155336d1d416fb7773db46990a22ef1813ff22f44d  results/pure_pipeline_requirement_audit_after_8fb03ba_identity/audit.json
+c765e2a92ec4b5f1ebd99cfdcef6d80f57908d0d4d8bbd5adc61883527e4afd4  results/pure_pipeline_evidence_bundle_after_8fb03ba_identity/summary.md
+9d599a964fbb5c971a2404ee1f81d0f82494fb10f5595ffe40134d0bf36d9547  results/pure_pipeline_evidence_bundle_after_8fb03ba_identity/input_identity_matrix.tsv
+d3ef74745f6bc69286ecec0523e24d0e47225a962fa768d0e6d5d091a3fbea68  results/pure_pipeline_evidence_bundle_after_8fb03ba_identity/bundle_manifest.json
+```
