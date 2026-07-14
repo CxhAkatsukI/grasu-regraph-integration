@@ -5494,3 +5494,40 @@ Evidence hashes:
 e297c02d8ad59dcddbde9e4c97a4b76bad54a6a0704eeed57f98e3f8881457da  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_precommit/evidence_bundle/case_target_matrix.tsv
 e0cc6bd2a40fc5179776b93066db862e7c56365fb75393c73a5303b2861897b3  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_precommit/evidence_bundle/bundle_manifest.json
 ```
+
+Clean commit recheck after commit `ed30b1a`:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --label launch_packet_matrix_after_ed30b1a \
+  --flow-label matrix_after_ed30b1a \
+  --no-prepare \
+  --allow-active-builders
+```
+
+Clean result:
+
+```text
+integration_head=ed30b1a6c82bc314988271f87778b4e0d5bd91a3
+integration_tracked_dirty=clean
+source_contract_status=0
+readiness_status=0
+audit_status=0
+bundle_status=0
+case_target_matrix_listed_in_readme=yes
+case_target_matrix_listed_in_artifact_hashes=yes
+```
+
+Clean evidence hashes:
+
+```text
+3cb952e75633446cef704797817057f357051064585cd6a368c420e7d5abb7d1  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_after_ed30b1a/README.md
+0342059751e40164b2101b47c8868cc41bf614c0aac0095ceeb5bf7e45bf50d5  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_after_ed30b1a/artifact_hashes.tsv
+e297c02d8ad59dcddbde9e4c97a4b76bad54a6a0704eeed57f98e3f8881457da  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_after_ed30b1a/evidence_bundle/case_target_matrix.tsv
+672c17977b3d7af235a35ab95cdee2159b57a2cca08a9806fc70d509844cde19  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_after_ed30b1a/evidence_bundle/bundle_manifest.json
+091e206e6471fdf8a59a93b6a69ad4f3dff5033d08019bcfb63976aaeb928955  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_after_ed30b1a/source_contracts.tsv
+249664fcdef3ee113b12a5788501df077b466fc89f83947253fa833631d80d08  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_after_ed30b1a/source_fingerprints.tsv
+fa574c10a56cdd5481531df2465fd66a72a5eba7967c694fee038bfbf2c293cf  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_after_ed30b1a/readiness_hw_emu.txt
+```
