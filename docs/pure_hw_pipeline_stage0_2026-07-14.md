@@ -4898,3 +4898,110 @@ fb28765e2efcd8df9dd32562b9674ac580f4c4acfdedb7bfe8f6d1c06bc93d1f  .tmp_build/pur
 3e8ff410a5635376aed5a3bc086ce04ddfce20b63e75dd2ec254b80b9f3474df  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/evidence_bundle/summary.md
 4ff50764cdb9bc9271cf46d5b2f3979c9ab4a18f162d780be7c0991c44b07439  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/evidence_bundle/target_matrix.tsv
 ```
+
+## Launch packet source fingerprints
+
+As of 2026-07-15 03:50 Asia/Shanghai, launch packets also record deterministic
+source tree fingerprints. This closes an important reproducibility gap: the
+local ReGraph tree used by the integration workspace is not a git repository,
+so `regraph_head=not_git` alone is not enough to identify the source state.
+
+Changed files:
+
+```text
+README.md
+scripts/create_pure_pipeline_launch_packet.sh
+```
+
+The launch packet now writes:
+
+```text
+source_fingerprints.tsv
+<role>.files
+<role>.sha256s
+```
+
+The fingerprinted roles are:
+
+```text
+integration_scripts
+integration_kernels
+integration_tools
+grasu_kernel_src
+grasu_host_src
+grasu_u55c_scripts
+regraph_acc_template
+regraph_acc_udfs
+regraph_host_src
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/create_pure_pipeline_launch_packet.sh
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --label launch_packet_hwemu_after_a92b784 \
+  --flow-label after_a92b784
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw \
+  --label launch_packet_hw_after_a92b784 \
+  --flow-label after_a92b784
+```
+
+Result:
+
+```text
+integration_head=a92b784b74bfd13e280d7cddf2be4fa8325bf9cc
+integration_tracked_dirty=clean
+source_contract_status=0
+audit_status=0
+bundle_status=0
+hw_emu launch_packet_exit=3
+hw launch_packet_exit=3
+readiness_status=3 for both targets because unrelated Spine Vitis/Vivado builders were active
+hw_emu xclbin=MISSING
+hw xclbin=MISSING
+```
+
+Current source fingerprints:
+
+```text
+integration_scripts  cb819f2c3dd7f4ad7463ffdedf508d53a743002a6cab6fb30c779fed42a9eaf7
+integration_kernels  d4e044aa815f07ecc308484748496db93247d29a9a872f5ec1c7eaa811b37f88
+integration_tools    25acbe258816f976a0f986b7b99625a977fcacc8e2eb065dda0f2f6dcf4b7192
+grasu_kernel_src     db745c5d32223c703581e386e301326bd6b15fa3a0317addcf6af81ccec9504c
+grasu_host_src       183d604a583a6e6bba2988e18adb3aaa8b90817ce5f5b2f31108cb14d464ee4d
+grasu_u55c_scripts   d88beea35b92b18b8fa248c9803d66dc8b12b6e95003bdd8f3ae39e5b019add4
+regraph_acc_template 2b858c5b0df83a3dc8bcbad0e3ae2f168303cbaab7098259cc32e29e299d65f2
+regraph_acc_udfs     da1d16656e72a3f83754208a70b657931035d22e38a04d1c35791e09c80adc71
+regraph_host_src     be0d2556f07e166c5adbe91a2f48bdeab517caec6ea08f93ead1ad8202e07a1b
+```
+
+Artifacts:
+
+```text
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_a92b784/source_fingerprints.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_a92b784/source_fingerprints.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_a92b784/readiness_hw_emu.txt
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_a92b784/readiness_hw.txt
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_launch_packet_hwemu_after_a92b784.txt
+.tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_launch_packet_hw_after_a92b784.txt
+```
+
+Evidence hashes:
+
+```text
+13f76865878712545e7733ea6e49a17f6173e939a1be49f2486f0121486e9bde  scripts/create_pure_pipeline_launch_packet.sh
+1c2f9851b24fc2b60f7d0ff57c99624c62dc321be8232c4883fd4c1871446d81  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_a92b784/source_fingerprints.tsv
+1c2f9851b24fc2b60f7d0ff57c99624c62dc321be8232c4883fd4c1871446d81  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_a92b784/source_fingerprints.tsv
+ecb1cd91bec4380fcfa1ba455e933a501abfe0a68891b0bf65e279466f9e3f0e  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_a92b784/readiness_hw_emu.txt
+ecb1cd91bec4380fcfa1ba455e933a501abfe0a68891b0bf65e279466f9e3f0e  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_launch_packet_hwemu_after_a92b784.txt
+982ad36984beae4749e374da8f0de953f6f755879251f341fab708fe538fbbb8  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_a92b784/readiness_hw.txt
+982ad36984beae4749e374da8f0de953f6f755879251f341fab708fe538fbbb8  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_launch_packet_hw_after_a92b784.txt
+d3de705fb96e8bd79986e33c8f100ed668ab941eee6a02a903f2293f129cce84  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_a92b784/audit/audit.json
+491a6930f02873d4a835581e8a3c41f07031af1c953d746b138903daf8b48738  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_a92b784/audit/audit.json
+```
