@@ -4208,3 +4208,92 @@ c765e2a92ec4b5f1ebd99cfdcef6d80f57908d0d4d8bbd5adc61883527e4afd4  results/pure_p
 9d599a964fbb5c971a2404ee1f81d0f82494fb10f5595ffe40134d0bf36d9547  results/pure_pipeline_evidence_bundle_after_8fb03ba_identity/input_identity_matrix.tsv
 d3ef74745f6bc69286ecec0523e24d0e47225a962fa768d0e6d5d091a3fbea68  results/pure_pipeline_evidence_bundle_after_8fb03ba_identity/bundle_manifest.json
 ```
+
+## Boundary prepare-only refresh after 213000d
+
+The machine is still running an unrelated Spine `hw` Vitis/Vivado build, so no
+new pure `hw_emu` or `hw` build was launched in this step. Instead, the
+`V <= 65536` first-stage evidence was refreshed on the current branch head.
+
+Source commit:
+
+```text
+213000dffbaaf4b0cdbbb55569551908e8bd5e07
+```
+
+Validation command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_prepare_check.sh \
+  --preset boundary \
+  --out-dir results/pure_pipeline_prepare_boundary_after_213000d \
+  --timeout 240
+
+./scripts/audit_pure_pipeline_status.py \
+  --label boundary_after_213000d \
+  --out-dir results/pure_pipeline_requirement_audit_boundary_after_213000d
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_boundary_after_213000d/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_boundary_after_213000d
+```
+
+Result:
+
+```text
+boundary_star_v65536_u4096
+  status=PASS
+  vertices=65536
+  updates=4096
+  final_edges=69632
+  pma_slots=1052672
+  row_offset_words=65537
+  binary_segments=65792
+  partition_size=65536
+  little_dst_buffer=65536
+  unit_weight=1
+
+boundary_spread_v65536_u4096
+  status=PASS
+  vertices=65536
+  updates=4096
+  final_edges=69632
+  pma_slots=1048576
+  row_offset_words=65537
+  binary_segments=65536
+  partition_size=65536
+  little_dst_buffer=65536
+  unit_weight=1
+```
+
+Interpretation:
+
+```text
+Requirement 6 remains partial in the audit because pure hw_emu/hw execution is
+still missing. The refreshed evidence does prove that the current host
+preparation path, GraSU PMA packing, row-offset metadata, CPU oracle setup, and
+unit-weight SSSP boundary parameters work at V=65536.
+```
+
+Artifacts:
+
+```text
+results/pure_pipeline_prepare_boundary_after_213000d/summary.tsv
+results/pure_pipeline_prepare_boundary_after_213000d/run.env
+workloads/sssp_benchmark_boundary/manifest.tsv
+results/pure_pipeline_requirement_audit_boundary_after_213000d/audit.json
+results/pure_pipeline_evidence_bundle_boundary_after_213000d/summary.md
+results/pure_pipeline_evidence_bundle_boundary_after_213000d/bundle_manifest.json
+```
+
+Evidence hashes:
+
+```text
+6fe0469e74f8ce30dc072d3c0c09c69b9c27178582428dd5d4067d9b41c312e3  results/pure_pipeline_prepare_boundary_after_213000d/summary.tsv
+c6eb1a7dbd3160047524682acfcdcb7ce3b6e4254aaa2ef2e4b035660e0c2b0c  results/pure_pipeline_prepare_boundary_after_213000d/run.env
+e8110d3b222ab35f3ca27a646128e4b864d6dbfd5450dacc79e0ee6f23170a62  workloads/sssp_benchmark_boundary/manifest.tsv
+093a9933c6c191044fddc6dfda12d7c989e4a583f0e66c6a30e8bab30e0ebae8  results/pure_pipeline_requirement_audit_boundary_after_213000d/audit.json
+5479a6be92b68a37d6db0a3c0dc0718cc9d458e1f6145d1812ae85241bc95f91  results/pure_pipeline_evidence_bundle_boundary_after_213000d/summary.md
+409a4f192f6563857140840ba23b242f34967ca4a134388f7e119c203ba0a8df  results/pure_pipeline_evidence_bundle_boundary_after_213000d/bundle_manifest.json
+```
