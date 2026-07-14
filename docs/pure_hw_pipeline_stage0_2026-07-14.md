@@ -539,6 +539,75 @@ The wrapper writes:
 .tmp_build/pure_pipeline_<target>_stage0/run_logs/link_<label>.log
 ```
 
+## Post-Build Finalization
+
+After a pure-pipeline xclbin is produced, run the finalization wrapper. It
+collects artifact hashes, runs the smoke correctness suite, and generates the
+same-input comparison against the current host/zero-cost and Spine baselines.
+
+Status-only check before the xclbin exists:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/finalize_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label status_76e176c \
+  --status-only
+```
+
+Current status evidence:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_status_76e176c.env
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_status_76e176c_evidence.tsv
+
+8cd3dab5fd9dcd8625be7b8734e8b30e73379446745b6e934ea84d25e60e6b7c  finalize_status_76e176c.env
+9fa68eaca354441d83d4647b440b5a4fbeecef4a37b6a6c137ea20dd27ba55b7  finalize_status_76e176c_evidence.tsv
+```
+
+The evidence currently records:
+
+```text
+ded281e1610545859ca5fcfdc4acfeecece6a1bad2805ba36ec98b0050814b06  pure_pipeline_host
+MISSING                                                           grasu_regraph_pure_pipeline.hw_emu.xclbin
+d72d8ca7272f7ee07b924979d2048894c0376bf2c3985ba427b17e80395a0235  manifest.env
+d471282a9f92c38759f14600f6c0e53a53a5481790051a82f06f920ad4ef4a77  inputs.tsv
+d2a071aebca70a850852d8a42dd3e45546400be714fea41475c5f25a11df57a4  compile_commands.sh
+9faf8e9ef27add5f802ac1b95cbc793161c4fee9e912f3f24c8dc6ad5827ece4  link_command.sh
+MISSING                                                           pure_pipeline_hw_emu_smoke_status_76e176c/summary.tsv
+MISSING                                                           pure_pipeline_hw_emu_compare_status_76e176c/comparison.tsv
+```
+
+When the `hw_emu` xclbin exists, run:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/finalize_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label after_76e176c \
+  --build-host
+```
+
+When the `hw` xclbin exists, run:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/finalize_pure_pipeline_build.sh \
+  --target hw \
+  --label after_76e176c \
+  --build-host
+```
+
+The finalization wrapper writes:
+
+```text
+.tmp_build/pure_pipeline_<target>_stage0/run_logs/finalize_<label>.env
+.tmp_build/pure_pipeline_<target>_stage0/run_logs/finalize_<label>_evidence.tsv
+results/pure_pipeline_<target>_smoke_<label>/summary.tsv
+results/pure_pipeline_<target>_compare_<label>/comparison.tsv
+results/pure_pipeline_<target>_compare_<label>/comparison.md
+```
+
 ## Not Yet True
 
 The current baseline still has these gaps:
