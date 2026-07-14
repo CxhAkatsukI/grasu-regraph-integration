@@ -673,6 +673,36 @@ def target_flow_exports_evidence_bundle(repo: Path) -> dict[str, Any]:
     }
 
 
+def target_flow_runs_acceptance_gates(repo: Path) -> dict[str, Any]:
+    target_flow = repo / "scripts/run_pure_pipeline_target_flow.sh"
+    return {
+        "ok": source_contains(target_flow, [
+            "SKIP_ACCEPTANCE=0",
+            "--skip-acceptance",
+            'REPLAY_COMMAND="${RUN_DIR}/target_flow_${LABEL}_replay.sh"',
+            'ACCEPTANCE_TSV="${RUN_DIR}/acceptance_gates_target_flow_${LABEL}.tsv"',
+            'ACCEPTANCE_CHECK_PRELAUNCH="${RUN_DIR}/acceptance_check_prelaunch_target_flow_${LABEL}.tsv"',
+            'ACCEPTANCE_CHECK_POSTRUN="${RUN_DIR}/acceptance_check_postrun_target_flow_${LABEL}.tsv"',
+            "gate\\trequired\\tevidence_path\\tpass_condition",
+            "source_fingerprints\\tyes",
+            "source_contracts\\tyes",
+            "readiness\\tyes",
+            "target_xclbin\\tyes",
+            "full_smoke\\tyes",
+            "same_input_compare\\tyes",
+            "requirement_audit\\tyes",
+            "evidence_bundle\\tyes",
+            "check_pure_pipeline_acceptance_gates.py",
+            "--mode prelaunch",
+            "--mode postrun",
+            'echo "DONE acceptance_check_postrun=${ACCEPTANCE_CHECK_POSTRUN}"',
+            'echo "DONE acceptance_check_postrun=SKIPPED"',
+        ]),
+        "path": display_path(repo, target_flow),
+        "contract": "target flow writes replayable acceptance gates, runs prelaunch acceptance, and runs postrun acceptance after full build/finalize/audit/bundle",
+    }
+
+
 def launch_packet_records_acceptance_gates(repo: Path) -> dict[str, Any]:
     launch_packet = repo / "scripts/create_pure_pipeline_launch_packet.sh"
     return {
@@ -923,6 +953,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
         "target_build_scripts_cover_pure_pipeline": target_build_scripts_cover_pure_pipeline(repo),
         "host_runtime_matches_generated_config": host_runtime_matches_generated_config(repo),
         "target_flow_exports_evidence_bundle": target_flow_exports_evidence_bundle(repo),
+        "target_flow_runs_acceptance_gates": target_flow_runs_acceptance_gates(repo),
         "launch_packet_records_acceptance_gates": launch_packet_records_acceptance_gates(repo),
         "acceptance_gate_checker_covers_required_outputs": acceptance_gate_checker_covers_required_outputs(repo),
     }
@@ -1027,6 +1058,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     source_unit = proofs["unit_weight_sssp_packing"]["ok"]
     source_timing = proofs["timing_fields"]["ok"]
     source_target_flow_bundle = proofs["target_flow_exports_evidence_bundle"]["ok"]
+    source_target_flow_acceptance = proofs["target_flow_runs_acceptance_gates"]["ok"]
 
     baseline_ok = (
         host["all_expected_pass"]
@@ -1167,7 +1199,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         requirement(
             10,
             "Build commands, source hash, xclbin hash, logs, and results are reproducible",
-            "proven" if all_targets_valid and source_target_flow_bundle else "partial",
+            "proven" if all_targets_valid and source_target_flow_bundle and source_target_flow_acceptance else "partial",
             [
                 f"git_head={git_head}",
                 targets["hw_emu"]["compile_commands"]["path"],
@@ -1175,13 +1207,15 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
                 targets["hw"]["compile_commands"]["path"],
                 targets["hw"]["link_command"]["path"],
                 proofs["target_flow_exports_evidence_bundle"]["contract"],
+                proofs["target_flow_runs_acceptance_gates"]["contract"],
             ],
             (
                 []
-                if all_targets_valid and source_target_flow_bundle else
+                if all_targets_valid and source_target_flow_bundle and source_target_flow_acceptance else
                 [
                     gap for gap in [
                         None if source_target_flow_bundle else "target-flow evidence bundle export proof is missing",
+                        None if source_target_flow_acceptance else "target-flow acceptance gate proof is missing",
                         None if all_targets_valid else "hw_emu/hw xclbin hashes, full build logs, and final smoke results are missing",
                     ]
                     if gap is not None

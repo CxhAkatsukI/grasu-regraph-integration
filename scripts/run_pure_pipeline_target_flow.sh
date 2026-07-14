@@ -18,6 +18,7 @@ SKIP_BUILD=0
 SKIP_FINALIZE=0
 SKIP_AUDIT=0
 SKIP_BUNDLE=0
+SKIP_ACCEPTANCE=0
 CLEAN_BUILD_ARTIFACTS=0
 PREPARE=0
 SOURCE_CONTRACT_CHECK=1
@@ -57,6 +58,7 @@ Options:
   --skip-finalize             Do not run finalize/smoke/compare.
   --skip-audit                Do not run requirement audit; also suppresses bundle export.
   --skip-bundle               Do not export the compact evidence bundle.
+  --skip-acceptance           Do not run prelaunch/postrun acceptance-gate checks.
   --dry-run                   Print commands; do not execute them.
   -h, --help                  Show this help.
 USAGE
@@ -100,6 +102,7 @@ while [[ $# -gt 0 ]]; do
     --skip-finalize) SKIP_FINALIZE=1; shift ;;
     --skip-audit) SKIP_AUDIT=1; shift ;;
     --skip-bundle) SKIP_BUNDLE=1; shift ;;
+    --skip-acceptance) SKIP_ACCEPTANCE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -152,6 +155,105 @@ SOURCE_FINGERPRINTS_OUT="${RUN_DIR}/source_fingerprints_target_flow_${LABEL}.tsv
 MONITOR_OUT="${RUN_DIR}/monitor_after_${LABEL}.txt"
 AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
 BUNDLE_OUT="${GRI_ROOT}/results/pure_pipeline_evidence_bundle_${LABEL}"
+REPLAY_COMMAND="${RUN_DIR}/target_flow_${LABEL}_replay.sh"
+ACCEPTANCE_TSV="${RUN_DIR}/acceptance_gates_target_flow_${LABEL}.tsv"
+ACCEPTANCE_CHECK_PRELAUNCH="${RUN_DIR}/acceptance_check_prelaunch_target_flow_${LABEL}.tsv"
+ACCEPTANCE_CHECK_POSTRUN="${RUN_DIR}/acceptance_check_postrun_target_flow_${LABEL}.tsv"
+OUT_XCLBIN="${BUILD_ROOT}/build/grasu_regraph_pure_pipeline.${TARGET}.xclbin"
+COMPILE_LOG="${RUN_DIR}/compile_${LABEL}.log"
+LINK_LOG="${RUN_DIR}/link_${LABEL}.log"
+XCLBIN_CONTRACT_OUT="${RUN_DIR}/xclbin_contract_${TARGET}_${LABEL}.tsv"
+GATE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_smoke_gate_${LABEL}"
+SMOKE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_smoke_${LABEL}"
+COMPARE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_compare_${LABEL}"
+
+replay_cmd=(
+  "./scripts/run_pure_pipeline_target_flow.sh"
+  --target "${TARGET}"
+  --label "${LABEL}"
+  --wait-idle "${WAIT_IDLE_SECONDS}"
+  --idle-poll "${IDLE_POLL_SECONDS}"
+  --idle-settle "${IDLE_SETTLE_SECONDS}"
+  --monitor-tail "${MONITOR_TAIL_LINES}"
+)
+if [[ -n "${GATE_CASE}" ]]; then
+  replay_cmd+=(--gate-case "${GATE_CASE}" --gate-timeout "${GATE_TIMEOUT_SECONDS}")
+else
+  replay_cmd+=(--no-gate)
+fi
+if [[ -n "${TIMEOUT_SECONDS}" ]]; then
+  replay_cmd+=(--timeout "${TIMEOUT_SECONDS}")
+fi
+if [[ "${BUILD_HOST}" == "1" ]]; then
+  replay_cmd+=(--build-host)
+else
+  replay_cmd+=(--no-build-host)
+fi
+if [[ "${PREPARE}" == "1" ]]; then
+  replay_cmd+=(--prepare)
+fi
+if [[ "${CLEAN_BUILD_ARTIFACTS}" == "1" ]]; then
+  replay_cmd+=(--clean-build-artifacts)
+fi
+if [[ "${SOURCE_CONTRACT_CHECK}" == "1" ]]; then
+  replay_cmd+=(--source-contracts)
+else
+  replay_cmd+=(--no-source-contracts)
+fi
+if [[ "${READINESS_CHECK}" == "1" ]]; then
+  replay_cmd+=(--readiness)
+else
+  replay_cmd+=(--no-readiness)
+fi
+if [[ "${STRICT_READINESS}" == "1" ]]; then
+  replay_cmd+=(--strict-readiness)
+fi
+if [[ "${SKIP_BUILD}" == "1" ]]; then
+  replay_cmd+=(--skip-build)
+fi
+if [[ "${SKIP_FINALIZE}" == "1" ]]; then
+  replay_cmd+=(--skip-finalize)
+fi
+if [[ "${SKIP_AUDIT}" == "1" ]]; then
+  replay_cmd+=(--skip-audit)
+fi
+if [[ "${SKIP_BUNDLE}" == "1" ]]; then
+  replay_cmd+=(--skip-bundle)
+fi
+if [[ "${SKIP_ACCEPTANCE}" == "1" ]]; then
+  replay_cmd+=(--skip-acceptance)
+fi
+
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'set -euo pipefail\n'
+  printf 'cd %q\n' "${GRI_ROOT}"
+  printf 'exec'
+  printf ' %q' "${replay_cmd[@]}"
+  printf '\n'
+} > "${REPLAY_COMMAND}"
+chmod +x "${REPLAY_COMMAND}"
+
+{
+  printf 'gate\trequired\tevidence_path\tpass_condition\n'
+  printf 'source_fingerprints\tyes\t%s\tsource fingerprints exist and all source trees are present\n' "${SOURCE_FINGERPRINTS_OUT}"
+  printf 'source_contracts\tyes\t%s\tall required source-level pure-pipeline contracts are ok=yes\n' "${SOURCE_CONTRACT_OUT}"
+  printf 'readiness\tyes\t%s\treadiness report has ready=yes before launch\n' "${READINESS_OUT}"
+  printf 'launch_command\tyes\t%s\treplay command is executable and invokes target flow with the recorded target/label\n' "${REPLAY_COMMAND}"
+  printf 'compile_log\tyes\t%s\tcompile log exists after target flow and has nonzero size\n' "${COMPILE_LOG}"
+  printf 'link_log\tyes\t%s\tlink log exists after target flow and has nonzero size\n' "${LINK_LOG}"
+  printf 'target_xclbin\tyes\t%s\txclbin exists after link and has nonzero size\n' "${OUT_XCLBIN}"
+  printf 'xclbin_contract\tyes\t%s\tall xclbin metadata checks pass for target=%s\n' "${XCLBIN_CONTRACT_OUT}" "${TARGET}"
+  if [[ -n "${GATE_CASE}" ]]; then
+    printf 'gate_smoke\tyes\t%s\tsummary.tsv contains %s with status=PASS and mismatches=0 before full smoke\n' "${GATE_OUT}/summary.tsv" "${GATE_CASE}"
+  else
+    printf 'gate_smoke\tno\t%s\tgate disabled by target-flow options\n' "${GATE_OUT}/summary.tsv"
+  fi
+  printf 'full_smoke\tyes\t%s\tsummary.tsv contains chain, hot-source, spread, and hot-destination with status=PASS, mismatches=0, and timing fields\n' "${SMOKE_OUT}/summary.tsv"
+  printf 'same_input_compare\tyes\t%s\tcomparison.tsv aligns pure pipeline, host zero-cost baseline, and Spine on the same smoke inputs\n' "${COMPARE_OUT}/comparison.tsv"
+  printf 'requirement_audit\tyes\t%s\taudit.json exists after target flow and records requirement status for target=%s\n' "${AUDIT_OUT}/audit.json" "${TARGET}"
+  printf 'evidence_bundle\tyes\t%s\tbundle exists with requirement, target, case-target, input identity, source-proof, and artifact matrices\n' "${BUNDLE_OUT}"
+} > "${ACCEPTANCE_TSV}"
 
 {
   printf 'target=%s\n' "${TARGET}"
@@ -173,6 +275,7 @@ BUNDLE_OUT="${GRI_ROOT}/results/pure_pipeline_evidence_bundle_${LABEL}"
   printf 'skip_finalize=%s\n' "${SKIP_FINALIZE}"
   printf 'skip_audit=%s\n' "${SKIP_AUDIT}"
   printf 'skip_bundle=%s\n' "${SKIP_BUNDLE}"
+  printf 'skip_acceptance=%s\n' "${SKIP_ACCEPTANCE}"
   printf 'dry_run=%s\n' "${DRY_RUN}"
   printf 'git_head=%s\n' "$(git -C "${GRI_ROOT}" rev-parse HEAD)"
   printf 'source_contract_out=%s\n' "${SOURCE_CONTRACT_OUT}"
@@ -181,6 +284,10 @@ BUNDLE_OUT="${GRI_ROOT}/results/pure_pipeline_evidence_bundle_${LABEL}"
   printf 'monitor_out=%s\n' "${MONITOR_OUT}"
   printf 'audit_out=%s\n' "${AUDIT_OUT}"
   printf 'bundle_out=%s\n' "${BUNDLE_OUT}"
+  printf 'replay_command=%s\n' "${REPLAY_COMMAND}"
+  printf 'acceptance_gates=%s\n' "${ACCEPTANCE_TSV}"
+  printf 'acceptance_check_prelaunch=%s\n' "${ACCEPTANCE_CHECK_PRELAUNCH}"
+  printf 'acceptance_check_postrun=%s\n' "${ACCEPTANCE_CHECK_POSTRUN}"
 } > "${FLOW_ENV}"
 
 if [[ "${PREPARE}" == "1" ]]; then
@@ -210,6 +317,13 @@ if [[ "${READINESS_CHECK}" == "1" ]]; then
     readiness_cmd+=(--allow-active-builders)
   fi
   run_cmd "${readiness_cmd[@]}"
+fi
+
+if [[ "${SKIP_ACCEPTANCE}" == "0" ]]; then
+  run_cmd "${SCRIPT_DIR}/check_pure_pipeline_acceptance_gates.py" \
+    --acceptance-gates "${ACCEPTANCE_TSV}" \
+    --mode prelaunch \
+    --out-file "${ACCEPTANCE_CHECK_PRELAUNCH}"
 fi
 
 if [[ "${SKIP_BUILD}" == "0" ]]; then
@@ -265,12 +379,39 @@ if [[ "${SKIP_BUNDLE}" == "0" && "${SKIP_AUDIT}" == "0" ]]; then
     --out-dir "${BUNDLE_OUT}"
 fi
 
+if [[ "${SKIP_ACCEPTANCE}" == "0" &&
+      "${SKIP_BUILD}" == "0" &&
+      "${SKIP_FINALIZE}" == "0" &&
+      "${SKIP_AUDIT}" == "0" &&
+      "${SKIP_BUNDLE}" == "0" ]]; then
+  run_cmd "${SCRIPT_DIR}/check_pure_pipeline_acceptance_gates.py" \
+    --acceptance-gates "${ACCEPTANCE_TSV}" \
+    --mode postrun \
+    --out-file "${ACCEPTANCE_CHECK_POSTRUN}"
+fi
+
 echo "DONE flow_env=${FLOW_ENV}"
 echo "DONE source_contract_out=${SOURCE_CONTRACT_OUT}"
 echo "DONE source_fingerprints_out=${SOURCE_FINGERPRINTS_OUT}"
 echo "DONE readiness_out=${READINESS_OUT}"
 echo "DONE monitor_out=${MONITOR_OUT}"
 echo "DONE audit_out=${AUDIT_OUT}"
+echo "DONE replay_command=${REPLAY_COMMAND}"
+echo "DONE acceptance_gates=${ACCEPTANCE_TSV}"
+if [[ "${SKIP_ACCEPTANCE}" == "0" ]]; then
+  echo "DONE acceptance_check_prelaunch=${ACCEPTANCE_CHECK_PRELAUNCH}"
+else
+  echo "DONE acceptance_check_prelaunch=SKIPPED"
+fi
+if [[ "${SKIP_ACCEPTANCE}" == "0" &&
+      "${SKIP_BUILD}" == "0" &&
+      "${SKIP_FINALIZE}" == "0" &&
+      "${SKIP_AUDIT}" == "0" &&
+      "${SKIP_BUNDLE}" == "0" ]]; then
+  echo "DONE acceptance_check_postrun=${ACCEPTANCE_CHECK_POSTRUN}"
+else
+  echo "DONE acceptance_check_postrun=SKIPPED"
+fi
 if [[ "${SKIP_BUNDLE}" == "0" && "${SKIP_AUDIT}" == "0" ]]; then
   echo "DONE bundle_out=${BUNDLE_OUT}"
 else
