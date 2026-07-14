@@ -7,6 +7,7 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -85,6 +86,38 @@ def artifact_by_name(audit: dict[str, Any], name: str) -> dict[str, Any] | None:
     return None
 
 
+def artifact_path(repo: Path, artifact: dict[str, Any] | None) -> Path | None:
+    if artifact is None:
+        return None
+    text = str(artifact.get("path", ""))
+    if not text or text == "MISSING":
+        return None
+    path = Path(text)
+    return path if path.is_absolute() else repo / path
+
+
+def parse_readiness_report(path: Path | None) -> dict[str, str]:
+    if path is None or not path.is_file():
+        return {}
+    data: dict[str, str] = {}
+    for line in path.read_text(encoding="ascii", errors="replace").splitlines():
+        if "\t" not in line and "=" in line:
+            key, value = line.split("=", 1)
+            data[key] = value
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 3 and parts[0] == "active_builders":
+            data["active_builders_status"] = parts[1]
+            for key, value in re.findall(r"([A-Za-z0-9_]+)=([^ ]+)", parts[2]):
+                data[f"active_builders_{key}"] = value
+        if len(parts) >= 5 and parts[0] in ("build_root_fs", "tmp_fs"):
+            prefix = parts[0]
+            data[f"{prefix}_status"] = parts[1]
+            data[f"{prefix}_free_gb"] = parts[2]
+            data[f"{prefix}_minimum_gb"] = parts[3]
+    return data
+
+
 def status_counts(requirements: list[dict[str, Any]]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for req in requirements:
@@ -106,7 +139,7 @@ def requirement_rows(audit: dict[str, Any]) -> list[dict[str, str]]:
     return rows
 
 
-def target_rows(audit: dict[str, Any]) -> list[dict[str, str]]:
+def target_rows(repo: Path, audit: dict[str, Any]) -> list[dict[str, str]]:
     rows = []
     for target, state in sorted(audit.get("targets", {}).items()):
         smoke = state.get("smoke_summary", {})
@@ -114,6 +147,7 @@ def target_rows(audit: dict[str, Any]) -> list[dict[str, str]]:
         readiness = artifact_by_name(audit, f"latest_{target}_readiness")
         if readiness is None and target == "hw_emu":
             readiness = artifact_by_name(audit, "latest_hw_emu_readiness")
+        readiness_data = parse_readiness_report(artifact_path(repo, readiness))
         rows.append({
             "target": target,
             "xclbin_exists": "yes" if xclbin.get("exists") else "no",
@@ -122,6 +156,13 @@ def target_rows(audit: dict[str, Any]) -> list[dict[str, str]]:
             "smoke_summary": str(smoke.get("path", "MISSING")),
             "readiness_report": str(readiness.get("path", "MISSING")) if readiness else "MISSING",
             "readiness_sha256": str(readiness.get("sha256", "")) if readiness else "",
+            "readiness_ready": readiness_data.get("ready", ""),
+            "readiness_blocking_count": readiness_data.get("blocking_count", ""),
+            "readiness_warning_count": readiness_data.get("warning_count", ""),
+            "readiness_related_builders": readiness_data.get("active_builders_related", ""),
+            "readiness_external_builders": readiness_data.get("active_builders_external", ""),
+            "readiness_build_free_gb": readiness_data.get("build_root_fs_free_gb", ""),
+            "readiness_tmp_free_gb": readiness_data.get("tmp_fs_free_gb", ""),
         })
     return rows
 
@@ -196,7 +237,15 @@ def write_summary_md(
         "notes",
     ]
     req_columns = ["id", "status", "requirement", "gaps"]
-    target_columns = ["target", "xclbin_exists", "smoke_pass", "readiness_report"]
+    target_columns = [
+        "target",
+        "xclbin_exists",
+        "smoke_pass",
+        "readiness_ready",
+        "readiness_blocking_count",
+        "readiness_external_builders",
+        "readiness_report",
+    ]
     lines = [
         "# Pure Pipeline Evidence Bundle",
         "",
@@ -258,7 +307,7 @@ def main() -> int:
 
     audit = json.loads(audit_path.read_text(encoding="ascii"))
     requirements = requirement_rows(audit)
-    targets = target_rows(audit)
+    targets = target_rows(repo, audit)
     artifacts = artifact_rows(audit)
     cases = case_rows(comparison_path)
 
@@ -276,6 +325,13 @@ def main() -> int:
         "smoke_summary",
         "readiness_report",
         "readiness_sha256",
+        "readiness_ready",
+        "readiness_blocking_count",
+        "readiness_warning_count",
+        "readiness_related_builders",
+        "readiness_external_builders",
+        "readiness_build_free_gb",
+        "readiness_tmp_free_gb",
     ])
     write_tsv(out_dir / "artifact_matrix.tsv", artifacts, ["name", "exists", "sha256", "size_bytes", "path"])
     write_tsv(out_dir / "case_matrix.tsv", cases, [

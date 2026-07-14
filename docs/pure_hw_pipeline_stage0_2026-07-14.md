@@ -1506,6 +1506,27 @@ dd0755dcea3fe44fffd66882f0e172d74b7d647f553792ce8aaeee522787018d  results/pure_p
 ce453d8cbecadeb1b7b1bbe7b749317117b74077ef7122f1d267da8263b6f846  results/pure_pipeline_evidence_bundle_after_08845bf/case_matrix.tsv
 ```
 
+The exporter now also parses readiness reports into `target_matrix.tsv`, so the
+bundle directly exposes `readiness_ready`, `readiness_blocking_count`,
+`readiness_external_builders`, and disk headroom without opening the raw
+readiness log. Regression command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_after_517b398_both_readiness/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_readiness_fields_517b398
+```
+
+Regression evidence:
+
+```text
+5c9d2d5a475cb12706427fb7c098a7c0d70de507a72aa37e98d65ef58ee44628  scripts/export_pure_pipeline_evidence_bundle.py
+5f86c3c0258e09cdc31d5f779bf769ecf0e7f63d9d0cc1d1b89245281c72c612  results/pure_pipeline_evidence_bundle_readiness_fields_517b398/summary.md
+34773e8aa4db1f5b250c26403aeff81472a188d526fb1968749c9741a8cd0b91  results/pure_pipeline_evidence_bundle_readiness_fields_517b398/target_matrix.tsv
+8f5db9f77bfc32d7fe32e9cb2c73390a6aa774575a896f76b1e1f58365e8844f  results/pure_pipeline_evidence_bundle_readiness_fields_517b398/bundle_manifest.json
+```
+
 ## Not Yet True
 
 The current baseline still has these gaps:
