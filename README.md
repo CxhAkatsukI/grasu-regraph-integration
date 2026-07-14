@@ -209,7 +209,13 @@ commits do not invalidate it; `no` means the next target-flow invocation should
 refresh prelaunch evidence before relying on it. The `readiness_ready` column
 uses the newest readiness report, which may allow active external builders;
 `strict_ready` and `strict_blockers` show the newest strict launch-precheck view
-with `allow_active_builders=0`.
+with `allow_active_builders=0`. The `packet_current` column shows whether a
+saved launch packet exists for that target and matches the current
+build-relevant source fingerprints; when it is `yes`, the helper recommends the
+packet's executable `launch_command.sh` instead of asking you to regenerate an
+equivalent command under a documentation-only commit label. The printed
+`source_fingerprint_sha256` is the aggregate digest of the build-relevant source
+roles used for that decision.
 
 Current reproducible target flow:
 

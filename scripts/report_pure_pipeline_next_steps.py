@@ -147,6 +147,11 @@ def fingerprints_match(recorded: dict[str, str], current: dict[str, str]) -> boo
     return True
 
 
+def source_fingerprint_digest(fingerprints: dict[str, str]) -> str:
+    lines = [f"{role}\t{fingerprints[role]}\n" for role in sorted(fingerprints)]
+    return sha256_bytes("".join(lines).encode("utf-8"))
+
+
 def target_xclbin(repo: Path, target: str) -> Path:
     return repo / ".tmp_build" / f"pure_pipeline_{target}_stage0" / "build" / (
         f"grasu_regraph_pure_pipeline.{target}.xclbin"
@@ -163,6 +168,48 @@ def newest_readiness(run_logs: Path, allow_active: bool | None = None) -> Path |
             if marker in path.read_text(encoding="ascii", errors="replace")
         ]
     return newest(candidates)
+
+
+def launch_packets(
+    repo: Path,
+    target: str,
+    current_fingerprints: dict[str, str],
+) -> list[dict[str, Any]]:
+    packets: list[dict[str, Any]] = []
+    for env_file in repo.glob(".tmp_build/pure_pipeline_launch_packet_*/launch_packet.env"):
+        values = parse_kv_file(env_file)
+        if values.get("target") != target:
+            continue
+        source_fingerprints_path_text = values.get("source_fingerprints_out")
+        source_fingerprints_path = Path(source_fingerprints_path_text) if source_fingerprints_path_text else None
+        source_fingerprints = read_source_fingerprints(source_fingerprints_path)
+        source_fingerprints_match = fingerprints_match(source_fingerprints, current_fingerprints)
+        launch_command_text = values.get("launch_command")
+        launch_command = Path(launch_command_text) if launch_command_text else None
+        packets.append({
+            "packet_dir": env_file.parent,
+            "launch_packet_env": env_file,
+            "flow_label": values.get("flow_label"),
+            "integration_head": values.get("integration_head"),
+            "integration_tracked_dirty": values.get("integration_tracked_dirty"),
+            "source_fingerprints": source_fingerprints_path,
+            "source_fingerprints_match_current": source_fingerprints_match,
+            "launch_command": launch_command,
+            "launch_command_exists": bool(launch_command and launch_command.is_file()),
+            "mtime": env_file.stat().st_mtime,
+        })
+    return sorted(packets, key=lambda item: item["mtime"], reverse=True)
+
+
+def newest_current_launch_packet(
+    repo: Path,
+    target: str,
+    current_fingerprints: dict[str, str],
+) -> dict[str, Any] | None:
+    for packet in launch_packets(repo, target, current_fingerprints):
+        if packet["source_fingerprints_match_current"] is True and packet["launch_command_exists"]:
+            return packet
+    return None
 
 
 def target_state(
@@ -195,6 +242,7 @@ def target_state(
         flow_matches_current = target_flow_matches_head
     acceptance_prelaunch = newest(list(run_logs.glob("acceptance_check_prelaunch*.tsv")))
     acceptance_postrun = newest(list(run_logs.glob("acceptance_check_postrun*.tsv")))
+    launch_packet = newest_current_launch_packet(repo, target, current_fingerprints)
     return {
         "target": target,
         "build_root": rel(repo, build_root),
@@ -219,6 +267,11 @@ def target_state(
         "latest_source_fingerprints": rel(repo, source_fingerprints_path) if source_fingerprints_path else None,
         "latest_source_fingerprints_match_current": source_fingerprints_match,
         "latest_flow_matches_current": flow_matches_current,
+        "current_launch_packet": rel(repo, launch_packet["packet_dir"]) if launch_packet else None,
+        "current_launch_packet_flow_label": launch_packet["flow_label"] if launch_packet else None,
+        "current_launch_packet_integration_head": launch_packet["integration_head"] if launch_packet else None,
+        "current_launch_packet_integration_tracked_dirty": launch_packet["integration_tracked_dirty"] if launch_packet else None,
+        "current_launch_packet_command": rel(repo, launch_packet["launch_command"]) if launch_packet else None,
         "latest_acceptance_prelaunch": rel(repo, acceptance_prelaunch) if acceptance_prelaunch else None,
         "latest_acceptance_postrun": rel(repo, acceptance_postrun) if acceptance_postrun else None,
     }
@@ -297,6 +350,7 @@ def make_report(repo: Path) -> dict[str, Any]:
     git_short = run_git(repo, ["rev-parse", "--short", "HEAD"])
     current_head = run_git(repo, ["rev-parse", "HEAD"])
     current_fingerprints = current_source_fingerprints(repo)
+    current_fingerprint_digest = source_fingerprint_digest(current_fingerprints)
     states = [target_state(repo, target, current_head, current_fingerprints) for target in TARGETS]
     builders = classify_builders(repo, ps_rows())
     next_target = first_missing_target(states)
@@ -306,11 +360,17 @@ def make_report(repo: Path) -> dict[str, Any]:
         if state["latest_flow_matches_current"] is False
     ]
     next_commands: list[str]
+    next_launch_packet_command = None
+    if next_target is not None:
+        next_state = next(state for state in states if state["target"] == next_target)
+        next_launch_packet_command = next_state.get("current_launch_packet_command")
     if next_target is None:
         next_commands = [
             f"./scripts/audit_pure_pipeline_status.py --label after_{git_short}",
             f"./scripts/export_pure_pipeline_evidence_bundle.py --out-dir results/pure_pipeline_evidence_bundle_after_{git_short}",
         ]
+    elif next_launch_packet_command:
+        next_commands = [next_launch_packet_command]
     else:
         next_commands = [
             f"./scripts/check_pure_pipeline_build_readiness.sh --target {next_target} --label after_{git_short}",
@@ -320,6 +380,7 @@ def make_report(repo: Path) -> dict[str, Any]:
         "repo": str(repo),
         "branch": run_git(repo, ["branch", "--show-current"]),
         "head": current_head,
+        "source_fingerprint_sha256": current_fingerprint_digest,
         "dirty": bool(run_git(repo, ["status", "--porcelain"])),
         "targets": states,
         "active_builders": {
@@ -329,6 +390,7 @@ def make_report(repo: Path) -> dict[str, Any]:
             "external_preview": builders["external"][:5],
         },
         "next_target": next_target,
+        "next_launch_packet_command": next_launch_packet_command,
         "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
     }
@@ -339,15 +401,17 @@ def print_text(report: dict[str, Any]) -> None:
     print(f"repo={report['repo']}")
     print(f"branch={report['branch']}")
     print(f"head={report['head']}")
+    print(f"source_fingerprint_sha256={report['source_fingerprint_sha256']}")
     print(f"dirty={str(report['dirty']).lower()}")
     print()
     print("targets")
-    print("target\txclbin\tsha256\treadiness_ready\tstrict_ready\tstrict_blockers\tflow_current\tlatest_readiness")
+    print("target\txclbin\tsha256\treadiness_ready\tstrict_ready\tstrict_blockers\tflow_current\tpacket_current\tlatest_readiness")
     for state in report["targets"]:
         if state["latest_flow_matches_current"] is None:
             flow_current = ""
         else:
             flow_current = "yes" if state["latest_flow_matches_current"] else "no"
+        packet_current = "yes" if state["current_launch_packet"] else "no"
         print(
             "\t".join([
                 state["target"],
@@ -357,6 +421,7 @@ def print_text(report: dict[str, Any]) -> None:
                 state["latest_strict_readiness_ready"] or "",
                 state["latest_strict_readiness_blocking_count"] or "",
                 flow_current,
+                packet_current,
                 state["latest_readiness"] or "",
             ])
         )
@@ -378,6 +443,8 @@ def print_text(report: dict[str, Any]) -> None:
         print("interpretation=hw_emu and hw xclbins are present; refresh audit/bundle next.")
     else:
         print(f"next_target={report['next_target']}")
+        if report.get("next_launch_packet_command"):
+            print("interpretation=current launch packet matches build-relevant source; next command uses that packet.")
         if report["stale_target_flow_targets"]:
             stale = ",".join(report["stale_target_flow_targets"])
             print(f"stale_target_flow_targets={stale}")
