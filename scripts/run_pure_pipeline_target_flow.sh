@@ -240,8 +240,13 @@ chmod +x "${REPLAY_COMMAND}"
   printf 'source_contracts\tyes\t%s\tall required source-level pure-pipeline contracts are ok=yes\n' "${SOURCE_CONTRACT_OUT}"
   printf 'readiness\tyes\t%s\treadiness report has ready=yes before launch\n' "${READINESS_OUT}"
   printf 'launch_command\tyes\t%s\treplay command is executable and invokes target flow with the recorded target/label\n' "${REPLAY_COMMAND}"
-  printf 'compile_log\tyes\t%s\tcompile log exists after target flow and has nonzero size\n' "${COMPILE_LOG}"
-  printf 'link_log\tyes\t%s\tlink log exists after target flow and has nonzero size\n' "${LINK_LOG}"
+  if [[ "${SKIP_BUILD}" == "0" ]]; then
+    printf 'compile_log\tyes\t%s\tcompile log exists after target flow and has nonzero size\n' "${COMPILE_LOG}"
+    printf 'link_log\tyes\t%s\tlink log exists after target flow and has nonzero size\n' "${LINK_LOG}"
+  else
+    printf 'compile_log\tno\t%s\tbuild skipped; use the original build-flow label for compile-log evidence\n' "${COMPILE_LOG}"
+    printf 'link_log\tno\t%s\tbuild skipped; use the original build-flow label for link-log evidence\n' "${LINK_LOG}"
+  fi
   printf 'target_xclbin\tyes\t%s\txclbin exists after link and has nonzero size\n' "${OUT_XCLBIN}"
   printf 'xclbin_contract\tyes\t%s\tall xclbin metadata checks pass for target=%s\n' "${XCLBIN_CONTRACT_OUT}" "${TARGET}"
   if [[ -n "${GATE_CASE}" ]]; then
@@ -380,7 +385,6 @@ if [[ "${SKIP_BUNDLE}" == "0" && "${SKIP_AUDIT}" == "0" ]]; then
 fi
 
 if [[ "${SKIP_ACCEPTANCE}" == "0" &&
-      "${SKIP_BUILD}" == "0" &&
       "${SKIP_FINALIZE}" == "0" &&
       "${SKIP_AUDIT}" == "0" &&
       "${SKIP_BUNDLE}" == "0" ]]; then
@@ -404,7 +408,6 @@ else
   echo "DONE acceptance_check_prelaunch=SKIPPED"
 fi
 if [[ "${SKIP_ACCEPTANCE}" == "0" &&
-      "${SKIP_BUILD}" == "0" &&
       "${SKIP_FINALIZE}" == "0" &&
       "${SKIP_AUDIT}" == "0" &&
       "${SKIP_BUNDLE}" == "0" ]]; then
