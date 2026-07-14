@@ -5851,3 +5851,114 @@ cc6f608fe7b5b039494c4cc0216d9cd3fd303d154ca74cd5dfc03da38426a181  .tmp_build/pur
 d0e4088d1e915fb328c6e32db343550d8b71e4b9829b9ac3837b77ff39a0398a  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_checker_after_3d6c442/README.md
 f78423d85869b9ebd9cddec7883019840ef58024d280b30eb8c31b6a2f08568f  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_checker_after_3d6c442/evidence_bundle/source_proof_matrix.tsv
 ```
+
+## Target-Flow Acceptance Gates
+
+As of commit `07c9f3afa5e0155f07c798fba80030e454177b76`, the target-flow
+wrapper itself writes replayable acceptance gates and runs automated
+acceptance checks:
+
+```text
+scripts/run_pure_pipeline_target_flow.sh
+```
+
+This means a full `hw_emu` or `hw` invocation now records:
+
+```text
+target_flow_<label>.env
+target_flow_<label>_replay.sh
+acceptance_gates_target_flow_<label>.tsv
+acceptance_check_prelaunch_target_flow_<label>.tsv
+acceptance_check_postrun_target_flow_<label>.tsv
+```
+
+The target flow always runs the prelaunch check unless `--skip-acceptance` is
+set. It runs the postrun check only after a complete build + finalize + audit +
+bundle flow; `--skip-build`, `--skip-finalize`, `--skip-audit`, or
+`--skip-bundle` intentionally suppresses postrun acceptance.
+
+Changed files:
+
+```text
+scripts/run_pure_pipeline_target_flow.sh
+scripts/audit_pure_pipeline_status.py
+scripts/check_pure_pipeline_source_contracts.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n \
+  scripts/run_pure_pipeline_target_flow.sh \
+  scripts/create_pure_pipeline_launch_packet.sh
+
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/check_pure_pipeline_source_contracts.py \
+  scripts/check_pure_pipeline_acceptance_gates.py
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label target_flow_acceptance_after_07c9f3a \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_target_flow_acceptance_after_07c9f3a.tsv
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label target_flow_acceptance_after_07c9f3a \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Result:
+
+```text
+source_contracts_required_count=17
+source_contracts_failed_count=0
+proof=target_flow_runs_acceptance_gates ok=yes
+target_flow_git_head=07c9f3afa5e0155f07c798fba80030e454177b76
+prelaunch_acceptance_status_counts={"PASS": 4, "PENDING": 9}
+audit_status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+```
+
+Current postrun check is expected to fail because this validation intentionally
+used `--skip-build --skip-finalize` and the `hw_emu` xclbin is not present:
+
+```bash
+./scripts/check_pure_pipeline_acceptance_gates.py \
+  --acceptance-gates .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_gates_target_flow_target_flow_acceptance_after_07c9f3a.tsv \
+  --mode postrun \
+  --out-file .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_check_postrun_target_flow_target_flow_acceptance_after_07c9f3a_expected_missing.tsv
+```
+
+Expected current postrun result:
+
+```text
+status_counts={"FAIL": 7, "PASS": 6}
+failed_gates=compile_log,link_log,target_xclbin,xclbin_contract,gate_smoke,full_smoke,same_input_compare
+```
+
+The audit and evidence bundle gates pass in that postrun check because this
+no-build validation still refreshed them. The missing gates are exactly the
+ones requiring a real target build and smoke run.
+
+Evidence hashes:
+
+```text
+7c453ceef425d06d7180e4855f1bfdb7580cf89d4407ea02f9a2ff69d808ebde  scripts/run_pure_pipeline_target_flow.sh
+16177408730b62245d462f973a18a2e269156a8053e26a55252f2f7fbcc2ee56  scripts/audit_pure_pipeline_status.py
+d91cf6756585f6d0e8a9f55e4e0716209a3b68fc4862362cb8e496946ce4f06b  scripts/check_pure_pipeline_source_contracts.py
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_source_contracts/source_contracts_target_flow_acceptance_after_07c9f3a.tsv
+6b0cd119fc0445d3017fe3ac47ab7f2ba5b1d7f795566d848256e028e0683b1d  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_target_flow_acceptance_after_07c9f3a.env
+404a98c1f388a68be1420197bea1d83734a60c371417ff98c63f5aa26d93b96c  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_gates_target_flow_target_flow_acceptance_after_07c9f3a.tsv
+9e3fb8eb7bc203d31172350db96ea0be4b80e2c9566e7ddfd9ca39fe177761b9  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_check_prelaunch_target_flow_target_flow_acceptance_after_07c9f3a.tsv
+03886e5aaf38e94ce2e9e133398591ab49e3a3dd7d1e4a9da43cd703c7256a64  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_check_postrun_target_flow_target_flow_acceptance_after_07c9f3a_expected_missing.tsv
+289495fffc0a31547ecec01d74c400a297b3aca96d399e5551468f163e6a72c4  results/pure_pipeline_requirement_audit_target_flow_acceptance_after_07c9f3a/audit.json
+88d1a17e7cf5bb09f75dff0f6bfc0aaa6c5e1434a74a6d7c20d706bbe6335bee  results/pure_pipeline_evidence_bundle_target_flow_acceptance_after_07c9f3a/summary.md
+80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  results/pure_pipeline_evidence_bundle_target_flow_acceptance_after_07c9f3a/source_proof_matrix.tsv
+```
