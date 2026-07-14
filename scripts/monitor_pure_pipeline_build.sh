@@ -122,7 +122,10 @@ emit_processes() {
         comm = $7
         is_builder = comm == "v++" || comm == "vpl" ||
                      comm == "vivado" || comm == "vrs" ||
-                     comm == "xocc" || comm == "xsimk" ||
+                     comm == "xocc" || comm == "xelab" ||
+                     comm == "xsim" || comm == "xsimk" ||
+                     comm == "xsc" || comm == "xvlog" ||
+                     comm == "xvhdl" ||
                      index(comm, "genericpcie") == 1 ||
                      comm == "run_pure_pipel" ||
                      comm == "compile_command" ||
@@ -170,7 +173,10 @@ emit_other_builders() {
         comm = $7
         is_builder = comm == "v++" || comm == "vpl" ||
                      comm == "vivado" || comm == "vrs" ||
-                     comm == "xocc" || comm == "xsimk" ||
+                     comm == "xocc" || comm == "xelab" ||
+                     comm == "xsim" || comm == "xsimk" ||
+                     comm == "xsc" || comm == "xvlog" ||
+                     comm == "xvhdl" ||
                      index(comm, "genericpcie") == 1
         is_related = index($0, root) || index($0, xclbin) ||
                      index($0, "run_pure_pipeline_build") ||
