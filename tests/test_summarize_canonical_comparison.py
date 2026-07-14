@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from summarize_canonical_comparison import (  # noqa: E402
     metric_stats,
     summarize_group,
+    system_name,
 )
 
 
@@ -18,6 +19,13 @@ assert stats["minimum"] == 1.0
 assert stats["median"] == 2.5
 assert stats["p10"] == 1.3
 assert stats["p90"] == 3.7
+assert system_name({"system": "grasu_custom_pull"}) == "grasu_custom_pull"
+try:
+    system_name({"algorithm": "bfs", "target": "hw"})
+except ValueError as error:
+    assert "fail closed" in str(error)
+else:
+    raise AssertionError("missing provenance must not be inferred as AccuGraph")
 
 expected = {"graph_sha256": "graph", "bfs_source": 0}
 record = {

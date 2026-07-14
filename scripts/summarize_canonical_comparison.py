@@ -62,9 +62,9 @@ def system_name(record: dict[str, object]) -> str:
     explicit = record.get("system")
     if explicit:
         return str(explicit)
-    if record.get("algorithm") == "bfs" and record.get("target") == "hw":
-        return "grasu_accugraph"
-    raise ValueError("record has no recognized system identity")
+    raise ValueError(
+        "record has no explicit system identity; fail closed rather than "
+        "inferring AccuGraph provenance")
 
 
 def claim_eligible(record: dict[str, object]) -> bool:
