@@ -484,6 +484,9 @@ def stage0_baseline_state(repo: Path, label: str) -> dict[str, Any]:
             f"./scripts/export_pure_stage0_comparison_plan.py --label {label} "
             f"--out-dir results/pure_stage0_comparison_plan_{label}"
         ),
+        "baseline_status_command": f"./scripts/run_pure_stage0_baselines.sh --label {label} --status-only",
+        "baseline_dry_run_command": f"./scripts/run_pure_stage0_baselines.sh --label {label} --dry-run",
+        "baseline_run_command": f"./scripts/run_pure_stage0_baselines.sh --label {label}",
     }
 
 
@@ -667,6 +670,9 @@ def print_text(report: dict[str, Any]) -> None:
         f"spine_summary={'yes' if baseline['spine_summary_exists'] else 'no'}"
     )
     print(f"baseline_plan\t{baseline['plan_command']}")
+    print(f"baseline_status\t{baseline['baseline_status_command']}")
+    print(f"baseline_dry_run\t{baseline['baseline_dry_run_command']}")
+    print(f"baseline_run\t{baseline['baseline_run_command']}")
     print(f"comparison_plan\t{baseline['plan_tsv']}\tsha256={baseline['plan_sha256'] or 'MISSING'}")
     print(
         f"input_identity\t{baseline['input_identity']}\t"
