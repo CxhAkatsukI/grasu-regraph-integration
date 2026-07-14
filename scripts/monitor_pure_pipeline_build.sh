@@ -16,8 +16,8 @@ Usage: $0 [options]
 
 Inspect a GraSU -> ReGraph pure-pipeline Vitis build root. This is intended
 for long hw_emu/hw builds: it reports xclbin status, command-script hashes,
-latest run logs, return-code files, matching Vitis/Vivado processes, and recent
-error lines.
+latest run logs, return-code files, matching Vitis/Vivado processes, host
+resource state, unrelated Vitis/Vivado processes, and recent error lines.
 
 Options:
   --target sw_emu|hw_emu|hw   Build target. Default: ${TARGET}
@@ -140,6 +140,48 @@ emit_processes() {
     ' || true
 }
 
+emit_system_resources() {
+  printf 'system_resources\n'
+  printf 'disk\n'
+  df -h / /tmp /data "${BUILD_ROOT}" 2>/dev/null || true
+  printf 'memory\n'
+  free -h 2>/dev/null || true
+}
+
+emit_other_builders() {
+  printf 'other_vitis_vivado_processes\n'
+  ps -eo pid,ppid,etime,stat,pcpu,pmem,args |
+    awk -v root="${BUILD_ROOT}" -v xclbin="${OUT_XCLBIN}" '
+      NR == 1 { header = $0; next }
+      {
+        if (index($0, "awk -v root=") ||
+            index($0, "monitor_pure_pipeline_build.sh")) {
+          next
+        }
+        is_builder = index($0, "v++") || index($0, "vpl") ||
+                     index($0, "vivado") || index($0, "vitis") ||
+                     index($0, "xocc") || index($0, "genericpciemodel")
+        is_related = index($0, root) || index($0, xclbin) ||
+                     index($0, "run_pure_pipeline_build") ||
+                     index($0, "compile_commands.sh") ||
+                     index($0, "link_command.sh")
+        if (is_builder && !is_related) {
+          if (!printed) {
+            print header
+            printed = 1
+          }
+          print
+        }
+      }
+      END {
+        if (!printed) {
+          print header
+          print "none"
+        }
+      }
+    ' || true
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
@@ -208,6 +250,12 @@ report="$(
     printf '\n'
 
     emit_processes
+    printf '\n'
+
+    emit_system_resources
+    printf '\n'
+
+    emit_other_builders
     printf '\n'
 
     printf 'latest_logs\n'

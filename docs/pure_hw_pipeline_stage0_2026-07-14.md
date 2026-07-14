@@ -952,6 +952,44 @@ d6488813e0ed366a7fb0ef052b5c865f50190fe9ff9a37af3a6511336f1b6d1e  .tmp_build/pur
 This means the sw_emu correctness and profiled-barrier timing evidence are now
 real, while pure `hw_emu` and `hw` xclbins/smokes remain the blocking artifacts.
 
+## Long-Build Preflight Monitor
+
+The pure-pipeline monitor now records more than current-build artifacts. It also
+captures host disk/memory state and unrelated Vitis/Vivado processes so a long
+`hw_emu` or `hw` build can be interpreted in context.
+
+Preflight command before launching the pure `hw_emu` build:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/monitor_pure_pipeline_build.sh \
+  --target hw_emu \
+  --tail-lines 20 \
+  --out-file .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_pre_hwemu_after_1a1d8d8.txt
+```
+
+Evidence:
+
+```text
+c70a4493cac3135dce4c83c0b2607ff2781d6f9ef025ca2bd2e52fb193556424  scripts/monitor_pure_pipeline_build.sh
+bb7dd270a15726c30d4060fbea56960c627d4a3a0b59765fc3c59898d5d144ab  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_pre_hwemu_after_1a1d8d8.txt
+```
+
+Current observation from that report:
+
+```text
+pure pipeline matching_processes: none
+pure hw_emu xclbin: MISSING
+/tmp available: 2.2G
+/data available: 26T
+other_vitis_vivado_processes: active unrelated Spine hw/vpl/vivado process tree
+```
+
+The generated pure-pipeline scripts set `TMPDIR/TMP/TEMP` under the build root,
+so `/tmp` pressure is not the main blocker. The practical reason not to launch
+the pure `hw_emu` build in the same moment is resource contention with the
+active unrelated Spine hardware implementation.
+
 ## Post-Build Finalization
 
 After a pure-pipeline xclbin is produced, run the finalization wrapper. It
