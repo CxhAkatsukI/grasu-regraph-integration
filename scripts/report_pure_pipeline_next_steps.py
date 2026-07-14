@@ -91,12 +91,18 @@ def target_xclbin(repo: Path, target: str) -> Path:
     )
 
 
-def target_state(repo: Path, target: str) -> dict[str, Any]:
+def target_state(repo: Path, target: str, current_head: str) -> dict[str, Any]:
     build_root = repo / ".tmp_build" / f"pure_pipeline_{target}_stage0"
     run_logs = build_root / "run_logs"
     xclbin = target_xclbin(repo, target)
     readiness = newest(list(run_logs.glob("readiness*.txt")))
     readiness_values = parse_kv_file(readiness)
+    target_flow_env = newest(list(run_logs.glob("target_flow_*.env")))
+    target_flow_values = parse_kv_file(target_flow_env)
+    target_flow_head = target_flow_values.get("git_head")
+    target_flow_matches_head = None
+    if target_flow_head:
+        target_flow_matches_head = target_flow_head == current_head
     acceptance_prelaunch = newest(list(run_logs.glob("acceptance_check_prelaunch*.tsv")))
     acceptance_postrun = newest(list(run_logs.glob("acceptance_check_postrun*.tsv")))
     return {
@@ -110,6 +116,9 @@ def target_state(repo: Path, target: str) -> dict[str, Any]:
         "latest_readiness_ready": readiness_values.get("ready"),
         "latest_readiness_blocking_count": readiness_values.get("blocking_count"),
         "latest_readiness_warning_count": readiness_values.get("warning_count"),
+        "latest_target_flow_env": rel(repo, target_flow_env) if target_flow_env else None,
+        "latest_target_flow_git_head": target_flow_head,
+        "latest_target_flow_matches_head": target_flow_matches_head,
         "latest_acceptance_prelaunch": rel(repo, acceptance_prelaunch) if acceptance_prelaunch else None,
         "latest_acceptance_postrun": rel(repo, acceptance_postrun) if acceptance_postrun else None,
     }
@@ -186,9 +195,15 @@ def target_flow_command(target: str, git_short: str) -> str:
 
 def make_report(repo: Path) -> dict[str, Any]:
     git_short = run_git(repo, ["rev-parse", "--short", "HEAD"])
-    states = [target_state(repo, target) for target in TARGETS]
+    current_head = run_git(repo, ["rev-parse", "HEAD"])
+    states = [target_state(repo, target, current_head) for target in TARGETS]
     builders = classify_builders(repo, ps_rows())
     next_target = first_missing_target(states)
+    stale_targets = [
+        state["target"]
+        for state in states
+        if state["latest_target_flow_matches_head"] is False
+    ]
     next_commands: list[str]
     if next_target is None:
         next_commands = [
@@ -203,7 +218,7 @@ def make_report(repo: Path) -> dict[str, Any]:
     return {
         "repo": str(repo),
         "branch": run_git(repo, ["branch", "--show-current"]),
-        "head": run_git(repo, ["rev-parse", "HEAD"]),
+        "head": current_head,
         "dirty": bool(run_git(repo, ["status", "--porcelain"])),
         "targets": states,
         "active_builders": {
@@ -213,6 +228,7 @@ def make_report(repo: Path) -> dict[str, Any]:
             "external_preview": builders["external"][:5],
         },
         "next_target": next_target,
+        "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
     }
 
@@ -225,14 +241,19 @@ def print_text(report: dict[str, Any]) -> None:
     print(f"dirty={str(report['dirty']).lower()}")
     print()
     print("targets")
-    print("target\txclbin\tsha256\treadiness_ready\tlatest_readiness")
+    print("target\txclbin\tsha256\treadiness_ready\tflow_current\tlatest_readiness")
     for state in report["targets"]:
+        if state["latest_target_flow_matches_head"] is None:
+            flow_current = ""
+        else:
+            flow_current = "yes" if state["latest_target_flow_matches_head"] else "no"
         print(
             "\t".join([
                 state["target"],
                 "yes" if state["xclbin_exists"] else "no",
                 state["xclbin_sha256"] or "",
                 state["latest_readiness_ready"] or "",
+                flow_current,
                 state["latest_readiness"] or "",
             ])
         )
@@ -254,9 +275,15 @@ def print_text(report: dict[str, Any]) -> None:
         print("interpretation=hw_emu and hw xclbins are present; refresh audit/bundle next.")
     else:
         print(f"next_target={report['next_target']}")
+        if report["stale_target_flow_targets"]:
+            stale = ",".join(report["stale_target_flow_targets"])
+            print(f"stale_target_flow_targets={stale}")
+            print("interpretation=latest target-flow evidence is from an older commit; the next target-flow command will refresh it.")
         if builders["related_count"] or builders["external_count"]:
             print("interpretation=Vitis/Vivado builders are active; use the target-flow wait-idle guard or wait manually.")
-        else:
+        if not report["stale_target_flow_targets"] and not (
+            builders["related_count"] or builders["external_count"]
+        ):
             print("interpretation=no active builders detected; the next target-flow command can start when intended.")
     print()
     print("next_commands")
