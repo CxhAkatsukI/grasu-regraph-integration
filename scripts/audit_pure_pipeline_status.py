@@ -23,6 +23,7 @@ EXPECTED_CASES = {
 
 TARGETS = ("sw_emu", "hw_emu", "hw")
 TIMING_KEYS = ("grasu_ms", "barrier_ms", "adapter_ms", "lksg_ms", "apply_ms", "event_e2e_ms")
+PURE_STAGE0_MANIFEST = "workloads/sssp_benchmark_pure_stage0/manifest.tsv"
 
 FAMILY_ALIASES = {
     "hot-dest": "hot-destination",
@@ -116,6 +117,8 @@ def newest_xclbin_contract(repo: Path, target: str) -> Path | None:
                 continue
             seen.add(path)
             name = path.name
+            if "negative" in name or "combined" in name:
+                continue
             if target == "hw":
                 if name.startswith(prefix) and not name.startswith("xclbin_contract_hw_emu_"):
                     candidates.append(path)
@@ -162,6 +165,34 @@ def newest_complete_pure_summary(repo: Path, target: str) -> Path | None:
     return candidates[0] if candidates else None
 
 
+def pure_stage0_cases(repo: Path) -> list[str]:
+    manifest = repo / PURE_STAGE0_MANIFEST
+    rows = read_tsv(manifest)
+    cases = [row.get("case", "") for row in rows if row.get("case")]
+    return cases or sorted(EXPECTED_CASES)
+
+
+def newest_stage0_summary(repo: Path, target: str, mode: str) -> Path | None:
+    candidates = sorted(
+        repo.glob(f"results/pure_pipeline_{target}_pure_stage0_{mode}_*/summary.tsv"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return candidates[0] if candidates else None
+
+
+def stage0_identity_for_summary(repo: Path, target: str, mode: str, summary_path: Path | None) -> Path | None:
+    if summary_path is not None:
+        prefix = f"pure_pipeline_{target}_pure_stage0_{mode}_"
+        run_dir = summary_path.parent.name
+        if run_dir.startswith(prefix):
+            label = run_dir[len(prefix):]
+            candidate = repo / "results" / f"pure_pipeline_{target}_pure_stage0_identity_{mode}_{label}" / "input_identity_check.tsv"
+            if candidate.is_file():
+                return candidate
+    return newest_glob(repo, f"results/pure_pipeline_{target}_pure_stage0_identity_{mode}_*/input_identity_check.tsv")
+
+
 def pure_summary(repo: Path, path: Path | None) -> dict[str, Any]:
     rows = read_tsv(path) if path is not None else []
     by_case = {row.get("case", ""): row for row in rows}
@@ -200,6 +231,62 @@ def pure_summary(repo: Path, path: Path | None) -> dict[str, Any]:
         "all_expected_pass": bool(rows) and not missing_cases and not failed_cases and not mismatch_cases,
         "has_required_timing_fields": bool(rows) and not missing_cases and not missing_timing,
         "max_vertices_seen": max_vertices,
+    }
+
+
+def stage0_summary(repo: Path, path: Path | None, expected_cases: list[str]) -> dict[str, Any]:
+    rows = read_tsv(path) if path is not None else []
+    by_case = {row.get("case", ""): row for row in rows}
+    missing_cases = [case for case in expected_cases if case not in by_case]
+    failed_cases = [
+        case
+        for case in expected_cases
+        if by_case.get(case, {}).get("status") != "PASS"
+    ]
+    mismatch_cases = [
+        case
+        for case in expected_cases
+        if "mismatches=0" not in by_case.get(case, {}).get("result_line", "")
+    ]
+    missing_timing: dict[str, list[str]] = {}
+    max_vertices = 0
+    for case, row in by_case.items():
+        timing = parse_kv_line(row.get("timing_line", ""))
+        missing = [key for key in TIMING_KEYS if key not in timing]
+        if missing:
+            missing_timing[case] = missing
+        try:
+            max_vertices = max(max_vertices, int(row.get("vertices", "0") or 0))
+        except ValueError:
+            pass
+    return {
+        "path": display_path(repo, path),
+        "exists": path is not None and path.exists(),
+        "sha256": sha256(path) if path is not None else None,
+        "row_count": len(rows),
+        "expected_count": len(expected_cases),
+        "missing_cases": missing_cases,
+        "failed_cases": failed_cases,
+        "mismatch_cases": mismatch_cases,
+        "missing_timing_fields": missing_timing,
+        "all_expected_pass": bool(rows) and not missing_cases and not failed_cases and not mismatch_cases,
+        "has_required_timing_fields": bool(rows) and not missing_cases and not missing_timing,
+        "max_vertices_seen": max_vertices,
+    }
+
+
+def identity_check_summary(repo: Path, path: Path | None) -> dict[str, Any]:
+    rows = read_tsv(path) if path is not None else []
+    failed = [row for row in rows if row.get("ok") != "yes"]
+    cases = sorted({row.get("case", "") for row in rows if row.get("case")})
+    return {
+        "path": display_path(repo, path),
+        "exists": path is not None and path.exists(),
+        "sha256": sha256(path) if path is not None else None,
+        "row_count": len(rows),
+        "case_count": len(cases),
+        "failed_count": len(failed),
+        "all_checks_pass": bool(rows) and not failed,
     }
 
 
@@ -969,6 +1056,11 @@ def target_state(repo: Path, target: str) -> dict[str, Any]:
     run_env_path = summary_path.parent / "run.env" if summary_path is not None else None
     xclbin_contract_path = newest_xclbin_contract(repo, target)
     summary = pure_summary(repo, summary_path)
+    stage0_expected = pure_stage0_cases(repo)
+    stage0_gate_path = newest_stage0_summary(repo, target, "gate")
+    stage0_full_path = newest_stage0_summary(repo, target, "full")
+    stage0_gate_identity_path = stage0_identity_for_summary(repo, target, "gate", stage0_gate_path)
+    stage0_full_identity_path = stage0_identity_for_summary(repo, target, "full", stage0_full_path)
     return {
         "target": target,
         "build_root": display_path(repo, build_root),
@@ -982,6 +1074,14 @@ def target_state(repo: Path, target: str) -> dict[str, Any]:
         "smoke_summary_artifact": artifact(repo, f"pure_{target}_smoke_summary", summary_path),
         "case_coverage": target_case_coverage(repo, target, summary_path),
         "run_env": artifact(repo, f"pure_{target}_run_env", run_env_path),
+        "stage0_gate_summary": stage0_summary(repo, stage0_gate_path, sorted(EXPECTED_CASES)),
+        "stage0_gate_summary_artifact": artifact(repo, f"pure_{target}_stage0_gate_summary", stage0_gate_path),
+        "stage0_gate_identity": identity_check_summary(repo, stage0_gate_identity_path),
+        "stage0_gate_identity_artifact": artifact(repo, f"pure_{target}_stage0_gate_identity", stage0_gate_identity_path),
+        "stage0_full_summary": stage0_summary(repo, stage0_full_path, stage0_expected),
+        "stage0_full_summary_artifact": artifact(repo, f"pure_{target}_stage0_full_summary", stage0_full_path),
+        "stage0_full_identity": identity_check_summary(repo, stage0_full_identity_path),
+        "stage0_full_identity_artifact": artifact(repo, f"pure_{target}_stage0_full_identity", stage0_full_identity_path),
     }
 
 
@@ -1049,6 +1149,11 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     all_targets_valid = sw_valid and hw_emu_valid and hw_valid
     hw_xclbin_exists = targets["hw"]["xclbin"]["exists"]
     hw_emu_xclbin_exists = targets["hw_emu"]["xclbin"]["exists"]
+    hw_stage0_full_valid = (
+        targets["hw"]["stage0_full_summary"]["all_expected_pass"]
+        and targets["hw"]["stage0_full_identity"]["all_checks_pass"]
+    )
+    hw_stage0_full_reaches_boundary = targets["hw"]["stage0_full_summary"]["max_vertices_seen"] >= 65536
 
     source_same_context = proofs["single_context_program"]["ok"]
     source_barrier = proofs["completion_token_barrier"]["ok"]
@@ -1140,20 +1245,23 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         requirement(
             6,
             "First stage supports V <= 65536 unit-weight SSSP",
-            "proven" if all_targets_valid and boundary_prepare_ok and source_unit else (
-                "partial" if source_unit and (sw_valid or boundary_prepare_ok) else "missing"
+            "proven" if all_targets_valid and hw_stage0_full_valid and hw_stage0_full_reaches_boundary and source_unit else (
+                "partial" if source_unit and (sw_valid or boundary_prepare_ok or hw_stage0_full_valid) else "missing"
             ),
             [
                 proofs["unit_weight_sssp_packing"]["path"],
                 proofs["prepare_only_boundary_mode"]["path"],
                 boundary_prepare["path"],
+                targets["hw"]["stage0_full_summary"]["path"],
+                targets["hw"]["stage0_full_identity"]["path"],
                 f"max_vertices_seen_in_pure_or_prepare={max_vertices_seen}",
+                f"max_vertices_seen_in_hw_stage0_full={targets['hw']['stage0_full_summary']['max_vertices_seen']}",
                 "v65536_prepare_cases=" + ",".join(boundary_prepare["v65536_pass_cases"]),
             ],
-            [] if all_targets_valid and boundary_prepare_ok else (
-                ["prepare-only reaches V=65536; pure hw_emu/hw boundary execution is still missing"]
+            [] if all_targets_valid and hw_stage0_full_valid and hw_stage0_full_reaches_boundary else (
+                ["prepare-only reaches V=65536; full pure hw stage0 boundary execution is still missing"]
                 if boundary_prepare_ok else
-                ["no passing V=65536 boundary prepare-check or hardware run is present yet"]
+                ["no passing V=65536 boundary prepare-check or full hardware run is present yet"]
             ),
         ),
         requirement(
@@ -1211,6 +1319,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
                 targets["hw"]["link_command"]["path"],
                 proofs["target_flow_exports_evidence_bundle"]["contract"],
                 proofs["target_flow_runs_acceptance_gates"]["contract"],
+                "scripts/run_pure_stage0_postbuild_matrix.sh",
             ],
             (
                 []
@@ -1266,6 +1375,10 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             targets[target]["link_command"],
             targets[target]["smoke_summary_artifact"],
             targets[target]["run_env"],
+            targets[target]["stage0_gate_summary_artifact"],
+            targets[target]["stage0_gate_identity_artifact"],
+            targets[target]["stage0_full_summary_artifact"],
+            targets[target]["stage0_full_identity_artifact"],
         ])
 
     return {
@@ -1302,6 +1415,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             "./scripts/run_pure_pipeline_target_flow.sh --target hw_emu --label after_" + git_short + " --prepare --wait-idle 7200 --idle-poll 60 --idle-settle 120 --clean-build-artifacts --gate-case tiny_star_v16_u12 --gate-timeout 900",
             "./scripts/check_pure_pipeline_build_readiness.sh --target hw --label after_" + git_short,
             "./scripts/run_pure_pipeline_target_flow.sh --target hw --label after_" + git_short + " --prepare --wait-idle 7200 --idle-poll 60 --idle-settle 120 --clean-build-artifacts --gate-case tiny_star_v16_u12 --gate-timeout 300",
+            "./scripts/run_pure_stage0_postbuild_matrix.sh --target hw --mode full --label after_" + git_short,
             "./scripts/export_pure_pipeline_evidence_bundle.py --out-dir results/pure_pipeline_evidence_bundle_after_" + git_short,
         ],
     }
@@ -1339,12 +1453,19 @@ def write_markdown(repo: Path, path: Path, audit: dict[str, Any]) -> None:
     for target in TARGETS:
         state = audit["targets"][target]
         summary = state["smoke_summary"]
+        stage0_gate = state["stage0_gate_summary"]
+        stage0_full = state["stage0_full_summary"]
         target_rows.append([
             target,
             "yes" if state["xclbin"]["exists"] else "no",
             state["xclbin"]["sha256"] or "",
             "yes" if summary["all_expected_pass"] else "no",
             summary["path"],
+            "yes" if stage0_gate["all_expected_pass"] else "no",
+            stage0_gate["path"],
+            "yes" if stage0_full["all_expected_pass"] else "no",
+            str(stage0_full["max_vertices_seen"]),
+            stage0_full["path"],
         ])
 
     proof_rows = []
@@ -1402,7 +1523,21 @@ def write_markdown(repo: Path, path: Path, audit: dict[str, Any]) -> None:
         "",
         "## Target Matrix",
         "",
-        markdown_table(["target", "xclbin_exists", "xclbin_sha256", "smoke_pass", "smoke_summary"], target_rows),
+        markdown_table(
+            [
+                "target",
+                "xclbin_exists",
+                "xclbin_sha256",
+                "smoke_pass",
+                "smoke_summary",
+                "stage0_gate_pass",
+                "stage0_gate_summary",
+                "stage0_full_pass",
+                "stage0_full_max_vertices",
+                "stage0_full_summary",
+            ],
+            target_rows,
+        ),
         "",
         "## Source Proofs",
         "",

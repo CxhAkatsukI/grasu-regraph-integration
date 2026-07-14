@@ -200,6 +200,10 @@ def target_rows(repo: Path, audit: dict[str, Any]) -> list[dict[str, str]]:
     rows = []
     for target, state in sorted(audit.get("targets", {}).items()):
         smoke = state.get("smoke_summary", {})
+        stage0_gate = state.get("stage0_gate_summary", {})
+        stage0_gate_identity = state.get("stage0_gate_identity", {})
+        stage0_full = state.get("stage0_full_summary", {})
+        stage0_full_identity = state.get("stage0_full_identity", {})
         xclbin = state.get("xclbin", {})
         xclbin_contract = state.get("xclbin_contract", {})
         readiness = artifact_by_name(audit, f"latest_{target}_readiness")
@@ -219,6 +223,15 @@ def target_rows(repo: Path, audit: dict[str, Any]) -> list[dict[str, str]]:
             "xclbin_contract_sha256": xclbin_contract.get("sha256") or "",
             "smoke_pass": "yes" if smoke.get("all_expected_pass") else "no",
             "smoke_summary": str(smoke.get("path", "MISSING")),
+            "stage0_gate_pass": "yes" if stage0_gate.get("all_expected_pass") else "no",
+            "stage0_gate_summary": str(stage0_gate.get("path", "MISSING")),
+            "stage0_gate_identity_pass": "yes" if stage0_gate_identity.get("all_checks_pass") else "no",
+            "stage0_gate_identity": str(stage0_gate_identity.get("path", "MISSING")),
+            "stage0_full_pass": "yes" if stage0_full.get("all_expected_pass") else "no",
+            "stage0_full_summary": str(stage0_full.get("path", "MISSING")),
+            "stage0_full_identity_pass": "yes" if stage0_full_identity.get("all_checks_pass") else "no",
+            "stage0_full_identity": str(stage0_full_identity.get("path", "MISSING")),
+            "stage0_full_max_vertices": str(stage0_full.get("max_vertices_seen", "")),
             "readiness_report": str(readiness.get("path", "MISSING")) if readiness else "MISSING",
             "readiness_sha256": str(readiness.get("sha256", "")) if readiness else "",
             "readiness_allow_active_builders": readiness_data.get("allow_active_builders", ""),
@@ -420,6 +433,11 @@ def write_summary_md(
         "xclbin_exists",
         "xclbin_contract_pass",
         "smoke_pass",
+        "stage0_gate_pass",
+        "stage0_gate_identity_pass",
+        "stage0_full_pass",
+        "stage0_full_identity_pass",
+        "stage0_full_max_vertices",
         "readiness_allow_active_builders",
         "readiness_ready",
         "readiness_blocking_count",
@@ -536,6 +554,15 @@ def main() -> int:
         "xclbin_contract_sha256",
         "smoke_pass",
         "smoke_summary",
+        "stage0_gate_pass",
+        "stage0_gate_summary",
+        "stage0_gate_identity_pass",
+        "stage0_gate_identity",
+        "stage0_full_pass",
+        "stage0_full_summary",
+        "stage0_full_identity_pass",
+        "stage0_full_identity",
+        "stage0_full_max_vertices",
         "readiness_report",
         "readiness_sha256",
         "readiness_allow_active_builders",

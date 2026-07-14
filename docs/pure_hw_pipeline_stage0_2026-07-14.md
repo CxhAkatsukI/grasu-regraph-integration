@@ -8470,3 +8470,74 @@ dc4a75c3ba51538b1e73bbdd046d31c4c4c348944a0ae3cae947c11036b83b62  .tmp_build/pur
 681687bf067c4fe742479aac3134e433a3eb2682ccd3ccbc452eccd3139f7ffa  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_22f4047_allow_active/readiness_hw.txt
 ce44852e502186e2b72c0a9a347445876e07a361c18c1e206f8cde5d65579ca1  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_22f4047_allow_active/acceptance_check_prelaunch.tsv
 ```
+
+## Audit Bundle Stage0 Matrix Fields, 2026-07-15
+
+The requirement audit and evidence bundle now recognize the postbuild
+pure_stage0 matrix outputs from `scripts/run_pure_stage0_postbuild_matrix.sh`.
+This matters after `hw_emu` or `hw` xclbins are produced: the report will show
+whether the stage0 gate/full matrix exists, whether the input-identity audit
+passed, and what maximum vertex count the full run reached.
+
+Changed scripts:
+
+```text
+scripts/audit_pure_pipeline_status.py
+scripts/export_pure_pipeline_evidence_bundle.py
+```
+
+The audit now records these fields under each target:
+
+```text
+stage0_gate_summary
+stage0_gate_identity
+stage0_full_summary
+stage0_full_identity
+stage0_full_max_vertices
+```
+
+It also avoids using old negative contract-test files such as
+`xclbin_contract_hw_combined_negative.tsv` as evidence for the current pure
+`hw` target. If the pure `hw` xclbin contract does not exist yet, the audit now
+reports it as `MISSING`.
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py \
+  scripts/report_pure_pipeline_next_steps.py \
+  scripts/check_pure_pipeline_acceptance_gates.py
+
+git diff --check
+
+./scripts/audit_pure_pipeline_status.py \
+  --label stage0_matrix_fields_precommit2 \
+  --out-dir .tmp_build/pure_pipeline_audit_stage0_matrix_fields_precommit2
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit .tmp_build/pure_pipeline_audit_stage0_matrix_fields_precommit2/audit.json \
+  --out-dir .tmp_build/pure_pipeline_evidence_stage0_matrix_fields_precommit2
+```
+
+Validation result:
+
+```text
+status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+target_matrix.tsv includes stage0_gate_* and stage0_full_* columns.
+hw xclbin_contract=MISSING, not the old combined negative test file.
+hw_emu xclbin_contract=MISSING until a pure hw_emu xclbin is built.
+```
+
+Evidence hashes:
+
+```text
+a2e5f056aaa1ea8f07ee1b1f8fbc58b349dec2dfa47694613930feeecb6d3308  scripts/audit_pure_pipeline_status.py
+bcc2588660dd2c451c39bddc79916dc1e101f9bb132283c6bff383f2bd17587c  scripts/export_pure_pipeline_evidence_bundle.py
+7af8e6cc543905e65b8da847ae626b524b89a7516821aebef6173674fa057052  .tmp_build/pure_pipeline_audit_stage0_matrix_fields_precommit2/audit.json
+f798479e0a138773530e565067989c7af10d7d4fbaa4c28d19cb8967395541ed  .tmp_build/pure_pipeline_audit_stage0_matrix_fields_precommit2/audit.md
+12ed20797de4e6e7c01133c8c1c7907600847529c3276130d401fdcca9a83eb1  .tmp_build/pure_pipeline_evidence_stage0_matrix_fields_precommit2/target_matrix.tsv
+6cd61e2ca2de9ebdda3cc5762b493a61d46a29b54be9f0669cfe09d95d2be527  .tmp_build/pure_pipeline_evidence_stage0_matrix_fields_precommit2/summary.md
+```
