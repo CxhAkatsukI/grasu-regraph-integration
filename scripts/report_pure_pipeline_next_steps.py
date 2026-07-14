@@ -451,6 +451,55 @@ def postrun_command(target: str, git_short: str) -> str:
     )
 
 
+def stage0_baseline_state(repo: Path, label: str) -> dict[str, Any]:
+    plan_dir = repo / "results" / f"pure_stage0_comparison_plan_{label}"
+    host_summary = repo / "results" / f"grasu_regraph_sssp_pure_stage0_{label}" / "summary.tsv"
+    spine_summary = repo / "results" / f"spine_edge_file_pure_stage0_{label}" / "summary.tsv"
+    return {
+        "label": label,
+        "plan_dir": rel(repo, plan_dir),
+        "plan_tsv": rel(repo, plan_dir / "comparison_plan.tsv"),
+        "plan_exists": (plan_dir / "comparison_plan.tsv").is_file(),
+        "host_summary": rel(repo, host_summary),
+        "host_summary_exists": host_summary.is_file(),
+        "spine_summary": rel(repo, spine_summary),
+        "spine_summary_exists": spine_summary.is_file(),
+        "plan_command": (
+            f"./scripts/export_pure_stage0_comparison_plan.py --label {label} "
+            f"--out-dir results/pure_stage0_comparison_plan_{label}"
+        ),
+    }
+
+
+def postbuild_matrix_command(target: str, mode: str, label: str, baseline_label: str) -> str:
+    return (
+        f"./scripts/run_pure_stage0_postbuild_matrix.sh --target {target} "
+        f"--mode {mode} --label {label} --baseline-label {baseline_label} "
+        "--require-compare"
+    )
+
+
+def stage0_followup_commands(git_short: str, baseline_label: str) -> list[dict[str, str]]:
+    label = f"after_{git_short}"
+    return [
+        {
+            "name": "hw_emu_gate",
+            "when": "after hw_emu xclbin exists and postrun acceptance is PASS",
+            "command": postbuild_matrix_command("hw_emu", "gate", label, baseline_label),
+        },
+        {
+            "name": "hw_gate",
+            "when": "after hw xclbin exists and postrun acceptance is PASS",
+            "command": postbuild_matrix_command("hw", "gate", label, baseline_label),
+        },
+        {
+            "name": "hw_full",
+            "when": "after hw gate passes; proves tracked V<=65536 stage0 matrix",
+            "command": postbuild_matrix_command("hw", "full", label, baseline_label),
+        },
+    ]
+
+
 def make_report(repo: Path) -> dict[str, Any]:
     git_short = run_git(repo, ["rev-parse", "--short", "HEAD"])
     current_head = run_git(repo, ["rev-parse", "HEAD"])
@@ -483,6 +532,8 @@ def make_report(repo: Path) -> dict[str, Any]:
             f"./scripts/check_pure_pipeline_build_readiness.sh --target {next_target} --label after_{git_short}",
             target_flow_command(next_target, git_short),
         ]
+    stage0_label = f"after_{git_short}"
+    stage0_baseline = stage0_baseline_state(repo, stage0_label)
     return {
         "repo": str(repo),
         "branch": run_git(repo, ["branch", "--show-current"]),
@@ -501,6 +552,10 @@ def make_report(repo: Path) -> dict[str, Any]:
         "next_launch_packet_command": next_launch_packet_command,
         "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
+        "stage0_followup": {
+            "baseline": stage0_baseline,
+            "commands": stage0_followup_commands(git_short, stage0_label),
+        },
     }
 
 
@@ -572,6 +627,21 @@ def print_text(report: dict[str, Any]) -> None:
     print("next_commands")
     for command in report["next_commands"]:
         print(command)
+    print()
+    print("stage0_followup")
+    baseline = report["stage0_followup"]["baseline"]
+    print(
+        "baseline\t"
+        f"label={baseline['label']}\t"
+        f"plan={'yes' if baseline['plan_exists'] else 'no'}\t"
+        f"host_summary={'yes' if baseline['host_summary_exists'] else 'no'}\t"
+        f"spine_summary={'yes' if baseline['spine_summary_exists'] else 'no'}"
+    )
+    print(f"baseline_plan\t{baseline['plan_command']}")
+    print(f"host_summary\t{baseline['host_summary']}")
+    print(f"spine_summary\t{baseline['spine_summary']}")
+    for item in report["stage0_followup"]["commands"]:
+        print(f"{item['name']}\twhen={item['when']}\tcommand={item['command']}")
 
 
 def main() -> int:
