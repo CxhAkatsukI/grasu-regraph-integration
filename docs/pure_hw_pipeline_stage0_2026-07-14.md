@@ -713,6 +713,51 @@ The status count is unchanged, but requirement 6 now has concrete `V=65536`
 prepare evidence. Its remaining gap is specifically pure `hw_emu/hw` boundary
 execution.
 
+Current boundary rerun after the event-dependency barrier commit:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_prepare_check.sh \
+  --preset boundary \
+  --out-dir results/pure_pipeline_prepare_boundary_after_25c553a
+```
+
+Evidence:
+
+```text
+25c553a427ad5079b1eda3cbbbee8185bbb12eca  source commit
+
+fed191c8142ca36e49f0e5f7902d694693a76b11b4c014df5a59d9224793b95b  results/pure_pipeline_prepare_boundary_after_25c553a/summary.tsv
+1e7a4c1a999a223c393121b55f4609e576a5c40aa3d86fa10309110a5fd1a512  results/pure_pipeline_prepare_boundary_after_25c553a/run.env
+e8110d3b222ab35f3ca27a646128e4b864d6dbfd5450dacc79e0ee6f23170a62  workloads/sssp_benchmark_boundary/manifest.tsv
+cb40efbffe3a091be8a8bffe03c2ee364c794a2cddb315a0571601b38c2cad5d  .tmp_build/pure_pipeline_host_stage0/pure_pipeline_host
+```
+
+Result:
+
+```text
+boundary_star_v65536_u4096    PASS V=65536 final_edges=69632 pma_slots=1052672 row_offset_words=65537 binary_segments=65792
+boundary_spread_v65536_u4096  PASS V=65536 final_edges=69632 pma_slots=1048576 row_offset_words=65537 binary_segments=65536
+```
+
+Updated audit:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/audit_pure_pipeline_status.py \
+  --out-dir results/pure_pipeline_requirement_audit_after_boundary_25c553a
+```
+
+```text
+f772eb61f22896e6aff26ed0f3522ddc7cdcfdf318bfdc0eb19434f8d73c320d  audit.json
+68033ce91bf9d1f97fad19019b884257dda5c20edee78278903aeff265d60608  audit.md
+
+Dirty: False
+proven: 1
+partial: 8
+blocked_by_missing_artifact: 1
+```
+
 ## Profiled Completion Barrier Slice
 
 The initial pure-pipeline runner waited for the four GraSU PMA writer tokens
