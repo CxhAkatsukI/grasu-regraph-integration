@@ -1416,6 +1416,54 @@ The monitor found no matching pure-pipeline build process and no pure
 Vitis/Vivado jobs, so the pure `hw_emu` target flow should continue to wait for
 idle before starting the long build.
 
+## Build Readiness Gate
+
+Before launching a long pure `hw_emu` or `hw` build, run:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/check_pure_pipeline_build_readiness.sh \
+  --target hw_emu \
+  --label readiness_strict_3e23632
+```
+
+The readiness gate does not start Vitis. It checks the generated manifest,
+compile script, link script, Vitis settings file, build-root disk headroom,
+`/tmp` headroom, expected xclbin path, and active Vitis/Vivado builders. A
+strict run exits `0` only when the target is safe to start; it exits `3` when an
+external or related builder is active.
+
+Strict probe result on 2026-07-14 22:34 Asia/Shanghai:
+
+```text
+ready=no
+blocking_count=1
+active_builders=FAIL related=0 external=17
+manifest=PASS
+compile_commands=PASS
+link_command=PASS
+vitis_settings=PASS
+out_xclbin=MISSING
+build_root_fs=PASS free_gb=217.6 minimum_gb=100
+tmp_fs=PASS free_gb=2.2 minimum_gb=1
+```
+
+This means the pure-pipeline build commands and local resources are ready, but
+the machine is still occupied by unrelated Spine Vitis/Vivado jobs. The right
+next action is still the wait-idle target flow, not a manual immediate Vitis
+launch.
+
+Evidence:
+
+```text
+21cffdceef9d4b2e7886e3769929fe572331d9d06a87c67fcbdd9c7486585aeb  scripts/check_pure_pipeline_build_readiness.sh
+0a4304dc1a43c7d81ec3a05f0a6ac9f6bfd13a08945e6085b8211d25b89d5e24  scripts/audit_pure_pipeline_status.py
+0252cf997b313657f15f017c28c9b91665ecc54edea95733a6d2df4b1d89787d  README.md
+f6bf7f437351ff3ff4267d823830568e976c8c87c364704ea5d45d661959b057  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_readiness_strict_3e23632.txt
+dc1d829282a96a68e51a0aa03e86d63bf0487263f692119bef5a027a032503cc  /tmp/pure_readiness_strict.log
+e75533b9c0419ebda617fab8bd7052397d42ce1fe9ef03126ea6b9b26a01357f  results/pure_pipeline_requirement_audit_readiness_strict_audit_3e23632/audit.md
+```
+
 ## Not Yet True
 
 The current baseline still has these gaps:

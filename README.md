@@ -190,6 +190,7 @@ Collect the current start-state evidence:
 Current reproducible target flow:
 
 ```bash
+./scripts/check_pure_pipeline_build_readiness.sh --target hw_emu
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw_emu \
   --label after_$(git rev-parse --short HEAD) \

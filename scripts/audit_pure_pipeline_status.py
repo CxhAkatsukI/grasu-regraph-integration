@@ -91,6 +91,15 @@ def newest_glob(repo: Path, pattern: str) -> Path | None:
     return newest(list(repo.glob(pattern)))
 
 
+def newest_readiness(repo: Path, target: str) -> Path | None:
+    candidates = list(repo.glob(f".tmp_build/pure_pipeline_{target}_stage0/run_logs/readiness_*.txt"))
+    strict_candidates = []
+    for path in candidates:
+        if "allow_active_builders=0" in path.read_text(encoding="ascii", errors="replace"):
+            strict_candidates.append(path)
+    return newest(strict_candidates) or newest(candidates)
+
+
 def has_all_expected_cases(path: Path) -> bool:
     rows = read_tsv(path)
     cases = {row.get("case", "") for row in rows}
@@ -557,8 +566,10 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         artifact(repo, "latest_hw_emu_build_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_*_evidence.tsv")),
         artifact(repo, "latest_hw_emu_finalize_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_*_evidence.tsv")),
         artifact(repo, "latest_hw_emu_target_flow_env", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_*.env")),
+        artifact(repo, "latest_hw_emu_readiness", newest_readiness(repo, "hw_emu")),
         artifact(repo, "latest_hw_emu_monitor", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_*.txt")),
         artifact(repo, "latest_hw_target_flow_env", newest_glob(repo, ".tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_*.env")),
+        artifact(repo, "latest_hw_readiness", newest_readiness(repo, "hw")),
         artifact(repo, "latest_hw_finalize_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_stage0/run_logs/finalize_*_evidence.tsv")),
     ]
     for target in TARGETS:
@@ -594,7 +605,9 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         "artifacts": artifacts,
         "next_commands": [
             "./scripts/run_pure_pipeline_prepare_check.sh --preset boundary --out-dir results/pure_pipeline_prepare_boundary_after_" + git_short,
+            "./scripts/check_pure_pipeline_build_readiness.sh --target hw_emu --label after_" + git_short,
             "./scripts/run_pure_pipeline_target_flow.sh --target hw_emu --label after_" + git_short + " --wait-idle 7200 --idle-poll 60 --gate-case tiny_star_v16_u12 --gate-timeout 900",
+            "./scripts/check_pure_pipeline_build_readiness.sh --target hw --label after_" + git_short,
             "./scripts/run_pure_pipeline_target_flow.sh --target hw --label after_" + git_short + " --wait-idle 7200 --idle-poll 60 --gate-case tiny_star_v16_u12 --gate-timeout 300",
         ],
     }
