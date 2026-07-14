@@ -7862,3 +7862,121 @@ The matrix export for the same committed source state is:
 e89f2fc0d4e2fa9fc7ddfb49b961d6667dc3d986969548028ffae9c4e75081a8  results/pure_pipeline_stage0_case_matrix_after_f334507_tracked_workloads/summary.md
 c3ac1924d6d858db93646e87d9c0d6da94de5fb51abf537c6a691f56a8fd8c13  results/pure_pipeline_stage0_case_matrix_after_f334507_tracked_workloads/run.env
 ```
+
+## Same-Input Comparison Plan
+
+As of 2026-07-15 06:45 Asia/Shanghai, the tracked `pure_stage0` workload has a
+same-input comparison plan and input-identity matrix.
+
+Tooling commit:
+
+```text
+de902fcbef52fbb1a98245a4abc36a11cab752c9  Add pure stage0 same-input comparison plan
+```
+
+New or changed files:
+
+```text
+scripts/export_pure_stage0_comparison_plan.py  writes input_identity.tsv, comparison_plan.tsv, summary.md, run.env
+scripts/run_grasu_regraph_sssp_sweep.sh        accepts --preset pure_stage0
+```
+
+Generate the comparison plan:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/export_pure_stage0_comparison_plan.py \
+  --label after_de902fc \
+  --out-dir results/pure_stage0_comparison_plan_after_de902fc
+```
+
+Generated plan summary:
+
+```text
+git_head=de902fcbef52fbb1a98245a4abc36a11cab752c9
+manifest=workloads/sssp_benchmark_pure_stage0/manifest.tsv
+manifest_sha256=094dbe66fa58b6fa14d22fc74edcc564978c7c8c3e5ea9ff7407cc78077a098a
+
+families: chain=3, hot-source=3, spread=3, hot-dest=3
+tiers:    gate=4, review=5, boundary=3
+```
+
+Planned run order:
+
+```text
+1. host-baseline:
+   ./scripts/run_grasu_regraph_sssp_sweep.sh --preset pure_stage0 \
+     --workload-root workloads/sssp_benchmark_pure_stage0 \
+     --out-root results/grasu_regraph_sssp_pure_stage0_after_de902fc \
+     --skip-generate --device-graph-export
+
+2. zero-cost handoff:
+   derived as host_grasu_ms + host_regraph_e2e_ms from step 1
+
+3. Spine:
+   ./scripts/run_spine_edge_file_sweep.sh \
+     --chain-root results/grasu_regraph_sssp_pure_stage0_after_de902fc \
+     --out-root results/spine_edge_file_pure_stage0_after_de902fc
+
+4. pure-pipeline gate:
+   ./scripts/run_pure_pipeline_smoke.sh --target <target> \
+     --manifest workloads/sssp_benchmark_pure_stage0/manifest.tsv \
+     --case tiny_chain_v16 --case tiny_star_v16_u12 \
+     --case tiny_spread_v16_u8 --case tiny_hotdst_v64_u32 \
+     --out-dir results/pure_pipeline_<target>_pure_stage0_gate_after_de902fc
+
+5. pure-pipeline full hw:
+   ./scripts/run_pure_pipeline_smoke.sh --target hw \
+     --manifest workloads/sssp_benchmark_pure_stage0/manifest.tsv \
+     --out-dir results/pure_pipeline_hw_pure_stage0_full_after_de902fc
+
+6. comparison:
+   python3 scripts/summarize_pure_pipeline_smoke.py \
+     --host-summary results/grasu_regraph_sssp_pure_stage0_after_de902fc/summary.tsv \
+     --spine-summary results/spine_edge_file_pure_stage0_after_de902fc/summary.tsv \
+     --pure-summary results/pure_pipeline_hw_pure_stage0_full_after_de902fc/summary.tsv \
+     --pure-env results/pure_pipeline_hw_pure_stage0_full_after_de902fc/run.env \
+     --out-dir results/pure_pipeline_hw_pure_stage0_compare_after_de902fc
+```
+
+The host-baseline runner was checked in dry-run mode against the tracked
+manifest:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_grasu_regraph_sssp_sweep.sh \
+  --preset pure_stage0 \
+  --workload-root workloads/sssp_benchmark_pure_stage0 \
+  --out-root .tmp_build/grasu_regraph_sssp_pure_stage0_dryrun_after_de902fc \
+  --skip-generate \
+  --skip-grasu \
+  --dry-run \
+  --timeout 1
+```
+
+Dry-run result:
+
+```text
+12/12 DRY_RUN rows emitted
+summary=.tmp_build/grasu_regraph_sssp_pure_stage0_dryrun_after_de902fc/summary.tsv
+```
+
+Evidence hashes:
+
+```text
+fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b  results/pure_stage0_comparison_plan_after_de902fc/input_identity.tsv
+a02099a6fd25799e836185981cbc948cc5b931020d3f0ea3934db2675f8552c8  results/pure_stage0_comparison_plan_after_de902fc/comparison_plan.tsv
+7335d44c725a916f9441c51cf4458468431fabf245e8c6bace8a65413eee030b  results/pure_stage0_comparison_plan_after_de902fc/summary.md
+b9a44b9b875f8b652eb272b6432047b8693912d527c29a2af8b37b378c73e993  results/pure_stage0_comparison_plan_after_de902fc/run.env
+ce1028d3a34fb6bdfb53bb171fd1955c5e031860918618125f1cc1347af2473a  .tmp_build/grasu_regraph_sssp_pure_stage0_dryrun_after_de902fc/summary.tsv
+```
+
+The strict same-input rule for the final comparison is now:
+
+```text
+Canonical input = tracked graph + result + source + supersteps in
+workloads/sssp_benchmark_pure_stage0/manifest.tsv.
+
+Host exported edge files are derived artifacts and must be regenerated from
+that same manifest when collecting a new host-baseline run.
+```
