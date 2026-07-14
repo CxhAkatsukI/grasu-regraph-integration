@@ -38,6 +38,10 @@ PRESETS: dict[str, list[CaseSpec]] = {
         CaseSpec("medium_star_v65536_u8192", "hot-source", 65536, 8192, 2),
         CaseSpec("medium_spread_v65536_u16384", "spread", 65536, 16384, 32),
     ],
+    "boundary": [
+        CaseSpec("boundary_star_v65536_u4096", "hot-source", 65536, 4096, 2),
+        CaseSpec("boundary_spread_v65536_u4096", "spread", 65536, 4096, 16),
+    ],
     "capacity": [
         CaseSpec("large_star_v1048576_u65536", "hot-source", 1_048_576, 65_536, 2),
         CaseSpec("large_spread_v262144_u65536", "spread", 262_144, 65_536, 32),

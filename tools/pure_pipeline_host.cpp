@@ -402,10 +402,14 @@ void usage(const char *argv0)
     std::cerr
         << "Usage: " << argv0
         << " <xclbin> <graph_file> <result_file> [source_external] [supersteps]\n"
+        << "       " << argv0
+        << " --prepare-only <graph_file> <result_file> [source_external] [supersteps]\n"
         << "\n"
         << "Runs the first-stage GraSU -> PMA adapter -> ReGraph little-GS pure pipeline.\n"
         << "The result file is accepted for CLI compatibility; CPU SSSP oracle is built\n"
-        << "from GraSU's internal post-update graph.\n";
+        << "from GraSU's internal post-update graph.\n"
+        << "--prepare-only validates graph ingest, V<=65536 bounds, GraSU PMA packing,\n"
+        << "and the CPU oracle without loading an xclbin.\n";
 }
 
 }  // namespace
@@ -413,17 +417,22 @@ void usage(const char *argv0)
 int main(int argc, char **argv)
 {
     try {
-        if (argc < 4 || argc > 6) {
+        const bool prepare_only = argc >= 2 && std::string(argv[1]) == "--prepare-only";
+        if ((!prepare_only && (argc < 4 || argc > 6)) ||
+            (prepare_only && (argc < 4 || argc > 6))) {
             usage(argv[0]);
             return EXIT_FAILURE;
         }
 
-        const std::string xclbin_path = argv[1];
-        const std::string graph_path = argv[2];
-        const std::string result_path = argv[3];
+        int arg_index = prepare_only ? 2 : 1;
+        const std::string xclbin_path = prepare_only ? "" : argv[arg_index++];
+        const std::string graph_path = argv[arg_index++];
+        const std::string result_path = argv[arg_index++];
         (void)result_path;
-        const unsigned source_external = argc > 4 ? static_cast<unsigned>(std::stoul(argv[4])) : 0;
-        const unsigned supersteps = argc > 5 ? static_cast<unsigned>(std::stoul(argv[5])) : 1;
+        const unsigned source_external =
+            argc > arg_index ? static_cast<unsigned>(std::stoul(argv[arg_index])) : 0;
+        const unsigned supersteps =
+            argc > arg_index + 1 ? static_cast<unsigned>(std::stoul(argv[arg_index + 1])) : 1;
         if (supersteps == 0) fail("supersteps must be >= 1");
 
         Dataset dataset = read_dataset(graph_path);
@@ -453,6 +462,37 @@ int main(int argc, char **argv)
                   << " source_internal=" << source_internal
                   << " supersteps=" << supersteps
                   << std::endl;
+
+        if (prepare_only) {
+            std::size_t reachable_vertices = 0;
+            uint32_t max_distance = 0;
+            for (uint32_t value : oracle) {
+                const uint32_t distance = sssp_value(value);
+                if (distance < kSsspInf) {
+                    reachable_vertices++;
+                    max_distance = std::max(max_distance, distance);
+                }
+            }
+            std::cout << "PURE_PIPELINE_PREP"
+                      << " status=PASS"
+                      << " vertices=" << dataset.node_size
+                      << " static_edges=" << dataset.static_edges.size()
+                      << " update_edges=" << dataset.update_edges.size()
+                      << " final_edges=" << final_edges.size()
+                      << " pma_slots=" << prepared.pma_slot_count
+                      << " row_offset_words=" << prepared.row_offsets[0].size()
+                      << " binary_segments=" << prepared.binary[0].size()
+                      << " source_external=" << source_external
+                      << " source_internal=" << source_internal
+                      << " supersteps=" << supersteps
+                      << " reachable_vertices=" << reachable_vertices
+                      << " max_distance=" << max_distance
+                      << " partition_size=" << kPartitionSize
+                      << " little_dst_buffer=" << kLittleDstBufferSize
+                      << " unit_weight=1"
+                      << std::endl;
+            return EXIT_SUCCESS;
+        }
 
         cl::Device device = select_xilinx_device();
         cl_int err = CL_SUCCESS;

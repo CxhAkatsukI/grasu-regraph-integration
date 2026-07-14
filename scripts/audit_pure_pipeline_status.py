@@ -133,6 +133,40 @@ def pure_summary(repo: Path, path: Path | None) -> dict[str, Any]:
     }
 
 
+def prepare_summary(repo: Path, path: Path | None) -> dict[str, Any]:
+    rows = read_tsv(path) if path is not None else []
+    failed_cases = [row.get("case", "") for row in rows if row.get("status") != "PASS"]
+    missing_prep_line = [row.get("case", "") for row in rows if "status=PASS" not in row.get("prep_line", "")]
+    max_vertices = 0
+    boundary_cases: list[str] = []
+    missing_boundary_fields: dict[str, list[str]] = {}
+    required_prep_fields = ("pma_slots", "partition_size", "little_dst_buffer", "unit_weight")
+    for row in rows:
+        try:
+            vertices = int(row.get("vertices", "0") or 0)
+        except ValueError:
+            vertices = 0
+        max_vertices = max(max_vertices, vertices)
+        if vertices == 65536 and row.get("status") == "PASS":
+            boundary_cases.append(row.get("case", ""))
+        prep = parse_kv_line(row.get("prep_line", ""))
+        missing = [field for field in required_prep_fields if field not in prep]
+        if missing:
+            missing_boundary_fields[row.get("case", "")] = missing
+    return {
+        "path": display_path(repo, path),
+        "exists": path is not None and path.exists(),
+        "sha256": sha256(path) if path is not None else None,
+        "row_count": len(rows),
+        "failed_cases": failed_cases,
+        "missing_prep_line": missing_prep_line,
+        "missing_boundary_fields": missing_boundary_fields,
+        "max_vertices_seen": max_vertices,
+        "v65536_pass_cases": boundary_cases,
+        "has_v65536_pass": bool(boundary_cases) and not failed_cases and not missing_prep_line,
+    }
+
+
 def host_summary(repo: Path, path: Path) -> dict[str, Any]:
     rows = read_tsv(path)
     by_case = {row.get("case", ""): row for row in rows}
@@ -266,6 +300,15 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
             ]),
             "path": display_path(repo, host),
         },
+        "prepare_only_boundary_mode": {
+            "ok": source_contains(host, [
+                "--prepare-only",
+                "PURE_PIPELINE_PREP",
+                "partition_size=",
+                "little_dst_buffer=",
+            ]),
+            "path": display_path(repo, host),
+        },
     }
 
 
@@ -328,9 +371,12 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     three_way_path = repo / "results/pure_pipeline_smoke_compare_stage1_with_spine/comparison.tsv"
     three_way_md = repo / "results/pure_pipeline_smoke_compare_stage1_with_spine/comparison.md"
     zero_vs_spine_path = repo / "results/spine_vs_grasu_regraph_smoke_same_input_hw_stage0/comparison.tsv"
+    boundary_prepare_path = newest_glob(repo, "results/pure_pipeline_prepare_boundary_*/summary.tsv")
+    boundary_prepare_env = boundary_prepare_path.parent / "run.env" if boundary_prepare_path is not None else None
 
     host = host_summary(repo, host_path)
     spine = spine_summary(repo, spine_path)
+    boundary_prepare = prepare_summary(repo, boundary_prepare_path)
 
     sw_valid = targets["sw_emu"]["smoke_summary"]["all_expected_pass"]
     hw_emu_valid = targets["hw_emu"]["smoke_summary"]["all_expected_pass"]
@@ -348,8 +394,10 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
 
     baseline_ok = host["all_expected_pass"] and spine["all_expected_pass"] and three_way_path.exists()
     max_vertices_seen = max(
-        targets[target]["smoke_summary"]["max_vertices_seen"] for target in TARGETS
+        [targets[target]["smoke_summary"]["max_vertices_seen"] for target in TARGETS]
+        + [boundary_prepare["max_vertices_seen"]]
     )
+    boundary_prepare_ok = boundary_prepare["has_v65536_pass"] and proofs["prepare_only_boundary_mode"]["ok"]
 
     requirements = [
         requirement(
@@ -407,14 +455,21 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         requirement(
             6,
             "First stage supports V <= 65536 unit-weight SSSP",
-            "proven" if all_targets_valid and max_vertices_seen >= 65536 and source_unit else (
-                "partial" if sw_valid and source_unit else "missing"
+            "proven" if all_targets_valid and boundary_prepare_ok and source_unit else (
+                "partial" if source_unit and (sw_valid or boundary_prepare_ok) else "missing"
             ),
             [
                 proofs["unit_weight_sssp_packing"]["path"],
-                f"max_vertices_seen_in_pure_smoke={max_vertices_seen}",
+                proofs["prepare_only_boundary_mode"]["path"],
+                boundary_prepare["path"],
+                f"max_vertices_seen_in_pure_or_prepare={max_vertices_seen}",
+                "v65536_prepare_cases=" + ",".join(boundary_prepare["v65536_pass_cases"]),
             ],
-            [] if max_vertices_seen >= 65536 else ["current smoke only reaches V=64; add a V=65536 boundary case"],
+            [] if all_targets_valid and boundary_prepare_ok else (
+                ["prepare-only reaches V=65536; pure hw_emu/hw boundary execution is still missing"]
+                if boundary_prepare_ok else
+                ["no passing V=65536 boundary prepare-check or hardware run is present yet"]
+            ),
         ),
         requirement(
             7,
@@ -475,6 +530,8 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         artifact(repo, "three_way_comparison_tsv", three_way_path),
         artifact(repo, "three_way_comparison_md", three_way_md),
         artifact(repo, "zero_vs_spine_comparison_tsv", zero_vs_spine_path),
+        artifact(repo, "boundary_prepare_summary", boundary_prepare_path),
+        artifact(repo, "boundary_prepare_run_env", boundary_prepare_env),
         artifact(repo, "latest_hw_emu_build_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_*_evidence.tsv")),
         artifact(repo, "latest_hw_emu_finalize_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_*_evidence.tsv")),
         artifact(repo, "latest_hw_emu_monitor", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_*.txt")),
@@ -505,12 +562,14 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         "baselines": {
             "host": host,
             "spine": spine,
+            "boundary_prepare": boundary_prepare,
             "three_way_comparison": artifact(repo, "three_way_comparison_tsv", three_way_path),
             "zero_vs_spine_comparison": artifact(repo, "zero_vs_spine_comparison_tsv", zero_vs_spine_path),
         },
         "requirements": requirements,
         "artifacts": artifacts,
         "next_commands": [
+            "./scripts/run_pure_pipeline_prepare_check.sh --preset boundary --out-dir results/pure_pipeline_prepare_boundary_after_" + git_short,
             "./scripts/run_pure_pipeline_build.sh --target hw_emu --label after_" + git_short,
             "./scripts/monitor_pure_pipeline_build.sh --target hw_emu --tail-lines 40",
             "./scripts/finalize_pure_pipeline_build.sh --target hw_emu --label after_" + git_short + " --build-host",

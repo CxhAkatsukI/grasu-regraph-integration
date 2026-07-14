@@ -603,6 +603,55 @@ summaries, and final timing evidence are still missing. The audit result is
 local under ignored `results/`; rerun it after each new build/finalize step to
 refresh hashes and statuses.
 
+## V65536 Boundary Prepare Check
+
+The first-stage design target is `V <= 65536`, but the fast smoke correctness
+suite intentionally uses tiny graphs. To keep the boundary capacity check
+reproducible without making every `sw_emu` run enormous, the workload generator
+now has a `boundary` preset and the pure-pipeline host has a `--prepare-only`
+mode.
+
+Boundary preset:
+
+```text
+boundary_star_v65536_u4096    hot-source  V=65536 updates=4096 supersteps=2
+boundary_spread_v65536_u4096  spread      V=65536 updates=4096 supersteps=16
+```
+
+Generate the boundary inputs:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/generate_sssp_benchmark_workloads.py \
+  --preset boundary \
+  --out-root workloads/sssp_benchmark_boundary
+```
+
+Run the host-side boundary preparation check:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/build_pure_pipeline_host.sh \
+  --out-dir .tmp_build/pure_pipeline_host_stage0
+
+./scripts/run_pure_pipeline_prepare_check.sh \
+  --preset boundary \
+  --out-dir results/pure_pipeline_prepare_boundary_<label> \
+  --timeout 240
+```
+
+This check does not load an xclbin. It validates graph ingest, the
+`1 <= V <= 65536` bound, GraSU PMA packing, row-offset/binary metadata sizing,
+and the CPU oracle. The runner records `PURE_PIPELINE_INPUT` and
+`PURE_PIPELINE_PREP` lines per case. It is capacity evidence for the host/PMA
+preparation path, not a replacement for the required pure `hw_emu` and `hw`
+correctness runs.
+
+After this evidence exists, rerun the requirement audit. Requirement 6 should
+remain `partial` until the boundary input is also validated on pure hardware,
+but its gap should change from "no V=65536 evidence" to "hardware boundary
+execution still missing".
+
 ## Post-Build Finalization
 
 After a pure-pipeline xclbin is produced, run the finalization wrapper. It
