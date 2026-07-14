@@ -5739,3 +5739,115 @@ e5e8df3b6bfe1dc19012649c7e6cd66461e43727755475c0003ca9049be209d0  .tmp_build/pur
 576387b85636bd40ebd52089f8a7e38caff40b4175095ee4da2cf86cff525d19  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_gates_recheck/README.md
 01176dc5e173255a41638b30bdb434443398e397ce889bef3cef05fd54c8480d  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_gates_recheck/evidence_bundle/source_proof_matrix.tsv
 ```
+
+## Automated Acceptance-Gate Checker
+
+As of commit `3d6c442b82c461708771fb6e2c994c9ceef2cf86`, the launch packet
+acceptance checklist has an executable verifier:
+
+```text
+scripts/check_pure_pipeline_acceptance_gates.py
+```
+
+The checker has two modes:
+
+```text
+prelaunch: checks source fingerprints, source contracts, readiness, and launch command
+postrun:   checks all required gates, including logs, xclbin, smoke, comparison, audit, and bundle
+```
+
+Changed files:
+
+```text
+scripts/check_pure_pipeline_acceptance_gates.py
+scripts/create_pure_pipeline_launch_packet.sh
+scripts/audit_pure_pipeline_status.py
+scripts/check_pure_pipeline_source_contracts.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n \
+  scripts/create_pure_pipeline_launch_packet.sh \
+  scripts/run_pure_pipeline_target_flow.sh \
+  scripts/check_pure_pipeline_build_readiness.sh
+
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/check_pure_pipeline_source_contracts.py \
+  scripts/check_pure_pipeline_acceptance_gates.py
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label acceptance_checker_after_3d6c442 \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_acceptance_checker_after_3d6c442.tsv
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label acceptance_checker_after_3d6c442 \
+  --label launch_packet_hw_emu_acceptance_checker_after_3d6c442 \
+  --allow-active-builders
+```
+
+Result:
+
+```text
+source_contracts_required_count=16
+source_contracts_failed_count=0
+proof=acceptance_gate_checker_covers_required_outputs ok=yes
+launch_packet_integration_head=3d6c442b82c461708771fb6e2c994c9ceef2cf86
+launch_packet_integration_tracked_dirty=clean
+prelaunch_acceptance_status_counts={"PASS": 4, "PENDING": 9}
+launch_packet_audit_status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+```
+
+The generated packet is:
+
+```text
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_checker_after_3d6c442
+```
+
+The packet was generated with `--allow-active-builders` only to record evidence
+while the unrelated Spine `hw` link was still active. A real target-flow launch
+should still wait for idle builders.
+
+The postrun checker is expected to fail until the target flow has produced the
+`hw_emu` compile/link logs, xclbin, xclbin contract, smoke summaries,
+comparison, audit, and evidence bundle:
+
+```bash
+python3 scripts/check_pure_pipeline_acceptance_gates.py \
+  --acceptance-gates .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_checker_after_3d6c442/acceptance_gates.tsv \
+  --mode postrun \
+  --out-file .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_checker_after_3d6c442/acceptance_check_postrun.tsv
+```
+
+Expected current postrun blockers:
+
+```text
+compile_log
+link_log
+target_xclbin
+xclbin_contract
+gate_smoke
+full_smoke
+same_input_compare
+requirement_audit
+evidence_bundle
+```
+
+Evidence hashes:
+
+```text
+17d58c5f6a367f22d6910fc04ec9f255b262f021fd53241e537613650d83265a  scripts/check_pure_pipeline_acceptance_gates.py
+e58850b2e4e051d07ab5391a89fbdc0015cdc658694451b76d5fb4e01e16b222  scripts/create_pure_pipeline_launch_packet.sh
+559203e93ce7bb89e191bdccdc00c2117a84aaf79e142fece60a4ce8065c5cd7  scripts/audit_pure_pipeline_status.py
+6570794981c181ca4cf3a1e93923b4411f0317289e16b2fb46786f3bb19f7fd3  scripts/check_pure_pipeline_source_contracts.py
+b582dbb00593d03b226628aba9603caf11145eb5d9074daf869290215850b87a  .tmp_build/pure_pipeline_source_contracts/source_contracts_acceptance_checker_after_3d6c442.tsv
+13129e28a61c12e43a3b85df42d3d55b438f83e583a7cf5b2ada24184bad6a21  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_checker_after_3d6c442/acceptance_gates.tsv
+cc6f608fe7b5b039494c4cc0216d9cd3fd303d154ca74cd5dfc03da38426a181  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_checker_after_3d6c442/acceptance_check_prelaunch.tsv
+7a6f31965651955080837737b054d72109c7980090a3a569b5b290d85cb7bdc5  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_checker_after_3d6c442/artifact_hashes.tsv
+d0e4088d1e915fb328c6e32db343550d8b71e4b9829b9ac3837b77ff39a0398a  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_checker_after_3d6c442/README.md
+f78423d85869b9ebd9cddec7883019840ef58024d280b30eb8c31b6a2f08568f  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_checker_after_3d6c442/evidence_bundle/source_proof_matrix.tsv
+```
