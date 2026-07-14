@@ -3310,3 +3310,103 @@ cd /home/chuxiao/grasu-regraph-integration
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 ```
+
+## 2026-07-15 Source Contract Audit
+
+The requirement audit now records explicit source-level contracts for two
+important parts of the pure pipeline:
+
+- GraSU row-offset handoff contract:
+  host packs `row_offset[src]` as `begin[63:32], end[31:0]`; the adapter
+  decodes the same fields before reading real PMA slots.
+- Adapter/ReGraph stream-width contract:
+  the stream packet is `ap_axiu<512>`, each edge record is 64 bits
+  `(src[31:0], dst[31:0])`, so the steady burst contains 8 edge lanes.
+
+The compact evidence bundle now also exports:
+
+```text
+source_proof_matrix.tsv
+```
+
+Source commit:
+
+```text
+184a90b1bf05e20ef4acdc2e11e7e71fb7b9761b
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py
+
+./scripts/audit_pure_pipeline_status.py \
+  --label source_contracts_after_184a90b \
+  --out-dir results/pure_pipeline_requirement_audit_source_contracts_after_184a90b
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_source_contracts_after_184a90b/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_source_contracts_after_184a90b
+```
+
+Audit status is still intentionally conservative:
+
+```text
+blocked_by_missing_artifact: 1
+partial: 8
+proven: 1
+```
+
+The new source-proof matrix says the static contracts are present:
+
+```text
+adapter_receives_actual_pma_buffers      yes
+adapter_to_regraph_stream                yes
+completion_token_barrier                 yes
+pma_row_offset_begin_end_contract        yes
+prepare_only_boundary_mode               yes
+single_context_program                   yes
+stream_burst_8_edge_contract             yes
+timing_fields                            yes
+unit_weight_sssp_packing                 yes
+```
+
+The two most relevant new proof contracts are:
+
+```text
+pma_row_offset_begin_end_contract:
+  host packs row_offset[src] as begin[63:32], end[31:0]; adapter decodes the same fields
+
+stream_burst_8_edge_contract:
+  512-bit AXI packet, 64 bits per edge record, 8 edge lanes per burst
+```
+
+Evidence artifacts:
+
+```text
+results/pure_pipeline_requirement_audit_source_contracts_after_184a90b/audit.json
+results/pure_pipeline_requirement_audit_source_contracts_after_184a90b/audit.md
+results/pure_pipeline_evidence_bundle_source_contracts_after_184a90b/summary.md
+results/pure_pipeline_evidence_bundle_source_contracts_after_184a90b/source_proof_matrix.tsv
+results/pure_pipeline_evidence_bundle_source_contracts_after_184a90b/bundle_manifest.json
+```
+
+Evidence hashes:
+
+```text
+d17e45c4fd3dc5cc04c5829861ec73cbad0ea1bc4d429756851e59008b0e70a3  scripts/audit_pure_pipeline_status.py
+3db83b87ec10c7f304c739fa5ac6c2199d07f60ecc44cafbfa4ba765c5d73b35  scripts/export_pure_pipeline_evidence_bundle.py
+858adb95f9a61adb0208f7bd9470b9b3780ab03be3d129de3e7c58956469d638  results/pure_pipeline_requirement_audit_source_contracts_after_184a90b/audit.json
+0f279f81ba1d7bcc5309163b9bdc092c2b5ef408007a50c1baa1e31ee5f13e29  results/pure_pipeline_requirement_audit_source_contracts_after_184a90b/audit.md
+245ad9f57f6d69d45d0edd7b016778cd6d14ddda0d8b58c35228ec653ba11a39  results/pure_pipeline_evidence_bundle_source_contracts_after_184a90b/summary.md
+eff8ac53e119cb56210c40a1b3add23f6847b9296ef136d17dd0d4b38c4268b9  results/pure_pipeline_evidence_bundle_source_contracts_after_184a90b/source_proof_matrix.tsv
+791a98ddbfd589bbe6684236ad4704638b0f5e89757ed641fb73f085b19eb670  results/pure_pipeline_evidence_bundle_source_contracts_after_184a90b/bundle_manifest.json
+```
+
+This does not replace the required `hw_emu`/`hw` validation. It makes the
+pre-hardware claim sharper: the current source expresses the intended
+PMA-to-stream contract, and the remaining gap is still producing and validating
+the actual pure-pipeline `hw_emu` and `hw` xclbins.
