@@ -592,11 +592,8 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         "artifacts": artifacts,
         "next_commands": [
             "./scripts/run_pure_pipeline_prepare_check.sh --preset boundary --out-dir results/pure_pipeline_prepare_boundary_after_" + git_short,
-            "./scripts/run_pure_pipeline_build.sh --target hw_emu --label after_" + git_short + " --wait-idle 7200 --idle-poll 60",
-            "./scripts/monitor_pure_pipeline_build.sh --target hw_emu --tail-lines 40",
-            "./scripts/finalize_pure_pipeline_build.sh --target hw_emu --label after_" + git_short + " --build-host --gate-case tiny_star_v16_u12 --gate-timeout 900",
-            "./scripts/run_pure_pipeline_build.sh --target hw --label after_" + git_short + " --wait-idle 7200 --idle-poll 60",
-            "./scripts/finalize_pure_pipeline_build.sh --target hw --label after_" + git_short + " --build-host --gate-case tiny_star_v16_u12 --gate-timeout 300",
+            "./scripts/run_pure_pipeline_target_flow.sh --target hw_emu --label after_" + git_short + " --wait-idle 7200 --idle-poll 60 --gate-case tiny_star_v16_u12 --gate-timeout 900",
+            "./scripts/run_pure_pipeline_target_flow.sh --target hw --label after_" + git_short + " --wait-idle 7200 --idle-poll 60 --gate-case tiny_star_v16_u12 --gate-timeout 300",
         ],
     }
 

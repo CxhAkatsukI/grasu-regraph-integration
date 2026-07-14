@@ -1312,6 +1312,58 @@ d6170cea7d928d4c46f0272f09e0bb68c252073c5957bda6247015666f25721c  .tmp_build/pur
 bac57a120c3aca4624699bf9c77f2671c08af795abd9b743b3b2f963538cfcce  /tmp/finalize_gate_dryrun_check.log
 ```
 
+## Target Flow Wrapper
+
+The target-flow wrapper strings the post-`sw_emu` target steps together:
+
+```text
+run_pure_pipeline_build.sh --wait-idle
+  -> monitor_pure_pipeline_build.sh
+  -> finalize_pure_pipeline_build.sh --gate-case ...
+  -> audit_pure_pipeline_status.py
+```
+
+It does not hide or replace the lower-level commands; it prints each command and
+lets the underlying wrappers record their normal logs, hashes, smoke summaries,
+comparison files, and audit files.
+
+Recommended `hw_emu` flow once the machine is idle enough to start:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_<commit> \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Dry-run regression, without starting Vitis:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label flow_dryrun_check \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 45 \
+  --timeout 123 \
+  --dry-run
+```
+
+Evidence:
+
+```text
+2b8ec3aa8afbf153e3116f76684bd440887462091cd2ca2f3fcb2a103a647b2b  scripts/run_pure_pipeline_target_flow.sh
+cff1fdc08c277f141d12f5f9e0565ff949dd47c4222f0b6b78e94510e7d7d54e  scripts/audit_pure_pipeline_status.py
+96271bb06a330ee47a051ba958b4ed0c96e3aeb2066c6d5985f2aea09b912b98  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_flow_dryrun_check.env
+b60698a253e72a7bb1cc280611fe43c3f471397fd7e9305da8fb47fc65bf1a16  /tmp/pure_target_flow_dryrun_check.log
+```
+
 ## Not Yet True
 
 The current baseline still has these gaps:
