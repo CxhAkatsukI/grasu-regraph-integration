@@ -236,16 +236,20 @@ writes a readiness preflight report, waits for other Vitis/Vivado jobs to become
 idle, optionally requires a continuous idle settle window, optionally
 regenerates compile/link/config scripts, optionally clears stale target artifacts
 from the build directory, monitors the build output, runs a staged smoke gate,
-then emits the requirement audit. Use `--strict-readiness` when you want active
-external builders to abort before the wait-idle phase. Keep the default
-source-contract preflight enabled; `--no-source-contracts` is for debugging only.
+then emits the requirement audit and compact evidence bundle. Use
+`--strict-readiness` when you want active external builders to abort before the
+wait-idle phase. Keep the default source-contract preflight enabled;
+`--no-source-contracts` is for debugging only. Use `--skip-bundle` only for
+debugging runs that intentionally do not need the report matrices.
 
 Readiness reports include a `build_artifacts` row. If the target xclbin is
 missing while the target `build/` directory still contains old children, the row
 is `WARN` and the recommended flow's `--clean-build-artifacts` option should be
 kept enabled.
 
-Export a compact evidence bundle for reports:
+Export a compact evidence bundle for reports. The target-flow wrapper does this
+automatically after its audit step; this
+standalone command is useful when repacking an existing audit:
 
 ```bash
 ./scripts/export_pure_pipeline_evidence_bundle.py \

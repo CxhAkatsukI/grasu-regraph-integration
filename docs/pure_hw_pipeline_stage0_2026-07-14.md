@@ -5531,3 +5531,75 @@ e297c02d8ad59dcddbde9e4c97a4b76bad54a6a0704eeed57f98e3f8881457da  .tmp_build/pur
 249664fcdef3ee113b12a5788501df077b466fc89f83947253fa833631d80d08  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_after_ed30b1a/source_fingerprints.tsv
 fa574c10a56cdd5481531df2465fd66a72a5eba7967c694fee038bfbf2c293cf  .tmp_build/pure_pipeline_launch_packet_launch_packet_matrix_after_ed30b1a/readiness_hw_emu.txt
 ```
+
+## Target flow bundle export
+
+As of 2026-07-15 04:25 Asia/Shanghai, the target-flow wrapper exports the
+compact evidence bundle automatically after the requirement audit. This matters
+for the eventual `hw_emu` and `hw` runs: the same command that builds, finalizes,
+and audits will now leave the report matrices under
+`results/pure_pipeline_evidence_bundle_<label>/`. The wrapper also records the
+bundle path in `target_flow_<label>.env` and prints `DONE bundle_out=...`.
+
+`--skip-bundle` remains available for debugging, and `--skip-audit` now
+explicitly suppresses bundle export because the bundle needs an audit JSON.
+
+Changed files:
+
+```text
+scripts/run_pure_pipeline_target_flow.sh
+README.md
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/run_pure_pipeline_target_flow.sh
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label target_flow_skip_audit_final_dryrun \
+  --skip-build \
+  --skip-finalize \
+  --no-readiness \
+  --skip-audit \
+  --dry-run
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label target_flow_bundle_final_check \
+  --skip-build \
+  --skip-finalize \
+  --no-readiness
+```
+
+Result:
+
+```text
+skip_audit_dryrun_bundle_out=SKIPPED
+target_flow_bundle_final_check_source_contracts=PASS required_count=13 failed_count=0
+target_flow_bundle_final_check_audit_status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+target_flow_bundle_final_check_bundle_out=results/pure_pipeline_evidence_bundle_target_flow_bundle_final_check
+target_flow_bundle_final_check_case_target_matrix_sha256=e297c02d8ad59dcddbde9e4c97a4b76bad54a6a0704eeed57f98e3f8881457da
+```
+
+This validation did not launch Vitis: it used `--skip-build --skip-finalize`
+and only refreshed source fingerprints, source contracts, monitor output,
+audit, and bundle export.
+
+Evidence hashes:
+
+```text
+2405e9a780b3416b92d6f660741e989011a5d641b5fce996db462325e5faea8c  scripts/run_pure_pipeline_target_flow.sh
+97925ae28f9a70ac0e22ca3ab1bebfa5ee8bc4b8e072a4b14d97ba60178d230f  README.md
+bfe0627cc2a8fc8508a5508e819813008ec5f325524850c987a2148d2c779f73  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_target_flow_bundle_final_check.env
+091e206e6471fdf8a59a93b6a69ad4f3dff5033d08019bcfb63976aaeb928955  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_target_flow_target_flow_bundle_final_check.tsv
+224acd721d036a5a7b84a081af050f86f17145d412043b0e04f8093a5489e4ce  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_fingerprints_target_flow_target_flow_bundle_final_check.tsv
+a98f43814e5fe1c99a0b9016fb5bf1c55cf0e1b85d4a4ae1d95af70ee2454784  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_after_target_flow_bundle_final_check.txt
+c5981b4b492278c6805872d3233823c55858cf525be392bea3150ba170c85773  results/pure_pipeline_requirement_audit_target_flow_bundle_final_check/audit.json
+28cbc0cf3a2a7468b97a043ba283a68e65b76f24c06b83e68b97caa93b7bc30a  results/pure_pipeline_requirement_audit_target_flow_bundle_final_check/audit.md
+90bbf5f53f0135b2c8f5d0c68f6ae733a05c922f0fdec994abc2dd81a6efa068  results/pure_pipeline_evidence_bundle_target_flow_bundle_final_check/summary.md
+e297c02d8ad59dcddbde9e4c97a4b76bad54a6a0704eeed57f98e3f8881457da  results/pure_pipeline_evidence_bundle_target_flow_bundle_final_check/case_target_matrix.tsv
+04b72490368e173a7615f17104d5ebd5fb143690b3138ecea6f702ea9ffc0316  results/pure_pipeline_evidence_bundle_target_flow_bundle_final_check/bundle_manifest.json
+```

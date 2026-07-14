@@ -17,6 +17,7 @@ BUILD_HOST=1
 SKIP_BUILD=0
 SKIP_FINALIZE=0
 SKIP_AUDIT=0
+SKIP_BUNDLE=0
 CLEAN_BUILD_ARTIFACTS=0
 PREPARE=0
 SOURCE_CONTRACT_CHECK=1
@@ -29,7 +30,8 @@ usage() {
 Usage: $0 [options]
 
 Run the reproducible pure-pipeline target flow:
-  build with idle protection -> monitor -> staged finalize -> requirement audit.
+  build with idle protection -> monitor -> staged finalize -> requirement audit
+  -> compact evidence bundle.
 
 Options:
   --target sw_emu|hw_emu|hw   Target mode. Default: ${TARGET}
@@ -53,7 +55,8 @@ Options:
   --strict-readiness          Fail preflight when unrelated Vitis/Vivado builders are active.
   --skip-build                Do not run the build wrapper.
   --skip-finalize             Do not run finalize/smoke/compare.
-  --skip-audit                Do not run requirement audit.
+  --skip-audit                Do not run requirement audit; also suppresses bundle export.
+  --skip-bundle               Do not export the compact evidence bundle.
   --dry-run                   Print commands; do not execute them.
   -h, --help                  Show this help.
 USAGE
@@ -96,6 +99,7 @@ while [[ $# -gt 0 ]]; do
     --skip-build) SKIP_BUILD=1; shift ;;
     --skip-finalize) SKIP_FINALIZE=1; shift ;;
     --skip-audit) SKIP_AUDIT=1; shift ;;
+    --skip-bundle) SKIP_BUNDLE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -119,6 +123,9 @@ fi
 if (( MONITOR_TAIL_LINES < 1 )); then
   echo "--monitor-tail must be at least 1" >&2
   exit 2
+fi
+if [[ "${SKIP_AUDIT}" == "1" ]]; then
+  SKIP_BUNDLE=1
 fi
 
 cd "${GRI_ROOT}"
@@ -144,6 +151,7 @@ SOURCE_CONTRACT_OUT="${RUN_DIR}/source_contracts_target_flow_${LABEL}.tsv"
 SOURCE_FINGERPRINTS_OUT="${RUN_DIR}/source_fingerprints_target_flow_${LABEL}.tsv"
 MONITOR_OUT="${RUN_DIR}/monitor_after_${LABEL}.txt"
 AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
+BUNDLE_OUT="${GRI_ROOT}/results/pure_pipeline_evidence_bundle_${LABEL}"
 
 {
   printf 'target=%s\n' "${TARGET}"
@@ -164,6 +172,7 @@ AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
   printf 'skip_build=%s\n' "${SKIP_BUILD}"
   printf 'skip_finalize=%s\n' "${SKIP_FINALIZE}"
   printf 'skip_audit=%s\n' "${SKIP_AUDIT}"
+  printf 'skip_bundle=%s\n' "${SKIP_BUNDLE}"
   printf 'dry_run=%s\n' "${DRY_RUN}"
   printf 'git_head=%s\n' "$(git -C "${GRI_ROOT}" rev-parse HEAD)"
   printf 'source_contract_out=%s\n' "${SOURCE_CONTRACT_OUT}"
@@ -171,6 +180,7 @@ AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
   printf 'readiness_out=%s\n' "${READINESS_OUT}"
   printf 'monitor_out=%s\n' "${MONITOR_OUT}"
   printf 'audit_out=%s\n' "${AUDIT_OUT}"
+  printf 'bundle_out=%s\n' "${BUNDLE_OUT}"
 } > "${FLOW_ENV}"
 
 if [[ "${PREPARE}" == "1" ]]; then
@@ -249,9 +259,20 @@ if [[ "${SKIP_AUDIT}" == "0" ]]; then
     --out-dir "${AUDIT_OUT}"
 fi
 
+if [[ "${SKIP_BUNDLE}" == "0" && "${SKIP_AUDIT}" == "0" ]]; then
+  run_cmd "${SCRIPT_DIR}/export_pure_pipeline_evidence_bundle.py" \
+    --audit "${AUDIT_OUT}/audit.json" \
+    --out-dir "${BUNDLE_OUT}"
+fi
+
 echo "DONE flow_env=${FLOW_ENV}"
 echo "DONE source_contract_out=${SOURCE_CONTRACT_OUT}"
 echo "DONE source_fingerprints_out=${SOURCE_FINGERPRINTS_OUT}"
 echo "DONE readiness_out=${READINESS_OUT}"
 echo "DONE monitor_out=${MONITOR_OUT}"
 echo "DONE audit_out=${AUDIT_OUT}"
+if [[ "${SKIP_BUNDLE}" == "0" && "${SKIP_AUDIT}" == "0" ]]; then
+  echo "DONE bundle_out=${BUNDLE_OUT}"
+else
+  echo "DONE bundle_out=SKIPPED"
+fi
