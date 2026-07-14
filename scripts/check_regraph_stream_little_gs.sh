@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/env.sh"
 
 HLS_INCLUDE="${HLS_INCLUDE:-/data/yxx/tools/xilinx/Vitis_HLS/2024.1/include}"
+HLS_INCLUDE_ETC="${HLS_INCLUDE_ETC:-${HLS_INCLUDE}/etc}"
 OUT_DIR=""
 
 usage() {
@@ -35,6 +36,10 @@ if [[ ! -d "${HLS_INCLUDE}" ]]; then
   echo "Missing Vitis HLS include directory: ${HLS_INCLUDE}" >&2
   exit 1
 fi
+if [[ ! -d "${HLS_INCLUDE_ETC}" ]]; then
+  echo "Missing Vitis HLS include/etc directory: ${HLS_INCLUDE_ETC}" >&2
+  exit 1
+fi
 if [[ ! -d "${REGRAPH_ROOT}/acc_template" ]]; then
   echo "Missing ReGraph acc_template directory: ${REGRAPH_ROOT}/acc_template" >&2
   exit 1
@@ -54,6 +59,7 @@ LOG="${OUT_DIR}/compile.log"
   echo "GRI_ROOT=${GRI_ROOT}"
   echo "REGRAPH_ROOT=${REGRAPH_ROOT}"
   echo "HLS_INCLUDE=${HLS_INCLUDE}"
+  echo "HLS_INCLUDE_ETC=${HLS_INCLUDE_ETC}"
   echo "SRC=${SRC}"
   echo "OBJ=${OBJ}"
 } > "${OUT_DIR}/manifest.env"
@@ -73,6 +79,7 @@ g++ -std=c++17 -w \
   -DBIG_KERNEL_NUM=1 \
   -DLITTLE_KERNEL_NUM=1 \
   -I"${HLS_INCLUDE}" \
+  -I"${HLS_INCLUDE_ETC}" \
   -I"${REGRAPH_ROOT}/acc_udfs/sssp" \
   -I"${REGRAPH_ROOT}" \
   -I"${REGRAPH_ROOT}/acc_template" \

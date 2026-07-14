@@ -1,6 +1,7 @@
+#include <hls_stream.h>
+#include <hls_streamofblocks.h>
 #include <ap_axi_sdata.h>
 #include <ap_int.h>
-#include <hls_stream.h>
 
 typedef ap_axiu<32, 0, 0, 0> done_pkt_t;
 typedef ap_axiu<512, 0, 0, 0> edge_burst_pkt_t;

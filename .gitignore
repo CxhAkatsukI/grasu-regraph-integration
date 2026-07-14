@@ -17,6 +17,7 @@ build/
 *.xclbin.link_summary
 *.ltx
 *.jou
+xcd.log
 *.str
 *.wdb
 

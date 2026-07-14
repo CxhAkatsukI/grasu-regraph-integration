@@ -1,4 +1,5 @@
 #include <hls_stream.h>
+#include <hls_streamofblocks.h>
 #include <string.h>
 
 #include "acc_data_types.h"
@@ -23,7 +24,7 @@ static edge_burst_dt unpack_edge_burst(edge_burst_pkt_t pkt)
 }
 
 extern "C" {
-void littleKernelScatterGatherStream(
+void lksg_stream(
         hls::stream<edge_burst_pkt_t> &edge_burst_in,
         uint             part_edge_num,
         uint             compressed_group_count,

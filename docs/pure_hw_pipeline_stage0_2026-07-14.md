@@ -32,17 +32,80 @@ d4296714739acea95a8f6a2f66e113849f089fe8e026fd72e7ee40c9e56f05b0
 
 Those facts are useful, but they do not satisfy the pure pipeline goal yet.
 
+## Stage 0 SW_EMU Link Milestone
+
+As of 2026-07-14 15:40 Asia/Shanghai, the first pure-pipeline `sw_emu`
+xclbin links successfully from the current integration source tree.
+
+Successful command sequence:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/prepare_pure_hw_pipeline_build.sh \
+  --target sw_emu \
+  --build-root .tmp_build/pure_pipeline_sw_emu_stage0
+.tmp_build/pure_pipeline_sw_emu_stage0/compile_commands.sh \
+  2>&1 | tee .tmp_build/pure_pipeline_sw_emu_stage0/compile_commands_stage14.log
+.tmp_build/pure_pipeline_sw_emu_stage0/link_command.sh \
+  2>&1 | tee .tmp_build/pure_pipeline_sw_emu_stage0/link_command_stage17.log
+```
+
+Output xclbin:
+
+```text
+.tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+sha256: 6c752a5c6abf56998753fc531dd1f8a7ce7f98395a352824a83c00ffe4dd01d5
+size:   6.2M
+```
+
+Generated XO inputs recorded in:
+
+```text
+.tmp_build/pure_pipeline_sw_emu_stage0/inputs.tsv
+.tmp_build/pure_pipeline_sw_emu_stage0/manifest.env
+```
+
+This build does not reuse old GraSU or ReGraph XOs. The generated XOs are:
+
+```text
+bin_search.sw_emu.xo
+dispatch.sw_emu.xo
+process_cache.sw_emu.xo
+process_ddr.sw_emu.xo
+kernelApply.sw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+kernelHBMWrapper.sw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+kernelLittleGSMerger.sw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+bigKernelScatterGather.sw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+kernelBigGSMerger.sw_emu.xilinx_u55c_gen3x16_xdma_3_202210_1.xo
+pma_to_regraph_adapter.sw_emu.xo
+lksg_stream.sw_emu.xo
+```
+
+Toolchain notes for this host:
+
+- `/tmp` is a 32G tmpfs and was full during link. Generated scripts export
+  `TMPDIR`, `TMP`, and `TEMP` to the build-root `tmp/` directory.
+- Vitis 2024.1 uses gcc 8.3 headers against newer system pthread headers in
+  `sw_emu`. Generated scripts provide a local `gcc_compat/bits/gthr-default.h`
+  shim through `CPLUS_INCLUDE_PATH`.
+- Vitis internal top-level linking can select Xilinx binutils 2.26, which does
+  not understand the system glibc `.relr.dyn` sections. Generated scripts export
+  `LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu` and
+  `COMPILER_PATH=/usr/bin` so gcc finds the system runtime objects and linker.
+
 ## Not Yet True
 
 The current baseline still has these gaps:
 
-- No GraSU completion-token stream exists.
-- No hardware barrier waits for all four PMA writers.
-- No adapter reads the live GraSU PMA and emits ReGraph edges.
-- ReGraph still reads host-preprocessed edge arrays from `m_axi`.
-- The current GraSU -> ReGraph handoff still performs graph D2H, host
-  serialization/conversion, and graph H2D.
-- Current timing is a valid host baseline, not a pure hardware pipeline timing.
+- The `sw_emu` xclbin is linked, but no pure-pipeline host runner has executed it
+  yet.
+- The chain, hot-source, spread, and hot-destination CPU-oracle checks have not
+  been run through this pure-pipeline xclbin yet.
+- The unified timing fields are not available yet.
+- `hw_emu` and `hw` pure-pipeline xclbins have not been built from this script
+  yet.
+- Host-conversion and zero-cost handoff baselines remain the only measured
+  baselines so far.
 
 ## Start-State Evidence Command
 
@@ -214,11 +277,12 @@ cd /home/chuxiao/grasu-regraph-integration
   --build-root .tmp_build/pure_pipeline_sw_emu_stage0
 ```
 
-The generated `compile_commands.sh` rebuilds only the new or interface-changed
-XOs: tokenized GraSU `process_cache`, tokenized GraSU `process_ddr`,
-`pma_to_regraph_adapter`, and `littleKernelScatterGatherStream`. The generated
-`link_command.sh` reuses the existing GraSU `bin_search`/`dispatch` XOs and the
-existing non-little-GS ReGraph SSSP XOs.
+The generated `compile_commands.sh` rebuilds every XO used by the first
+pipeline xclbin from current local source: GraSU `bin_search`, `dispatch`,
+tokenized `process_cache`, tokenized `process_ddr`, ReGraph apply/HBM/merger/big
+GS kernels, `pma_to_regraph_adapter`, and `lksg_stream`. The generated
+`link_command.sh` links those XOs into one xclbin and adds the completion-token
+and adapter-to-ReGraph stream connections.
 
 ## Correctness Matrix
 
