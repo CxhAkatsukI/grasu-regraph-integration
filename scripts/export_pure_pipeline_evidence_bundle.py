@@ -117,7 +117,38 @@ def parse_readiness_report(path: Path | None) -> dict[str, str]:
     if path is None or not path.is_file():
         return {}
     data: dict[str, str] = {}
+    current_process_block = ""
+    process_prefixes = {
+        "related_vitis_vivado_processes": "related_process",
+        "external_vitis_vivado_processes": "external_process",
+    }
     for line in path.read_text(encoding="ascii", errors="replace").splitlines():
+        if line in process_prefixes:
+            current_process_block = process_prefixes[line]
+            continue
+        if current_process_block:
+            stripped = line.strip()
+            if not stripped:
+                current_process_block = ""
+                continue
+            if stripped == "none" or stripped.startswith("PID "):
+                continue
+            if f"{current_process_block}_pid" not in data:
+                match = re.match(
+                    r"^\s*(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$",
+                    line,
+                )
+                if match:
+                    data[f"{current_process_block}_pid"] = match.group(1)
+                    data[f"{current_process_block}_ppid"] = match.group(2)
+                    data[f"{current_process_block}_elapsed"] = match.group(3)
+                    data[f"{current_process_block}_stat"] = match.group(4)
+                    data[f"{current_process_block}_pcpu"] = match.group(5)
+                    data[f"{current_process_block}_pmem"] = match.group(6)
+                    data[f"{current_process_block}_command"] = match.group(7)
+                    args = match.group(8)
+                    data[f"{current_process_block}_args_hint"] = args[:180]
+            continue
         if "\t" not in line and "=" in line:
             key, value = line.split("=", 1)
             data[key] = value
@@ -189,6 +220,14 @@ def target_rows(repo: Path, audit: dict[str, Any]) -> list[dict[str, str]]:
             "readiness_external_builders": readiness_data.get("active_builders_external", ""),
             "readiness_related_builder_breakdown": readiness_data.get("active_builder_breakdown_related", ""),
             "readiness_external_builder_breakdown": readiness_data.get("active_builder_breakdown_external", ""),
+            "readiness_related_process_pid": readiness_data.get("related_process_pid", ""),
+            "readiness_related_process_elapsed": readiness_data.get("related_process_elapsed", ""),
+            "readiness_related_process_command": readiness_data.get("related_process_command", ""),
+            "readiness_related_process_args_hint": readiness_data.get("related_process_args_hint", ""),
+            "readiness_external_process_pid": readiness_data.get("external_process_pid", ""),
+            "readiness_external_process_elapsed": readiness_data.get("external_process_elapsed", ""),
+            "readiness_external_process_command": readiness_data.get("external_process_command", ""),
+            "readiness_external_process_args_hint": readiness_data.get("external_process_args_hint", ""),
             "readiness_build_artifacts_status": readiness_data.get("build_artifacts_status", ""),
             "readiness_build_artifacts_count": readiness_data.get("build_artifacts_children", ""),
             "readiness_clean_recommended": readiness_data.get("build_artifacts_clean_recommended", ""),
@@ -277,6 +316,9 @@ def write_summary_md(
         "readiness_blocking_count",
         "readiness_external_builders",
         "readiness_external_builder_breakdown",
+        "readiness_external_process_pid",
+        "readiness_external_process_elapsed",
+        "readiness_external_process_command",
         "readiness_build_artifacts_status",
         "readiness_clean_recommended",
         "readiness_report",
@@ -370,6 +412,14 @@ def main() -> int:
         "readiness_external_builders",
         "readiness_related_builder_breakdown",
         "readiness_external_builder_breakdown",
+        "readiness_related_process_pid",
+        "readiness_related_process_elapsed",
+        "readiness_related_process_command",
+        "readiness_related_process_args_hint",
+        "readiness_external_process_pid",
+        "readiness_external_process_elapsed",
+        "readiness_external_process_command",
+        "readiness_external_process_args_hint",
         "readiness_build_artifacts_status",
         "readiness_build_artifacts_count",
         "readiness_clean_recommended",
