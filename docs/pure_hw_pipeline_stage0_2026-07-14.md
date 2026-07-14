@@ -8781,3 +8781,105 @@ fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pur
 a9b0f6a5bbdd78c0150165c34a98a48ca8a7e8e153c886710212a7db84857123  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_1578724/readiness_hw.txt
 c54c8c4bab81a81d255c220a341d96ba3d9b26be5b1a7b4d2f1977e29e1760ca  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_1578724/acceptance_check_prelaunch.tsv
 ```
+
+## Next-Steps Stage0 Followup, 2026-07-15
+
+`scripts/report_pure_pipeline_next_steps.py` now prints a `stage0_followup`
+block in addition to the immediate `next_commands`. The immediate command still
+answers "what should run next"; the followup block records the postbuild matrix
+and same-input baseline commands that must run after `hw_emu`/`hw` xclbins
+exist.
+
+Changed script:
+
+```text
+scripts/report_pure_pipeline_next_steps.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile scripts/report_pure_pipeline_next_steps.py
+./scripts/report_pure_pipeline_next_steps.py
+./scripts/report_pure_pipeline_next_steps.py --json \
+  > .tmp_build/report_next_steps_stage0_followup.json
+python3 -m json.tool .tmp_build/report_next_steps_stage0_followup.json >/dev/null
+```
+
+Read-only status after commit `866cb7879d548346e2f96cc7da0514f401a1cc58`:
+
+```text
+sw_emu: xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+hw_emu: xclbin=no packet_current=yes waiting_xclbin
+hw:     xclbin=no packet_current=yes waiting_xclbin
+
+stage0_followup:
+baseline label=after_866cb78 label_source=git_head plan=no host_summary=no spine_summary=no
+baseline_plan ./scripts/export_pure_stage0_comparison_plan.py --label after_866cb78 --out-dir results/pure_stage0_comparison_plan_after_866cb78
+hw_emu_gate ./scripts/run_pure_stage0_postbuild_matrix.sh --target hw_emu --mode gate --label after_866cb78 --baseline-label after_866cb78 --require-compare
+hw_gate     ./scripts/run_pure_stage0_postbuild_matrix.sh --target hw --mode gate --label after_866cb78 --baseline-label after_866cb78 --require-compare
+hw_full     ./scripts/run_pure_stage0_postbuild_matrix.sh --target hw --mode full --label after_866cb78 --baseline-label after_866cb78 --require-compare
+```
+
+The current immediate `hw_emu` build command is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_866cb78/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_866cb78 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Prepared later `hw` build command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_866cb78/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label after_866cb78 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Packet evidence hashes:
+
+```text
+903c71186fec359aed95a52104e2629162a3cc8b71ab620f875ef4e224d7e248  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_866cb78/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_866cb78/source_contracts.tsv
+374d6d073f0ec1610c4e815435e0159d6a8c33699f38cfae3e9eda2eb6357998  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_866cb78/source_fingerprints.tsv
+add0bbe39a558886696fc9fc549f4e7347ea84f6fc77b0e5efef3ad57be1c310  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_866cb78/readiness_hw_emu.txt
+90001f993795e497e0554ffba6f2856f521646ace65fcad2db005a4cf7c83f92  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_866cb78/acceptance_check_prelaunch.tsv
+
+daae1643eea9977d3d7a8af96ecc102e96f24997cb726bad83c9021dd64a4773  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_866cb78/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_866cb78/source_contracts.tsv
+374d6d073f0ec1610c4e815435e0159d6a8c33699f38cfae3e9eda2eb6357998  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_866cb78/source_fingerprints.tsv
+6addb9afa96bb40426ed492d76c4137fb4234cf3734b623cb4b27c04aab1730b  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_866cb78/readiness_hw.txt
+7f41841c116368baa8e557a9b57750a6563d7abb39a7024922b3b76a0f29dbee  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_866cb78/acceptance_check_prelaunch.tsv
+```

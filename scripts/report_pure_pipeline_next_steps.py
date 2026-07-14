@@ -479,8 +479,7 @@ def postbuild_matrix_command(target: str, mode: str, label: str, baseline_label:
     )
 
 
-def stage0_followup_commands(git_short: str, baseline_label: str) -> list[dict[str, str]]:
-    label = f"after_{git_short}"
+def stage0_followup_commands(label: str, baseline_label: str) -> list[dict[str, str]]:
     return [
         {
             "name": "hw_emu_gate",
@@ -498,6 +497,18 @@ def stage0_followup_commands(git_short: str, baseline_label: str) -> list[dict[s
             "command": postbuild_matrix_command("hw", "full", label, baseline_label),
         },
     ]
+
+
+def stage0_label_from_packets(
+    states: list[dict[str, Any]],
+    git_short: str,
+) -> tuple[str, str]:
+    by_target = {state["target"]: state for state in states}
+    for target in ("hw_emu", "hw", "sw_emu"):
+        label = by_target.get(target, {}).get("current_launch_packet_flow_label")
+        if label:
+            return label, f"{target}_launch_packet"
+    return f"after_{git_short}", "git_head"
 
 
 def make_report(repo: Path) -> dict[str, Any]:
@@ -532,7 +543,7 @@ def make_report(repo: Path) -> dict[str, Any]:
             f"./scripts/check_pure_pipeline_build_readiness.sh --target {next_target} --label after_{git_short}",
             target_flow_command(next_target, git_short),
         ]
-    stage0_label = f"after_{git_short}"
+    stage0_label, stage0_label_source = stage0_label_from_packets(states, git_short)
     stage0_baseline = stage0_baseline_state(repo, stage0_label)
     return {
         "repo": str(repo),
@@ -553,8 +564,9 @@ def make_report(repo: Path) -> dict[str, Any]:
         "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
         "stage0_followup": {
+            "label_source": stage0_label_source,
             "baseline": stage0_baseline,
-            "commands": stage0_followup_commands(git_short, stage0_label),
+            "commands": stage0_followup_commands(stage0_label, stage0_label),
         },
     }
 
@@ -633,6 +645,7 @@ def print_text(report: dict[str, Any]) -> None:
     print(
         "baseline\t"
         f"label={baseline['label']}\t"
+        f"label_source={report['stage0_followup']['label_source']}\t"
         f"plan={'yes' if baseline['plan_exists'] else 'no'}\t"
         f"host_summary={'yes' if baseline['host_summary_exists'] else 'no'}\t"
         f"spine_summary={'yes' if baseline['spine_summary_exists'] else 'no'}"
