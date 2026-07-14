@@ -198,6 +198,8 @@ starting Vitis:
 Current reproducible target flow:
 
 ```bash
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label pre_hwemu_$(git rev-parse --short HEAD)
 ./scripts/check_pure_pipeline_build_readiness.sh --target hw_emu
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw_emu \
@@ -212,13 +214,14 @@ Current reproducible target flow:
 ```
 
 Run the same wrapper with `--target hw` after `hw_emu` passes. The wrapper
-records the build parameters, writes a readiness preflight report, waits for
-other Vitis/Vivado jobs to become idle, optionally requires a continuous idle
-settle window, optionally regenerates compile/link/config scripts, optionally
-clears stale target artifacts from the build directory, monitors the build
-output, runs a staged smoke gate, then emits the requirement audit. Use
-`--strict-readiness` when you want active external builders to abort before the
-wait-idle phase.
+records the build parameters, checks source-level PMA/stream/barrier contracts,
+writes a readiness preflight report, waits for other Vitis/Vivado jobs to become
+idle, optionally requires a continuous idle settle window, optionally
+regenerates compile/link/config scripts, optionally clears stale target artifacts
+from the build directory, monitors the build output, runs a staged smoke gate,
+then emits the requirement audit. Use `--strict-readiness` when you want active
+external builders to abort before the wait-idle phase. Keep the default
+source-contract preflight enabled; `--no-source-contracts` is for debugging only.
 
 Readiness reports include a `build_artifacts` row. If the target xclbin is
 missing while the target `build/` directory still contains old children, the row

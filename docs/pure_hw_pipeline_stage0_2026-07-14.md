@@ -3410,3 +3410,124 @@ This does not replace the required `hw_emu`/`hw` validation. It makes the
 pre-hardware claim sharper: the current source expresses the intended
 PMA-to-stream contract, and the remaining gap is still producing and validating
 the actual pure-pipeline `hw_emu` and `hw` xclbins.
+
+## 2026-07-15 Source Contract Launch Gate
+
+The target-flow wrapper now runs a fast source-contract preflight before the
+readiness/build phases. This prevents spending hours on `hw_emu` or `hw` if the
+source no longer satisfies the PMA handoff, completion-barrier, stream-width,
+unit-weight, timing, or boundary-preparation contracts.
+
+New script:
+
+```text
+scripts/check_pure_pipeline_source_contracts.py
+```
+
+Target-flow behavior:
+
+```text
+run_pure_pipeline_target_flow.sh
+  -> check_pure_pipeline_source_contracts.py
+  -> check_pure_pipeline_build_readiness.sh
+  -> run_pure_pipeline_build.sh
+  -> monitor/finalize/audit
+```
+
+The gate is enabled by default. Use `--no-source-contracts` only for debugging a
+broken local tree; normal `hw_emu/hw` launches should keep the gate enabled.
+
+Source commit:
+
+```text
+767644433338463d2bcb3b9797146d2712a301f3
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/check_pure_pipeline_source_contracts.py \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py
+bash -n scripts/run_pure_pipeline_target_flow.sh
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label source_contract_gate_after_7676444 \
+  --out-file .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_after_7676444.tsv
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label source_contract_gate_flow_after_7676444 \
+  --skip-build \
+  --skip-finalize \
+  --skip-audit \
+  --no-readiness \
+  --monitor-tail 5
+```
+
+The standalone and target-flow source-contract gates both passed all nine
+required proofs:
+
+```text
+adapter_receives_actual_pma_buffers      yes
+adapter_to_regraph_stream                yes
+completion_token_barrier                 yes
+pma_row_offset_begin_end_contract        yes
+prepare_only_boundary_mode               yes
+single_context_program                   yes
+stream_burst_8_edge_contract             yes
+timing_fields                            yes
+unit_weight_sssp_packing                 yes
+```
+
+The metadata-only target flow also confirmed:
+
+```text
+source_contract_check=1
+skip_build=1
+skip_finalize=1
+skip_audit=1
+```
+
+It did not start Vitis. The monitor still reports no pure-pipeline
+`hw_emu.xclbin` and shows the unrelated Spine hardware link as an external
+Vitis/Vivado process.
+
+Evidence artifacts:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_after_7676444.tsv
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_target_flow_source_contract_gate_flow_after_7676444.tsv
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_source_contract_gate_flow_after_7676444.env
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_after_source_contract_gate_flow_after_7676444.txt
+```
+
+Evidence hashes:
+
+```text
+15f77140fd4aa873a3bb5f189ef5fed640a0d890381a6cb6b5bf3eeab4c646f8  scripts/check_pure_pipeline_source_contracts.py
+79862c9e6dedbd4f9556e817bf80e028988c315f467b6237abae3c36a5408898  scripts/run_pure_pipeline_target_flow.sh
+23899c69e5665beb9e624a9ecb4901444c286dd716fb77d3ac9d80f084a312fa  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_after_7676444.tsv
+23899c69e5665beb9e624a9ecb4901444c286dd716fb77d3ac9d80f084a312fa  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_target_flow_source_contract_gate_flow_after_7676444.tsv
+92eb2a2b6c04a4413a36b25285b2f1caa8a66f83dd774884f71d3a389fc56e4c  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_source_contract_gate_flow_after_7676444.env
+a5ff8d310f2ff8c906b53307372a6359c65d3fce31f630212dc15e4ca4ad3a41  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_after_source_contract_gate_flow_after_7676444.txt
+```
+
+The next real launch command is unchanged except that it now automatically runs
+the source-contract gate first:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_7676444 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
