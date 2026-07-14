@@ -15,7 +15,7 @@ GATE_CASE="tiny_star_v16_u12"
 GATE_TIMEOUT_SECONDS=""
 MIN_BUILD_FREE_GB=100
 MIN_TMP_FREE_GB=1
-PREPARE=0
+PREPARE=1
 CLEAN_BUILD_ARTIFACTS=1
 ALLOW_ACTIVE_BUILDERS=0
 
@@ -42,7 +42,8 @@ Options:
   --gate-timeout SECONDS      Generated target-flow gate timeout. Default: target-specific.
   --min-build-free-gb N       Required free GB on build-root filesystem. Default: ${MIN_BUILD_FREE_GB}
   --min-tmp-free-gb N         Required free GB on /tmp. Default: ${MIN_TMP_FREE_GB}
-  --prepare                   Regenerate target compile/link/config scripts before checks.
+  --prepare                   Regenerate target compile/link/config scripts before checks. Default.
+  --no-prepare                Reuse existing generated target scripts during packet creation.
   --no-clean-build-artifacts  Omit --clean-build-artifacts from generated launch command.
   --allow-active-builders     Record active Vitis/Vivado builders as warnings instead of blockers.
   -h, --help                  Show this help.
@@ -126,6 +127,7 @@ while [[ $# -gt 0 ]]; do
     --min-build-free-gb) MIN_BUILD_FREE_GB="$2"; shift 2 ;;
     --min-tmp-free-gb) MIN_TMP_FREE_GB="$2"; shift 2 ;;
     --prepare) PREPARE=1; shift ;;
+    --no-prepare) PREPARE=0; shift ;;
     --no-clean-build-artifacts) CLEAN_BUILD_ARTIFACTS=0; shift ;;
     --allow-active-builders) ALLOW_ACTIVE_BUILDERS=1; shift ;;
     -h|--help) usage; exit 0 ;;
