@@ -187,6 +187,7 @@ def plan_rows(label: str, manifest: Path) -> list[dict[str, str]]:
     manifest_rel = rel(manifest)
     workload_root = rel(manifest.parent)
     host_out = f"results/grasu_regraph_sssp_pure_stage0_{label}"
+    host_identity = f"results/grasu_regraph_sssp_pure_stage0_identity_{label}"
     spine_out = f"results/spine_edge_file_pure_stage0_{label}"
     pure_gate_out = f"results/pure_pipeline_<target>_pure_stage0_gate_{label}"
     pure_full_out = f"results/pure_pipeline_hw_pure_stage0_full_{label}"
@@ -208,6 +209,21 @@ def plan_rows(label: str, manifest: Path) -> list[dict[str, str]]:
         },
         {
             "step": "2",
+            "system": "host-input-audit",
+            "target": "derived",
+            "requires_xclbin": "none",
+            "command": (
+                "python3 scripts/check_pure_stage0_input_identity.py "
+                f"--input-identity results/pure_stage0_comparison_plan_{label}/input_identity.tsv "
+                f"--run-root {host_out} "
+                f"--summary {host_out}/summary.tsv "
+                f"--out-file {host_identity}/input_identity_check.tsv"
+            ),
+            "produces": f"{host_identity}/input_identity_check.tsv",
+            "same_input_contract": "Verifies per-case case.env hashes against input_identity.tsv.",
+        },
+        {
+            "step": "3",
             "system": "zero-cost-handoff",
             "target": "derived",
             "requires_xclbin": "none",
@@ -216,7 +232,7 @@ def plan_rows(label: str, manifest: Path) -> list[dict[str, str]]:
             "same_input_contract": "No extra run; uses step 1 timing on the same manifest rows.",
         },
         {
-            "step": "3",
+            "step": "4",
             "system": "spine",
             "target": "hw",
             "requires_xclbin": "Spine edge-file hw xclbin",
@@ -228,7 +244,7 @@ def plan_rows(label: str, manifest: Path) -> list[dict[str, str]]:
             "same_input_contract": "Consumes final SSSP edge files exported from the host-baseline cases.",
         },
         {
-            "step": "4",
+            "step": "5",
             "system": "pure-pipeline-gate",
             "target": "sw_emu|hw_emu|hw",
             "requires_xclbin": "grasu_regraph_pure_pipeline.<target>.xclbin",
@@ -240,7 +256,7 @@ def plan_rows(label: str, manifest: Path) -> list[dict[str, str]]:
             "same_input_contract": "Runs the four required correctness families from the tracked manifest.",
         },
         {
-            "step": "5",
+            "step": "6",
             "system": "pure-pipeline-full",
             "target": "hw",
             "requires_xclbin": "grasu_regraph_pure_pipeline.hw.xclbin",
@@ -252,7 +268,7 @@ def plan_rows(label: str, manifest: Path) -> list[dict[str, str]]:
             "same_input_contract": "Runs all 12 tracked pure_stage0 cases after gate passes.",
         },
         {
-            "step": "6",
+            "step": "7",
             "system": "comparison",
             "target": "derived",
             "requires_xclbin": "none",

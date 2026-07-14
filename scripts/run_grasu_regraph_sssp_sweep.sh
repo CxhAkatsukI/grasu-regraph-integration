@@ -99,6 +99,19 @@ run_local_cmd() {
   "$@"
 }
 
+sha_or_missing() {
+  local path="$1"
+  if [[ -f "${path}" ]]; then
+    sha256sum "${path}" | awk '{print $1}'
+  else
+    printf 'MISSING'
+  fi
+}
+
+git_head_or_unknown() {
+  git -C "${GRI_ROOT}" rev-parse HEAD 2>/dev/null || printf 'UNKNOWN'
+}
+
 first_existing_emconfig_dir() {
   local candidate
   for candidate in "$@"; do
@@ -241,6 +254,28 @@ fi
 
 printf "case\tstatus\twall_seconds\tvertices\tstatic_edges\tupdate_edges\tfinal_edges\tsource\tsupersteps\tconverted_edges\tgrasu_ms\tgrasu_mups\tregraph_e2e_ms\tregraph_mteps\tprocessed_edges\tgraph_edges\tmismatch_count\tresult_dir\n" > "${SUMMARY}"
 
+{
+  echo "preset=${PRESET}"
+  echo "workload_root=${WORKLOAD_ROOT}"
+  echo "manifest=${MANIFEST}"
+  echo "manifest_sha256=$(sha_or_missing "${MANIFEST}")"
+  echo "out_root=${OUT_ROOT}"
+  echo "timeout_seconds=${TIMEOUT_SECONDS}"
+  echo "grasu_host=${GRASU_HOST}"
+  echo "grasu_xclbin=${GRASU_XCLBIN}"
+  echo "regraph_host=${REGRAPH_HOST}"
+  echo "regraph_xclbin=${REGRAPH_XCLBIN}"
+  echo "regraph_num_dense=${REGRAPH_NUM_DENSE}"
+  echo "result_base=${RESULT_BASE}"
+  echo "skip_generate=${SKIP_GENERATE}"
+  echo "skip_grasu=${SKIP_GRASU}"
+  echo "allow_pass_on_nonzero_exit=${ALLOW_PASS_ON_NONZERO_EXIT}"
+  echo "regraph_skip_verify=${REGRAPH_SKIP_VERIFY}"
+  echo "device_graph_export=${DEVICE_GRAPH_EXPORT}"
+  echo "dry_run=${DRY_RUN}"
+  echo "git_head=$(git_head_or_unknown)"
+} > "${OUT_ROOT}/manifest.env"
+
 while IFS=$'\t' read -r case_name family vertices static_edges update_edges final_edges source supersteps default_weight graph result regraph_sssp_edges expected metadata; do
   [[ -z "${case_name}" ]] && continue
   case_dir="${OUT_ROOT}/${case_name}"
@@ -258,13 +293,20 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
     echo "source=${source}"
     echo "supersteps=${supersteps}"
     echo "default_weight=${default_weight}"
+    echo "manifest=${MANIFEST}"
+    echo "manifest_sha256=$(sha_or_missing "${MANIFEST}")"
     echo "graph=${graph}"
+    echo "graph_sha256=$(sha_or_missing "${graph}")"
     echo "result=${result}"
+    echo "result_sha256=$(sha_or_missing "${result}")"
     echo "generated_regraph_sssp_edges=${regraph_sssp_edges}"
+    echo "generated_regraph_sssp_edges_sha256=$(sha_or_missing "${regraph_sssp_edges}")"
     echo "converted_regraph_sssp_edges=${converted_edges}"
     echo "expected_converted_regraph_sssp_edges=${expected_converted_edges}"
     echo "expected=${expected}"
+    echo "expected_sha256=$(sha_or_missing "${expected}")"
     echo "metadata=${metadata}"
+    echo "metadata_sha256=$(sha_or_missing "${metadata}")"
     echo "grasu_host=${GRASU_HOST}"
     echo "grasu_xclbin=${GRASU_XCLBIN}"
     echo "regraph_host=${REGRAPH_HOST}"
@@ -347,6 +389,11 @@ while IFS=$'\t' read -r case_name family vertices static_edges update_edges fina
   elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
   printf "wall_seconds\t%d.%03d\n" "$(( elapsed_ms / 1000 ))" "$(( elapsed_ms % 1000 ))" > "${case_dir}/wall_time.tsv"
   printf "exit_code\t%d\n" "${rc}" >> "${case_dir}/wall_time.tsv"
+
+  {
+    echo "converted_regraph_sssp_edges_sha256=$(sha_or_missing "${converted_edges}")"
+    echo "expected_converted_regraph_sssp_edges_sha256=$(sha_or_missing "${expected_converted_edges}")"
+  } >> "${case_dir}/case.env"
 
   summary_line="$("${SCRIPT_DIR}/summarize_sssp_chain_result.py" --no-header "${case_dir}")"
   printf '%s\n' "${summary_line}" >> "${SUMMARY}"
