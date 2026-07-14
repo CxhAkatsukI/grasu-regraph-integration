@@ -19,6 +19,7 @@ SKIP_FINALIZE=0
 SKIP_AUDIT=0
 CLEAN_BUILD_ARTIFACTS=0
 PREPARE=0
+SOURCE_CONTRACT_CHECK=1
 READINESS_CHECK=1
 STRICT_READINESS=0
 DRY_RUN=0
@@ -45,6 +46,8 @@ Options:
   --no-build-host             Do not rebuild pure_pipeline_host during finalize.
   --prepare                   Regenerate compile/link/config scripts before readiness and build.
   --clean-build-artifacts     Remove existing target build/ artifacts before launching.
+  --source-contracts          Check source-level PMA/stream/barrier contracts before build. Default.
+  --no-source-contracts       Skip source-level contract preflight.
   --readiness                 Record a build-readiness preflight report. Default.
   --no-readiness              Do not run the readiness preflight.
   --strict-readiness          Fail preflight when unrelated Vitis/Vivado builders are active.
@@ -85,6 +88,8 @@ while [[ $# -gt 0 ]]; do
     --no-build-host) BUILD_HOST=0; shift ;;
     --prepare) PREPARE=1; shift ;;
     --clean-build-artifacts) CLEAN_BUILD_ARTIFACTS=1; shift ;;
+    --source-contracts) SOURCE_CONTRACT_CHECK=1; shift ;;
+    --no-source-contracts) SOURCE_CONTRACT_CHECK=0; shift ;;
     --readiness) READINESS_CHECK=1; shift ;;
     --no-readiness) READINESS_CHECK=0; shift ;;
     --strict-readiness) STRICT_READINESS=1; shift ;;
@@ -135,6 +140,7 @@ RUN_DIR="${BUILD_ROOT}/run_logs"
 mkdir -p "${RUN_DIR}"
 FLOW_ENV="${RUN_DIR}/target_flow_${LABEL}.env"
 READINESS_OUT="${RUN_DIR}/readiness_target_flow_${LABEL}.txt"
+SOURCE_CONTRACT_OUT="${RUN_DIR}/source_contracts_target_flow_${LABEL}.tsv"
 MONITOR_OUT="${RUN_DIR}/monitor_after_${LABEL}.txt"
 AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
 
@@ -151,6 +157,7 @@ AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
   printf 'build_host=%s\n' "${BUILD_HOST}"
   printf 'prepare=%s\n' "${PREPARE}"
   printf 'clean_build_artifacts=%s\n' "${CLEAN_BUILD_ARTIFACTS}"
+  printf 'source_contract_check=%s\n' "${SOURCE_CONTRACT_CHECK}"
   printf 'readiness_check=%s\n' "${READINESS_CHECK}"
   printf 'strict_readiness=%s\n' "${STRICT_READINESS}"
   printf 'skip_build=%s\n' "${SKIP_BUILD}"
@@ -158,6 +165,7 @@ AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
   printf 'skip_audit=%s\n' "${SKIP_AUDIT}"
   printf 'dry_run=%s\n' "${DRY_RUN}"
   printf 'git_head=%s\n' "$(git -C "${GRI_ROOT}" rev-parse HEAD)"
+  printf 'source_contract_out=%s\n' "${SOURCE_CONTRACT_OUT}"
   printf 'readiness_out=%s\n' "${READINESS_OUT}"
   printf 'monitor_out=%s\n' "${MONITOR_OUT}"
   printf 'audit_out=%s\n' "${AUDIT_OUT}"
@@ -167,6 +175,12 @@ if [[ "${PREPARE}" == "1" ]]; then
   run_cmd "${SCRIPT_DIR}/prepare_pure_hw_pipeline_build.sh" \
     --target "${TARGET}" \
     --build-root "${BUILD_ROOT}"
+fi
+
+if [[ "${SOURCE_CONTRACT_CHECK}" == "1" ]]; then
+  run_cmd "${SCRIPT_DIR}/check_pure_pipeline_source_contracts.py" \
+    --label "target_flow_${LABEL}" \
+    --out-file "${SOURCE_CONTRACT_OUT}"
 fi
 
 if [[ "${READINESS_CHECK}" == "1" ]]; then
@@ -230,6 +244,7 @@ if [[ "${SKIP_AUDIT}" == "0" ]]; then
 fi
 
 echo "DONE flow_env=${FLOW_ENV}"
+echo "DONE source_contract_out=${SOURCE_CONTRACT_OUT}"
 echo "DONE readiness_out=${READINESS_OUT}"
 echo "DONE monitor_out=${MONITOR_OUT}"
 echo "DONE audit_out=${AUDIT_OUT}"
