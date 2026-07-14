@@ -263,6 +263,76 @@ tiny_spread_v16_u8   PASS mismatches=0 vertices=16 final_edges=24  supersteps=16
 tiny_hotdst_v64_u32  PASS mismatches=0 vertices=64 final_edges=95  supersteps=16 event_e2e_ms=5919.880981
 ```
 
+## Same-Input Host Baseline
+
+The accepted `GraSU -> host -> ReGraph` baseline was rerun on the same tracked
+smoke manifest. This is not the pure pipeline: GraSU and ReGraph load the same
+combined hardware xclbin, but graph handoff still goes through D2H, host
+serialization, and H2D. The `zero-cost` number below follows the current
+comparison rule: `GraSU kernel ms + ReGraph E2E ms`, with the middle handoff
+cost intentionally set to zero.
+
+Command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_grasu_regraph_sssp_sweep.sh \
+  --preset smoke \
+  --workload-root workloads/sssp_benchmark_smoke \
+  --out-root results/grasu_regraph_smoke_device_export_combined_hw_stage1 \
+  --skip-generate \
+  --device-graph-export \
+  --grasu-host repos/GraSU/.tmp_build/u55c_hbm_hw/GraSU_host_u55c_export \
+  --regraph-host /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp \
+  --combined-xclbin .tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin \
+  --timeout 600
+```
+
+Evidence:
+
+```text
+summary: results/grasu_regraph_smoke_device_export_combined_hw_stage1/summary.tsv
+sha256:  719a48da5eacc18957903212d788106e923df08f596eb9635a8b7df533315945
+
+GraSU export host sha256:
+  95edb2a0b0028cd17ae340c56f3a642c86a7d6d4fd03e19e3ab1ac505c89b9e1
+combined xclbin sha256:
+  d4296714739acea95a8f6a2f66e113849f089fe8e026fd72e7ee40c9e56f05b0
+ReGraph SSSP host sha256:
+  9ceb054575e63aa9c6b045875eae2de205e14788a1f211c9116b411df4fed8c8
+```
+
+Result:
+
+```text
+tiny_chain_v16       PASS final_edges=15 zero_cost_ms=6.127929 mismatches=0
+tiny_star_v16_u12    PASS final_edges=28 zero_cost_ms=2.526626 mismatches=0
+tiny_spread_v16_u8   PASS final_edges=24 zero_cost_ms=5.743649 mismatches=0
+tiny_hotdst_v64_u32  PASS final_edges=95 zero_cost_ms=6.202223 mismatches=0
+```
+
+The current stage comparison table is generated with:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 scripts/summarize_pure_pipeline_smoke.py \
+  --host-summary results/grasu_regraph_smoke_device_export_combined_hw_stage1/summary.tsv \
+  --pure-summary results/pure_pipeline_sw_emu_smoke_stage35/summary.tsv \
+  --pure-env results/pure_pipeline_sw_emu_smoke_stage35/run.env \
+  --out-dir results/pure_pipeline_smoke_compare_stage0
+```
+
+Comparison artifacts:
+
+```text
+46ce81f7d4180fae62d93aed79f594d5a80f3ab7ea11117393a89508c070af37  results/pure_pipeline_smoke_compare_stage0/comparison.tsv
+9f15207f422d3b62890bf70167e66e9a318f0b86f52117fd873ef692088c14be  results/pure_pipeline_smoke_compare_stage0/comparison.md
+```
+
+Current comparison note: the pure-pipeline timing is still `sw_emu`, so it is
+correctness/control-flow evidence only. The first real timing comparison starts
+after `hw_emu` and `hw` pure-pipeline xclbins are built and validated.
+
 After `hw_emu` or `hw` xclbins exist, run the same smoke cases with:
 
 ```bash
@@ -315,8 +385,8 @@ The current baseline still has these gaps:
   xclbins have not been produced or validated yet.
 - The timing above is `sw_emu` timing and is useful for control-flow evidence,
   not performance claims.
-- Host-conversion and zero-cost handoff baselines still need to be rerun next to
-  this pure-pipeline runner on exactly the same graph files.
+- Spine still needs to be rerun or remapped on exactly the same graph files
+  before a full four-way performance table is claim-ready.
 
 ## Start-State Evidence Command
 

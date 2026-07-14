@@ -16,6 +16,7 @@ DRY_RUN=0
 ALLOW_PASS_ON_NONZERO_EXIT=0
 REGRAPH_SKIP_VERIFY=0
 DEVICE_GRAPH_EXPORT=0
+GRASU_HOST_EXPLICIT=0
 XCL_EMULATION_MODE_VALUE="${XCL_EMULATION_MODE_VALUE:-}"
 VITIS_SETTINGS="${VITIS_SETTINGS:-/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh}"
 GRASU_EMCONFIG_PATH="${GRASU_EMCONFIG_PATH:-}"
@@ -141,7 +142,7 @@ while [[ $# -gt 0 ]]; do
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
     --regraph-num-dense) REGRAPH_NUM_DENSE="$2"; shift 2 ;;
     --result-base) RESULT_BASE="$2"; shift 2 ;;
-    --grasu-host) GRASU_HOST="$(abs_under_root "$2")"; shift 2 ;;
+    --grasu-host) GRASU_HOST="$(abs_under_root "$2")"; GRASU_HOST_EXPLICIT=1; shift 2 ;;
     --grasu-xclbin) GRASU_XCLBIN="$(abs_under_root "$2")"; shift 2 ;;
     --regraph-host) REGRAPH_HOST="$(abs_under_root "$2")"; shift 2 ;;
     --regraph-xclbin) REGRAPH_XCLBIN="$(abs_under_root "$2")"; shift 2 ;;
@@ -169,6 +170,12 @@ esac
 if [[ "${DEVICE_GRAPH_EXPORT}" == "1" && "${SKIP_GRASU}" == "1" ]]; then
   echo "--device-graph-export cannot be combined with --skip-grasu" >&2
   exit 2
+fi
+
+if [[ "${DEVICE_GRAPH_EXPORT}" == "1" && "${SKIP_GRASU}" == "0" && "${GRASU_HOST_EXPLICIT}" == "0" ]]; then
+  if [[ -x "${GRASU_HOST}_export" ]]; then
+    GRASU_HOST="${GRASU_HOST}_export"
+  fi
 fi
 
 if [[ -z "${WORKLOAD_ROOT}" ]]; then
