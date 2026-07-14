@@ -4517,3 +4517,88 @@ Important status note: the current pure-pipeline `hw_emu` and `hw` xclbins
 still do not exist. The latest bundle also reports active external Vitis/Vivado
 builders, so the next long build should be launched only after those resources
 are intentionally cleared or accepted.
+
+## Current hw_emu/hw readiness gate
+
+As of 2026-07-15 03:30 Asia/Shanghai, the generated pure-pipeline `hw_emu`
+and `hw` build scripts are present, but strict readiness says not to launch a
+new long Vitis build yet. The blocker is external Vitis/Vivado activity from the
+Spine hardware link, not a missing integration compile/link script.
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/check_pure_pipeline_build_readiness.sh \
+  --target hw_emu \
+  --label after_d7ab02c_strict_current
+
+./scripts/check_pure_pipeline_build_readiness.sh \
+  --target hw \
+  --label after_d7ab02c_strict_current
+
+./scripts/audit_pure_pipeline_status.py \
+  --label after_d7ab02c_current_readiness \
+  --out-dir results/pure_pipeline_requirement_audit_after_d7ab02c_current_readiness
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_after_d7ab02c_current_readiness/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_after_d7ab02c_current_readiness
+```
+
+Result:
+
+```text
+hw_emu strict readiness: ready=no blocking_count=1 warning_count=1 rc=3
+hw strict readiness:     ready=no blocking_count=1 warning_count=0 rc=3
+external builders:       total=10 v++=2 vivado=4 vpl=2 vrs=2
+hw_emu stale artifacts:  children=7 clean_recommended=yes
+hw stale artifacts:      children=0 clean_recommended=no
+build_root free:         216.0G
+/tmp free:               2.2G
+
+audit status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+sw_emu xclbin exists: yes
+hw_emu xclbin exists: no
+hw xclbin exists: no
+```
+
+Artifacts:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_after_d7ab02c_strict_current.txt
+.tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_after_d7ab02c_strict_current.txt
+results/pure_pipeline_requirement_audit_after_d7ab02c_current_readiness/audit.json
+results/pure_pipeline_requirement_audit_after_d7ab02c_current_readiness/audit.md
+results/pure_pipeline_evidence_bundle_after_d7ab02c_current_readiness/summary.md
+results/pure_pipeline_evidence_bundle_after_d7ab02c_current_readiness/target_matrix.tsv
+results/pure_pipeline_evidence_bundle_after_d7ab02c_current_readiness/bundle_manifest.json
+```
+
+Evidence hashes:
+
+```text
+22b9a30b3850788183c0ffcaa02fb6e9b4dbce7aaff1c9f344a59df1107f8896  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_after_d7ab02c_strict_current.txt
+1a0b22f5653681f749b290478d2c12ae7b0c921200c4119138b961bda4b5af06  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_after_d7ab02c_strict_current.txt
+3c80c02f1f30a9430d3e2e46a3303cd6b2392aa0e66e0ea730bf5193d4f00eba  results/pure_pipeline_requirement_audit_after_d7ab02c_current_readiness/audit.json
+285382af36fa38bf24e34428364b66ac2eaab3dd852bc3976811cd0a24e4edbf  results/pure_pipeline_requirement_audit_after_d7ab02c_current_readiness/audit.md
+d021d428d06824c5584dd5c00adccb2049d27d9b32de31f68f4b74a31106060d  results/pure_pipeline_evidence_bundle_after_d7ab02c_current_readiness/summary.md
+f39fe9a2699a25f5ea54ac703ac66334dc59073faea5c7ee7929a9b4dd57df31  results/pure_pipeline_evidence_bundle_after_d7ab02c_current_readiness/target_matrix.tsv
+38515df9990aa2453e603fe5d886d6a8c506f533e7296d826e04601fb0a3fa0c  results/pure_pipeline_evidence_bundle_after_d7ab02c_current_readiness/bundle_manifest.json
+```
+
+Next long command, once the external builders are allowed to clear:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_d7ab02c \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
