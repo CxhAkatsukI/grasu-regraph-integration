@@ -76,10 +76,7 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
                             unsigned pma_slot_count,
                             unsigned max_cache_segment,
                             unsigned wait_for_completion,
-                            hls::stream<done_pkt_t> &done0,
-                            hls::stream<done_pkt_t> &done1,
-                            hls::stream<done_pkt_t> &done2,
-                            hls::stream<done_pkt_t> &done3,
+                            hls::stream<done_pkt_t> &done,
                             hls::stream<edge_burst_pkt_t> &edge_burst_out)
 {
 #pragma HLS INTERFACE m_axi port=pma0 offset=slave bundle=gmem0
@@ -97,25 +94,16 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
 #pragma HLS INTERFACE s_axilite port=max_cache_segment bundle=control
 #pragma HLS INTERFACE s_axilite port=wait_for_completion bundle=control
 #pragma HLS INTERFACE s_axilite port=return bundle=control
-#pragma HLS INTERFACE axis port=done0
-#pragma HLS INTERFACE axis port=done1
-#pragma HLS INTERFACE axis port=done2
-#pragma HLS INTERFACE axis port=done3
+#pragma HLS INTERFACE axis port=done
 #pragma HLS INTERFACE axis port=edge_burst_out
 
     ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: begin nodes=%u pma_slots=%u wait=%u\n",
                          node_count, pma_slot_count, wait_for_completion);
 
     if (wait_for_completion) {
-        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: waiting completion tokens\n");
-        (void)done0.read();
-        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: got done0\n");
-        (void)done1.read();
-        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: got done1\n");
-        (void)done2.read();
-        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: got done2\n");
-        (void)done3.read();
-        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: got done3\n");
+        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: waiting barrier token\n");
+        (void)done.read();
+        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: got barrier token\n");
     }
 
     edge_burst_pkt_t out;

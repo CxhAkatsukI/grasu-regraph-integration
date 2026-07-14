@@ -244,6 +244,7 @@ write_compile_cfg kernelHBMWrapper "${CFG_DIR}/kernelHBMWrapper_compile.cfg"
 write_compile_cfg kernelLittleGSMerger "${CFG_DIR}/kernelLittleGSMerger_compile.cfg"
 write_compile_cfg bigKernelScatterGather "${CFG_DIR}/bigKernelScatterGather_compile.cfg"
 write_compile_cfg kernelBigGSMerger "${CFG_DIR}/kernelBigGSMerger_compile.cfg"
+write_compile_cfg pma_completion_barrier "${CFG_DIR}/pma_completion_barrier_compile.cfg"
 write_compile_cfg pma_to_regraph_adapter "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg"
 write_compile_cfg lksg_stream "${CFG_DIR}/little_gs_stream_compile.cfg"
 
@@ -300,11 +301,16 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
   copy_connectivity_body "${GRASU_STREAM_CFG}"
   echo
   echo "# GraSU PMA completion barrier into adapter"
-  echo "stream_connect=process_cache_1.completion_token:pma_to_regraph_adapter_1.done0:16"
-  echo "stream_connect=process_ddr_1.completion_token:pma_to_regraph_adapter_1.done1:16"
-  echo "stream_connect=process_cache_2.completion_token:pma_to_regraph_adapter_1.done2:16"
-  echo "stream_connect=process_ddr_2.completion_token:pma_to_regraph_adapter_1.done3:16"
+  echo "stream_connect=process_cache_1.completion_token:pma_completion_barrier_1.done0:16"
+  echo "stream_connect=process_ddr_1.completion_token:pma_completion_barrier_1.done1:16"
+  echo "stream_connect=process_cache_2.completion_token:pma_completion_barrier_1.done2:16"
+  echo "stream_connect=process_ddr_2.completion_token:pma_completion_barrier_1.done3:16"
+  echo "stream_connect=pma_completion_barrier_1.done_out:pma_to_regraph_adapter_1.done:16"
   echo "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32"
+  echo
+  echo "# PMA completion barrier"
+  echo "nk=pma_completion_barrier:1:pma_completion_barrier_1"
+  echo "slr=pma_completion_barrier_1:SLR1"
   echo
   echo "# PMA-to-ReGraph adapter"
   echo "nk=pma_to_regraph_adapter:1:pma_to_regraph_adapter_1"
@@ -331,6 +337,7 @@ declare -a GENERATED_XOS=(
   "${BUILD_DIR}/kernelBigGSMerger.${TARGET}.${PLATFORM}.xo"
   "${BUILD_DIR}/process_cache.${TARGET}.xo"
   "${BUILD_DIR}/process_ddr.${TARGET}.xo"
+  "${BUILD_DIR}/pma_completion_barrier.${TARGET}.xo"
   "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo"
   "${BUILD_DIR}/lksg_stream.${TARGET}.xo"
 )
@@ -389,6 +396,11 @@ declare -a GENERATED_XOS=(
     "${CFG_DIR}/kernelBigGSMerger_compile.cfg" \
     "${BUILD_DIR}/kernelBigGSMerger.${TARGET}.${PLATFORM}.xo" \
     "${REGRAPH_ROOT}/acc_template/kernel_big_gs_merger/kernel_big_gs_merger.cpp"
+  printf 'v++ --target %q --compile %s --config %q -I%q -o %q %q\n' \
+    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${CFG_DIR}/pma_completion_barrier_compile.cfg" \
+    "${HLS_INCLUDE_ETC}" \
+    "${BUILD_DIR}/pma_completion_barrier.${TARGET}.xo" \
+    "${GRI_ROOT}/kernels/pma_completion_barrier/pma_completion_barrier.cpp"
   printf 'v++ --target %q --compile %s --config %q -I%q -o %q %q\n' \
     "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
     "${HLS_INCLUDE_ETC}" \

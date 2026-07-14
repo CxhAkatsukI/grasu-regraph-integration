@@ -234,12 +234,14 @@ def source_contains(path: Path, needles: list[str]) -> bool:
 def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     host = repo / "tools/pure_pipeline_host.cpp"
     adapter = repo / "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
+    barrier = repo / "kernels/pma_completion_barrier/pma_completion_barrier.cpp"
     prepare = repo / "scripts/prepare_pure_hw_pipeline_build.sh"
     return {
         "single_context_program": {
             "ok": source_contains(host, [
                 "cl::Context context(device",
                 "cl::Program program(context",
+                "cl::Kernel barrier(program",
                 "cl::Kernel adapter(program",
                 "cl::Kernel lksg(program",
                 "cl::Kernel apply(program",
@@ -258,18 +260,23 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
         },
         "completion_token_barrier": {
             "ok": source_contains(prepare, [
-                "process_cache_1.completion_token:pma_to_regraph_adapter_1.done0",
-                "process_ddr_1.completion_token:pma_to_regraph_adapter_1.done1",
-                "process_cache_2.completion_token:pma_to_regraph_adapter_1.done2",
-                "process_ddr_2.completion_token:pma_to_regraph_adapter_1.done3",
-            ]) and source_contains(adapter, [
-                "wait_for_completion",
-                "(void)done0.read()",
+                "process_cache_1.completion_token:pma_completion_barrier_1.done0",
+                "process_ddr_1.completion_token:pma_completion_barrier_1.done1",
+                "process_cache_2.completion_token:pma_completion_barrier_1.done2",
+                "process_ddr_2.completion_token:pma_completion_barrier_1.done3",
+                "pma_completion_barrier_1.done_out:pma_to_regraph_adapter_1.done",
+            ]) and source_contains(barrier, [
+                "pma_completion_barrier",
+                "done0.read()",
                 "(void)done1.read()",
                 "(void)done2.read()",
                 "(void)done3.read()",
+                "done_out.write(out)",
+            ]) and source_contains(adapter, [
+                "wait_for_completion",
+                "(void)done.read()",
             ]),
-            "paths": [display_path(repo, prepare), display_path(repo, adapter)],
+            "paths": [display_path(repo, prepare), display_path(repo, barrier), display_path(repo, adapter)],
         },
         "adapter_to_regraph_stream": {
             "ok": source_contains(prepare, [
@@ -292,11 +299,12 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
         "timing_fields": {
             "ok": source_contains(host, [
                 "grasu_ms=",
-                "barrier_ms=NA",
+                "barrier_ms=",
                 "adapter_ms=",
                 "lksg_ms=",
                 "apply_ms=",
                 "event_e2e_ms=",
+                "timing.barrier_ms = event_duration_ms(barrier_event)",
             ]),
             "path": display_path(repo, host),
         },
@@ -417,7 +425,8 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             status_if_hw_valid(hw_valid, source_barrier, sw_valid),
             [
                 "scripts/prepare_pure_hw_pipeline_build.sh stream_connect completion_token lines",
-                "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp done0..done3 reads",
+                "kernels/pma_completion_barrier/pma_completion_barrier.cpp done0..done3 reads",
+                "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp single barrier-token read",
             ],
             [] if hw_valid else ["barrier is source/sw_emu-proven; needs hw_emu/hw validation"],
         ),
@@ -495,7 +504,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
                 proofs["timing_fields"]["path"],
                 targets["sw_emu"]["smoke_summary"]["path"],
             ],
-            [] if all_targets_valid else ["barrier is currently recorded as NA; hw_emu/hw timing evidence is missing"],
+            [] if all_targets_valid else ["source records a profiled barrier event; rebuilt sw_emu/hw_emu/hw timing evidence is still missing"],
         ),
         requirement(
             9,

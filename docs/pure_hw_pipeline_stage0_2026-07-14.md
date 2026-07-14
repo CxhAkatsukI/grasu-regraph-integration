@@ -190,9 +190,9 @@ Key implementation fixes made during this milestone:
 - The adapter now decodes GraSU `row_offset[src]` as packed
   `[begin, end]` 64-bit metadata instead of treating adjacent entries as raw CSR
   offsets.
-- The adapter has a `wait_for_completion` scalar. Step 0 waits for the four
-  GraSU PMA writer tokens; later SSSP supersteps replay the already-stable PMA
-  graph without waiting for one-shot tokens.
+- The adapter has a `wait_for_completion` scalar. Step 0 waits for a single
+  batch-complete token from `pma_completion_barrier`; later SSSP supersteps
+  replay the already-stable PMA graph without waiting for one-shot tokens.
 - The host runner uses one OpenCL context/program/xclbin for GraSU, adapter,
   and ReGraph. It passes the same PMA buffers from GraSU into the adapter, so
   there is no graph D2H, host graph conversion, or graph H2D between GraSU and
@@ -713,6 +713,89 @@ The status count is unchanged, but requirement 6 now has concrete `V=65536`
 prepare evidence. Its remaining gap is specifically pure `hw_emu/hw` boundary
 execution.
 
+## Profiled Completion Barrier Slice
+
+The initial pure-pipeline runner waited for the four GraSU PMA writer tokens
+inside `pma_to_regraph_adapter`, which made `barrier_ms` unmeasurable as a
+separate XRT event. The current source splits this into an independent
+`pma_completion_barrier` kernel:
+
+```text
+process_cache_1.completion_token \
+process_ddr_1.completion_token   -> pma_completion_barrier -> adapter.done
+process_cache_2.completion_token /
+process_ddr_2.completion_token  /
+```
+
+The host now creates `pma_completion_barrier:{pma_completion_barrier_1}` from
+the same OpenCL program/context, enqueues it once after GraSU launch, and records
+its event duration as `barrier_ms`. The adapter still has
+`wait_for_completion`; step 0 consumes the single barrier token, while later
+supersteps do not wait for one-shot GraSU tokens.
+
+Source files:
+
+```text
+kernels/pma_completion_barrier/pma_completion_barrier.cpp
+kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp
+tools/pure_pipeline_host.cpp
+scripts/prepare_pure_hw_pipeline_build.sh
+```
+
+Lightweight checks:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/check_pma_to_regraph_adapter.sh \
+  --out-dir .tmp_build/pma_to_regraph_adapter_check_barrier_stage0
+./scripts/check_pma_completion_barrier.sh \
+  --out-dir .tmp_build/pma_completion_barrier_check_stage0
+./scripts/build_pure_pipeline_host.sh \
+  --out-dir .tmp_build/pure_pipeline_host_stage0
+```
+
+Evidence:
+
+```text
+c9276647c887c5fb74ed2ff0ab0d83cacde9c99e1ca6607b8966332810b69412  .tmp_build/pma_to_regraph_adapter_check_barrier_stage0/SHA256SUMS
+770531712948d91584d245d2ecbe3ea5626ac758b5ba34713047a91f4c0e2ece  .tmp_build/pma_completion_barrier_check_stage0/SHA256SUMS
+d44e9d7781fad21b60f48fb0d27abbefd3f5d9d130f0086ec19ff306e609c65d  .tmp_build/pure_pipeline_host_stage0/pure_pipeline_host
+```
+
+Regenerated `hw_emu` command script hashes:
+
+```text
+a54e25ce4253e4dccc02f66f8d92ffaefe2b63975ca768c4c3ebcc22bd5ab110  .tmp_build/pure_pipeline_hw_emu_stage0/compile_commands.sh
+e8ba03b8f222ed81b411db3b279007a761f33e909b9799dfff86bb2a4888d971  .tmp_build/pure_pipeline_hw_emu_stage0/link_command.sh
+```
+
+The generated link config now contains:
+
+```text
+stream_connect=process_cache_1.completion_token:pma_completion_barrier_1.done0:16
+stream_connect=process_ddr_1.completion_token:pma_completion_barrier_1.done1:16
+stream_connect=process_cache_2.completion_token:pma_completion_barrier_1.done2:16
+stream_connect=process_ddr_2.completion_token:pma_completion_barrier_1.done3:16
+stream_connect=pma_completion_barrier_1.done_out:pma_to_regraph_adapter_1.done:16
+```
+
+Requirement audit after this source change:
+
+```text
+7caf88893f1f6c555ed5cf552fac71a33e6a2b9ea8c585117d9310e0cf342ce4  audit.json
+f9e994492feb3047f5364a17441403ec85b5cbb5514c3d2e4a4e9ab5bc645b84  audit.md
+
+proven: 1
+partial: 8
+blocked_by_missing_artifact: 1
+```
+
+The audit count is unchanged because rebuilt `sw_emu/hw_emu/hw` xclbins are
+still missing. The important difference is that requirement 8 now has a
+source-level profiled barrier event; the next validation step is to rebuild and
+rerun the pure-pipeline smoke so `barrier_ms` becomes measured evidence instead
+of source intent.
+
 ## Post-Build Finalization
 
 After a pure-pipeline xclbin is produced, run the finalization wrapper. It
@@ -854,6 +937,8 @@ Planned dataflow:
 GraSU bin_search/dispatch
   -> process_cache_1/process_cache_2/process_ddr_1/process_ddr_2
   -> four completion tokens
+  -> pma_completion_barrier
+  -> one batch-complete token
   -> pma_to_regraph_adapter
   -> AXI4-Stream edge_burst_dt, 8 edges/burst
   -> ReGraph littleKernelScatterGather stream-input variant
@@ -908,21 +993,35 @@ GraSU kernel changes:
 
 Adapter kernel:
 
-- New HLS kernel, likely owned by this integration repository or patched into
-  a scratch build tree.
+- Integration-owned HLS kernel:
+  `kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp`.
 - Inputs:
   - four PMA `m_axi` ports, same device buffers as GraSU's `data_device_1..4`
   - `row_offset` device buffer
-  - `node_count`, `pma_slot_count`, `source_vertex`
-  - four completion-token AXI streams
+  - `node_count`, `pma_slot_count`, `max_cache_segment`
+  - one batch-complete AXI stream from `pma_completion_barrier`
 - Output:
   - AXI4-Stream edge bursts carrying 8 edges/burst
 - HLS semantics:
-  - read all four completion tokens before scanning PMA
+  - read the single barrier token before scanning PMA when
+    `wait_for_completion=1`
   - use `#pragma HLS PIPELINE II=1` on the burst emission loop
   - use fixed 512-bit stream payload compatible with `edge_burst_dt`
   - pack unit weight as `1`
   - mark dummy lanes with bit 31 in src or encoded dst
+
+PMA completion barrier:
+
+- Integration-owned HLS kernel:
+  `kernels/pma_completion_barrier/pma_completion_barrier.cpp`.
+- Inputs:
+  - four AXI4-Stream completion-token inputs, one from each GraSU PMA writer
+- Output:
+  - one AXI4-Stream batch-complete token to the adapter
+- HLS semantics:
+  - blocking-read all four writer tokens
+  - emit exactly one output token after all four have arrived
+  - expose an independent XRT event so host timing can record `barrier_ms`
 
 ReGraph kernel changes:
 

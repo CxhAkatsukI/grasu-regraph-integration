@@ -96,6 +96,7 @@ struct PreparedGraSU {
 
 struct Timing {
     double grasu_ms = 0.0;
+    double barrier_ms = 0.0;
     double adapter_ms = 0.0;
     double lksg_ms = 0.0;
     double apply_ms = 0.0;
@@ -534,6 +535,8 @@ int main(int argc, char **argv)
         check_cl(err, "create process_ddr_1");
         cl::Kernel process_ddr_2(program, "process_ddr:{process_ddr_2}", &err);
         check_cl(err, "create process_ddr_2");
+        cl::Kernel barrier(program, "pma_completion_barrier:{pma_completion_barrier_1}", &err);
+        check_cl(err, "create pma_completion_barrier");
         cl::Kernel adapter(program, "pma_to_regraph_adapter:{pma_to_regraph_adapter_1}", &err);
         check_cl(err, "create pma_to_regraph_adapter");
         cl::Kernel lksg(program, "lksg_stream:{lksg_stream_1}", &err);
@@ -709,6 +712,13 @@ int main(int argc, char **argv)
                         dispatch_event, bs1_event, bs2_event, bs3_event, bs4_event};
         all_events.insert(all_events.end(), grasu_events.begin(), grasu_events.end());
 
+        cl::Event barrier_event;
+        std::cout << "PURE_PIPELINE_HOST stage=enqueue_barrier" << std::endl;
+        check_cl(pipeline_queue.enqueueTask(barrier, nullptr, &barrier_event),
+                 "enqueue pma_completion_barrier");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_barrier" << std::endl;
+        all_events.push_back(barrier_event);
+
         for (unsigned step = 0; step < supersteps; ++step) {
             check_cl(hbm.setArg(0, *read_props[0]), "set hbm src_prop_1");
             check_cl(hbm.setArg(1, *read_props[1]), "set hbm src_prop_2");
@@ -789,6 +799,7 @@ int main(int argc, char **argv)
         auto wall_end = std::chrono::high_resolution_clock::now();
 
         timing.grasu_ms = event_union_ms(grasu_events);
+        timing.barrier_ms = event_duration_ms(barrier_event);
         timing.event_e2e_ms = event_union_ms(all_events);
         timing.wall_ms = std::chrono::duration<double, std::milli>(wall_end - wall_begin).count();
 
@@ -812,7 +823,7 @@ int main(int argc, char **argv)
 
         std::cout << "PURE_PIPELINE_TIMING"
                   << " grasu_ms=" << std::fixed << std::setprecision(6) << timing.grasu_ms
-                  << " barrier_ms=NA"
+                  << " barrier_ms=" << timing.barrier_ms
                   << " adapter_ms=" << timing.adapter_ms
                   << " lksg_ms=" << timing.lksg_ms
                   << " apply_ms=" << timing.apply_ms
