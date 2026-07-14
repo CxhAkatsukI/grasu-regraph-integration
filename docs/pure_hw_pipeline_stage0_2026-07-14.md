@@ -5005,3 +5005,52 @@ ecb1cd91bec4380fcfa1ba455e933a501abfe0a68891b0bf65e279466f9e3f0e  .tmp_build/pur
 d3de705fb96e8bd79986e33c8f100ed668ab941eee6a02a903f2293f129cce84  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_a92b784/audit/audit.json
 491a6930f02873d4a835581e8a3c41f07031af1c953d746b138903daf8b48738  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_a92b784/audit/audit.json
 ```
+
+## Audit-visible source fingerprints
+
+As of 2026-07-15 03:53 Asia/Shanghai, the requirement audit also exposes the
+latest launch-packet source fingerprint and the original start-state source
+fingerprint in its Key Artifacts table. This means the compact audit and
+evidence bundle now carry enough source-hash evidence for the non-git ReGraph
+tree without requiring the reader to inspect launch packets manually.
+
+Changed files:
+
+```text
+scripts/audit_pure_pipeline_status.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile scripts/audit_pure_pipeline_status.py
+
+./scripts/audit_pure_pipeline_status.py \
+  --label source_fp_audit_check \
+  --out-dir results/pure_pipeline_requirement_audit_source_fp_check
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_source_fp_check/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_source_fp_check
+```
+
+Result:
+
+```text
+status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+latest_launch_packet_source_fingerprints=yes
+start_state_source_fingerprints=yes
+latest launch packet source_fingerprints sha256=1c2f9851b24fc2b60f7d0ff57c99624c62dc321be8232c4883fd4c1871446d81
+start state source_fingerprints sha256=bd2880f6857bdfb446f81d0313bdc0ad453d1a6b9143a1b6ee536b678de8c0aa
+```
+
+Evidence hashes:
+
+```text
+f0b552702afee3c982bcd3ad559fc807589ecfdc3afc45701a7100c3fbd935d5  scripts/audit_pure_pipeline_status.py
+1e4e5614af59128c251a327ba867956b4c9fe635906295b62d30257ac6bba9e8  results/pure_pipeline_requirement_audit_source_fp_check/audit.json
+85738c0e6c4695953c50e16a902bad7deae4643ad4590f8bca93edafe8257888  results/pure_pipeline_requirement_audit_source_fp_check/audit.md
+a9bc995acb3d481037a7a86e769a0f86b54dfb3796aa6fbcc220c7eb4f350808  results/pure_pipeline_evidence_bundle_source_fp_check/artifact_matrix.tsv
+8afbdc468b3c62fe077e5cd0354d6f28cd6a669bb54f83b1095f2b92aa549831  results/pure_pipeline_evidence_bundle_source_fp_check/summary.md
+```
