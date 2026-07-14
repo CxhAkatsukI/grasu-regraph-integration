@@ -566,6 +566,43 @@ latest_compile_log=compile_dryrun_fa17c35.log
 latest_link_log=MISSING
 ```
 
+## Requirement Audit Snapshot
+
+The current hard-requirement status can be regenerated with:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 scripts/audit_pure_pipeline_status.py \
+  --out-dir results/pure_pipeline_requirement_audit_276d040
+```
+
+This audit reads the existing smoke summaries, xclbin paths, command scripts,
+build/finalize evidence, and source-level stream/barrier checks. It writes:
+
+```text
+results/pure_pipeline_requirement_audit_276d040/audit.json
+results/pure_pipeline_requirement_audit_276d040/audit.md
+
+cc8c085f5ce2f147c3337c9053dff7ccd55098b150c859d36aa5bd7d0c8a0572  audit.json
+5fdd78a17c7241879ae72c6cd8bcccfda53c7454f1dad939302b5b14bc48d4f1  audit.md
+```
+
+Current audit status counts:
+
+```text
+proven: 1
+partial: 8
+blocked_by_missing_artifact: 1
+```
+
+The only fully proven hard requirement at this point is preserving the accepted
+host baseline and zero-cost handoff baseline on identical smoke inputs. The
+main blocked item is the final cross-target correctness matrix: `sw_emu` passes
+all four smoke families, but pure-pipeline `hw_emu` and `hw` xclbins, smoke
+summaries, and final timing evidence are still missing. The audit result is
+local under ignored `results/`; rerun it after each new build/finalize step to
+refresh hashes and statuses.
+
 ## Post-Build Finalization
 
 After a pure-pipeline xclbin is produced, run the finalization wrapper. It
