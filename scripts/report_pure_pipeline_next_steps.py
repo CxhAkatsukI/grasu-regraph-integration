@@ -153,6 +153,18 @@ def target_xclbin(repo: Path, target: str) -> Path:
     )
 
 
+def newest_readiness(run_logs: Path, allow_active: bool | None = None) -> Path | None:
+    candidates = list(run_logs.glob("readiness*.txt"))
+    if allow_active is not None:
+        marker = f"allow_active_builders={1 if allow_active else 0}"
+        candidates = [
+            path
+            for path in candidates
+            if marker in path.read_text(encoding="ascii", errors="replace")
+        ]
+    return newest(candidates)
+
+
 def target_state(
     repo: Path,
     target: str,
@@ -162,8 +174,12 @@ def target_state(
     build_root = repo / ".tmp_build" / f"pure_pipeline_{target}_stage0"
     run_logs = build_root / "run_logs"
     xclbin = target_xclbin(repo, target)
-    readiness = newest(list(run_logs.glob("readiness*.txt")))
+    readiness = newest_readiness(run_logs)
+    strict_readiness = newest_readiness(run_logs, allow_active=False)
+    allow_active_readiness = newest_readiness(run_logs, allow_active=True)
     readiness_values = parse_kv_file(readiness)
+    strict_readiness_values = parse_kv_file(strict_readiness)
+    allow_active_readiness_values = parse_kv_file(allow_active_readiness)
     target_flow_env = newest(list(run_logs.glob("target_flow_*.env")))
     target_flow_values = parse_kv_file(target_flow_env)
     target_flow_head = target_flow_values.get("git_head")
@@ -187,9 +203,16 @@ def target_state(
         "xclbin_sha256": sha256(xclbin),
         "xclbin_size_bytes": xclbin.stat().st_size if xclbin.is_file() else None,
         "latest_readiness": rel(repo, readiness) if readiness else None,
+        "latest_readiness_allow_active_builders": readiness_values.get("allow_active_builders"),
         "latest_readiness_ready": readiness_values.get("ready"),
         "latest_readiness_blocking_count": readiness_values.get("blocking_count"),
         "latest_readiness_warning_count": readiness_values.get("warning_count"),
+        "latest_strict_readiness": rel(repo, strict_readiness) if strict_readiness else None,
+        "latest_strict_readiness_ready": strict_readiness_values.get("ready"),
+        "latest_strict_readiness_blocking_count": strict_readiness_values.get("blocking_count"),
+        "latest_allow_active_readiness": rel(repo, allow_active_readiness) if allow_active_readiness else None,
+        "latest_allow_active_readiness_ready": allow_active_readiness_values.get("ready"),
+        "latest_allow_active_readiness_blocking_count": allow_active_readiness_values.get("blocking_count"),
         "latest_target_flow_env": rel(repo, target_flow_env) if target_flow_env else None,
         "latest_target_flow_git_head": target_flow_head,
         "latest_target_flow_matches_head": target_flow_matches_head,
@@ -319,7 +342,7 @@ def print_text(report: dict[str, Any]) -> None:
     print(f"dirty={str(report['dirty']).lower()}")
     print()
     print("targets")
-    print("target\txclbin\tsha256\treadiness_ready\tflow_current\tlatest_readiness")
+    print("target\txclbin\tsha256\treadiness_ready\tstrict_ready\tstrict_blockers\tflow_current\tlatest_readiness")
     for state in report["targets"]:
         if state["latest_flow_matches_current"] is None:
             flow_current = ""
@@ -331,6 +354,8 @@ def print_text(report: dict[str, Any]) -> None:
                 "yes" if state["xclbin_exists"] else "no",
                 state["xclbin_sha256"] or "",
                 state["latest_readiness_ready"] or "",
+                state["latest_strict_readiness_ready"] or "",
+                state["latest_strict_readiness_blocking_count"] or "",
                 flow_current,
                 state["latest_readiness"] or "",
             ])

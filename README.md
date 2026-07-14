@@ -206,7 +206,10 @@ xclbins, active Vitis/Vivado builders, and the next target-flow command:
 The `flow_current` column shows whether the latest target-flow evidence for a
 target matches the current build-relevant source fingerprints. Documentation-only
 commits do not invalidate it; `no` means the next target-flow invocation should
-refresh prelaunch evidence before relying on it.
+refresh prelaunch evidence before relying on it. The `readiness_ready` column
+uses the newest readiness report, which may allow active external builders;
+`strict_ready` and `strict_blockers` show the newest strict launch-precheck view
+with `allow_active_builders=0`.
 
 Current reproducible target flow:
 
