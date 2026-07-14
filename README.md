@@ -199,6 +199,9 @@ completion-token, AXI stream, timing, and boundary-preparation contract check:
 Current reproducible target flow:
 
 ```bash
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label after_$(git rev-parse --short HEAD)
 ./scripts/check_pure_pipeline_source_contracts.py \
   --label pre_hwemu_$(git rev-parse --short HEAD)
 ./scripts/check_pure_pipeline_build_readiness.sh --target hw_emu
