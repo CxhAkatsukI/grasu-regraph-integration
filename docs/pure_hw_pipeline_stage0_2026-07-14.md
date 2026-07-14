@@ -2447,3 +2447,87 @@ b84333fbc2d1f76ffabf17003ea5b32ec0fef988a9391149241de8d26bcf8a6c  results/pure_p
 8d93158e7b336541922b75ee161af060509ca3efb559084e6bb50989bb3674f9  results/pure_pipeline_evidence_bundle_boundary_after_7025789/summary.md
 7533a3bfb1f4329b81dcc32eeff958a550c34fd7a3bd571cbb9df42695bd7752  results/pure_pipeline_evidence_bundle_boundary_after_7025789/target_matrix.tsv
 ```
+
+## 2026-07-15 Current-Head Readiness Refresh
+
+After the boundary prepare documentation commit, the current code/documentation
+HEAD is:
+
+```text
+346fa5926ce66bc94c91eddf43ee5ea8f0f913c8
+```
+
+The current pure-pipeline hardware status is still:
+
+```text
+.tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin  exists
+.tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin  missing
+.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin          missing
+```
+
+Refresh command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_20260715_010014_external_spine_active_after_346fa59
+```
+
+The command exited `3` after writing readiness, audit, and bundle evidence.
+The only readiness blocker is still the external Spine hardware build; no
+pure-pipeline Vitis/Vivado process was active.
+
+```text
+target  xclbin  smoke  readiness  blocking  related  external  external_breakdown
+hw      no      no     no         1         0        10        total=10 v++=2 vivado=4 vpl=2 vrs=2
+hw_emu  no      no     no         1         0        10        total=10 v++=2 vivado=4 vpl=2 vrs=2
+sw_emu  yes     yes    n/a        n/a       n/a      n/a       n/a
+```
+
+The external Spine link is still under:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0024
+```
+
+It has not yet produced:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0024/xclbin/spine_partitioned_split_e2e.hw.xclbin
+```
+
+The link is not stuck: the Vitis log advanced through synthesis and logic
+optimization into placement:
+
+```text
+[00:29:37] Run vpl: Step synth: Completed
+[00:41:43] Finished 2nd of 6 tasks (FPGA linking synthesized kernels to platform).
+[00:44:44] Finished 3rd of 6 tasks (FPGA logic optimization).
+[00:44:44] Starting logic placement..
+[00:56:20] Phase 2.5 Global Placement Core
+```
+
+Next command once external builders are gone:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_346fa59 \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Evidence hashes:
+
+```text
+3c5cac69d4d145697707fccd8dd2a8faa94f5b2ce87d05fb3b6e51410e43117b  results/pure_pipeline_evidence_bundle_refresh_20260715_010014_external_spine_active_after_346fa59/summary.md
+2dbdf3ef04700fdb61eb0f0d62b6a40eeea5035ed8e7100b06fad0bf2c8f65c3  results/pure_pipeline_evidence_bundle_refresh_20260715_010014_external_spine_active_after_346fa59/target_matrix.tsv
+783212db8ed7d6e7101b89d990a0b0a770a4da152918a056b4a4c9d6285111d9  results/pure_pipeline_requirement_audit_refresh_20260715_010014_external_spine_active_after_346fa59/audit.md
+41f5ec28d791e0fb94a7c774e18054a4240f66daec67d25135bd697f0839428c  results/pure_pipeline_requirement_audit_refresh_20260715_010014_external_spine_active_after_346fa59/audit.json
+776a01e29573e63abddcf0fd07f2b5ac5deb38eacf3584ec3bcdd23d2c6c130f  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_20260715_010014_external_spine_active_after_346fa59.txt
+ee3205ef6141afb514506d0770abdc8eaafbd5d0a7a722d623d54e0d848f1122  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_20260715_010014_external_spine_active_after_346fa59.txt
+```
