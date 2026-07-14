@@ -758,6 +758,34 @@ partial: 8
 blocked_by_missing_artifact: 1
 ```
 
+Current boundary rerun after the idle-guard/audit-command updates:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_prepare_check.sh \
+  --preset boundary \
+  --out-dir results/pure_pipeline_prepare_boundary_after_ca20b9c \
+  --timeout 120
+```
+
+Evidence:
+
+```text
+ca20b9c9689a199d49054b7c24b60e876b2412c4  source commit
+
+2dea9d5ad149e6c71162f8e05329e6bcbfb6761b58649bac909009c6bd7fb65e  results/pure_pipeline_prepare_boundary_after_ca20b9c/summary.tsv
+d1488c75cec604da265ae2515b35080084daafcfcbfc16a55ad64c7b56555dea  results/pure_pipeline_prepare_boundary_after_ca20b9c/run.env
+e8110d3b222ab35f3ca27a646128e4b864d6dbfd5450dacc79e0ee6f23170a62  workloads/sssp_benchmark_boundary/manifest.tsv
+cb40efbffe3a091be8a8bffe03c2ee364c794a2cddb315a0571601b38c2cad5d  .tmp_build/pure_pipeline_host_stage0/pure_pipeline_host
+```
+
+Result:
+
+```text
+boundary_star_v65536_u4096    PASS V=65536 final_edges=69632 pma_slots=1052672 row_offset_words=65537 binary_segments=65792
+boundary_spread_v65536_u4096  PASS V=65536 final_edges=69632 pma_slots=1048576 row_offset_words=65537 binary_segments=65536
+```
+
 ## Profiled Completion Barrier Slice
 
 The initial pure-pipeline runner waited for the four GraSU PMA writer tokens
