@@ -186,3 +186,20 @@ Collect the current start-state evidence:
 ```bash
 ./scripts/collect_pure_hw_start_state.sh
 ```
+
+Current reproducible target flow:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_$(git rev-parse --short HEAD) \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Run the same wrapper with `--target hw` after `hw_emu` passes. The wrapper
+records the build parameters, waits for other Vitis/Vivado jobs to become idle,
+monitors the build output, runs a staged smoke gate, then emits the requirement
+audit.

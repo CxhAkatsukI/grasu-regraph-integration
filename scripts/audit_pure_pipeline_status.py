@@ -556,7 +556,9 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         artifact(repo, "boundary_prepare_run_env", boundary_prepare_env),
         artifact(repo, "latest_hw_emu_build_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_*_evidence.tsv")),
         artifact(repo, "latest_hw_emu_finalize_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_*_evidence.tsv")),
+        artifact(repo, "latest_hw_emu_target_flow_env", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_*.env")),
         artifact(repo, "latest_hw_emu_monitor", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_*.txt")),
+        artifact(repo, "latest_hw_target_flow_env", newest_glob(repo, ".tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_*.env")),
         artifact(repo, "latest_hw_finalize_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_stage0/run_logs/finalize_*_evidence.tsv")),
     ]
     for target in TARGETS:
