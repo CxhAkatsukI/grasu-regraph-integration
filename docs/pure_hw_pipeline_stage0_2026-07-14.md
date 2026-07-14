@@ -6242,3 +6242,124 @@ bacd1ad697cfee4a7e37c8fb60a57fcbd8f42743a72b8c3a0fba5e0987086a4e  .tmp_build/pur
 0942c78c94a6470662c0ce85ab7e67be4459b9587362865edb47d2d047e3632d  results/pure_pipeline_evidence_bundle_prelaunch_after_7d227b7_sourcefp/summary.md
 80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  results/pure_pipeline_evidence_bundle_prelaunch_after_7d227b7_sourcefp/source_proof_matrix.tsv
 ```
+
+## Current Commit Launch Packets
+
+As of commit `55803b333f086a8901a954c54c30145fa9c793ed`, launch packets were
+generated for both remaining hardware targets. These packets do not start
+Vitis. They record the exact target-flow commands, source fingerprints, source
+contracts, readiness reports, acceptance gates, and evidence bundle paths.
+
+The machine still has an unrelated Spine hardware link in progress. Strict
+readiness therefore fails on `active_builders`; the launch packets below were
+created with `--allow-active-builders` so the prelaunch packet can be recorded
+without pretending that a new long build should start immediately. The generated
+target-flow command still waits for idle Vitis/Vivado resources before launching
+the real build.
+
+Packet creation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label after_55803b3 \
+  --label hw_emu_after_55803b3_allow_active \
+  --allow-active-builders
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw \
+  --flow-label after_55803b3 \
+  --label hw_after_55803b3_allow_active \
+  --allow-active-builders
+```
+
+Generated launch commands:
+
+```bash
+/home/chuxiao/grasu-regraph-integration/.tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/launch_command.sh
+/home/chuxiao/grasu-regraph-integration/.tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/launch_command.sh
+```
+
+Equivalent command lines:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_55803b3 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label after_55803b3 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Prelaunch result:
+
+```text
+hw_emu source_contract_status=0
+hw_emu readiness_status=0
+hw_emu acceptance_status_counts={"PASS": 4, "PENDING": 9}
+hw_emu readiness_warnings=2
+
+hw source_contract_status=0
+hw readiness_status=0
+hw acceptance_status_counts={"PASS": 4, "PENDING": 9}
+hw readiness_warnings=1
+```
+
+Current xclbin state is unchanged:
+
+```text
+sw_emu xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+hw_emu xclbin=no
+hw xclbin=no
+```
+
+Readiness still records unrelated external builders:
+
+```text
+active_builder_breakdown=external total=10 v++=2 vivado=4 vpl=2 vrs=2
+external build path=/data/feiyang/spine-dynamic-graph-builds/restore_tiny_active_hw_exact_20260714_0740/link_133_exact_final_retry
+```
+
+Evidence hashes:
+
+```text
+ddd0ce95e5a12c07258408a62f778c0a15e7c6dad743cb1490034b3ef9ea8c3f  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/README.md
+56c76e08fd00c5401967640cd553719767cda1b2230c2015da3cffa3d6097e7a  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/launch_command.sh
+a198b983e18d2ee77620bff1813eebf8dff0079c6d4dc082ccc394a380b19a80  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/launch_packet.env
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/source_contracts.tsv
+f6ce92f699bf37cfcc6db5237e561ef506fe7bf685348b7f746b783180f64533  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/source_fingerprints.tsv
+e12aaa1dfd651ba4a37615ef536c3fe3f3a7b3a5c018b69952608d299caa1649  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/readiness_hw_emu.txt
+364f5056e08add413962019449a9daea0cf418094872636e125488d698fe4752  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/acceptance_gates.tsv
+1dc7db5adbfe68eaab02fe64d34347d6d0e7cb001c0ee33d66c204d39a4e3c3c  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/acceptance_check_prelaunch.tsv
+98a76e2c02c810bf57c755362a0f1fc368cec51e4a773ad868e524c38a2073ad  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/audit/audit.json
+9ef40a32419f8be49fd8e7a57559591a82ae9be13e57bd467f450a8bee273534  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/evidence_bundle/summary.md
+80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_55803b3_allow_active/evidence_bundle/source_proof_matrix.tsv
+1621a78e23b4602633e3a88463f2ed048da78313051bb3e48543b0015dbcdfee  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/README.md
+e2930bffc0458de91be4a6d12bb3731855d23f25894172a55df04ebc08cb4995  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/launch_command.sh
+f82cca20c829e558409c6bc21ea8ce4143e5f4a136b5cc7c1fba8aa274e4c5a6  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/launch_packet.env
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/source_contracts.tsv
+f6ce92f699bf37cfcc6db5237e561ef506fe7bf685348b7f746b783180f64533  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/source_fingerprints.tsv
+710a1fded9deb884833dfa49ae9a465440113ab5aed750e66669758ba663edff  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/readiness_hw.txt
+c920a575455d4f8cc5fd04bd037d485b9804c6a146b210a36d0492368a756fea  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/acceptance_gates.tsv
+92feff7379c1bb23af218fdaf96f2ae1faa9b00d40b486788b971aaf202946a1  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/acceptance_check_prelaunch.tsv
+ea71cb126f3abe0b9673a6c8c4f0672747030f6bb2207cb99017bab8da1f724a  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/audit/audit.json
+97de6eb3dee8837587473c5f884a9569ab38d304068735759dd918e44b00dde7  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/evidence_bundle/summary.md
+80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/evidence_bundle/source_proof_matrix.tsv
+```
