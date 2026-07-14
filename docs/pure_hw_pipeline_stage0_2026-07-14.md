@@ -4808,3 +4808,93 @@ d93ceb08a06a370f7450cc93b01727b92bfd9ab81ad93d22a7173d4d02381d31  .tmp_build/pur
 034d0451f121b83e2c70999702b283e91bf2aff120b77b487aea50caf66d6d5c  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_1f233c0/evidence_bundle/summary.md
 6a21e4473c26cab0bcc8becce02eb50fec9e6246fd26da98a064dfa020485008  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_1f233c0/evidence_bundle/target_matrix.tsv
 ```
+
+## HW launch packet preflight
+
+As of 2026-07-15 03:42 Asia/Shanghai, the same launch-packet path was checked
+for the final `hw` target. This still does not start Vitis. It regenerates the
+`hw` compile/link/config/manifest scripts, verifies the source contracts, writes
+strict readiness to the target `run_logs`, and exports a packet-local audit and
+evidence bundle.
+
+Validation command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw \
+  --label launch_packet_hw_after_3f318c3 \
+  --flow-label after_3f318c3
+```
+
+Result:
+
+```text
+target=hw
+integration_head=3f318c37f7dce6e7c8d8e1e4564a63d90b45cd24
+integration_tracked_dirty=clean
+prepare_pure_hw_pipeline_build.sh ran before checks
+source_contract_status=0
+readiness_status=3
+audit_status=0
+bundle_status=0
+source_contracts required_count=11 failed_count=0
+hw readiness ready=no blocking_count=1 warning_count=0
+external builders=total=10 v++=2 vivado=4 vpl=2 vrs=2
+hw build_artifacts=PASS children=0 clean_recommended=no
+hw xclbin=MISSING
+launch_packet_exit=3
+```
+
+The packet-generated audit records:
+
+```text
+latest_hw_readiness=.tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_launch_packet_hw_after_3f318c3.txt
+sha256=7e525b327add07b1cbe65d68a7cabeb9569ad4a3b89a342f6cefb096320b3ad4
+```
+
+Launch command captured in the packet:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label after_3f318c3 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Artifacts:
+
+```text
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/README.md
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/launch_command.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/launch_packet.env
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/artifact_hashes.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/source_contracts.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/readiness_hw.txt
+.tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_launch_packet_hw_after_3f318c3.txt
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/audit/audit.json
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/evidence_bundle/summary.md
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/evidence_bundle/target_matrix.tsv
+```
+
+Evidence hashes:
+
+```text
+4398a751bc0de6ca275e61a3082b2b76ffad89f632d3583fe365ac8ab5c273e7  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/README.md
+d2bb3b0c36f218d0535569fb71bfcf5dc8000dcace0d7b09a0aba36570aaf673  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/launch_command.sh
+a9b53d431f498193b9439a80046df2d3fb07d5fd889beede9955f2ec5b9b2758  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/launch_packet.env
+fb28765e2efcd8df9dd32562b9674ac580f4c4acfdedb7bfe8f6d1c06bc93d1f  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/artifact_hashes.tsv
+572e419a9a0b213f94f43e4cc57bdc50815a4a2ad577fe2384d802a284f25123  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/source_contracts.tsv
+7e525b327add07b1cbe65d68a7cabeb9569ad4a3b89a342f6cefb096320b3ad4  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/readiness_hw.txt
+7e525b327add07b1cbe65d68a7cabeb9569ad4a3b89a342f6cefb096320b3ad4  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_launch_packet_hw_after_3f318c3.txt
+3c7047d539caff8749053a0ada770229ef0521684971f892de0697fc668bc7c1  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/audit/audit.json
+3e8ff410a5635376aed5a3bc086ce04ddfce20b63e75dd2ec254b80b9f3474df  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/evidence_bundle/summary.md
+4ff50764cdb9bc9271cf46d5b2f3979c9ab4a18f162d780be7c0991c44b07439  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_3f318c3/evidence_bundle/target_matrix.tsv
+```
