@@ -6700,3 +6700,125 @@ c4dfaa5d1cede4b55fb9d279b12367f95d6040d361917e315e9933b5bd88c376  .tmp_build/pur
 7d660471e0f94540dce77d35f5b53c6cef98b5b2310576c025e4a1f152a07c4a  .tmp_build/pure_pipeline_launch_packet_hw_after_dfa5b19_allow_active/evidence_bundle/summary.md
 e0608df5004c7b4ca72206f16bad5134c0e76955eeebe9cd6af154b0dfdbb111  .tmp_build/pure_pipeline_launch_packet_hw_after_dfa5b19_allow_active/evidence_bundle/target_matrix.tsv
 ```
+
+## Fingerprint Sidecar Validation
+
+As of 2026-07-15 Asia/Shanghai, the prelaunch acceptance gate for
+`source_fingerprints` verifies more than the summary TSV. For each role in
+`source_fingerprints.tsv`, it now checks:
+
+- the row status is `present`;
+- `tree_sha256` is a 64-character sha256 digest;
+- the sibling `<role>.files` list exists and is non-empty;
+- the sibling `<role>.sha256s` list exists and is non-empty;
+- `sha256(<role>.sha256s)` equals the row's `tree_sha256`.
+
+This matters because `/home/chuxiao/ReGraph` is not currently a git repository.
+The launch packet still records `regraph_head=not_git`, but the ReGraph source
+used by the pure pipeline is now guarded by deterministic file-level sidecar
+hashes for:
+
+```text
+regraph_acc_template
+regraph_acc_udfs
+regraph_host_src
+```
+
+Changed file:
+
+```text
+scripts/check_pure_pipeline_acceptance_gates.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/check_pure_pipeline_acceptance_gates.py \
+  scripts/check_pure_pipeline_source_contracts.py \
+  scripts/report_pure_pipeline_next_steps.py
+
+./scripts/check_pure_pipeline_acceptance_gates.py \
+  --acceptance-gates .tmp_build/pure_pipeline_launch_packet_hw_emu_after_dfa5b19_allow_active/acceptance_gates.tsv \
+  --mode prelaunch \
+  --out-file /tmp/acceptance_hw_emu_fingerprint_sidecars.tsv
+
+./scripts/check_pure_pipeline_acceptance_gates.py \
+  --acceptance-gates .tmp_build/pure_pipeline_launch_packet_hw_after_dfa5b19_allow_active/acceptance_gates.tsv \
+  --mode prelaunch \
+  --out-file /tmp/acceptance_hw_fingerprint_sidecars.tsv
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label fingerprint_sidecar_acceptance \
+  --out-file /tmp/source_contracts_fingerprint_sidecar_acceptance.tsv
+```
+
+Observed acceptance detail for both existing launch packets:
+
+```text
+source_fingerprints PASS 9 source fingerprints present with sidecar hashes
+source_contracts PASS 17 required source-contract proofs ok
+readiness PASS
+launch_command PASS
+prelaunch status_counts={"PASS": 4, "PENDING": 9}
+```
+
+Because this changed a build-relevant script, the no-build target-flow evidence
+was refreshed for both remaining targets:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label prelaunch_after_f782ca0_fingerprint_sidecars \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label prelaunch_after_f782ca0_fingerprint_sidecars \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Observed current status after the refresh:
+
+```text
+hw_emu xclbin=no readiness_ready=yes strict_ready=no strict_blockers=1 flow_current=yes
+hw xclbin=no readiness_ready=yes strict_ready=no strict_blockers=1 flow_current=yes
+active_builders=related:0 external:10
+```
+
+No long Vitis compile/link was started. The hardware status is unchanged:
+`sw_emu` has the only pure-pipeline xclbin, and pure `hw_emu` / `hw` xclbins
+are still missing.
+
+Evidence hashes:
+
+```text
+b485169fc7b2fa12c7eee413f01915b2efe8a54f97e05a9f44804bf806cc7310  scripts/check_pure_pipeline_acceptance_gates.py
+fc882c0e785c05f97c3ee8d61e60d7ca9f735f01d50481673465a845c336a4a3  /tmp/acceptance_hw_emu_fingerprint_sidecars.tsv
+5ee17506974c89d0cef4e5dcf3089862d69e265282a697a4c049c058c9e4056e  /tmp/acceptance_hw_fingerprint_sidecars.tsv
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  /tmp/source_contracts_fingerprint_sidecar_acceptance.tsv
+bd8a453da89c96355fb6ce85cb70420020c636cd90380a787998057c587ec3df  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_f782ca0_fingerprint_sidecars.env
+953db5ee1a229b8e2e419a5db3c81780fc8d63f5cceda59861198bc8003ea643  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_fingerprints_target_flow_prelaunch_after_f782ca0_fingerprint_sidecars.tsv
+061809e1ac98b7de925b759d4de1cd835cf136151fb0c37baa2671250fb2de23  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_check_prelaunch_target_flow_prelaunch_after_f782ca0_fingerprint_sidecars.tsv
+aa5a9684a6def8cc1e234e78f6af35159ea8ee252d1d550e75920978f628b68f  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_f782ca0_fingerprint_sidecars.env
+953db5ee1a229b8e2e419a5db3c81780fc8d63f5cceda59861198bc8003ea643  .tmp_build/pure_pipeline_hw_stage0/run_logs/source_fingerprints_target_flow_prelaunch_after_f782ca0_fingerprint_sidecars.tsv
+132acf5b7a169bd5b7d46411be5fed6885bbdce86ceba7e17105c4d6695118b3  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_check_prelaunch_target_flow_prelaunch_after_f782ca0_fingerprint_sidecars.tsv
+8315c5c1fa11c697d9efbed4e23260fe491b48d8d6fdbcc4bc8800e94e888e81  results/pure_pipeline_requirement_audit_prelaunch_after_f782ca0_fingerprint_sidecars/audit.json
+fdcc479b8d4be97ad944f6bc0db17439c041a86e3d8cc6b65be8efd3413a0e5a  results/pure_pipeline_evidence_bundle_prelaunch_after_f782ca0_fingerprint_sidecars/summary.md
+291702bbaeae55b8506b617124492849d79b9fc50b6edd76d18d0ea8898a2e15  results/pure_pipeline_evidence_bundle_prelaunch_after_f782ca0_fingerprint_sidecars/target_matrix.tsv
+```

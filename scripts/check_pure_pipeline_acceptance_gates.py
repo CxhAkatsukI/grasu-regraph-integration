@@ -74,17 +74,24 @@ def check_source_fingerprints(path: Path) -> tuple[bool, str]:
     if not ok:
         return ok, detail
     rows = read_tsv(path)
-    bad = [
-        row.get("role", "")
-        for row in rows
-        if row.get("status") != "present"
-        or not re.fullmatch(r"[0-9a-f]{64}", row.get("tree_sha256", ""))
-    ]
     if not rows:
         return False, "no fingerprint rows"
+    bad: list[str] = []
+    for row in rows:
+        role = row.get("role", "")
+        tree_sha = row.get("tree_sha256", "")
+        if row.get("status") != "present" or not re.fullmatch(r"[0-9a-f]{64}", tree_sha):
+            bad.append(role or "<missing-role>")
+            continue
+        files_path = path.parent / f"{role}.files"
+        hashes_path = path.parent / f"{role}.sha256s"
+        files_ok, _ = file_ready(files_path)
+        hashes_ok, _ = file_ready(hashes_path)
+        if not files_ok or not hashes_ok or sha256(hashes_path) != tree_sha:
+            bad.append(role or "<missing-role>")
     if bad:
         return False, "bad fingerprint rows=" + ",".join(bad)
-    return True, f"{len(rows)} source fingerprints present"
+    return True, f"{len(rows)} source fingerprints present with sidecar hashes"
 
 
 def check_source_contracts(path: Path) -> tuple[bool, str]:
