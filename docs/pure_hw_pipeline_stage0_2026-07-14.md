@@ -1896,3 +1896,37 @@ dc69273dd308b9e0726ea7a569e13893229a61c63c5fd6747bc2bdfeba8ef488  results/pure_p
 6d39b35c43183a24911d155f0d8fd34f66bcafab8af1396dc211bd9d8d048208  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_d9a27f0_xsimdet.txt
 ca842e695a318f4399e862a1fff172fd85f6750844380e00769c63cf2b7c99bb  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_d9a27f0_xsimdet.txt
 ```
+
+Clean post-commit refresh for code HEAD `c25d7f9`:
+
+```bash
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_after_c25d7f9
+```
+
+The audit reports:
+
+```text
+branch=codex/pure-hw-pipeline
+head=c25d7f972c1991e28f730275652c89d4688e671a
+dirty=false
+```
+
+The readiness conclusion is unchanged: both pending targets are blocked only by
+active external builders, with `19` unrelated Vitis/Vivado/XSim processes
+counted.
+
+```text
+target  xclbin  smoke  readiness  blocking  related  external  build_gb  tmp_gb
+hw      no      no     no         1         0        19        217.6     2.2
+hw_emu  no      no     no         1         0        19        217.6     2.2
+sw_emu  yes     yes    n/a        n/a       n/a      n/a       n/a       n/a
+```
+
+```text
+a6cab633efa287b2df48020cad042408dc61f2b778a01bb3e5a9daae4280a845  results/pure_pipeline_evidence_bundle_refresh_after_c25d7f9/summary.md
+32c3fc11fe3528a7f05c1b2f893b968f192e93c2250a9bd18e51082dd1461998  results/pure_pipeline_evidence_bundle_refresh_after_c25d7f9/target_matrix.tsv
+72357f76a9b8eb46eaaed2324fb56e984a51e9f161069188615b421b5673b7bc  results/pure_pipeline_requirement_audit_refresh_after_c25d7f9/audit.md
+d789eb02f596772f11445100b7d58ab1e564703f0b9ca98dbae69955057584cd  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_c25d7f9.txt
+c05521f32553bcb81c3c053d5e5860db30fa64950086b5671d1f3d8c5d05df1e  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_c25d7f9.txt
+```
