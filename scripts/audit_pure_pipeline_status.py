@@ -651,6 +651,28 @@ def host_runtime_matches_generated_config(repo: Path) -> dict[str, Any]:
     }
 
 
+def target_flow_exports_evidence_bundle(repo: Path) -> dict[str, Any]:
+    target_flow = repo / "scripts/run_pure_pipeline_target_flow.sh"
+    return {
+        "ok": source_contains(target_flow, [
+            "SKIP_BUNDLE=0",
+            "--skip-bundle",
+            'if [[ "${SKIP_AUDIT}" == "1" ]]; then',
+            "SKIP_BUNDLE=1",
+            'BUNDLE_OUT="${GRI_ROOT}/results/pure_pipeline_evidence_bundle_${LABEL}"',
+            "printf 'skip_bundle=%s\\n' \"${SKIP_BUNDLE}\"",
+            "printf 'bundle_out=%s\\n' \"${BUNDLE_OUT}\"",
+            "export_pure_pipeline_evidence_bundle.py",
+            '--audit "${AUDIT_OUT}/audit.json"',
+            '--out-dir "${BUNDLE_OUT}"',
+            'echo "DONE bundle_out=${BUNDLE_OUT}"',
+            'echo "DONE bundle_out=SKIPPED"',
+        ]),
+        "path": display_path(repo, target_flow),
+        "contract": "target flow records bundle_out and exports the compact evidence bundle after audit, while skip-audit suppresses bundle export",
+    }
+
+
 def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     host = repo / "tools/pure_pipeline_host.cpp"
     adapter = repo / "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
@@ -840,6 +862,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
         },
         "target_build_scripts_cover_pure_pipeline": target_build_scripts_cover_pure_pipeline(repo),
         "host_runtime_matches_generated_config": host_runtime_matches_generated_config(repo),
+        "target_flow_exports_evidence_bundle": target_flow_exports_evidence_bundle(repo),
     }
 
 
@@ -941,6 +964,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     source_stream_contract = proofs["stream_burst_8_edge_contract"]["ok"]
     source_unit = proofs["unit_weight_sssp_packing"]["ok"]
     source_timing = proofs["timing_fields"]["ok"]
+    source_target_flow_bundle = proofs["target_flow_exports_evidence_bundle"]["ok"]
 
     baseline_ok = (
         host["all_expected_pass"]
@@ -1081,15 +1105,26 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         requirement(
             10,
             "Build commands, source hash, xclbin hash, logs, and results are reproducible",
-            "proven" if all_targets_valid else "partial",
+            "proven" if all_targets_valid and source_target_flow_bundle else "partial",
             [
                 f"git_head={git_head}",
                 targets["hw_emu"]["compile_commands"]["path"],
                 targets["hw_emu"]["link_command"]["path"],
                 targets["hw"]["compile_commands"]["path"],
                 targets["hw"]["link_command"]["path"],
+                proofs["target_flow_exports_evidence_bundle"]["contract"],
             ],
-            [] if all_targets_valid else ["hw_emu/hw xclbin hashes, full build logs, and final smoke results are missing"],
+            (
+                []
+                if all_targets_valid and source_target_flow_bundle else
+                [
+                    gap for gap in [
+                        None if source_target_flow_bundle else "target-flow evidence bundle export proof is missing",
+                        None if all_targets_valid else "hw_emu/hw xclbin hashes, full build logs, and final smoke results are missing",
+                    ]
+                    if gap is not None
+                ]
+            ),
         ),
     ]
 

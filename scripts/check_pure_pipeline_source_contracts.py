@@ -30,6 +30,7 @@ DEFAULT_REQUIRED_PROOFS = (
     "prepare_only_boundary_mode",
     "target_build_scripts_cover_pure_pipeline",
     "host_runtime_matches_generated_config",
+    "target_flow_exports_evidence_bundle",
 )
 
 

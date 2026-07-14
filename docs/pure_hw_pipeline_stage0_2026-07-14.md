@@ -5603,3 +5603,66 @@ c5981b4b492278c6805872d3233823c55858cf525be392bea3150ba170c85773  results/pure_p
 e297c02d8ad59dcddbde9e4c97a4b76bad54a6a0704eeed57f98e3f8881457da  results/pure_pipeline_evidence_bundle_target_flow_bundle_final_check/case_target_matrix.tsv
 04b72490368e173a7615f17104d5ebd5fb143690b3138ecea6f702ea9ffc0316  results/pure_pipeline_evidence_bundle_target_flow_bundle_final_check/bundle_manifest.json
 ```
+
+## Source proof for target-flow bundle export
+
+As of 2026-07-15 04:30 Asia/Shanghai, the source-contract gate also verifies
+that the target-flow wrapper records `bundle_out` and exports the compact
+evidence bundle after audit. This makes requirement 10's result-path
+reproducibility stronger: a long `hw_emu` or `hw` target-flow run is now gated
+on leaving both the audit and evidence-bundle paths in a predictable place.
+
+Changed files:
+
+```text
+scripts/audit_pure_pipeline_status.py
+scripts/check_pure_pipeline_source_contracts.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/check_pure_pipeline_source_contracts.py \
+  scripts/export_pure_pipeline_evidence_bundle.py
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label target_flow_bundle_proof_check \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_target_flow_bundle_proof_check.tsv
+
+./scripts/audit_pure_pipeline_status.py \
+  --label target_flow_bundle_proof_check \
+  --out-dir results/pure_pipeline_requirement_audit_target_flow_bundle_proof_check
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_target_flow_bundle_proof_check/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_target_flow_bundle_proof_check
+```
+
+Result:
+
+```text
+required_count=14
+failed_count=0
+proof=target_flow_exports_evidence_bundle ok=yes
+requirement_10_status=partial
+status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+```
+
+Requirement 10 remains partial only because `hw_emu` and `hw` xclbin hashes,
+full build logs, and final smoke results are still missing.
+
+Evidence hashes:
+
+```text
+8eab5ea86fdb57aab5554135a43ee8b736689042d3ac9fc19ccbffd276caf98e  scripts/audit_pure_pipeline_status.py
+f54c7b529dbe4c9f2d95860b8d1fd12fb5ec4497d16bd51a0fec4ee0e13851dd  scripts/check_pure_pipeline_source_contracts.py
+e56ee7c8735a81058d4854034e5c0e4967f2c8632cece952e893b47df2d0f967  .tmp_build/pure_pipeline_source_contracts/source_contracts_target_flow_bundle_proof_check.tsv
+56a393865dd5c8663c2616d72be226e3c444f7553599e3b5ba3a4a92e07993dc  results/pure_pipeline_requirement_audit_target_flow_bundle_proof_check/audit.json
+0c37af14a51134b4fcf80320c5b46d47e96b549bcb1c18c0c1499864c73363d6  results/pure_pipeline_requirement_audit_target_flow_bundle_proof_check/audit.md
+2f4e301e501a475a61805914d86fc3b36e7a43a3bfe6eb573998af4252834ae5  results/pure_pipeline_evidence_bundle_target_flow_bundle_proof_check/source_proof_matrix.tsv
+f4a951160a9759ea968089704fff35dc4b84b52ea4456bab2f78b7774000dba7  results/pure_pipeline_evidence_bundle_target_flow_bundle_proof_check/requirement_matrix.tsv
+9560d0e929d8e692b97e482599d6bd01183bb697dab5f19b45494753d0bee6da  results/pure_pipeline_evidence_bundle_target_flow_bundle_proof_check/summary.md
+```
