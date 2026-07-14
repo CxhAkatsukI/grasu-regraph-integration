@@ -251,6 +251,21 @@ def artifact_rows(audit: dict[str, Any]) -> list[dict[str, str]]:
     return rows
 
 
+def source_proof_rows(audit: dict[str, Any]) -> list[dict[str, str]]:
+    rows = []
+    for name, proof in sorted(audit.get("source_proofs", {}).items()):
+        paths = proof.get("paths")
+        if paths is None:
+            paths = [proof.get("path", "")]
+        rows.append({
+            "proof": str(name),
+            "ok": "yes" if proof.get("ok") else "no",
+            "contract": str(proof.get("contract", "")),
+            "paths": "; ".join(str(path) for path in paths if path),
+        })
+    return rows
+
+
 def case_rows(comparison_path: Path | None) -> list[dict[str, str]]:
     rows = read_tsv(comparison_path)
     compact_columns = [
@@ -308,6 +323,7 @@ def write_summary_md(
         "notes",
     ]
     req_columns = ["id", "status", "requirement", "gaps"]
+    proof_columns = ["proof", "ok", "contract", "paths"]
     target_columns = [
         "target",
         "xclbin_exists",
@@ -345,6 +361,10 @@ def write_summary_md(
         "## Requirements",
         "",
         markdown_table(req_columns, requirements),
+        "",
+        "## Source Proofs",
+        "",
+        markdown_table(proof_columns, source_proof_rows(audit)),
         "",
         "## Smoke Cases",
         "",
@@ -389,6 +409,7 @@ def main() -> int:
     requirements = requirement_rows(audit)
     targets = target_rows(repo, audit)
     artifacts = artifact_rows(audit)
+    source_proofs = source_proof_rows(audit)
     cases = case_rows(comparison_path)
 
     out_dir = args.out_dir
@@ -428,6 +449,7 @@ def main() -> int:
         "readiness_tmp_free_gb",
     ])
     write_tsv(out_dir / "artifact_matrix.tsv", artifacts, ["name", "exists", "sha256", "size_bytes", "path"])
+    write_tsv(out_dir / "source_proof_matrix.tsv", source_proofs, ["proof", "ok", "contract", "paths"])
     write_tsv(out_dir / "case_matrix.tsv", cases, [
         "case",
         "family",
@@ -468,6 +490,7 @@ def main() -> int:
                 "requirement_matrix.tsv",
                 "target_matrix.tsv",
                 "artifact_matrix.tsv",
+                "source_proof_matrix.tsv",
                 "case_matrix.tsv",
                 "summary.md",
             )

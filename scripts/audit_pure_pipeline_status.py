@@ -262,6 +262,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     host = repo / "tools/pure_pipeline_host.cpp"
     adapter = repo / "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
     barrier = repo / "kernels/pma_completion_barrier/pma_completion_barrier.cpp"
+    lksg_stream = repo / "kernels/regraph_stream_little_gs/little_gs_stream.cpp"
     prepare = repo / "scripts/prepare_pure_hw_pipeline_build.sh"
     return {
         "single_context_program": {
@@ -284,6 +285,20 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
                 "adapter.setArg(4, row_dev[0])",
             ]),
             "path": display_path(repo, host),
+        },
+        "pma_row_offset_begin_end_contract": {
+            "ok": source_contains(host, [
+                "(graph.row_offset[i] << 32)",
+                "graph.row_offset[i + 1]",
+                "prepared.row_offsets[copy][i] = packed",
+            ]) and source_contains(adapter, [
+                "begin = packed.range(63, 32)",
+                "end = packed.range(31, 0)",
+                "unpack_row_bounds(row_offset[src], begin, end)",
+                "unpack_row_bounds(row_offset[node_count - 1], last_begin, total_slots)",
+            ]),
+            "paths": [display_path(repo, host), display_path(repo, adapter)],
+            "contract": "host packs row_offset[src] as begin[63:32], end[31:0]; adapter decodes the same fields",
         },
         "completion_token_barrier": {
             "ok": source_contains(prepare, [
@@ -312,6 +327,24 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
                 "#pragma HLS INTERFACE axis port=edge_burst_out",
             ]),
             "paths": [display_path(repo, prepare), display_path(repo, adapter)],
+        },
+        "stream_burst_8_edge_contract": {
+            "ok": source_contains(adapter, [
+                "typedef ap_axiu<512, 0, 0, 0> edge_burst_pkt_t",
+                "const unsigned base = lane * 64",
+                "pkt.data.range(base + 31, base) = src",
+                "pkt.data.range(base + 63, base + 32) = dst",
+                "for (unsigned lane = 0; lane < 8; ++lane)",
+            ]) and source_contains(lksg_stream, [
+                "typedef ap_axiu<512, 0, 0, 0> edge_burst_pkt_t",
+                "for (int lane = 0; lane < NUM_EDGE_PER_BURST; lane++)",
+                "const int base = lane * 64",
+                "burst.edges[lane].src = pkt.data.range(base + 31, base)",
+                "burst.edges[lane].dst = pkt.data.range(base + 63, base + 32)",
+                "part_edge_num >> LOG2_NUM_EDGE_PER_BURST",
+            ]),
+            "paths": [display_path(repo, adapter), display_path(repo, lksg_stream)],
+            "contract": "512-bit AXI packet, 64 bits per edge record, 8 edge lanes per burst",
         },
         "unit_weight_sssp_packing": {
             "ok": source_contains(adapter, [
@@ -419,6 +452,8 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     source_barrier = proofs["completion_token_barrier"]["ok"]
     source_actual_pma = proofs["adapter_receives_actual_pma_buffers"]["ok"]
     source_stream = proofs["adapter_to_regraph_stream"]["ok"]
+    source_row_bounds = proofs["pma_row_offset_begin_end_contract"]["ok"]
+    source_stream_contract = proofs["stream_burst_8_edge_contract"]["ok"]
     source_unit = proofs["unit_weight_sssp_packing"]["ok"]
     source_timing = proofs["timing_fields"]["ok"]
 
@@ -455,30 +490,33 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         requirement(
             3,
             "Adapter reads actual GraSU PMA, not expected edge files",
-            status_if_hw_valid(hw_valid, source_actual_pma, sw_valid),
+            status_if_hw_valid(hw_valid, source_actual_pma and source_row_bounds, sw_valid),
             [
                 proofs["adapter_receives_actual_pma_buffers"]["path"],
                 "adapter args 0..3 are pma_dev[0..3], arg 4 is row_dev[0]",
+                proofs["pma_row_offset_begin_end_contract"]["contract"],
             ],
             [] if hw_valid else ["needs pure hw_emu/hw smoke to prove the same path beyond sw_emu"],
         ),
         requirement(
             4,
             "Adapter and ReGraph use AXI4-Stream at 8 edges/cycle steady width",
-            status_if_hw_valid(hw_valid, source_stream, sw_valid),
+            status_if_hw_valid(hw_valid, source_stream and source_stream_contract, sw_valid),
             [
                 "ap_axiu<512> edge_burst_pkt_t",
                 "8 lanes per burst in adapter lane loop",
                 "adapter edge_burst_out connects to lksg_stream edge_burst_in",
+                proofs["stream_burst_8_edge_contract"]["contract"],
             ],
             [] if hw_valid else ["needs linked hw_emu/hw xclbin evidence for the stream connection"],
         ),
         requirement(
             5,
             "No graph D2H, host conversion, or graph H2D between GraSU and ReGraph",
-            status_if_hw_valid(hw_valid, source_actual_pma and source_stream, sw_valid),
+            status_if_hw_valid(hw_valid, source_actual_pma and source_row_bounds and source_stream, sw_valid),
             [
                 proofs["adapter_receives_actual_pma_buffers"]["path"],
+                proofs["pma_row_offset_begin_end_contract"]["contract"],
                 "pure sw_emu summary passes without GraSU edge export files",
             ],
             [] if hw_valid else ["host baseline still exists separately; pure hw path needs hw_emu/hw smoke"],
@@ -654,6 +692,18 @@ def write_markdown(repo: Path, path: Path, audit: dict[str, Any]) -> None:
             summary["path"],
         ])
 
+    proof_rows = []
+    for name, proof in sorted(audit["source_proofs"].items()):
+        paths = proof.get("paths")
+        if paths is None:
+            paths = [proof.get("path", "")]
+        proof_rows.append([
+            name,
+            "yes" if proof.get("ok") else "no",
+            str(proof.get("contract", "")),
+            "<br>".join(str(path) for path in paths if path),
+        ])
+
     artifact_rows = []
     for item in audit["artifacts"]:
         artifact_rows.append([
@@ -684,6 +734,10 @@ def write_markdown(repo: Path, path: Path, audit: dict[str, Any]) -> None:
         "## Target Matrix",
         "",
         markdown_table(["target", "xclbin_exists", "xclbin_sha256", "smoke_pass", "smoke_summary"], target_rows),
+        "",
+        "## Source Proofs",
+        "",
+        markdown_table(["proof", "ok", "contract", "path"], proof_rows),
         "",
         "## Key Artifacts",
         "",
