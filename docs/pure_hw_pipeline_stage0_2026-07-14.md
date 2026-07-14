@@ -8150,3 +8150,150 @@ The older combined hardware xclbin is still present, but it is not the current
 pure-hardware pipeline artifact:
   .tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin
 ```
+
+## Current HW_EMU/HW Launch Packets, 2026-07-15
+
+As of 2026-07-15 07:01 Asia/Shanghai, the current integration HEAD has fresh
+launch packets for both `hw_emu` and `hw`. These packets do not start Vitis;
+they regenerate target compile/link/config scripts, record source fingerprints,
+run source-contract checks, run readiness checks, and write the exact long-build
+command that should be launched next.
+
+Current HEAD:
+
+```text
+b46051cf246848b74080c7844cadc71e5034ad78
+```
+
+Regenerate the packets:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label after_b46051c \
+  --label launch_packet_hw_emu_after_b46051c_allow_active \
+  --allow-active-builders
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw \
+  --flow-label after_b46051c \
+  --label launch_packet_hw_after_b46051c_allow_active \
+  --allow-active-builders
+```
+
+`hw_emu` launch command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b46051c_allow_active/launch_command.sh
+```
+
+Equivalent expanded command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_b46051c \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+`hw` launch command, to use after `hw_emu` passes:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b46051c_allow_active/launch_command.sh
+```
+
+Equivalent expanded command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label after_b46051c \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Prelaunch status:
+
+```text
+hw_emu:
+  source_contracts: PASS, 17 required proofs ok
+  readiness:        PASS, ready=yes, warning_count=2
+  acceptance:       PASS prelaunch, PASS=4, PENDING=9
+  current xclbin:   missing
+
+hw:
+  source_contracts: PASS, 17 required proofs ok
+  readiness:        PASS, ready=yes, warning_count=1
+  acceptance:       PASS prelaunch, PASS=4, PENDING=9
+  current xclbin:   missing
+```
+
+The `PENDING` acceptance rows are expected before the long build runs: compile
+log, link log, target xclbin, xclbin contract, gate smoke, full smoke,
+same-input compare, requirement audit, and evidence bundle.
+
+Important readiness notes:
+
+```text
+hw_emu build_artifacts: WARN, old children exist and --clean-build-artifacts is recommended.
+hw build_artifacts:     PASS, no old children.
+external builders:      2 Vivado processes from the unrelated Spine physopt run.
+strict_ready:           no while those external Vivado processes are active.
+```
+
+Read-only next-step report:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/report_pure_pipeline_next_steps.py
+```
+
+Observed report summary:
+
+```text
+next_target=hw_emu
+next_action=build
+packet_current=yes
+next_commands=.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b46051c_allow_active/launch_command.sh
+```
+
+Evidence hashes:
+
+```text
+ac7651647ef4561198891945349646c70f111b6a9c1e92aa0779a1cce5243b3d  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b46051c_allow_active/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b46051c_allow_active/source_contracts.tsv
+f980ea3eabe8cc3d65548ea521078ea48661c6f6dcd404a2d2a1df056bcb0a59  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b46051c_allow_active/source_fingerprints.tsv
+f8842b232b4e5537eafb22fa26b6402d49bfaf0996261c9b46b5d8d4a578f7d8  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b46051c_allow_active/readiness_hw_emu.txt
+b7da95c4399a8c51f31e1d9372fd207a27b0ae1ee76c0e831d76205ba71c0fb4  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b46051c_allow_active/acceptance_check_prelaunch.tsv
+b124d34c1f7d9e20321d57592d2701f5e2b4a71310dc8ffec5046c3741c15d1c  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b46051c_allow_active/artifact_hashes.tsv
+d72d8ca7272f7ee07b924979d2048894c0376bf2c3985ba427b17e80395a0235  .tmp_build/pure_pipeline_hw_emu_stage0/manifest.env
+163faf2095038f4c7e4b5074000943bfe30c1e3e78440224d7960becadf5dd18  .tmp_build/pure_pipeline_hw_emu_stage0/compile_commands.sh
+e8ba03b8f222ed81b411db3b279007a761f33e909b9799dfff86bb2a4888d971  .tmp_build/pure_pipeline_hw_emu_stage0/link_command.sh
+
+356c59468c23d457d0d1b87fd29d0109268a4db447634ca68540db09944c234e  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b46051c_allow_active/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b46051c_allow_active/source_contracts.tsv
+f980ea3eabe8cc3d65548ea521078ea48661c6f6dcd404a2d2a1df056bcb0a59  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b46051c_allow_active/source_fingerprints.tsv
+56ed97019e0024debe02a4a98d20163222a4ba8f5fe42ac97a06221b355808c0  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b46051c_allow_active/readiness_hw.txt
+6e8237b497d6cced5114af19d2686f15dd532191603b8f906f0ced3f529d3deb  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b46051c_allow_active/acceptance_check_prelaunch.tsv
+91e8c8bea74cd7e24c599257ecf4addd7d7e0e34549dc973c06a601129c99f6f  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b46051c_allow_active/artifact_hashes.tsv
+d00caa15c598658fadcabd7ac33a55968f2611e213fbbd55ebc46a2846bafe10  .tmp_build/pure_pipeline_hw_stage0/manifest.env
+c6f161389358532c001f217d433067c173ac3984b671e5f1a1fbfec19277a4cd  .tmp_build/pure_pipeline_hw_stage0/compile_commands.sh
+d6488813e0ed366a7fb0ef052b5c865f50190fe9ff9a37af3a6511336f1b6d1e  .tmp_build/pure_pipeline_hw_stage0/link_command.sh
+```
