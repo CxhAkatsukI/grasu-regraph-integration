@@ -1364,6 +1364,58 @@ cff1fdc08c277f141d12f5f9e0565ff949dd47c4222f0b6b78e94510e7d7d54e  scripts/audit_
 b60698a253e72a7bb1cc280611fe43c3f471397fd7e9305da8fb47fc65bf1a16  /tmp/pure_target_flow_dryrun_check.log
 ```
 
+Post-commit evidence after `da31403`:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_da31403 \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 45 \
+  --timeout 123 \
+  --dry-run
+./scripts/monitor_pure_pipeline_build.sh \
+  --target hw_emu \
+  --tail-lines 30 \
+  --out-file .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_after_da31403.txt
+./scripts/run_pure_pipeline_prepare_check.sh \
+  --preset boundary \
+  --out-dir results/pure_pipeline_prepare_boundary_after_da31403
+./scripts/audit_pure_pipeline_status.py \
+  --label after_da31403_boundary \
+  --out-dir results/pure_pipeline_requirement_audit_after_da31403_boundary
+```
+
+Results:
+
+```text
+status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+boundary_star_v65536_u4096   PASS  V=65536 updates=4096 final_edges=69632 supersteps=2
+boundary_spread_v65536_u4096 PASS  V=65536 updates=4096 final_edges=69632 supersteps=16
+```
+
+Evidence hashes:
+
+```text
+bd534ae7a921263233611146cef9ff0f5e1220f78cfae5a1a051ad836751f141  README.md
+5af426c6651d87bc89088d75c268ff399ccca7a0ea45739ccc986878c2b40944  scripts/audit_pure_pipeline_status.py
+8904d075df9f23fcc370481b636738ec38d1fa8991da3dfae223dce75c52849f  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_after_da31403.env
+43e7deae79cde4009f68e72e6013b591916f09e9172b10370f7439570f216ee2  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_after_da31403.txt
+9265b68c288a43df89ff016177c5656af551d2424cf2a02abe4f1f3fc35b3610  /tmp/pure_target_flow_after_da31403_dryrun.log
+2958bfda8096571a651fd8394756c54784e0d9a1e3679fdf98fe6ac2f14ed8a7  results/pure_pipeline_prepare_boundary_after_da31403/summary.tsv
+d102d8b5d165af32a3fb2a2f5d01dc6dc7edc1f2c3b173060360ba4e45707873  results/pure_pipeline_prepare_boundary_after_da31403/run.env
+6ed78a476294ed5c0ee5120b230d59b63fc88aa262de9e2e7811853e7b196981  results/pure_pipeline_requirement_audit_after_da31403_boundary/audit.json
+995214ab740654d6d0815e2e933ef9d4b90a83fca36c3af40aa9c11f1fdee7a1  results/pure_pipeline_requirement_audit_after_da31403_boundary/audit.md
+```
+
+The monitor found no matching pure-pipeline build process and no pure
+`hw_emu` xclbin. It did find active external Spine `hw` and `hw_emu`
+Vitis/Vivado jobs, so the pure `hw_emu` target flow should continue to wait for
+idle before starting the long build.
+
 ## Not Yet True
 
 The current baseline still has these gaps:
