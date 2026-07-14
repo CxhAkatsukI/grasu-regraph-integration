@@ -63,6 +63,15 @@ csv_contains_or_empty() {
   [[ -z "${list}" || ",${list}," == *",${value},"* ]]
 }
 
+sha_or_missing() {
+  local path="$1"
+  if [[ -f "${path}" ]]; then
+    sha256sum "${path}" | awk '{print $1}'
+  else
+    printf 'MISSING'
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
@@ -164,6 +173,8 @@ fi
   printf 'max_cases=%s\n' "${MAX_CASES}"
   printf 'xcl_emulation_mode=%s\n' "${XCL_EMULATION_MODE:-}"
   printf 'emconfig_path=%s\n' "${EMCONFIG_PATH:-}"
+  printf 'manifest_sha256='
+  sha256sum "${MANIFEST}" | awk '{print $1}'
   printf 'host_sha256='
   sha256sum "${HOST}" | awk '{print $1}'
   printf 'xclbin_sha256='
@@ -191,7 +202,39 @@ while IFS=$'\t' read -r case family vertices static_edges updates final_edges so
   fi
   selected=$((selected + 1))
 
+  case_dir="${OUT_DIR}/${case}"
+  mkdir -p "${case_dir}"
   log="${OUT_DIR}/${case}.log"
+  {
+    printf 'case=%s\n' "${case}"
+    printf 'family=%s\n' "${family}"
+    printf 'vertices=%s\n' "${vertices}"
+    printf 'static_edges=%s\n' "${static_edges}"
+    printf 'update_edges=%s\n' "${updates}"
+    printf 'final_edges=%s\n' "${final_edges}"
+    printf 'source=%s\n' "${source}"
+    printf 'supersteps=%s\n' "${supersteps}"
+    printf 'default_weight=%s\n' "${weight}"
+    printf 'manifest=%s\n' "${MANIFEST}"
+    printf 'manifest_sha256=%s\n' "$(sha_or_missing "${MANIFEST}")"
+    printf 'graph=%s\n' "${graph}"
+    printf 'graph_sha256=%s\n' "$(sha_or_missing "${graph}")"
+    printf 'result=%s\n' "${result}"
+    printf 'result_sha256=%s\n' "$(sha_or_missing "${result}")"
+    printf 'generated_regraph_sssp_edges=%s\n' "${regraph_edges}"
+    printf 'generated_regraph_sssp_edges_sha256=%s\n' "$(sha_or_missing "${regraph_edges}")"
+    printf 'expected=%s\n' "${expected}"
+    printf 'expected_sha256=%s\n' "$(sha_or_missing "${expected}")"
+    printf 'metadata=%s\n' "${metadata}"
+    printf 'metadata_sha256=%s\n' "$(sha_or_missing "${metadata}")"
+    printf 'target=%s\n' "${TARGET}"
+    printf 'host=%s\n' "${HOST}"
+    printf 'host_sha256=%s\n' "$(sha_or_missing "${HOST}")"
+    printf 'xclbin=%s\n' "${XCLBIN}"
+    printf 'xclbin_sha256=%s\n' "$(sha_or_missing "${XCLBIN}")"
+    printf 'log=%s\n' "${log}"
+  } > "${case_dir}/case.env"
+
   echo "running ${case} (${family}) source=${source} supersteps=${supersteps}"
   set +e
   timeout "${TIMEOUT_SECONDS}s" "${HOST}" "${XCLBIN}" "${graph}" "${result}" "${source}" "${supersteps}" \
@@ -207,6 +250,13 @@ while IFS=$'\t' read -r case family vertices static_edges updates final_edges so
   else
     failures=$((failures + 1))
   fi
+
+  {
+    printf 'exit_code=%s\n' "${rc}"
+    printf 'status=%s\n' "${status}"
+    printf 'result_line=%s\n' "${result_line}"
+    printf 'timing_line=%s\n' "${timing_line}"
+  } >> "${case_dir}/case.env"
 
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "${case}" "${family}" "${vertices}" "${updates}" "${final_edges}" \

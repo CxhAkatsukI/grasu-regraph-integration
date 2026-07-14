@@ -114,29 +114,46 @@ def main() -> int:
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--summary", type=Path, default=None)
     parser.add_argument("--out-file", type=Path, required=True)
+    parser.add_argument(
+        "--allow-subset",
+        action="store_true",
+        help="Check only cases present in the run root or summary instead of requiring all input_identity rows.",
+    )
     args = parser.parse_args()
 
     identity_rows = {row["case"]: row for row in read_tsv(args.input_identity)}
     report: list[dict[str, str]] = []
     run_root = args.run_root.resolve()
-    seen: set[str] = set()
+    run_cases = {path.name for path in run_root.iterdir() if path.is_dir()}
+    cases_from_summary = summary_cases(args.summary.resolve()) if args.summary is not None else set()
+    selected_cases = set(identity_rows)
+    if args.allow_subset:
+        selected_cases = (run_cases | cases_from_summary) & set(identity_rows)
+        if not selected_cases:
+            selected_cases = run_cases & set(identity_rows)
 
-    for case, identity in sorted(identity_rows.items()):
+    for case in sorted(selected_cases):
+        identity = identity_rows[case]
         case_env = run_root / case / "case.env"
         if not case_env.is_file():
             add_report(report, case, "case_env", False, f"missing {case_env}")
             continue
-        seen.add(case)
         add_report(report, case, "case_env", True, str(case_env))
         check_case(case, identity, read_env(case_env), report)
+
+    if not args.allow_subset:
+        missing = sorted(set(identity_rows) - selected_cases)
+        for case in missing:
+            add_report(report, case, "case_env", False, f"missing {run_root / case / 'case.env'}")
 
     extra_case_dirs = sorted(path.name for path in run_root.iterdir() if path.is_dir() and path.name not in identity_rows)
     for case in extra_case_dirs:
         add_report(report, case, "extra_case_dir", False, str(run_root / case))
 
     if args.summary is not None:
-        cases = summary_cases(args.summary.resolve())
-        for case in sorted(identity_rows):
+        cases = cases_from_summary
+        summary_expected = selected_cases if args.allow_subset else set(identity_rows)
+        for case in sorted(summary_expected):
             add_report(report, case, "summary_case", case in cases, str(args.summary))
         for case in sorted(cases - set(identity_rows)):
             add_report(report, case, "summary_extra_case", False, str(args.summary))

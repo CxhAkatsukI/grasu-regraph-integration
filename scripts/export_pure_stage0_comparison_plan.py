@@ -190,7 +190,9 @@ def plan_rows(label: str, manifest: Path) -> list[dict[str, str]]:
     host_identity = f"results/grasu_regraph_sssp_pure_stage0_identity_{label}"
     spine_out = f"results/spine_edge_file_pure_stage0_{label}"
     pure_gate_out = f"results/pure_pipeline_<target>_pure_stage0_gate_{label}"
+    pure_gate_identity = f"results/pure_pipeline_<target>_pure_stage0_gate_identity_{label}"
     pure_full_out = f"results/pure_pipeline_hw_pure_stage0_full_{label}"
+    pure_full_identity = f"results/pure_pipeline_hw_pure_stage0_identity_{label}"
     compare_out = f"results/pure_pipeline_hw_pure_stage0_compare_{label}"
     gate_cases = shell_cases(GATE_CASES)
     return [
@@ -257,6 +259,22 @@ def plan_rows(label: str, manifest: Path) -> list[dict[str, str]]:
         },
         {
             "step": "6",
+            "system": "pure-pipeline-gate-input-audit",
+            "target": "sw_emu|hw_emu|hw",
+            "requires_xclbin": "none",
+            "command": (
+                "python3 scripts/check_pure_stage0_input_identity.py "
+                f"--input-identity results/pure_stage0_comparison_plan_{label}/input_identity.tsv "
+                f"--run-root {pure_gate_out} "
+                f"--summary {pure_gate_out}/summary.tsv "
+                f"--out-file {pure_gate_identity}/input_identity_check.tsv "
+                "--allow-subset"
+            ),
+            "produces": f"{pure_gate_identity}/input_identity_check.tsv",
+            "same_input_contract": "Verifies the four-case gate subset against input_identity.tsv.",
+        },
+        {
+            "step": "7",
             "system": "pure-pipeline-full",
             "target": "hw",
             "requires_xclbin": "grasu_regraph_pure_pipeline.hw.xclbin",
@@ -268,7 +286,22 @@ def plan_rows(label: str, manifest: Path) -> list[dict[str, str]]:
             "same_input_contract": "Runs all 12 tracked pure_stage0 cases after gate passes.",
         },
         {
-            "step": "7",
+            "step": "8",
+            "system": "pure-pipeline-full-input-audit",
+            "target": "derived",
+            "requires_xclbin": "none",
+            "command": (
+                "python3 scripts/check_pure_stage0_input_identity.py "
+                f"--input-identity results/pure_stage0_comparison_plan_{label}/input_identity.tsv "
+                f"--run-root {pure_full_out} "
+                f"--summary {pure_full_out}/summary.tsv "
+                f"--out-file {pure_full_identity}/input_identity_check.tsv"
+            ),
+            "produces": f"{pure_full_identity}/input_identity_check.tsv",
+            "same_input_contract": "Verifies all 12 pure hw case.env hashes against input_identity.tsv.",
+        },
+        {
+            "step": "9",
             "system": "comparison",
             "target": "derived",
             "requires_xclbin": "none",
