@@ -539,6 +539,33 @@ The wrapper writes:
 .tmp_build/pure_pipeline_<target>_stage0/run_logs/link_<label>.log
 ```
 
+Monitor a long-running build with:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/monitor_pure_pipeline_build.sh \
+  --target hw_emu \
+  --tail-lines 20
+```
+
+Current monitor evidence:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_20260714_181831.txt
+sha256: 187208c542a0cf7377dc4ceff761e7bb99a0f626de6d7edd3612b8afd1cea510
+```
+
+Current monitor result:
+
+```text
+target=hw_emu
+out_xclbin=.../grasu_regraph_pure_pipeline.hw_emu.xclbin
+out_xclbin_status=MISSING
+matching_processes=none
+latest_compile_log=compile_dryrun_fa17c35.log
+latest_link_log=MISSING
+```
+
 ## Post-Build Finalization
 
 After a pure-pipeline xclbin is produced, run the finalization wrapper. It
