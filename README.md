@@ -196,6 +196,13 @@ completion-token, AXI stream, timing, and boundary-preparation contract check:
   --label refresh_after_$(git rev-parse --short HEAD)
 ```
 
+For a short read-only status check that prints the current pure-pipeline
+xclbins, active Vitis/Vivado builders, and the next target-flow command:
+
+```bash
+./scripts/report_pure_pipeline_next_steps.py
+```
+
 Current reproducible target flow:
 
 ```bash
