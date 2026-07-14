@@ -3745,3 +3745,103 @@ eee46991cf11ec216ea5aacba49cf7719b440e775af1b2f5b230b3f4daf9941c  results/pure_p
 c6df361e2ee6f3f612f6a5b36c69313d882ae6bd7ae122459ad0e5b4c2fd2a66  results/pure_pipeline_evidence_bundle_swemu_refresh_after_d2ae298/summary.md
 c1b53a11937264bc39ff0572a1fb06e55732728a388c7da55bd313217b33116b  results/pure_pipeline_evidence_bundle_swemu_refresh_after_d2ae298/target_matrix.tsv
 ```
+
+## 2026-07-15 HW_EMU Launch Packet
+
+A launch-packet helper was added so the next long `hw_emu` or `hw` attempt can
+start from a single reproducible preflight bundle. The helper does not start
+Vitis. It records source-contract status, build-readiness status, current
+artifact hashes, audit/evidence bundle paths, and the exact target-flow command
+to run after the machine is idle.
+
+Source commit:
+
+```text
+f6ccd4d3dfd7ae17d391f6441f0cb52bc6c1145c
+```
+
+Changed files:
+
+```text
+README.md
+scripts/create_pure_pipeline_launch_packet.sh
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n \
+  scripts/create_pure_pipeline_launch_packet.sh \
+  scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  scripts/run_pure_pipeline_target_flow.sh
+python3 -m py_compile \
+  scripts/check_pure_pipeline_source_contracts.py \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --label launch_packet_hwemu_after_f6ccd4d \
+  --flow-label after_f6ccd4d
+```
+
+Result:
+
+```text
+source_contract_status=0
+readiness_status=3
+audit_status=0
+bundle_status=0
+hw_emu xclbin=MISSING
+active_builders external=10
+launch_packet_exit=3
+```
+
+The nonzero launch-packet exit is expected in this snapshot: strict readiness
+still sees the unrelated Spine hardware link as active Vitis/Vivado work. The
+packet still produced all metadata and the exact launch command.
+
+Launch command captured in the packet:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_f6ccd4d \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Launch-packet artifacts:
+
+```text
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/README.md
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/launch_command.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/launch_packet.env
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/artifact_hashes.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/source_contracts.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/readiness_hw_emu.txt
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/audit/audit.json
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/evidence_bundle/summary.md
+```
+
+Evidence hashes:
+
+```text
+c9bc116ec5f0b648e77a4c80adc7454078bc2731e0c9ef881f1700c6e28b9828  scripts/create_pure_pipeline_launch_packet.sh
+83ea4a487f8ba7d335129bc293ee9d53a3bbdbecb66a23ffe032ebf03d13c63d  README.md
+3dcfaf774acf45aec2a0aa80b9e05a26e9443c0fa0bd33b0b5b21170deba25d4  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/README.md
+204a5889d3b429b5372b137f578b7e00e7aa837d2841ed79ea5bb9e1e3a9d6b6  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/launch_command.sh
+6cba6dfd318457cd40b956466dd0e711128aa395520ec036f3d10bc03d60f46f  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/launch_packet.env
+6c66e93ee2ad27c95169da4c51e73972c47fd9a01ed00163b5f30e7ceb02c833  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/artifact_hashes.tsv
+23899c69e5665beb9e624a9ecb4901444c286dd716fb77d3ac9d80f084a312fa  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/source_contracts.tsv
+dd10bd8729840e1a1c8a59e9c2dd59b8c156f73f7724bc7dc65daee83bcb8608  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/readiness_hw_emu.txt
+fc92e105b0413af9c66ba4a26344bd012726833af3ec8aa8fcc23b5bdc10e6cf  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/audit/audit.json
+fb4cfc29d58744d933a248b4146b762db364cc921abe3b127937b312637d58f8  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_f6ccd4d/evidence_bundle/summary.md
+```
