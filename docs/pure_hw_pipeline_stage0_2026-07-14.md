@@ -5225,3 +5225,68 @@ c7fef7d742e4594d0d08e45c398e7755ef699411cacfee003fef7e14f7ea890c  results/pure_p
 e7981da5154cc8970bdcbf005e1afd0d7e01d74651581a7760a1a9187db314e1  results/pure_pipeline_evidence_bundle_no_host_handoff_check/requirement_matrix.tsv
 cf28102ad34bb361209fc1d2dccc17a134ed2054de983eac99490d071cbac121  results/pure_pipeline_evidence_bundle_no_host_handoff_check/summary.md
 ```
+
+## Source proof for GraSU writer completion tokens
+
+As of 2026-07-15 04:04 Asia/Shanghai, the source-contract gate also verifies
+that the GraSU PMA writer kernels themselves emit completion tokens. This makes
+requirement 2 stronger than a connectivity-only check: the audit now checks the
+token type/helper, the `process_cache` and `process_ddr` token ports, the token
+write calls, the compile-time `-DGRASU_ENABLE_COMPLETION_TOKEN`, and the four
+stream connections into the barrier.
+
+Changed files:
+
+```text
+scripts/audit_pure_pipeline_status.py
+scripts/check_pure_pipeline_source_contracts.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/check_pure_pipeline_source_contracts.py
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label writer_token_check \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_writer_token_check.tsv
+
+./scripts/audit_pure_pipeline_status.py \
+  --label writer_token_check \
+  --out-dir results/pure_pipeline_requirement_audit_writer_token_check
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_writer_token_check/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_writer_token_check
+```
+
+Result:
+
+```text
+required_count=13
+failed_count=0
+proof=grasu_writers_emit_completion_tokens ok=yes
+status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+requirement_2_status=partial
+```
+
+The requirement remains partial until `hw_emu` and `hw` xclbins/smoke results
+exist, but the source-level gate now verifies both sides of the barrier
+contract: writers emit done packets and the barrier consumes all four before the
+adapter runs.
+
+Evidence hashes:
+
+```text
+2df30887a3819ad30f062ae3a7d8995331f8751ac2b5e94bb8cf9a24f284afa5  scripts/audit_pure_pipeline_status.py
+2e1d63774d10f6f6fc583296c4da05c9dba6159a58564a6a6498d769aef13d78  scripts/check_pure_pipeline_source_contracts.py
+091e206e6471fdf8a59a93b6a69ad4f3dff5033d08019bcfb63976aaeb928955  .tmp_build/pure_pipeline_source_contracts/source_contracts_writer_token_check.tsv
+8ad69742f4c2b96a49b0a67c0b5d914df417718561d458fd188f602f2581e7c0  results/pure_pipeline_requirement_audit_writer_token_check/audit.md
+350132d3347d2c9a2604721358c5d0bc9c7e6fc240887fae129e1fc4a8a95523  results/pure_pipeline_requirement_audit_writer_token_check/audit.json
+dff462d464cdf33efa6089ee0cd6c810bb6a4f3f579232605833159b1ab6b633  results/pure_pipeline_evidence_bundle_writer_token_check/source_proof_matrix.tsv
+911c92fa363f8b4eed2b1dcb1d7c4dfe01e4420ac67596616170b968d2c33645  results/pure_pipeline_evidence_bundle_writer_token_check/requirement_matrix.tsv
+b5b1d26d5a4c38875ae34f1a678ee6a787a94d7ebb6caa701f84535d4328dc87  results/pure_pipeline_evidence_bundle_writer_token_check/summary.md
+```

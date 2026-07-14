@@ -559,6 +559,9 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     barrier = repo / "kernels/pma_completion_barrier/pma_completion_barrier.cpp"
     lksg_stream = repo / "kernels/regraph_stream_little_gs/little_gs_stream.cpp"
     prepare = repo / "scripts/prepare_pure_hw_pipeline_build.sh"
+    grasu_kernel_config = repo / "repos/GraSU/GraSU/GraSU_kernels/src/kernel_config.h"
+    grasu_process_cache = repo / "repos/GraSU/GraSU/GraSU_kernels/src/kernel_process_cache.cpp"
+    grasu_process_ddr = repo / "repos/GraSU/GraSU/GraSU_kernels/src/kernel_process_ddr.cpp"
     grasu_to_adapter_segment = source_segment(
         host,
         'std::cout << "PURE_PIPELINE_HOST stage=launch_grasu"',
@@ -626,6 +629,41 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
             ]),
             "paths": [display_path(repo, host), display_path(repo, prepare)],
             "contract": "between GraSU launch and adapter enqueue the host does not migrate/read/convert graph data; adapter consumes PMA buffers and streams directly to ReGraph",
+        },
+        "grasu_writers_emit_completion_tokens": {
+            "ok": source_contains(grasu_kernel_config, [
+                "typedef ap_axiu<32, 0, 0, 0> grasu_done_pkt_t",
+                "write_grasu_completion_token",
+                "done.data = value",
+                "done.last = 1",
+                "done_stream.write(done)",
+            ])
+            and source_contains(grasu_process_cache, [
+                "#ifdef GRASU_ENABLE_COMPLETION_TOKEN",
+                "hls::stream<grasu_done_pkt_t> &completion_token",
+                "#pragma HLS INTERFACE axis port=completion_token",
+                "write_grasu_completion_token(completion_token, 1)",
+            ])
+            and source_contains(grasu_process_ddr, [
+                "#ifdef GRASU_ENABLE_COMPLETION_TOKEN",
+                "hls::stream<grasu_done_pkt_t> &completion_token",
+                "#pragma HLS INTERFACE axis port=completion_token",
+                "write_grasu_completion_token(completion_token, 1)",
+            ])
+            and source_contains(prepare, [
+                "-DGRASU_ENABLE_COMPLETION_TOKEN",
+                "process_cache_1.completion_token:pma_completion_barrier_1.done0",
+                "process_ddr_1.completion_token:pma_completion_barrier_1.done1",
+                "process_cache_2.completion_token:pma_completion_barrier_1.done2",
+                "process_ddr_2.completion_token:pma_completion_barrier_1.done3",
+            ]),
+            "paths": [
+                display_path(repo, grasu_kernel_config),
+                display_path(repo, grasu_process_cache),
+                display_path(repo, grasu_process_ddr),
+                display_path(repo, prepare),
+            ],
+            "contract": "tokenized GraSU process_cache/process_ddr kernels expose completion_token AXI streams and write one done packet when each PMA writer finishes",
         },
         "completion_token_barrier": {
             "ok": source_contains(prepare, [
@@ -784,6 +822,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
 
     source_same_context = proofs["single_context_program"]["ok"]
     source_barrier = proofs["completion_token_barrier"]["ok"]
+    source_writer_tokens = proofs["grasu_writers_emit_completion_tokens"]["ok"]
     source_actual_pma = proofs["adapter_receives_actual_pma_buffers"]["ok"]
     source_no_host_handoff = proofs["no_host_graph_handoff_between_grasu_and_regraph"]["ok"]
     source_stream = proofs["adapter_to_regraph_stream"]["ok"]
@@ -820,8 +859,9 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         requirement(
             2,
             "Four GraSU PMA writers form a completion-token batch barrier",
-            status_if_hw_valid(hw_valid, source_barrier, sw_valid),
+            status_if_hw_valid(hw_valid, source_writer_tokens and source_barrier, sw_valid),
             [
+                proofs["grasu_writers_emit_completion_tokens"]["contract"],
                 "scripts/prepare_pure_hw_pipeline_build.sh stream_connect completion_token lines",
                 "kernels/pma_completion_barrier/pma_completion_barrier.cpp done0..done3 reads",
                 "tools/pure_pipeline_host.cpp adapter waits on barrier_event before step 0",
