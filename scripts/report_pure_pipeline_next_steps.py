@@ -9,6 +9,7 @@ confusing historical combined artifacts with the current pure-pipeline target.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import subprocess
@@ -113,6 +114,13 @@ def read_source_fingerprints(path: Path | None) -> dict[str, str]:
     return rows
 
 
+def read_tsv_rows(path: Path | None) -> list[dict[str, str]]:
+    if path is None or not path.is_file():
+        return []
+    with path.open("r", encoding="ascii", errors="replace", newline="") as handle:
+        return list(csv.DictReader(handle, delimiter="\t"))
+
+
 def hash_source_role(root: Path, suffixes: tuple[str, ...]) -> tuple[str, str]:
     if not root.is_dir():
         return "missing", "-"
@@ -212,6 +220,78 @@ def newest_current_launch_packet(
     return None
 
 
+def summarize_acceptance(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.is_file():
+        return {
+            "status": "missing",
+            "counts": {},
+            "detail": "missing",
+        }
+    rows = read_tsv_rows(path)
+    if not rows:
+        return {
+            "status": "fail",
+            "counts": {},
+            "detail": "empty",
+        }
+    counts: dict[str, int] = {}
+    for row in rows:
+        status = row.get("status", "UNKNOWN")
+        counts[status] = counts.get(status, 0) + 1
+    required = [row for row in rows if row.get("required") == "yes"]
+    failures = [row.get("gate", "unknown") for row in required if row.get("status") == "FAIL"]
+    pending = [row.get("gate", "unknown") for row in required if row.get("status") == "PENDING"]
+    missing_status = [
+        row.get("gate", "unknown")
+        for row in required
+        if row.get("status") not in {"PASS", "FAIL", "PENDING", "SKIP"}
+    ]
+    if failures:
+        return {
+            "status": "fail",
+            "counts": counts,
+            "detail": "FAIL=" + ",".join(failures),
+        }
+    if pending:
+        return {
+            "status": "pending",
+            "counts": counts,
+            "detail": "PENDING=" + ",".join(pending),
+        }
+    if missing_status:
+        return {
+            "status": "fail",
+            "counts": counts,
+            "detail": "UNKNOWN=" + ",".join(missing_status),
+        }
+    if required and all(row.get("status") == "PASS" for row in required):
+        return {
+            "status": "pass",
+            "counts": counts,
+            "detail": "required gates PASS",
+        }
+    return {
+        "status": "fail",
+        "counts": counts,
+        "detail": "no required PASS gates",
+    }
+
+
+def format_counts(counts: dict[str, int]) -> str:
+    if not counts:
+        return ""
+    ordered = [key for key in ("PASS", "PENDING", "FAIL", "SKIP") if key in counts]
+    ordered.extend(sorted(key for key in counts if key not in ordered))
+    return ",".join(f"{key}={counts[key]}" for key in ordered)
+
+
+def postrun_label(summary: dict[str, Any]) -> str:
+    counts = format_counts(summary.get("counts", {}))
+    if counts:
+        return f"{summary['status']}:{counts}"
+    return summary["status"]
+
+
 def target_state(
     repo: Path,
     target: str,
@@ -242,6 +322,8 @@ def target_state(
         flow_matches_current = target_flow_matches_head
     acceptance_prelaunch = newest(list(run_logs.glob("acceptance_check_prelaunch*.tsv")))
     acceptance_postrun = newest(list(run_logs.glob("acceptance_check_postrun*.tsv")))
+    acceptance_prelaunch_summary = summarize_acceptance(acceptance_prelaunch)
+    acceptance_postrun_summary = summarize_acceptance(acceptance_postrun)
     launch_packet = newest_current_launch_packet(repo, target, current_fingerprints)
     return {
         "target": target,
@@ -274,6 +356,13 @@ def target_state(
         "current_launch_packet_command": rel(repo, launch_packet["launch_command"]) if launch_packet else None,
         "latest_acceptance_prelaunch": rel(repo, acceptance_prelaunch) if acceptance_prelaunch else None,
         "latest_acceptance_postrun": rel(repo, acceptance_postrun) if acceptance_postrun else None,
+        "latest_acceptance_prelaunch_status": acceptance_prelaunch_summary["status"],
+        "latest_acceptance_prelaunch_counts": acceptance_prelaunch_summary["counts"],
+        "latest_acceptance_prelaunch_detail": acceptance_prelaunch_summary["detail"],
+        "latest_acceptance_postrun_status": acceptance_postrun_summary["status"],
+        "latest_acceptance_postrun_counts": acceptance_postrun_summary["counts"],
+        "latest_acceptance_postrun_detail": acceptance_postrun_summary["detail"],
+        "latest_acceptance_postrun_label": postrun_label(acceptance_postrun_summary),
     }
 
 
@@ -328,13 +417,17 @@ def classify_builders(repo: Path, rows: list[dict[str, str]]) -> dict[str, Any]:
     }
 
 
-def first_missing_target(states: list[dict[str, Any]]) -> str | None:
+def first_incomplete_action(states: list[dict[str, Any]]) -> tuple[str | None, str | None]:
     by_target = {state["target"]: state for state in states}
     if not by_target["hw_emu"]["xclbin_exists"]:
-        return "hw_emu"
+        return "hw_emu", "build"
+    if by_target["hw_emu"]["latest_acceptance_postrun_status"] != "pass":
+        return "hw_emu", "postrun"
     if not by_target["hw"]["xclbin_exists"]:
-        return "hw"
-    return None
+        return "hw", "build"
+    if by_target["hw"]["latest_acceptance_postrun_status"] != "pass":
+        return "hw", "postrun"
+    return None, None
 
 
 def target_flow_command(target: str, git_short: str) -> str:
@@ -346,6 +439,14 @@ def target_flow_command(target: str, git_short: str) -> str:
     )
 
 
+def postrun_command(target: str, git_short: str) -> str:
+    return (
+        f"./scripts/run_pure_pipeline_target_flow.sh --target {target} "
+        f"--label postrun_after_{git_short} --skip-build "
+        f"--gate-case tiny_star_v16_u12 --gate-timeout {TARGET_TIMEOUTS[target]}"
+    )
+
+
 def make_report(repo: Path) -> dict[str, Any]:
     git_short = run_git(repo, ["rev-parse", "--short", "HEAD"])
     current_head = run_git(repo, ["rev-parse", "HEAD"])
@@ -353,7 +454,7 @@ def make_report(repo: Path) -> dict[str, Any]:
     current_fingerprint_digest = source_fingerprint_digest(current_fingerprints)
     states = [target_state(repo, target, current_head, current_fingerprints) for target in TARGETS]
     builders = classify_builders(repo, ps_rows())
-    next_target = first_missing_target(states)
+    next_target, next_action = first_incomplete_action(states)
     stale_targets = [
         state["target"]
         for state in states
@@ -369,6 +470,8 @@ def make_report(repo: Path) -> dict[str, Any]:
             f"./scripts/audit_pure_pipeline_status.py --label after_{git_short}",
             f"./scripts/export_pure_pipeline_evidence_bundle.py --out-dir results/pure_pipeline_evidence_bundle_after_{git_short}",
         ]
+    elif next_action == "postrun":
+        next_commands = [postrun_command(next_target, git_short)]
     elif next_launch_packet_command:
         next_commands = [next_launch_packet_command]
     else:
@@ -390,6 +493,7 @@ def make_report(repo: Path) -> dict[str, Any]:
             "external_preview": builders["external"][:5],
         },
         "next_target": next_target,
+        "next_action": next_action,
         "next_launch_packet_command": next_launch_packet_command,
         "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
@@ -405,7 +509,7 @@ def print_text(report: dict[str, Any]) -> None:
     print(f"dirty={str(report['dirty']).lower()}")
     print()
     print("targets")
-    print("target\txclbin\tsha256\treadiness_ready\tstrict_ready\tstrict_blockers\tflow_current\tpacket_current\tlatest_readiness")
+    print("target\txclbin\tsha256\treadiness_ready\tstrict_ready\tstrict_blockers\tflow_current\tpacket_current\tpostrun\tlatest_readiness")
     for state in report["targets"]:
         if state["latest_flow_matches_current"] is None:
             flow_current = ""
@@ -422,6 +526,7 @@ def print_text(report: dict[str, Any]) -> None:
                 state["latest_strict_readiness_blocking_count"] or "",
                 flow_current,
                 packet_current,
+                state["latest_acceptance_postrun_label"],
                 state["latest_readiness"] or "",
             ])
         )
@@ -440,10 +545,14 @@ def print_text(report: dict[str, Any]) -> None:
     print()
     if report["next_target"] is None:
         print("next_target=none")
-        print("interpretation=hw_emu and hw xclbins are present; refresh audit/bundle next.")
+        print("next_action=none")
+        print("interpretation=hw_emu and hw xclbins are present and postrun acceptance gates passed; refresh audit/bundle next.")
     else:
         print(f"next_target={report['next_target']}")
-        if report.get("next_launch_packet_command"):
+        print(f"next_action={report['next_action']}")
+        if report["next_action"] == "postrun":
+            print("interpretation=target xclbin exists but postrun acceptance is not PASS; next command reuses the xclbin and runs smoke/compare/audit/bundle.")
+        if report.get("next_launch_packet_command") and report["next_action"] == "build":
             print("interpretation=current launch packet matches build-relevant source; next command uses that packet.")
         if report["stale_target_flow_targets"]:
             stale = ",".join(report["stale_target_flow_targets"])

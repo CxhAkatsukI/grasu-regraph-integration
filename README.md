@@ -215,7 +215,12 @@ build-relevant source fingerprints; when it is `yes`, the helper recommends the
 packet's executable `launch_command.sh` instead of asking you to regenerate an
 equivalent command under a documentation-only commit label. The printed
 `source_fingerprint_sha256` is the aggregate digest of the build-relevant source
-roles used for that decision.
+roles used for that decision. The `postrun` column summarizes the newest
+post-build acceptance check for each target. A target is not treated as finished
+just because its xclbin exists; if the xclbin is present but `postrun` is not
+`pass`, the helper recommends a `--skip-build` target-flow command that reruns
+smoke correctness, same-input comparison, requirement audit, evidence bundle
+export, and postrun acceptance gates on the existing xclbin.
 
 Current reproducible target flow:
 
