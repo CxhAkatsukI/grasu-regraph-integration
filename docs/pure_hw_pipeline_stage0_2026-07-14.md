@@ -990,6 +990,60 @@ so `/tmp` pressure is not the main blocker. The practical reason not to launch
 the pure `hw_emu` build in the same moment is resource contention with the
 active unrelated Spine hardware implementation.
 
+## Staged Smoke Gate
+
+The full requirement still needs all four smoke families on `sw_emu`, `hw_emu`,
+and `hw`. For bring-up, however, the smoke runner now supports running a subset
+first:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_smoke.sh \
+  --target hw_emu \
+  --case tiny_star_v16_u12 \
+  --out-dir results/pure_pipeline_hw_emu_smoke_case_gate_after_<label> \
+  --timeout 900
+```
+
+Supported filters:
+
+```text
+--case LIST       comma-separated case names; may be repeated
+--family LIST     comma-separated family names; may be repeated
+--max-cases N     stop after N selected cases
+```
+
+The requirement audit was updated to prefer the newest complete four-case smoke
+summary. That prevents a later one-case bring-up gate from hiding the last full
+four-family smoke evidence.
+
+SW_EMU filter regression:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_smoke.sh \
+  --target sw_emu \
+  --case tiny_star_v16_u12 \
+  --out-dir results/pure_pipeline_sw_emu_smoke_case_filter_check \
+  --timeout 180
+
+./scripts/audit_pure_pipeline_status.py \
+  --out-dir results/pure_pipeline_requirement_audit_after_smoke_filter_check
+```
+
+Evidence:
+
+```text
+714287bc4c731f0b909e4f19e37e06cd37c7add5e22230d69005701aabcdd9e5  results/pure_pipeline_sw_emu_smoke_case_filter_check/summary.tsv
+4a7e4cb470b7c6970f4ccddeaae4b1f2664202cea5a60e45b4feda5fab58ad4a  results/pure_pipeline_sw_emu_smoke_case_filter_check/run.env
+c69673b8383746d141ec48947fa384a3ddb28af97fc9957d2ab151c584536868  results/pure_pipeline_requirement_audit_after_smoke_filter_check/audit.json
+12b344ea04cd93ba8ccce0f0ec227d987a2de3859b6968eb1e2c20bcf0c8cebd  results/pure_pipeline_requirement_audit_after_smoke_filter_check/audit.md
+```
+
+The filtered run passed only `tiny_star_v16_u12`; the audit correctly kept the
+complete `results/pure_pipeline_sw_emu_smoke_eventdep_debug_stage0/summary.tsv`
+as the authoritative `sw_emu` smoke evidence.
+
 ## Post-Build Finalization
 
 After a pure-pipeline xclbin is produced, run the finalization wrapper. It

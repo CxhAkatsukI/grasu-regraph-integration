@@ -13,6 +13,9 @@ TIMEOUT_SECONDS=600
 VITIS_SETTINGS="/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh"
 PLATFORM_XPFM="/opt/xilinx/platforms/xilinx_u55c_gen3x16_xdma_3_202210_1/xilinx_u55c_gen3x16_xdma_3_202210_1.xpfm"
 EMCONFIG_PATH=""
+CASE_FILTER=""
+FAMILY_FILTER=""
+MAX_CASES=0
 
 usage() {
   cat <<USAGE
@@ -27,6 +30,9 @@ Options:
   --manifest PATH             Smoke manifest TSV. Default: ${MANIFEST}
   --out-dir PATH              Output directory. Default: results/pure_pipeline_<target>_smoke_<timestamp>
   --timeout SECONDS           Per-case timeout. Default: ${TIMEOUT_SECONDS}
+  --case LIST                 Run only comma-separated case names. Can be repeated.
+  --family LIST               Run only comma-separated families. Can be repeated.
+  --max-cases N               Stop after N selected cases. Default: all selected cases.
   --emconfig-path PATH        EMCONFIG_PATH for sw_emu/hw_emu. Default inferred.
   --platform-xpfm PATH        Platform path for emconfigutil. Default: ${PLATFORM_XPFM}
   --vitis-settings PATH       Vitis settings64.sh. Default: ${VITIS_SETTINGS}
@@ -41,6 +47,22 @@ abs_path() {
   esac
 }
 
+append_csv() {
+  local old="$1"
+  local new="$2"
+  if [[ -z "${old}" ]]; then
+    printf '%s\n' "${new}"
+  else
+    printf '%s,%s\n' "${old}" "${new}"
+  fi
+}
+
+csv_contains_or_empty() {
+  local list="$1"
+  local value="$2"
+  [[ -z "${list}" || ",${list}," == *",${value},"* ]]
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
@@ -49,6 +71,9 @@ while [[ $# -gt 0 ]]; do
     --manifest) MANIFEST="$(abs_path "$2")"; shift 2 ;;
     --out-dir) OUT_DIR="$(abs_path "$2")"; shift 2 ;;
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
+    --case) CASE_FILTER="$(append_csv "${CASE_FILTER}" "$2")"; shift 2 ;;
+    --family) FAMILY_FILTER="$(append_csv "${FAMILY_FILTER}" "$2")"; shift 2 ;;
+    --max-cases) MAX_CASES="$2"; shift 2 ;;
     --emconfig-path) EMCONFIG_PATH="$(abs_path "$2")"; shift 2 ;;
     --platform-xpfm) PLATFORM_XPFM="$(abs_path "$2")"; shift 2 ;;
     --vitis-settings) VITIS_SETTINGS="$(abs_path "$2")"; shift 2 ;;
@@ -98,6 +123,10 @@ if [[ ! -f "${VITIS_SETTINGS}" ]]; then
   echo "Missing Vitis settings: ${VITIS_SETTINGS}" >&2
   exit 1
 fi
+if ! [[ "${MAX_CASES}" =~ ^[0-9]+$ ]]; then
+  echo "Invalid --max-cases: ${MAX_CASES}" >&2
+  exit 2
+fi
 
 mkdir -p "${OUT_DIR}"
 SUMMARY="${OUT_DIR}/summary.tsv"
@@ -130,6 +159,9 @@ fi
   printf 'manifest=%s\n' "${MANIFEST}"
   printf 'out_dir=%s\n' "${OUT_DIR}"
   printf 'timeout_seconds=%s\n' "${TIMEOUT_SECONDS}"
+  printf 'case_filter=%s\n' "${CASE_FILTER}"
+  printf 'family_filter=%s\n' "${FAMILY_FILTER}"
+  printf 'max_cases=%s\n' "${MAX_CASES}"
   printf 'xcl_emulation_mode=%s\n' "${XCL_EMULATION_MODE:-}"
   printf 'emconfig_path=%s\n' "${EMCONFIG_PATH:-}"
   printf 'host_sha256='
@@ -143,10 +175,21 @@ fi
 printf 'case\tfamily\tvertices\tupdates\tfinal_edges\tsource\tsupersteps\texit_code\tstatus\tlog\tresult_line\ttiming_line\n' > "${SUMMARY}"
 
 failures=0
+selected=0
 while IFS=$'\t' read -r case family vertices static_edges updates final_edges source supersteps weight graph result regraph_edges expected metadata; do
   if [[ "${case}" == "case" ]]; then
     continue
   fi
+  if ! csv_contains_or_empty "${CASE_FILTER}" "${case}"; then
+    continue
+  fi
+  if ! csv_contains_or_empty "${FAMILY_FILTER}" "${family}"; then
+    continue
+  fi
+  if [[ "${MAX_CASES}" != "0" && "${selected}" -ge "${MAX_CASES}" ]]; then
+    continue
+  fi
+  selected=$((selected + 1))
 
   log="${OUT_DIR}/${case}.log"
   echo "running ${case} (${family}) source=${source} supersteps=${supersteps}"
@@ -170,6 +213,11 @@ while IFS=$'\t' read -r case family vertices static_edges updates final_edges so
     "${source}" "${supersteps}" "${rc}" "${status}" "${log}" \
     "${result_line//$'\t'/ }" "${timing_line//$'\t'/ }" >> "${SUMMARY}"
 done < "${MANIFEST}"
+
+if [[ "${selected}" -eq 0 ]]; then
+  echo "pure pipeline smoke selected no cases" >&2
+  exit 1
+fi
 
 echo "summary: ${SUMMARY}"
 if [[ ${failures} -ne 0 ]]; then

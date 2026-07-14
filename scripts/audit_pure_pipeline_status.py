@@ -91,6 +91,24 @@ def newest_glob(repo: Path, pattern: str) -> Path | None:
     return newest(list(repo.glob(pattern)))
 
 
+def has_all_expected_cases(path: Path) -> bool:
+    rows = read_tsv(path)
+    cases = {row.get("case", "") for row in rows}
+    return all(case in cases for case in EXPECTED_CASES)
+
+
+def newest_complete_pure_summary(repo: Path, target: str) -> Path | None:
+    candidates = sorted(
+        repo.glob(f"results/pure_pipeline_{target}_smoke_*/summary.tsv"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for path in candidates:
+        if has_all_expected_cases(path):
+            return path
+    return candidates[0] if candidates else None
+
+
 def pure_summary(repo: Path, path: Path | None) -> dict[str, Any]:
     rows = read_tsv(path) if path is not None else []
     by_case = {row.get("case", ""): row for row in rows}
@@ -321,7 +339,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
 def target_state(repo: Path, target: str) -> dict[str, Any]:
     build_root = repo / f".tmp_build/pure_pipeline_{target}_stage0"
     xclbin = build_root / "build" / f"grasu_regraph_pure_pipeline.{target}.xclbin"
-    summary_path = newest_glob(repo, f"results/pure_pipeline_{target}_smoke_*/summary.tsv")
+    summary_path = newest_complete_pure_summary(repo, target)
     run_env_path = summary_path.parent / "run.env" if summary_path is not None else None
     return {
         "target": target,
