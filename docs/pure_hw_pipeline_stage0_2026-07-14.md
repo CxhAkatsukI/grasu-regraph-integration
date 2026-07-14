@@ -2724,3 +2724,107 @@ f262467082fee91d895ba3ccb502afcad80a217824417c757d140e0953193d10  .tmp_build/pur
 c2b98434ba117258d7327502a60ea026fe8291588ea7165d99ef88398012cd0b  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_stale_artifact_strict_after_2e0ca4a.txt
 d940130339c82f5c8615fc30ab65a09f9a71a3ab208368ff6e8851c77a8cb41e  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_stale_artifact_warn_hw_after_2e0ca4a.txt
 ```
+
+## 2026-07-15 Current-Head SW_EMU Refresh
+
+While the external Spine hardware link was still occupying Vitis/Vivado, the
+current integration HEAD was used to refresh the pure-pipeline `sw_emu`
+correctness and comparison evidence. This does not prove hardware timing, but
+it does re-prove the same GraSU completion barrier, real-PMA adapter, stream
+little-GS path, apply stage, and CPU-oracle comparison for the four required
+small graph families.
+
+Current HEAD:
+
+```text
+8f5fdffd4f8e6f9ab6f2c29806ef269096a734b7
+```
+
+Command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/finalize_pure_pipeline_build.sh \
+  --target sw_emu \
+  --label swemu_refresh_after_8f5fdff \
+  --build-host \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 180 \
+  --timeout 600
+```
+
+The gate case and the full four-family smoke both passed. Full smoke summary:
+
+```text
+tiny_chain_v16       chain       PASS  mismatches=0 final_edges=15 supersteps=16 event_e2e_ms=6120.978722
+tiny_star_v16_u12    hot-source  PASS  mismatches=0 final_edges=28 supersteps=2  event_e2e_ms=692.524587
+tiny_spread_v16_u8   spread      PASS  mismatches=0 final_edges=24 supersteps=16 event_e2e_ms=5888.241440
+tiny_hotdst_v64_u32  hot-dest    PASS  mismatches=0 final_edges=95 supersteps=16 event_e2e_ms=5750.386851
+```
+
+The generated comparison uses the existing host zero-cost baseline and Spine
+same-input baseline, and continues to label pure timing as `sw_emu` rather than
+hardware performance:
+
+```text
+tiny_chain_v16       host_zero_cost_ms=6.127929 spine_kernel_e2e_ms=1.58718 pure_target=sw_emu pure_event_e2e_ms=6120.978722
+tiny_star_v16_u12    host_zero_cost_ms=2.526626 spine_kernel_e2e_ms=1.57177 pure_target=sw_emu pure_event_e2e_ms=692.524587
+tiny_spread_v16_u8   host_zero_cost_ms=5.743649 spine_kernel_e2e_ms=1.59870 pure_target=sw_emu pure_event_e2e_ms=5888.241440
+tiny_hotdst_v64_u32  host_zero_cost_ms=6.202223 spine_kernel_e2e_ms=2.26057 pure_target=sw_emu pure_event_e2e_ms=5750.386851
+```
+
+After the smoke refresh, the requirement audit and evidence bundle were
+regenerated:
+
+```bash
+./scripts/audit_pure_pipeline_status.py \
+  --label swemu_refresh_after_8f5fdff \
+  --out-dir results/pure_pipeline_requirement_audit_swemu_refresh_after_8f5fdff
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_swemu_refresh_after_8f5fdff/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_swemu_refresh_after_8f5fdff
+```
+
+The bundle exporter was also fixed to prefer the comparison matching the
+current audit's newest `sw_emu` smoke summary. Before this fix, a newly exported
+bundle could have a fresh target matrix but an older default smoke comparison
+table.
+
+Current bundle target state:
+
+```text
+sw_emu  xclbin=yes  smoke=yes  xclbin_sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+hw_emu  xclbin=no   smoke=no   readiness=no blocking=1 warnings=1 external_builders=10
+hw      xclbin=no   smoke=no   readiness=no blocking=1 warnings=0 external_builders=10
+```
+
+The external Spine link still had not produced its target xclbin during this
+refresh, but its log had advanced from placement into routing:
+
+```text
+[01:55:59] Finished 4th of 6 tasks (FPGA logic placement).
+[01:55:59] Starting logic routing..
+[01:56:29] Phase 1 Build RT Design
+```
+
+Evidence hashes:
+
+```text
+b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862  .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+cb40efbffe3a091be8a8bffe03c2ee364c794a2cddb315a0571601b38c2cad5d  .tmp_build/pure_pipeline_host_stage0/pure_pipeline_host
+e57db6e5166e218b2f838474e54df93f84832425a4b4fbafcb93c3678366fb3c  results/pure_pipeline_sw_emu_smoke_gate_swemu_refresh_after_8f5fdff/summary.tsv
+38914a937b6a7ed1a2b72edf75e67c88caff586ca1f9c43e1b70bdcbc0a189c1  results/pure_pipeline_sw_emu_smoke_swemu_refresh_after_8f5fdff/summary.tsv
+09e527ae167fc2f275ae3840f3c594991a16cec380d1ecf278d4d857b5f37246  results/pure_pipeline_sw_emu_smoke_swemu_refresh_after_8f5fdff/run.env
+9f44017b060e780f4de5856100e1b23847077edbec9afee7c76d0b224534a170  results/pure_pipeline_sw_emu_compare_swemu_refresh_after_8f5fdff/comparison.tsv
+339d5d2636481d5f0296804149416e95ccc1bcaee5c6c9b90de32098a6de5c1f  results/pure_pipeline_sw_emu_compare_swemu_refresh_after_8f5fdff/comparison.md
+1caae190b523c7598b644def75e39e9ad0e124c330d93e56e0409940b258061c  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/finalize_swemu_refresh_after_8f5fdff.env
+27de9e292c425fa5268b741fb49a7920c0c7caa2f96df2e8a7397a9991c365a6  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/finalize_swemu_refresh_after_8f5fdff_evidence.tsv
+28d70a8d6a3d3a285906ad08acfc1217558d87b7c81613ca55c4ec7a3d13fef2  results/pure_pipeline_requirement_audit_swemu_refresh_after_8f5fdff/audit.json
+fbd079236a34228931c284a55aeb71af03acb662c4862fa824c094b4bfcfefb6  results/pure_pipeline_requirement_audit_swemu_refresh_after_8f5fdff/audit.md
+22044b08222694ae7420e0b5c54f4fe8b97dccfd77cbbd592f3c51070bddb7cd  results/pure_pipeline_evidence_bundle_swemu_refresh_after_8f5fdff/summary.md
+71c36ec6d1bfe4515ef03a7fc4ce97f20c2b9e83a878d838f2ff11e7a9f4ec97  results/pure_pipeline_evidence_bundle_swemu_refresh_after_8f5fdff/case_matrix.tsv
+65c915d5e55c6e690b55568bc45168fd23a855321cdfa9edaa7463c5102d5820  results/pure_pipeline_evidence_bundle_swemu_refresh_after_8f5fdff/target_matrix.tsv
+bcbbfd750dfe5a5e5a7669c73821b1d63d5d936da153e1297901c0cd734ada15  results/pure_pipeline_evidence_bundle_swemu_refresh_after_8f5fdff/bundle_manifest.json
+cbf16deca443a0ab0c88337016d230a2f2a8dd5944956bd0e4ce4852377d4b57  scripts/export_pure_pipeline_evidence_bundle.py
+```

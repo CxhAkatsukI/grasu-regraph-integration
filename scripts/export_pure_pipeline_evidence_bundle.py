@@ -96,6 +96,23 @@ def artifact_path(repo: Path, artifact: dict[str, Any] | None) -> Path | None:
     return path if path.is_absolute() else repo / path
 
 
+def comparison_from_current_sw_smoke(repo: Path, audit: dict[str, Any]) -> Path | None:
+    sw_state = audit.get("targets", {}).get("sw_emu", {})
+    summary_artifact = sw_state.get("smoke_summary_artifact", {})
+    summary_path = artifact_path(repo, summary_artifact)
+    if summary_path is None or not summary_path.is_file():
+        return None
+
+    smoke_dir = summary_path.parent
+    prefix = "pure_pipeline_sw_emu_smoke_"
+    if not smoke_dir.name.startswith(prefix):
+        return None
+
+    label = smoke_dir.name[len(prefix):]
+    comparison = smoke_dir.parent / f"pure_pipeline_sw_emu_compare_{label}" / "comparison.tsv"
+    return comparison if comparison.is_file() else None
+
+
 def parse_readiness_report(path: Path | None) -> dict[str, str]:
     if path is None or not path.is_file():
         return {}
@@ -305,8 +322,11 @@ def main() -> int:
     audit_path = args.audit.resolve() if args.audit is not None else default_audit(repo).resolve()
     comparison_path = args.comparison
     if comparison_path is None:
-        default_comparison_path = repo / DEFAULT_COMPARISON
-        comparison_path = default_comparison_path if default_comparison_path.is_file() else None
+        audit_preview = json.loads(audit_path.read_text(encoding="ascii"))
+        comparison_path = comparison_from_current_sw_smoke(repo, audit_preview)
+        if comparison_path is None:
+            default_comparison_path = repo / DEFAULT_COMPARISON
+            comparison_path = default_comparison_path if default_comparison_path.is_file() else None
     elif not comparison_path.is_absolute():
         comparison_path = repo / comparison_path
     if comparison_path is not None:
