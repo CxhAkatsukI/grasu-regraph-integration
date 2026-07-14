@@ -258,6 +258,93 @@ def source_contains(path: Path, needles: list[str]) -> bool:
     return all(needle in text for needle in needles)
 
 
+def target_build_scripts_cover_pure_pipeline(repo: Path) -> dict[str, Any]:
+    paths: list[str] = []
+    missing: dict[str, list[str]] = {}
+    for target in ("hw_emu", "hw"):
+        build_root = repo / f".tmp_build/pure_pipeline_{target}_stage0"
+        manifest = build_root / "manifest.env"
+        compile_commands = build_root / "compile_commands.sh"
+        link_command = build_root / "link_command.sh"
+        link_cfg = build_root / "config" / f"pure_pipeline_{target}.cfg"
+        paths.extend([
+            display_path(repo, manifest),
+            display_path(repo, compile_commands),
+            display_path(repo, link_command),
+            display_path(repo, link_cfg),
+        ])
+        checks = {
+            f"{target}:manifest": (
+                manifest,
+                [
+                    f"TARGET={target}",
+                    f"LINK_CFG={link_cfg}",
+                    f"OUT_XCLBIN={build_root}/build/grasu_regraph_pure_pipeline.{target}.xclbin",
+                    f"COMPILE_COMMANDS={compile_commands}",
+                    f"LINK_COMMAND={link_command}",
+                ],
+            ),
+            f"{target}:compile_commands": (
+                compile_commands,
+                [
+                    f"v++ --target {target} --compile",
+                    "process_cache",
+                    "process_ddr",
+                    "pma_completion_barrier",
+                    "pma_to_regraph_adapter",
+                    "lksg_stream",
+                    "kernelApply",
+                    "kernelHBMWrapper",
+                    "GRASU_ENABLE_COMPLETION_TOKEN",
+                ],
+            ),
+            f"{target}:link_command": (
+                link_command,
+                [
+                    f"v++ --target {target} --link",
+                    f"--config {link_cfg}",
+                    f"-o {build_root}/build/grasu_regraph_pure_pipeline.{target}.xclbin",
+                    f"{build_root}/build/process_cache.{target}.xo",
+                    f"{build_root}/build/process_ddr.{target}.xo",
+                    f"{build_root}/build/pma_completion_barrier.{target}.xo",
+                    f"{build_root}/build/pma_to_regraph_adapter.{target}.xo",
+                    f"{build_root}/build/lksg_stream.{target}.xo",
+                ],
+            ),
+            f"{target}:link_config": (
+                link_cfg,
+                [
+                    "nk=process_cache:2:process_cache_1.process_cache_2",
+                    "nk=process_ddr:2:process_ddr_1.process_ddr_2",
+                    "nk=pma_completion_barrier:1:pma_completion_barrier_1",
+                    "nk=pma_to_regraph_adapter:1:pma_to_regraph_adapter_1",
+                    "nk=lksg_stream:1:lksg_stream_1",
+                    "stream_connect=process_cache_1.completion_token:pma_completion_barrier_1.done0:16",
+                    "stream_connect=process_ddr_1.completion_token:pma_completion_barrier_1.done1:16",
+                    "stream_connect=process_cache_2.completion_token:pma_completion_barrier_1.done2:16",
+                    "stream_connect=process_ddr_2.completion_token:pma_completion_barrier_1.done3:16",
+                    "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32",
+                    "sp=pma_to_regraph_adapter_1.pma0:HBM[0]",
+                    "sp=pma_to_regraph_adapter_1.pma1:HBM[1]",
+                    "sp=pma_to_regraph_adapter_1.pma2:HBM[2]",
+                    "sp=pma_to_regraph_adapter_1.pma3:HBM[3]",
+                    "sp=pma_to_regraph_adapter_1.row_offset:HBM[0]",
+                    "stream_connect=kernelApply_1.prop_write_burst_stm:kernelHBMWrapper_1.prop_write_burst_stm:16",
+                ],
+            ),
+        }
+        for check_name, (path, needles) in checks.items():
+            if not source_contains(path, needles):
+                text = path.read_text(encoding="ascii", errors="replace") if path.is_file() else ""
+                missing[check_name] = [needle for needle in needles if needle not in text]
+    return {
+        "ok": not missing,
+        "paths": paths,
+        "contract": "generated hw_emu/hw manifest, compile, link, and connectivity config cover the pure GraSU->barrier->adapter->ReGraph pipeline",
+        "missing": missing,
+    }
+
+
 def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     host = repo / "tools/pure_pipeline_host.cpp"
     adapter = repo / "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
@@ -375,6 +462,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
             ]),
             "path": display_path(repo, host),
         },
+        "target_build_scripts_cover_pure_pipeline": target_build_scripts_cover_pure_pipeline(repo),
     }
 
 

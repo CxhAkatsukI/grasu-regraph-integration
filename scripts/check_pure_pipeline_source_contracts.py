@@ -26,6 +26,7 @@ DEFAULT_REQUIRED_PROOFS = (
     "unit_weight_sssp_packing",
     "timing_fields",
     "prepare_only_boundary_mode",
+    "target_build_scripts_cover_pure_pipeline",
 )
 
 
