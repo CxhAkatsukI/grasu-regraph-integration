@@ -7083,3 +7083,121 @@ bf8b82a4ae052bc5d933f17046c6d4ebe0d539bc7f8fbe47f77b3bffd313202d  results/pure_p
 40541fdfe7deacff4a93d4f77a3f9c5ab1ff38349a1ad0822a9a53fcd7e64f1f  results/pure_pipeline_evidence_bundle_prelaunch_after_c23a1f1_packet_report/summary.md
 4cf353c685ca781de48f03b719ce6139cb46e477bd0b208f9b6d07c39209c05e  results/pure_pipeline_evidence_bundle_prelaunch_after_c23a1f1_packet_report/target_matrix.tsv
 ```
+
+## Postrun-Aware Next-Step Report
+
+As of commits `66a5122eab8f21e57000454c4dd6637b38c6666d` and
+`71d901a71d3db7b2435fcaba33e55a6fcb39fe1f`, the read-only next-step helper
+also reports post-build acceptance status. This prevents a target from being
+treated as complete just because its xclbin exists: after a future `hw_emu` or
+`hw` xclbin appears, the helper will keep that same target active until the
+postrun acceptance gates prove gate smoke, full four-family smoke,
+same-input comparison, requirement audit, and evidence bundle export.
+
+Current state after the refresh:
+
+```text
+head=71d901a71d3db7b2435fcaba33e55a6fcb39fe1f
+source_fingerprint_sha256=7dede5def04f80666fedeacddb1aed92b82d4eb9539105cb4c65ef808859cdfd
+dirty=false
+
+sw_emu xclbin=yes postrun=missing
+hw_emu xclbin=no flow_current=yes packet_current=yes postrun=waiting_xclbin
+hw xclbin=no flow_current=yes packet_current=yes postrun=waiting_xclbin
+
+active_builders=related:0 external:10
+next_target=hw_emu
+next_action=build
+next_commands=.tmp_build/pure_pipeline_launch_packet_hw_emu_after_71d901a_allow_active/launch_command.sh
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile scripts/report_pure_pipeline_next_steps.py
+./scripts/report_pure_pipeline_next_steps.py
+./scripts/report_pure_pipeline_next_steps.py --json | python3 -m json.tool \
+  >/tmp/pure_pipeline_next_steps_postrun_check.json
+git diff --check
+```
+
+Fresh launch packets were generated from the clean `71d901a` tree:
+
+```bash
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label after_71d901a \
+  --label hw_emu_after_71d901a_allow_active \
+  --allow-active-builders
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw \
+  --flow-label after_71d901a \
+  --label hw_after_71d901a_allow_active \
+  --allow-active-builders
+```
+
+No-build target-flow evidence was refreshed without launching Vitis compile or
+link:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label prelaunch_after_71d901a_postrun_report \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label prelaunch_after_71d901a_postrun_report \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Prelaunch acceptance remains the expected state for both hardware targets:
+
+```text
+PASS=4, PENDING=9
+```
+
+Hardware status is still unchanged: the only pure-pipeline xclbin is
+`sw_emu`; pure `hw_emu` and pure `hw` xclbins are still missing. The next long
+command to hand to a build terminal is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_hw_emu_after_71d901a_allow_active/launch_command.sh
+```
+
+Evidence hashes:
+
+```text
+b2407871adfd59c69db7ca90f58e44de7dece3aac5e8cae9dff04a31335fc802  scripts/report_pure_pipeline_next_steps.py
+a02d87d1ffd05697039139f726b25e4408d9185a625650261fcd1c36dfba5772  README.md
+8c45b74b48b30907b5cd76020bb15bf7d9a1e536d1a3eb07c80eb11c2d75d77b  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_71d901a_allow_active/launch_command.sh
+4750d8794f26b7ce5d8a381fdf67af8a5463a8d9391a258e87bf5216e4f7667a  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_71d901a_allow_active/launch_packet.env
+0571cec9830df3efec2d62e6a75279f9aeb9aa43126b15ab885b70e67eab958e  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_71d901a_allow_active/source_fingerprints.tsv
+c33694989bbdd5cdb965b2fda7fa2ea0bd24f6cc1f8f59cbf04f161642a44b2a  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_71d901a_allow_active/acceptance_check_prelaunch.tsv
+2a1885d619fc75332338418329a0d4e361ec819139b68172a1c9aef014627c7c  .tmp_build/pure_pipeline_launch_packet_hw_after_71d901a_allow_active/launch_command.sh
+1e6b97389d00bfb42e4343d7c63c430bfb21895c72780621318a38bbdca70a93  .tmp_build/pure_pipeline_launch_packet_hw_after_71d901a_allow_active/launch_packet.env
+0571cec9830df3efec2d62e6a75279f9aeb9aa43126b15ab885b70e67eab958e  .tmp_build/pure_pipeline_launch_packet_hw_after_71d901a_allow_active/source_fingerprints.tsv
+4c445810b9b6693c7e678abf2477b0ba8939fecfded3bfd40b706faac33de882  .tmp_build/pure_pipeline_launch_packet_hw_after_71d901a_allow_active/acceptance_check_prelaunch.tsv
+eced1666a18c480a46491342d8bb195aef04b6e195a3790fce8fff0525e6c2b8  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_71d901a_postrun_report.env
+d8390d14e24535073abad0e8f3db48db287858085dd919aa7d246ad64c96599a  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_71d901a_postrun_report.env
+83c99da5da0e2961f49ebe43f2e9f1ee77e3a457ed78ac804bd37970246937fe  results/pure_pipeline_requirement_audit_prelaunch_after_71d901a_postrun_report/audit.json
+c2bc15e21dc316c5b900e6ff1bbb4a6eaca59e52e509fccd242672732dfe3c42  results/pure_pipeline_evidence_bundle_prelaunch_after_71d901a_postrun_report/summary.md
+824429466f8275a30a2c6e70d50fec47c34d9cce54f98880a15f083e199f3d23  results/pure_pipeline_evidence_bundle_prelaunch_after_71d901a_postrun_report/target_matrix.tsv
+```
