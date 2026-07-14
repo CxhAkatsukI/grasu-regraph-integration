@@ -7980,3 +7980,76 @@ workloads/sssp_benchmark_pure_stage0/manifest.tsv.
 Host exported edge files are derived artifacts and must be regenerated from
 that same manifest when collecting a new host-baseline run.
 ```
+
+## Host Baseline Input Identity Audit
+
+As of 2026-07-15 06:51 Asia/Shanghai, the host-baseline sweep records per-case
+input hashes and has a checker that compares them against the canonical
+`input_identity.tsv`.
+
+Tooling commit:
+
+```text
+ac8cc930308d385c2d60f7d22211780c72fa9570  Audit pure stage0 host input identity
+```
+
+New or changed files:
+
+```text
+scripts/run_grasu_regraph_sssp_sweep.sh       writes manifest.env and per-case input hashes
+scripts/check_pure_stage0_input_identity.py   verifies run case.env files against input_identity.tsv
+scripts/export_pure_stage0_comparison_plan.py adds host-input-audit to the plan
+```
+
+Generate the updated plan:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/export_pure_stage0_comparison_plan.py \
+  --label after_ac8cc93 \
+  --out-dir results/pure_stage0_comparison_plan_after_ac8cc93
+```
+
+Dry-run the host-baseline runner on the tracked manifest:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_grasu_regraph_sssp_sweep.sh \
+  --preset pure_stage0 \
+  --workload-root workloads/sssp_benchmark_pure_stage0 \
+  --out-root .tmp_build/grasu_regraph_sssp_pure_stage0_identity_dryrun_after_ac8cc93 \
+  --skip-generate \
+  --skip-grasu \
+  --dry-run \
+  --timeout 1
+```
+
+Check the dry-run identity:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/check_pure_stage0_input_identity.py \
+  --input-identity results/pure_stage0_comparison_plan_after_ac8cc93/input_identity.tsv \
+  --run-root .tmp_build/grasu_regraph_sssp_pure_stage0_identity_dryrun_after_ac8cc93 \
+  --summary .tmp_build/grasu_regraph_sssp_pure_stage0_identity_dryrun_after_ac8cc93/summary.tsv \
+  --out-file .tmp_build/grasu_regraph_sssp_pure_stage0_identity_dryrun_after_ac8cc93/input_identity_check.tsv
+```
+
+Result:
+
+```text
+checks=240
+failures=0
+```
+
+Evidence hashes:
+
+```text
+fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b  results/pure_stage0_comparison_plan_after_ac8cc93/input_identity.tsv
+f174a69c4d1db5597db16442c46c55384cdd4098899c1886eb894f759f3bd4f5  results/pure_stage0_comparison_plan_after_ac8cc93/comparison_plan.tsv
+b9f21d1f69d9aff0d4425d95345b74955dad181a86c7d1402dc536535898caa2  results/pure_stage0_comparison_plan_after_ac8cc93/summary.md
+baed6499bd3d075da176de8d4048f2da10a06f4c06f00741b29599d876d3312f  results/pure_stage0_comparison_plan_after_ac8cc93/run.env
+fa45b64713168d7bdb58d187f72e842db82b3c93ecd4e917d523a650f2b7f707  .tmp_build/grasu_regraph_sssp_pure_stage0_identity_dryrun_after_ac8cc93/summary.tsv
+54f352d402554e7a94b00656d07201c91e28933cddbe5cc96cfdafd70f399309  .tmp_build/grasu_regraph_sssp_pure_stage0_identity_dryrun_after_ac8cc93/manifest.env
+e43a8daf79fac20e60bc4a1147a478ea51ee7da06aece83ee9a569a558475454  .tmp_build/grasu_regraph_sssp_pure_stage0_identity_dryrun_after_ac8cc93/input_identity_check.tsv
+```
