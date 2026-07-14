@@ -112,30 +112,6 @@ git_value() {
   esac
 }
 
-hash_tree() {
-  local role="$1"
-  local root="$2"
-  shift 2
-
-  if [[ ! -d "${root}" ]]; then
-    printf '%s\tmissing\t-\t%s\n' "${role}" "${root}"
-    return
-  fi
-
-  local list_file="${OUT_DIR}/${role}.files"
-  local hashes_file="${OUT_DIR}/${role}.sha256s"
-  find "${root}" -type f "$@" -print | LC_ALL=C sort > "${list_file}"
-  if [[ ! -s "${list_file}" ]]; then
-    printf '%s\tempty\t-\t%s\n' "${role}" "${root}"
-    return
-  fi
-
-  xargs -r sha256sum < "${list_file}" > "${hashes_file}"
-  local digest
-  digest="$(sha256sum "${hashes_file}" | awk '{print $1}')"
-  printf '%s\tpresent\t%s\t%s\n' "${role}" "${digest}" "${root}"
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
@@ -218,27 +194,14 @@ if [[ "${PREPARE}" == "1" ]]; then
     --build-root "${BUILD_ROOT}"
 fi
 
-{
-  printf 'role\tstatus\ttree_sha256\troot\n'
-  hash_tree integration_scripts "${GRI_ROOT}/scripts" \
-    \( -name '*.sh' -o -name '*.py' \)
-  hash_tree integration_kernels "${GRI_ROOT}/kernels" \
-    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
-  hash_tree integration_tools "${GRI_ROOT}/tools" \
-    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
-  hash_tree grasu_kernel_src "${GRASU_ROOT}/GraSU/GraSU_kernels/src" \
-    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
-  hash_tree grasu_host_src "${GRASU_ROOT}/GraSU/GraSU/src" \
-    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
-  hash_tree grasu_u55c_scripts "${GRASU_ROOT}/u55c_hbm" \
-    \( -name '*.sh' -o -name '*.cfg' -o -name '*.ini' \)
-  hash_tree regraph_acc_template "${REGRAPH_ROOT}/acc_template" \
-    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.cfg' -o -name '*.mk' \)
-  hash_tree regraph_acc_udfs "${REGRAPH_ROOT}/acc_udfs" \
-    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \)
-  hash_tree regraph_host_src "${REGRAPH_ROOT}/host" \
-    \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.mk' \)
-} > "${SOURCE_FINGERPRINTS_OUT}"
+source_fingerprint_status=0
+if run_capture_status "${SCRIPT_DIR}/collect_pure_pipeline_source_fingerprints.sh" \
+  --label "${LABEL}" \
+  --out-file "${SOURCE_FINGERPRINTS_OUT}"; then
+  source_fingerprint_status=0
+else
+  source_fingerprint_status=$?
+fi
 
 source_status=0
 if run_capture_status "${SCRIPT_DIR}/check_pure_pipeline_source_contracts.py" \
@@ -329,6 +292,7 @@ chmod +x "${COMMANDS_SH}"
   printf 'out_xclbin=%s\n' "${OUT_XCLBIN}"
   printf 'source_contract_out=%s\n' "${SOURCE_CONTRACT_OUT}"
   printf 'source_fingerprints_out=%s\n' "${SOURCE_FINGERPRINTS_OUT}"
+  printf 'source_fingerprint_status=%s\n' "${source_fingerprint_status}"
   printf 'source_contract_status=%s\n' "${source_status}"
   printf 'readiness_out=%s\n' "${READINESS_OUT}"
   printf 'runlog_readiness_out=%s\n' "${RUNLOG_READINESS_OUT}"
@@ -417,6 +381,9 @@ echo "DONE bundle_dir=${BUNDLE_DIR}"
 
 if (( source_status != 0 )); then
   exit "${source_status}"
+fi
+if (( source_fingerprint_status != 0 )); then
+  exit "${source_fingerprint_status}"
 fi
 if (( readiness_status != 0 )); then
   exit "${readiness_status}"

@@ -117,6 +117,10 @@ def newest_launch_packet_source_fingerprints(repo: Path) -> Path | None:
     return newest(list(repo.glob(".tmp_build/pure_pipeline_launch_packet_*/source_fingerprints.tsv")))
 
 
+def newest_target_flow_source_fingerprints(repo: Path) -> Path | None:
+    return newest(list(repo.glob(".tmp_build/pure_pipeline_*_stage0/run_logs/source_fingerprints_*.tsv")))
+
+
 def newest_readiness(repo: Path, target: str) -> Path | None:
     candidates = list(repo.glob(f".tmp_build/pure_pipeline_{target}_stage0/run_logs/readiness_*.txt"))
     strict_candidates = []
@@ -897,6 +901,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         artifact(repo, "boundary_prepare_run_env", boundary_prepare_env),
         artifact(repo, "latest_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_source_contracts/source_contracts_*.tsv")),
         artifact(repo, "latest_launch_packet_source_fingerprints", newest_launch_packet_source_fingerprints(repo)),
+        artifact(repo, "latest_target_flow_source_fingerprints", newest_target_flow_source_fingerprints(repo)),
         artifact(repo, "start_state_source_fingerprints", newest_glob(repo, ".tmp_build/pure_hw_start_state_*/source_fingerprints.tsv")),
         artifact(repo, "latest_hw_emu_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_*.tsv")),
         artifact(repo, "latest_hw_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_hw_stage0/run_logs/source_contracts_*.tsv")),

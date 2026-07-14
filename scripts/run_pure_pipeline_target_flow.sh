@@ -141,6 +141,7 @@ mkdir -p "${RUN_DIR}"
 FLOW_ENV="${RUN_DIR}/target_flow_${LABEL}.env"
 READINESS_OUT="${RUN_DIR}/readiness_target_flow_${LABEL}.txt"
 SOURCE_CONTRACT_OUT="${RUN_DIR}/source_contracts_target_flow_${LABEL}.tsv"
+SOURCE_FINGERPRINTS_OUT="${RUN_DIR}/source_fingerprints_target_flow_${LABEL}.tsv"
 MONITOR_OUT="${RUN_DIR}/monitor_after_${LABEL}.txt"
 AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
 
@@ -166,6 +167,7 @@ AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
   printf 'dry_run=%s\n' "${DRY_RUN}"
   printf 'git_head=%s\n' "$(git -C "${GRI_ROOT}" rev-parse HEAD)"
   printf 'source_contract_out=%s\n' "${SOURCE_CONTRACT_OUT}"
+  printf 'source_fingerprints_out=%s\n' "${SOURCE_FINGERPRINTS_OUT}"
   printf 'readiness_out=%s\n' "${READINESS_OUT}"
   printf 'monitor_out=%s\n' "${MONITOR_OUT}"
   printf 'audit_out=%s\n' "${AUDIT_OUT}"
@@ -176,6 +178,10 @@ if [[ "${PREPARE}" == "1" ]]; then
     --target "${TARGET}" \
     --build-root "${BUILD_ROOT}"
 fi
+
+run_cmd "${SCRIPT_DIR}/collect_pure_pipeline_source_fingerprints.sh" \
+  --label "target_flow_${LABEL}" \
+  --out-file "${SOURCE_FINGERPRINTS_OUT}"
 
 if [[ "${SOURCE_CONTRACT_CHECK}" == "1" ]]; then
   run_cmd "${SCRIPT_DIR}/check_pure_pipeline_source_contracts.py" \
@@ -245,6 +251,7 @@ fi
 
 echo "DONE flow_env=${FLOW_ENV}"
 echo "DONE source_contract_out=${SOURCE_CONTRACT_OUT}"
+echo "DONE source_fingerprints_out=${SOURCE_FINGERPRINTS_OUT}"
 echo "DONE readiness_out=${READINESS_OUT}"
 echo "DONE monitor_out=${MONITOR_OUT}"
 echo "DONE audit_out=${AUDIT_OUT}"
