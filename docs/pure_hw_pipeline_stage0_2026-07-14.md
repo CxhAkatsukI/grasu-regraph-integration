@@ -5290,3 +5290,41 @@ dff462d464cdf33efa6089ee0cd6c810bb6a4f3f579232605833159b1ab6b633  results/pure_p
 911c92fa363f8b4eed2b1dcb1d7c4dfe01e4420ac67596616170b968d2c33645  results/pure_pipeline_evidence_bundle_writer_token_check/requirement_matrix.tsv
 b5b1d26d5a4c38875ae34f1a678ee6a787a94d7ebb6caa701f84535d4328dc87  results/pure_pipeline_evidence_bundle_writer_token_check/summary.md
 ```
+
+Clean commit recheck after commit `bf1d566`:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label writer_token_after_bf1d566 \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_writer_token_after_bf1d566.tsv
+./scripts/audit_pure_pipeline_status.py \
+  --label writer_token_after_bf1d566 \
+  --out-dir results/pure_pipeline_requirement_audit_writer_token_after_bf1d566
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_writer_token_after_bf1d566/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_writer_token_after_bf1d566
+```
+
+Clean result:
+
+```text
+Dirty: False
+required_count=13
+failed_count=0
+proof=grasu_writers_emit_completion_tokens ok=yes
+contract_rc=0
+audit_rc=0
+bundle_rc=0
+```
+
+Clean evidence hashes:
+
+```text
+091e206e6471fdf8a59a93b6a69ad4f3dff5033d08019bcfb63976aaeb928955  .tmp_build/pure_pipeline_source_contracts/source_contracts_writer_token_after_bf1d566.tsv
+2dda78ac20b13ef1f58351e5b12d5695761805d5e037b697a29bedaff4f06622  results/pure_pipeline_requirement_audit_writer_token_after_bf1d566/audit.md
+90b3d11329c1064a97ef51279ad08d99a29fa9d905fe3c66a62fe9b1709afa71  results/pure_pipeline_requirement_audit_writer_token_after_bf1d566/audit.json
+dff462d464cdf33efa6089ee0cd6c810bb6a4f3f579232605833159b1ab6b633  results/pure_pipeline_evidence_bundle_writer_token_after_bf1d566/source_proof_matrix.tsv
+d8182a33e71ed861a977c546f0c1317dd7ddaad42febda36e7c57291c896067c  results/pure_pipeline_evidence_bundle_writer_token_after_bf1d566/requirement_matrix.tsv
+815f3697de1ffe331b05448cdb805e9f59c1d95bd5fe905b437f53a968b5c2c8  results/pure_pipeline_evidence_bundle_writer_token_after_bf1d566/summary.md
+```
