@@ -3531,3 +3531,118 @@ cd /home/chuxiao/grasu-regraph-integration
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 ```
+
+## 2026-07-15 Readiness Bundle Source Contracts
+
+The readiness refresh command now records the source-contract gate before it
+runs build-readiness checks and exports the requirement audit/evidence bundle.
+This makes every status bundle include a durable proof that the current source
+still satisfies the pure-pipeline PMA handoff, completion-token barrier,
+512-bit AXI stream, unit-weight SSSP packing, timing, and boundary-preparation
+contracts.
+
+Source commit:
+
+```text
+3efa568b3f9388c721f87192c65792f084c3b5d3
+```
+
+Changed files:
+
+```text
+README.md
+scripts/audit_pure_pipeline_status.py
+scripts/refresh_pure_pipeline_readiness_bundle.sh
+```
+
+Behavior added:
+
+```text
+refresh_pure_pipeline_readiness_bundle.sh
+  -> check_pure_pipeline_source_contracts.py
+  -> check_pure_pipeline_build_readiness.sh for hw_emu/hw
+  -> audit_pure_pipeline_status.py
+  -> export_pure_pipeline_evidence_bundle.py
+```
+
+The refresh script still never starts Vitis. A nonzero refresh exit remains a
+status signal from readiness checks, not a failed build launch.
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/check_pure_pipeline_source_contracts.py \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py
+bash -n \
+  scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  scripts/run_pure_pipeline_target_flow.sh
+
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_source_contracts_after_3efa568
+```
+
+Result:
+
+```text
+source_contracts: PASS, 9/9 required proofs
+hw_emu readiness: ready=no, out_xclbin=MISSING, active_builders external=10
+hw readiness: ready=no, out_xclbin=MISSING, active_builders external=10
+audit status counts: {"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+refresh exit code: 3
+```
+
+The exit code is expected for this snapshot because an unrelated Spine hardware
+link is still active. No pure-pipeline `hw_emu` or `hw` xclbin exists yet:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin  MISSING
+.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin          MISSING
+```
+
+Evidence artifacts:
+
+```text
+.tmp_build/pure_pipeline_source_contracts/source_contracts_refresh_source_contracts_after_3efa568.tsv
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_source_contracts_after_3efa568.txt
+.tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_source_contracts_after_3efa568.txt
+results/pure_pipeline_requirement_audit_refresh_source_contracts_after_3efa568/audit.json
+results/pure_pipeline_requirement_audit_refresh_source_contracts_after_3efa568/audit.md
+results/pure_pipeline_evidence_bundle_refresh_source_contracts_after_3efa568/summary.md
+results/pure_pipeline_evidence_bundle_refresh_source_contracts_after_3efa568/bundle_manifest.json
+results/pure_pipeline_evidence_bundle_refresh_source_contracts_after_3efa568/source_proof_matrix.tsv
+```
+
+Evidence hashes:
+
+```text
+4824723560ff71e349b1e3ace8b6a038fe05bcd2e827421bebbea6c394c90f4b  scripts/refresh_pure_pipeline_readiness_bundle.sh
+5cee7bc96c2450f01b9d1f0578156f2c3f33e6b3c6cdc0ca7eceb6062806243f  scripts/audit_pure_pipeline_status.py
+13799040cd4de3b958802e34524bd3714785515ae1cfac97ba2ff62a689209b7  README.md
+23899c69e5665beb9e624a9ecb4901444c286dd716fb77d3ac9d80f084a312fa  .tmp_build/pure_pipeline_source_contracts/source_contracts_refresh_source_contracts_after_3efa568.tsv
+b758646733b7864feb4e8c451b788bbe5cfce803fe6a4b26b638cc9582a7ebd0  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_source_contracts_after_3efa568.txt
+61c600965196a14f4648a0e56175ca369ec4b88046a2887b55ef59122eecf710  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_source_contracts_after_3efa568.txt
+dc13070845eefe3ea5f1a392ef29443cce971e38143c7cea4250b21907ecd4b9  results/pure_pipeline_requirement_audit_refresh_source_contracts_after_3efa568/audit.json
+675030c86db61c5a0d1d89d3263b0eac04154abbb5e0992516447d324a0b72e7  results/pure_pipeline_requirement_audit_refresh_source_contracts_after_3efa568/audit.md
+b8143dad4d39f334b054adb505dc81f773ea7d1d363e69e6d23d1d034933f4da  results/pure_pipeline_evidence_bundle_refresh_source_contracts_after_3efa568/summary.md
+8f24586468831bf691ca1cb6e580369759a9b1329b8d028bd245427da4f98d34  results/pure_pipeline_evidence_bundle_refresh_source_contracts_after_3efa568/bundle_manifest.json
+eff8ac53e119cb56210c40a1b3add23f6847b9296ef136d17dd0d4b38c4268b9  results/pure_pipeline_evidence_bundle_refresh_source_contracts_after_3efa568/source_proof_matrix.tsv
+```
+
+Next real launch command after external Vitis/Vivado builders are idle:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_3efa568 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
