@@ -204,3 +204,10 @@ Run the same wrapper with `--target hw` after `hw_emu` passes. The wrapper
 records the build parameters, waits for other Vitis/Vivado jobs to become idle,
 monitors the build output, runs a staged smoke gate, then emits the requirement
 audit.
+
+Export a compact evidence bundle for reports:
+
+```bash
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --out-dir results/pure_pipeline_evidence_bundle_after_$(git rev-parse --short HEAD)
+```

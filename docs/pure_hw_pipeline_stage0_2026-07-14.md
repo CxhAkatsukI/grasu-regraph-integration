@@ -1464,6 +1464,48 @@ dc1d829282a96a68e51a0aa03e86d63bf0487263f692119bef5a027a032503cc  /tmp/pure_read
 e75533b9c0419ebda617fab8bd7052397d42ce1fe9ef03126ea6b9b26a01357f  results/pure_pipeline_requirement_audit_readiness_strict_audit_3e23632/audit.md
 ```
 
+## Evidence Bundle Export
+
+Use the bundle exporter to create a compact report directory from the latest
+audit and the smoke comparison:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_after_08845bf_both_readiness/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_after_08845bf
+```
+
+The output directory contains:
+
+```text
+requirement_matrix.tsv
+target_matrix.tsv
+artifact_matrix.tsv
+case_matrix.tsv
+summary.md
+bundle_manifest.json
+```
+
+Current bundle interpretation:
+
+- `sw_emu` pure pipeline correctness is present.
+- `hw_emu` and `hw` pure xclbins are absent.
+- `hw_emu` and `hw` readiness reports both show generated command scripts and
+  resources are ready, but active external Vitis/Vivado builders block launch.
+- Host baseline, zero-cost handoff baseline, and Spine smoke comparison remain
+  included on the same input cases.
+
+Evidence:
+
+```text
+8598d516f8df3945cc39ff96919b2b2afbe080cb224238ab3fa5c1e59f105f94  scripts/export_pure_pipeline_evidence_bundle.py
+f4c1e1a4c1b598057d2a94e9330ff2ffb931457f9355596381f7c828a0d03f57  results/pure_pipeline_evidence_bundle_after_08845bf/summary.md
+fb6047ba69a9bf0608186f0f58c1545df38f5f25b26a049bab9ef36cb8176955  results/pure_pipeline_evidence_bundle_after_08845bf/bundle_manifest.json
+dd0755dcea3fe44fffd66882f0e172d74b7d647f553792ce8aaeee522787018d  results/pure_pipeline_evidence_bundle_after_08845bf/target_matrix.tsv
+ce453d8cbecadeb1b7b1bbe7b749317117b74077ef7122f1d267da8263b6f846  results/pure_pipeline_evidence_bundle_after_08845bf/case_matrix.tsv
+```
+
 ## Not Yet True
 
 The current baseline still has these gaps:
