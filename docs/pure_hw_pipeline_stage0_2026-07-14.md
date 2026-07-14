@@ -4408,3 +4408,112 @@ c424538b54d3cfb585ff356f992f8b94a684f8b6ae12d8100fd2e24db24a16ea  results/pure_p
 73def000b79826a80b4d1598aa46fbcc7a8f676263904a36d86b9fbfd6b2bbdc  results/pure_pipeline_evidence_bundle_xclbin_after_566dd44/target_matrix.tsv
 d9d2b6ca5e02bcda30fbcc5a81acac3cc6dd3737a10a3128697e2726f8b94e14  results/pure_pipeline_evidence_bundle_xclbin_after_566dd44/bundle_manifest.json
 ```
+
+## Finalize auto-collects xclbin contract evidence
+
+As of 2026-07-15 03:27 Asia/Shanghai, finalize now runs the post-link xclbin
+metadata contract checker before smoke/compare. This does not create a new
+hardware build; it tightens the reproducibility path so a future `hw_emu` or
+`hw` xclbin automatically gets a metadata-contract TSV, and the finalize
+evidence records hashes for:
+
+```text
+<xclbin>
+<xclbin>.info
+run_logs/xclbin_contract_<target>_<label>.tsv
+manifest.env
+inputs.tsv
+compile_commands.sh
+link_command.sh
+smoke/compare outputs when they are enabled
+```
+
+Source commits:
+
+```text
+ce8fe06264b201c4f7bf4b0c3037fc2ba4fe2147  Collect xclbin contract during finalize
+11f1e78bc4fb0cc721a664ce8c97a9b7f38e0401  Audit finalize xclbin contract outputs
+```
+
+Changed files:
+
+```text
+scripts/finalize_pure_pipeline_build.sh
+scripts/audit_pure_pipeline_status.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/check_pure_pipeline_xclbin_contract.py
+
+./scripts/finalize_pure_pipeline_build.sh \
+  --target sw_emu \
+  --label after_11f1e78 \
+  --skip-smoke \
+  --skip-compare \
+  --build-root .tmp_build/pure_pipeline_sw_emu_stage0
+
+./scripts/audit_pure_pipeline_status.py \
+  --label after_11f1e78_finalize_contract \
+  --out-dir results/pure_pipeline_requirement_audit_after_11f1e78_finalize_contract
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_after_11f1e78_finalize_contract/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_after_11f1e78_finalize_contract
+```
+
+Result:
+
+```text
+finalize xclbin contract target=sw_emu
+check_count=9
+failed_count=0
+xclbin_sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+info_sha256=8b0cf0c3b63ea7d623a599af4db65c4464aae8fadc93e07c089d374bbc2b0f04
+required_kernels=yes
+required_instances=yes
+kernel_metadata_contract=yes
+link_connectivity_contract=yes
+
+audit status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+sw_emu xclbin_contract=.tmp_build/pure_pipeline_sw_emu_stage0/run_logs/xclbin_contract_sw_emu_after_11f1e78.tsv
+hw_emu xclbin=MISSING
+hw xclbin=MISSING
+```
+
+Artifacts:
+
+```text
+.tmp_build/pure_pipeline_sw_emu_stage0/run_logs/finalize_after_11f1e78.env
+.tmp_build/pure_pipeline_sw_emu_stage0/run_logs/finalize_after_11f1e78_evidence.tsv
+.tmp_build/pure_pipeline_sw_emu_stage0/run_logs/xclbin_contract_sw_emu_after_11f1e78.tsv
+results/pure_pipeline_requirement_audit_after_11f1e78_finalize_contract/audit.json
+results/pure_pipeline_requirement_audit_after_11f1e78_finalize_contract/audit.md
+results/pure_pipeline_evidence_bundle_after_11f1e78_finalize_contract/summary.md
+results/pure_pipeline_evidence_bundle_after_11f1e78_finalize_contract/target_matrix.tsv
+results/pure_pipeline_evidence_bundle_after_11f1e78_finalize_contract/bundle_manifest.json
+```
+
+Evidence hashes:
+
+```text
+47e35bd392c248b2e189a396999b4a8a67e6775178d1988fa49ab67a8e20e759  scripts/finalize_pure_pipeline_build.sh
+55a23acf3443536b4275a2ca0b219ab3ec40374b70c9d34033fa256b645e9337  scripts/audit_pure_pipeline_status.py
+adb638689b2381c030f50b5e2ef75db90852a8c957076138fbb8b9a8eae419d4  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/finalize_after_11f1e78.env
+38730562485fc0e7a7a7f61efb2656d8cf08c6ce22350e3a6c96629ab6a01cca  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/finalize_after_11f1e78_evidence.tsv
+e41cce545651d7e38c6ba8c0ed559d212055e61128194f82e6c443e0075929d1  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/xclbin_contract_sw_emu_after_11f1e78.tsv
+5b06ee94f9e8a9ac456630e0ff698881826de9de243a506e6a7e720779032b01  results/pure_pipeline_requirement_audit_after_11f1e78_finalize_contract/audit.json
+972c8ae257976e70ba8764de4eeda1669c2537485387fe47e4c7d2246091f87a  results/pure_pipeline_requirement_audit_after_11f1e78_finalize_contract/audit.md
+c9ac8ffea4283d7936986044d513a742ae5b991cf6893b03309792b3a5a0d22b  results/pure_pipeline_evidence_bundle_after_11f1e78_finalize_contract/summary.md
+722f8b0778350e614c3cd24f8ad953eda249cca82739aef21100d61bb3a66749  results/pure_pipeline_evidence_bundle_after_11f1e78_finalize_contract/target_matrix.tsv
+9a032d7eacd4ca20b6d5dbffcefa0a0376e09e1298be9754a94ace3cbe99f0a6  results/pure_pipeline_evidence_bundle_after_11f1e78_finalize_contract/bundle_manifest.json
+```
+
+Important status note: the current pure-pipeline `hw_emu` and `hw` xclbins
+still do not exist. The latest bundle also reports active external Vitis/Vivado
+builders, so the next long build should be launched only after those resources
+are intentionally cleared or accepted.
