@@ -2870,3 +2870,83 @@ f503d1895bf874deefadc5b6fea1731060b2278370e30b2d39fdf94fe0686585  results/pure_p
 bbd50df93b4e43fb458ca5e069eab698542bf3d5379fc35f97aca6aa3232b74d  results/pure_pipeline_evidence_bundle_swemu_refresh_after_e493833/target_matrix.tsv
 aceea952b9ba5f6b4ac166fc386911dbbdea76d592823b55a12fe238b81aa307  results/pure_pipeline_evidence_bundle_swemu_refresh_after_e493833/bundle_manifest.json
 ```
+
+## 2026-07-15 Current-Head Readiness During Spine Routing
+
+At current integration HEAD:
+
+```text
+59c8f561023148574c4529f02d65c810c95d1228
+```
+
+the external Spine 133 MHz hardware link is still active, now in routing. The
+pure-pipeline `hw_emu` and `hw` targets were refreshed without launching Vitis:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_20260715_0204_external_spine_routing_after_59c8f56
+```
+
+The wrapper exited `3`, which is expected while strict readiness sees active
+external Vitis/Vivado builders. It still wrote the readiness reports, audit,
+and evidence bundle.
+
+Current target matrix:
+
+```text
+hw      xclbin=no  smoke=no  readiness=no  blocking=1 warning=0 external_builders=10 build_artifacts=PASS clean_recommended=no
+hw_emu  xclbin=no  smoke=no  readiness=no  blocking=1 warning=1 external_builders=10 build_artifacts=WARN clean_recommended=yes children=7
+sw_emu  xclbin=yes smoke=yes xclbin_sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+```
+
+The `hw_emu` stale artifact list is still:
+
+```text
+bin_search,bin_search.hw_emu.xo,bin_search.hw_emu.xo.compile_summary,bin_search.mdb,dispatch,dispatch.hw_emu.xo.compile_summary,dispatch.mdb
+```
+
+The next launch command remains:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_59c8f56 \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+External Spine xclbin was still missing:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0024/xclbin/spine_partitioned_split_e2e.hw.xclbin
+```
+
+Latest inspected Spine log tail:
+
+```text
+[01:55:59] Finished 4th of 6 tasks (FPGA logic placement).
+[01:55:59] Starting logic routing..
+[02:02:33] Phase 3 Global Routing
+[02:02:33] Phase 4 Initial Routing
+[02:02:33] Phase 4.1 Initial Net Routing Pass
+[02:04:04] Phase 5 Rip-up And Reroute
+[02:04:04] Phase 5.1 Global Iteration 0
+```
+
+Evidence hashes:
+
+```text
+b0bd8d17d71c992a0e1a7f619edc1e847c8798d42dc86b6e7e21b9a2ee9925ee  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_20260715_0204_external_spine_routing_after_59c8f56.txt
+a42629dff3eb937165037fb7aa85385fba123c2ed6241065908372186afbe560  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_20260715_0204_external_spine_routing_after_59c8f56.txt
+b7eba2eef3696ea993126618f5e1b4c06e3fd1acfcb3f2633aeabe5422bf23cc  results/pure_pipeline_requirement_audit_refresh_20260715_0204_external_spine_routing_after_59c8f56/audit.json
+f438681ff6549272a68919092fd6827b9f41d9a9ed6798717f148e81c8c8213a  results/pure_pipeline_requirement_audit_refresh_20260715_0204_external_spine_routing_after_59c8f56/audit.md
+55cffa89bdb58ecd9220c9d889fde76dd08858357f3fb042f5fe1b2e2aedc25e  results/pure_pipeline_evidence_bundle_refresh_20260715_0204_external_spine_routing_after_59c8f56/summary.md
+9f53bb119f3e979699e19aa5f373a612bcd0608fe65224517c63a91899929823  results/pure_pipeline_evidence_bundle_refresh_20260715_0204_external_spine_routing_after_59c8f56/target_matrix.tsv
+aafc3f4d6c260387d2a12db56ff7bde2c78e627531e92fbc90f2e06b0e8f40b8  results/pure_pipeline_evidence_bundle_refresh_20260715_0204_external_spine_routing_after_59c8f56/bundle_manifest.json
+```
