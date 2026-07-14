@@ -5962,3 +5962,79 @@ fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pur
 88d1a17e7cf5bb09f75dff0f6bfc0aaa6c5e1434a74a6d7c20d706bbe6335bee  results/pure_pipeline_evidence_bundle_target_flow_acceptance_after_07c9f3a/summary.md
 80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  results/pure_pipeline_evidence_bundle_target_flow_acceptance_after_07c9f3a/source_proof_matrix.tsv
 ```
+
+## HW Target Prelaunch Snapshot
+
+As of commit `b759c5c8efe508ac07ac90057409a3d4b0c32cae`, the real `hw`
+target has a refreshed no-build launch snapshot. This does not claim a
+successful hardware build; it proves that the target-flow wrapper can generate
+the `hw` compile/link/config scripts, source fingerprints, source contracts,
+readiness report, replay command, acceptance gates, audit, and compact evidence
+bundle before the long Vitis run is launched.
+
+Validation command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label target_flow_acceptance_hw_status_sync_b759c5c \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Result:
+
+```text
+source_contracts_required_count=17
+source_contracts_failed_count=0
+readiness_ready=yes
+prelaunch_acceptance_status_counts={"PASS": 4, "PENDING": 9}
+audit_status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+acceptance_check_postrun=SKIPPED
+```
+
+The readiness report was run with the target-flow wrapper's
+`--allow-active-builders` behavior, so it records the external Spine
+`v++/vpl/vivado` jobs as active but does not fail the no-build launch snapshot.
+The real long build should still wait for those jobs to finish.
+
+The postrun checker is expected to fail until the real `hw` build and smoke
+tests exist:
+
+```bash
+./scripts/check_pure_pipeline_acceptance_gates.py \
+  --acceptance-gates .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_gates_target_flow_target_flow_acceptance_hw_status_sync_b759c5c.tsv \
+  --mode postrun \
+  --out-file .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_check_postrun_target_flow_target_flow_acceptance_hw_status_sync_b759c5c_expected_missing.tsv
+```
+
+Expected current postrun result:
+
+```text
+status_counts={"FAIL": 7, "PASS": 6}
+failed_gates=compile_log,link_log,target_xclbin,xclbin_contract,gate_smoke,full_smoke,same_input_compare
+```
+
+Evidence hashes:
+
+```text
+7bab4ebac62662fd54d5143d71ce4ac109981bd519f4b1c6a33bf10a8d6f36a4  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_target_flow_acceptance_hw_status_sync_b759c5c.env
+5792d49b05c086545a8ed948371069653c217d1b9022aa48e2f53d85cd5d2711  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_target_flow_acceptance_hw_status_sync_b759c5c_replay.sh
+5150a193aa75897ad2e87c5dc358b7b6f0544bfa8ea0b748c8c283c660b28dfa  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_gates_target_flow_target_flow_acceptance_hw_status_sync_b759c5c.tsv
+a38928d064811673dc1f2abc2d9755ea1a1a1560c6b20925dc2e7b21d994ffa2  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_check_prelaunch_target_flow_target_flow_acceptance_hw_status_sync_b759c5c.tsv
+6a0916a1fc28cec4a861ec3c6d984b60419c1358e336f39edb33388c5a9c79bf  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_check_postrun_target_flow_target_flow_acceptance_hw_status_sync_b759c5c_expected_missing.tsv
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_hw_stage0/run_logs/source_contracts_target_flow_target_flow_acceptance_hw_status_sync_b759c5c.tsv
+6184216dfa8d38fd291ce5f48beffbc1e60b16fd24a5b0767446c6fc986fad75  .tmp_build/pure_pipeline_hw_stage0/run_logs/source_fingerprints_target_flow_target_flow_acceptance_hw_status_sync_b759c5c.tsv
+c043171f8cc99ccca457b093946232f2c86fc4dd6549809a0c825c6adc10f0ec  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_target_flow_target_flow_acceptance_hw_status_sync_b759c5c.txt
+036fc32d5c13efca20f9f4ecd91675f12a5577d214cb23d96e85dd01655127a8  .tmp_build/pure_pipeline_hw_stage0/run_logs/monitor_after_target_flow_acceptance_hw_status_sync_b759c5c.txt
+0bcc9781d4059f7259a19fbf4a560803722d6d217876878ea2ed197d453c5e86  results/pure_pipeline_requirement_audit_target_flow_acceptance_hw_status_sync_b759c5c/audit.json
+7dbdc520f560f0f2b773f875fa5eca769d9f45c9b8038d668824cf21e01d54c0  results/pure_pipeline_evidence_bundle_target_flow_acceptance_hw_status_sync_b759c5c/summary.md
+80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  results/pure_pipeline_evidence_bundle_target_flow_acceptance_hw_status_sync_b759c5c/source_proof_matrix.tsv
+```
