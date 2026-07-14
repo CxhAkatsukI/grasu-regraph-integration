@@ -20,6 +20,7 @@ DEFAULT_REQUIRED_PROOFS = (
     "single_context_program",
     "adapter_receives_actual_pma_buffers",
     "pma_row_offset_begin_end_contract",
+    "no_host_graph_handoff_between_grasu_and_regraph",
     "completion_token_barrier",
     "adapter_to_regraph_stream",
     "stream_burst_8_edge_contract",

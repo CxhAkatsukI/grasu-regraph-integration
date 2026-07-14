@@ -5159,3 +5159,69 @@ f0a0242868eaafb6459df462e771fce03ccf6459526917c6d7fde8b92ca42b5a  results/pure_p
 84a198e8238e2ef888797d1700cdeea8068d012c446d1bdc963cb5e0864ace94  results/pure_pipeline_evidence_bundle_source_fp_after_6564f46/artifact_matrix.tsv
 20d7bf71ef57482cd8043c6ae04938428b75a689455d3fb2a59fc4a3a8b9d9f8  results/pure_pipeline_evidence_bundle_source_fp_after_6564f46/summary.md
 ```
+
+## Source proof for no host graph handoff
+
+As of 2026-07-15 04:02 Asia/Shanghai, the source-contract gate explicitly
+checks the requirement that the pure pipeline does not perform graph D2H, host
+conversion, or graph H2D between GraSU and ReGraph. The CPU oracle still builds
+`final_edges` on the host for correctness checking, but the checked runtime
+segment from GraSU launch to adapter enqueue contains no host-side graph
+migration, readback, conversion, or buffer rebuild. The adapter consumes the
+GraSU PMA buffers and streams directly into ReGraph.
+
+Changed files:
+
+```text
+scripts/audit_pure_pipeline_status.py
+scripts/check_pure_pipeline_source_contracts.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/check_pure_pipeline_source_contracts.py
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label no_host_handoff_check \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_no_host_handoff_check.tsv
+
+./scripts/audit_pure_pipeline_status.py \
+  --label no_host_handoff_check \
+  --out-dir results/pure_pipeline_requirement_audit_no_host_handoff_check
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_no_host_handoff_check/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_no_host_handoff_check
+```
+
+Result:
+
+```text
+required_count=12
+failed_count=0
+proof=no_host_graph_handoff_between_grasu_and_regraph ok=yes
+status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+requirement_5_status=partial
+```
+
+The new proof remains partial at the requirement level because `hw_emu` and
+`hw` xclbins/smoke results are still missing, but the source-level preflight now
+guards against accidentally reintroducing a GraSU -> host -> ReGraph graph
+handoff in the pure pipeline.
+
+Evidence hashes:
+
+```text
+1c1938ec343779a804c48030bc9fefece10429bb260990a25d854c2baf66c6b7  scripts/audit_pure_pipeline_status.py
+744485f730fbe1a7e5210dd635fac00264d166fc0c53a31518cffaa0ee7161f6  scripts/check_pure_pipeline_source_contracts.py
+a0f3a6b28152ebf40a2818ddd87607742f866c4b397b30315c4ea5eaf6349d4e  .tmp_build/pure_pipeline_source_contracts/source_contracts_no_host_handoff_check.tsv
+c7fef7d742e4594d0d08e45c398e7755ef699411cacfee003fef7e14f7ea890c  results/pure_pipeline_requirement_audit_no_host_handoff_check/audit.md
+4451484aa74f4d4db241d2dc35a4af7dfb69e8ed12c975f8e39ad4df80d25a7c  results/pure_pipeline_requirement_audit_no_host_handoff_check/audit.json
+71f3ad5ab6fc832a0cde2dca5cee07caba789dedff5feab8e074e102f1e6b5d0  results/pure_pipeline_evidence_bundle_no_host_handoff_check/source_proof_matrix.tsv
+e7981da5154cc8970bdcbf005e1afd0d7e01d74651581a7760a1a9187db314e1  results/pure_pipeline_evidence_bundle_no_host_handoff_check/requirement_matrix.tsv
+cf28102ad34bb361209fc1d2dccc17a134ed2054de983eac99490d071cbac121  results/pure_pipeline_evidence_bundle_no_host_handoff_check/summary.md
+```

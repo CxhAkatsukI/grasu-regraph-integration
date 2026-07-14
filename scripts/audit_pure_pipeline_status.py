@@ -331,6 +331,19 @@ def source_contains(path: Path, needles: list[str]) -> bool:
     return all(needle in text for needle in needles)
 
 
+def source_segment(path: Path, start: str, end: str) -> str:
+    if not path.is_file():
+        return ""
+    text = path.read_text(encoding="ascii", errors="replace")
+    begin = text.find(start)
+    if begin < 0:
+        return ""
+    finish = text.find(end, begin)
+    if finish < 0:
+        return ""
+    return text[begin:finish]
+
+
 def target_build_scripts_cover_pure_pipeline(repo: Path) -> dict[str, Any]:
     paths: list[str] = []
     missing: dict[str, list[str]] = {}
@@ -546,6 +559,20 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     barrier = repo / "kernels/pma_completion_barrier/pma_completion_barrier.cpp"
     lksg_stream = repo / "kernels/regraph_stream_little_gs/little_gs_stream.cpp"
     prepare = repo / "scripts/prepare_pure_hw_pipeline_build.sh"
+    grasu_to_adapter_segment = source_segment(
+        host,
+        'std::cout << "PURE_PIPELINE_HOST stage=launch_grasu"',
+        'std::cout << "PURE_PIPELINE_HOST stage=enqueued_adapter step="',
+    )
+    forbidden_handoff_terms = [
+        "enqueueMigrateMemObjects",
+        "CL_MIGRATE_MEM_OBJECT_HOST",
+        "build_final_internal_edges",
+        "run_unit_sssp_oracle",
+        "prepare_grasu_inputs",
+        "read_dataset",
+        "make_buffer(",
+    ]
     return {
         "single_context_program": {
             "ok": source_contains(host, [
@@ -581,6 +608,24 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
             ]),
             "paths": [display_path(repo, host), display_path(repo, adapter)],
             "contract": "host packs row_offset[src] as begin[63:32], end[31:0]; adapter decodes the same fields",
+        },
+        "no_host_graph_handoff_between_grasu_and_regraph": {
+            "ok": bool(grasu_to_adapter_segment)
+            and not any(term in grasu_to_adapter_segment for term in forbidden_handoff_terms)
+            and source_contains(host, [
+                "The result file is accepted for CLI compatibility; CPU SSSP oracle is built",
+                "adapter.setArg(0, pma_dev[0])",
+                "adapter.setArg(1, pma_dev[1])",
+                "adapter.setArg(2, pma_dev[2])",
+                "adapter.setArg(3, pma_dev[3])",
+                "adapter.setArg(4, row_dev[0])",
+                "pipeline_queue.enqueueTask(adapter, adapter_wait_list, &adapter_event)",
+            ])
+            and source_contains(prepare, [
+                "pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in",
+            ]),
+            "paths": [display_path(repo, host), display_path(repo, prepare)],
+            "contract": "between GraSU launch and adapter enqueue the host does not migrate/read/convert graph data; adapter consumes PMA buffers and streams directly to ReGraph",
         },
         "completion_token_barrier": {
             "ok": source_contains(prepare, [
@@ -740,6 +785,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     source_same_context = proofs["single_context_program"]["ok"]
     source_barrier = proofs["completion_token_barrier"]["ok"]
     source_actual_pma = proofs["adapter_receives_actual_pma_buffers"]["ok"]
+    source_no_host_handoff = proofs["no_host_graph_handoff_between_grasu_and_regraph"]["ok"]
     source_stream = proofs["adapter_to_regraph_stream"]["ok"]
     source_row_bounds = proofs["pma_row_offset_begin_end_contract"]["ok"]
     source_stream_contract = proofs["stream_burst_8_edge_contract"]["ok"]
@@ -809,8 +855,9 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         requirement(
             5,
             "No graph D2H, host conversion, or graph H2D between GraSU and ReGraph",
-            status_if_hw_valid(hw_valid, source_actual_pma and source_row_bounds and source_stream, sw_valid),
+            status_if_hw_valid(hw_valid, source_no_host_handoff and source_actual_pma and source_row_bounds and source_stream, sw_valid),
             [
+                proofs["no_host_graph_handoff_between_grasu_and_regraph"]["contract"],
                 proofs["adapter_receives_actual_pma_buffers"]["path"],
                 proofs["pma_row_offset_begin_end_contract"]["contract"],
                 "pure sw_emu summary passes without GraSU edge export files",
