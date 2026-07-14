@@ -172,6 +172,7 @@ mkdir -p "${OUT_DIR}"
 
 BUILD_ROOT="${GRI_ROOT}/.tmp_build/pure_pipeline_${TARGET}_stage0"
 SOURCE_CONTRACT_OUT="${OUT_DIR}/source_contracts.tsv"
+RUNLOG_READINESS_OUT="${BUILD_ROOT}/run_logs/readiness_${LABEL}.txt"
 READINESS_OUT="${OUT_DIR}/readiness_${TARGET}.txt"
 AUDIT_DIR="${OUT_DIR}/audit"
 BUNDLE_DIR="${OUT_DIR}/evidence_bundle"
@@ -203,7 +204,7 @@ readiness_cmd=(
   "${SCRIPT_DIR}/check_pure_pipeline_build_readiness.sh"
   --target "${TARGET}"
   --label "${LABEL}"
-  --out-file "${READINESS_OUT}"
+  --out-file "${RUNLOG_READINESS_OUT}"
   --min-build-free-gb "${MIN_BUILD_FREE_GB}"
   --min-tmp-free-gb "${MIN_TMP_FREE_GB}"
 )
@@ -215,6 +216,9 @@ if run_capture_status "${readiness_cmd[@]}"; then
   readiness_status=0
 else
   readiness_status=$?
+fi
+if [[ -f "${RUNLOG_READINESS_OUT}" ]]; then
+  cp "${RUNLOG_READINESS_OUT}" "${READINESS_OUT}"
 fi
 
 audit_status=0
@@ -277,6 +281,7 @@ chmod +x "${COMMANDS_SH}"
   printf 'source_contract_out=%s\n' "${SOURCE_CONTRACT_OUT}"
   printf 'source_contract_status=%s\n' "${source_status}"
   printf 'readiness_out=%s\n' "${READINESS_OUT}"
+  printf 'runlog_readiness_out=%s\n' "${RUNLOG_READINESS_OUT}"
   printf 'readiness_status=%s\n' "${readiness_status}"
   printf 'audit_dir=%s\n' "${AUDIT_DIR}"
   printf 'audit_status=%s\n' "${audit_status}"
@@ -303,6 +308,7 @@ chmod +x "${COMMANDS_SH}"
     "${BUILD_ROOT}/link_command.sh" \
     "${SOURCE_CONTRACT_OUT}" \
     "${READINESS_OUT}" \
+    "${RUNLOG_READINESS_OUT}" \
     "${AUDIT_DIR}/audit.json" \
     "${AUDIT_DIR}/audit.md" \
     "${BUNDLE_DIR}/summary.md" \
@@ -336,6 +342,7 @@ launch_line="$(printf '%q ' "${launch_cmd[@]}")"
   printf '```text\n'
   printf '%s\n' "${SOURCE_CONTRACT_OUT}"
   printf '%s\n' "${READINESS_OUT}"
+  printf '%s\n' "${RUNLOG_READINESS_OUT}"
   printf '%s\n' "${AUDIT_DIR}/audit.json"
   printf '%s\n' "${BUNDLE_DIR}/summary.md"
   printf '%s\n' "${HASHES_TSV}"
