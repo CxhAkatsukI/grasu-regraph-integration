@@ -8695,3 +8695,89 @@ bash -n: PASS
 auto-baseline dry-run: PASS, printed smoke and identity commands without launching hw
 require-compare dry-run: expected status=1, reported the missing host and Spine summary paths
 ```
+
+## Launch Packet Refresh After Postbuild Discovery, 2026-07-15
+
+After committing `scripts/run_pure_stage0_postbuild_matrix.sh`, the pure
+pipeline launch packets were refreshed so `report_pure_pipeline_next_steps.py`
+can point to current, clean-source build commands again.
+
+Generated commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_1578724/launch_command.sh
+```
+
+Expanded `hw_emu` command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_1578724 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Prepared `hw` packet for the later real-device build:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_1578724/launch_command.sh
+```
+
+Expanded `hw` command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label after_1578724 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Read-only status immediately after refresh:
+
+```text
+repo=/home/chuxiao/grasu-regraph-integration
+branch=codex/pure-hw-pipeline
+head=157872415782aee0ac41f8f407aaf973b3975037
+dirty=false
+
+sw_emu: xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+hw_emu: xclbin=no packet_current=yes waiting_xclbin
+hw:     xclbin=no packet_current=yes waiting_xclbin
+
+active builders: related=0 external=10
+next_target=hw_emu
+next_action=build
+next_command=.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_1578724/launch_command.sh
+```
+
+Evidence hashes:
+
+```text
+7fa4ea33d19d6f2d79a1b5cb71878da1794d9450567a551dadd442b28601e751  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_1578724/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_1578724/source_contracts.tsv
+7862d5eb82f8fafcddbf27dfa0605e0f3d7963298ce635aeda40edecc185d4d9  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_1578724/source_fingerprints.tsv
+d6b66ab5c049482c73e8cc2bb23bf1afcd91c71f201ca79f6fa9f95a577452cf  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_1578724/readiness_hw_emu.txt
+8b39a2de45ce49985b3e52663877132da5a79c649a836193a8058f43029d31df  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_1578724/acceptance_check_prelaunch.tsv
+
+431da7bebd37a438f82530519f6305b524fde9a5106dd57b3fd3934f46364d7e  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_1578724/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_1578724/source_contracts.tsv
+7862d5eb82f8fafcddbf27dfa0605e0f3d7963298ce635aeda40edecc185d4d9  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_1578724/source_fingerprints.tsv
+a9b0f6a5bbdd78c0150165c34a98a48ca8a7e8e153c886710212a7db84857123  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_1578724/readiness_hw.txt
+c54c8c4bab81a81d255c220a341d96ba3d9b26be5b1a7b4d2f1977e29e1760ca  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_1578724/acceptance_check_prelaunch.tsv
+```
