@@ -990,6 +990,43 @@ so `/tmp` pressure is not the main blocker. The practical reason not to launch
 the pure `hw_emu` build in the same moment is resource contention with the
 active unrelated Spine hardware implementation.
 
+The build wrapper now also has an active guard:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label after_<commit> \
+  --require-idle
+```
+
+With `--require-idle`, the script scans for active Vitis/Vivado processes before
+executing compile/link. If any are found, it writes an idle-check report and
+exits with code `3` instead of starting a competing build.
+
+Guard regression while the unrelated Spine `hw` link was active:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+set +e
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label idle_guard_check \
+  --require-idle \
+  --dry-run \
+  --skip-compile \
+  --skip-link
+echo "idle_guard_rc=$?"
+```
+
+Evidence:
+
+```text
+idle_guard_rc=3
+2999e549c21ef86eb67f892888ee35e9e2556a01f43dae5a5fc03a0ce2080d5c  scripts/run_pure_pipeline_build.sh
+afc13697844f7391caf7d6bfa9d3403f7130c5b81b22470548b28a612bd603c0  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/idle_check_idle_guard_check.txt
+```
+
 ## Staged Smoke Gate
 
 The full requirement still needs all four smoke families on `sw_emu`, `hw_emu`,

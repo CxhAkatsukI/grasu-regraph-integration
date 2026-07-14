@@ -13,6 +13,7 @@ SKIP_COMPILE=0
 SKIP_LINK=0
 STATUS_ONLY=0
 DRY_RUN=0
+REQUIRE_IDLE=0
 
 usage() {
   cat <<USAGE
@@ -32,12 +33,14 @@ Options:
   --skip-link                 Do not run link_command.sh.
   --status-only               Only collect evidence; do not run compile/link.
   --dry-run                   Print commands that would run and collect evidence.
+  --require-idle              Refuse to start if Vitis/Vivado processes are active.
   -h, --help                  Show this help.
 
 Examples:
   $0 --target hw_emu --label after_fa17c35
   $0 --target hw --label after_fa17c35 --skip-compile
   $0 --target hw_emu --status-only
+  $0 --target hw_emu --label after_fa17c35 --require-idle
 USAGE
 }
 
@@ -69,6 +72,37 @@ size_or_missing() {
   else
     printf 'MISSING'
   fi
+}
+
+active_vitis_vivado_processes() {
+  ps -eo pid,ppid,etime,stat,pcpu,pmem,comm,args |
+    awk '
+      NR == 1 { next }
+      {
+        comm = $7
+        is_builder = comm == "v++" || comm == "vpl" || comm == "vivado" ||
+                     comm == "xocc" || comm == "xsimk" ||
+                     comm == "genericpciemode" || comm == "genericpciemod"
+        if (is_builder) {
+          print
+        }
+      }
+    '
+}
+
+write_idle_check() {
+  local out_file="$1"
+  {
+    printf 'pure_pipeline_build_idle_check\n'
+    printf 'timestamp=%s\n' "$(date --iso-8601=seconds)"
+    printf 'target=%s\n' "${TARGET}"
+    printf 'build_root=%s\n' "${BUILD_ROOT}"
+    printf 'require_idle=%s\n' "${REQUIRE_IDLE}"
+    printf '\n'
+    printf 'active_vitis_vivado_processes\n'
+    printf '    PID    PPID     ELAPSED STAT %%CPU %%MEM COMMAND\n'
+    active_vitis_vivado_processes || true
+  } > "${out_file}"
 }
 
 git_field() {
@@ -108,6 +142,7 @@ write_run_env() {
     printf 'skip_link=%s\n' "${SKIP_LINK}"
     printf 'status_only=%s\n' "${STATUS_ONLY}"
     printf 'dry_run=%s\n' "${DRY_RUN}"
+    printf 'require_idle=%s\n' "${REQUIRE_IDLE}"
     printf 'integration_branch=%s\n' "$(git_field "${GRI_ROOT}" branch)"
     printf 'integration_head=%s\n' "$(git_field "${GRI_ROOT}" head)"
     printf 'integration_tracked_dirty=%s\n' "$(git_field "${GRI_ROOT}" dirty)"
@@ -181,6 +216,7 @@ while [[ $# -gt 0 ]]; do
     --skip-link) SKIP_LINK=1; shift ;;
     --status-only) STATUS_ONLY=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --require-idle) REQUIRE_IDLE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -245,6 +281,7 @@ COMPILE_LOG="${RUN_DIR}/compile_${LABEL}.log"
 LINK_LOG="${RUN_DIR}/link_${LABEL}.log"
 COMPILE_RC="${RUN_DIR}/compile_${LABEL}.rc"
 LINK_RC="${RUN_DIR}/link_${LABEL}.rc"
+IDLE_CHECK="${RUN_DIR}/idle_check_${LABEL}.txt"
 
 write_run_env "${RUN_ENV}"
 write_artifact_evidence "${EVIDENCE}"
@@ -253,6 +290,16 @@ if [[ "${STATUS_ONLY}" == "1" ]]; then
   echo "DONE run_env=${RUN_ENV}"
   echo "DONE evidence=${EVIDENCE}"
   exit 0
+fi
+
+if [[ "${REQUIRE_IDLE}" == "1" ]]; then
+  active_processes="$(active_vitis_vivado_processes || true)"
+  write_idle_check "${IDLE_CHECK}"
+  if [[ -n "${active_processes}" ]]; then
+    echo "Active Vitis/Vivado processes detected; refusing to start." >&2
+    echo "Idle-check report: ${IDLE_CHECK}" >&2
+    exit 3
+  fi
 fi
 
 # shellcheck disable=SC1090
