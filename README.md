@@ -217,6 +217,11 @@ Current reproducible target flow:
   --gate-timeout 900
 ```
 
+The launch packet regenerates target compile/link/config scripts before its
+preflight checks by default, so its source-contract and readiness evidence match
+the scripts the target flow will launch. Use `--no-prepare` only when inspecting
+an existing generated build directory.
+
 Run the same wrapper with `--target hw` after `hw_emu` passes. The wrapper
 records the build parameters, checks source-level PMA/stream/barrier contracts,
 writes a readiness preflight report, waits for other Vitis/Vivado jobs to become
