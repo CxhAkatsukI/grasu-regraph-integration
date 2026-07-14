@@ -551,18 +551,18 @@ Status-only check before the xclbin exists:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/finalize_pure_pipeline_build.sh \
   --target hw_emu \
-  --label status_76e176c \
+  --label status_7623a8c \
   --status-only
 ```
 
 Current status evidence:
 
 ```text
-.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_status_76e176c.env
-.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_status_76e176c_evidence.tsv
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_status_7623a8c.env
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_status_7623a8c_evidence.tsv
 
-8cd3dab5fd9dcd8625be7b8734e8b30e73379446745b6e934ea84d25e60e6b7c  finalize_status_76e176c.env
-9fa68eaca354441d83d4647b440b5a4fbeecef4a37b6a6c137ea20dd27ba55b7  finalize_status_76e176c_evidence.tsv
+0909498c6c2a752dc22c0d6e880cd7c436f53fe63c7cef9b7c15b3d7f3004353  finalize_status_7623a8c.env
+2fbfb988dee09b34ca6d5bdc8ec5fa68f30a2b3dddcb9092bdaad86a35c4f98b  finalize_status_7623a8c_evidence.tsv
 ```
 
 The evidence currently records:
@@ -574,8 +574,8 @@ d72d8ca7272f7ee07b924979d2048894c0376bf2c3985ba427b17e80395a0235  manifest.env
 d471282a9f92c38759f14600f6c0e53a53a5481790051a82f06f920ad4ef4a77  inputs.tsv
 d2a071aebca70a850852d8a42dd3e45546400be714fea41475c5f25a11df57a4  compile_commands.sh
 9faf8e9ef27add5f802ac1b95cbc793161c4fee9e912f3f24c8dc6ad5827ece4  link_command.sh
-MISSING                                                           pure_pipeline_hw_emu_smoke_status_76e176c/summary.tsv
-MISSING                                                           pure_pipeline_hw_emu_compare_status_76e176c/comparison.tsv
+MISSING                                                           pure_pipeline_hw_emu_smoke_status_7623a8c/summary.tsv
+MISSING                                                           pure_pipeline_hw_emu_compare_status_7623a8c/comparison.tsv
 ```
 
 When the `hw_emu` xclbin exists, run:
@@ -584,7 +584,7 @@ When the `hw_emu` xclbin exists, run:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/finalize_pure_pipeline_build.sh \
   --target hw_emu \
-  --label after_76e176c \
+  --label after_7623a8c \
   --build-host
 ```
 
@@ -594,7 +594,7 @@ When the `hw` xclbin exists, run:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/finalize_pure_pipeline_build.sh \
   --target hw \
-  --label after_76e176c \
+  --label after_7623a8c \
   --build-host
 ```
 
