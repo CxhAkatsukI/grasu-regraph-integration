@@ -2047,3 +2047,96 @@ b49cfb2b0eadb4de4f858ad2cd0fc48308a8bd8a00ce49c2c09a37961c38e7d4  results/pure_p
 d61a1ccbfdae96ea0881eb08082d3821ec248af6c2c4460e464c2a8b13b37d11  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_2b4a85b.txt
 13357c0a9a4d12f43fc3f27db91e9d71d2d3702221dcf96702f56398df30456d  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_2b4a85b.txt
 ```
+
+## 2026-07-15 Progress Snapshot
+
+Source code HEAD used for this refresh:
+
+```text
+8f60fcf2ba253aecd5057ee22fd5eb8c0c162ab9
+```
+
+The pure GraSU -> ReGraph pipeline still has only the `sw_emu` correctness
+xclbin. There is no successful pure-pipeline `hw_emu` or `hw` xclbin yet:
+
+```text
+.tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin  exists
+.tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin  missing
+.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin          missing
+```
+
+An external Spine hardware build did complete and produced this separate
+baseline artifact:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_tiny_active_hw_exact_20260714_0740/link_150_exact_final/xclbin/spine_partitioned_split_e2e.hw.xclbin
+mtime:  2026-07-15 00:15:17.459973395 +0800
+size:   53289602
+sha256: 76b0f144ad85492776090753fdf9dce263c0a15e73436e736ff6bd40ebb00d11
+```
+
+That Spine xclbin is useful comparison evidence, but it is not the GraSU ->
+ReGraph pure hardware pipeline xclbin.
+
+Fresh strict readiness refresh:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_20260715_001926_external_spine_hw_active_after_8f60fcf
+```
+
+The command exited `3` after writing evidence. This is the expected blocked
+state while another unrelated Spine/Vitis hardware link is active. The
+readiness matrix is:
+
+```text
+target  xclbin  smoke  readiness  blocking  related  external  external_breakdown
+hw      no      no     no         1         0        7         total=7 v++=2 vivado=2 vpl=2 vrs=1
+hw_emu  no      no     no         1         0        7         total=7 v++=2 vivado=2 vpl=2 vrs=1
+sw_emu  yes     yes    n/a        n/a       n/a      n/a       n/a
+```
+
+The active external build is another Spine hardware link under:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0018
+```
+
+As of this snapshot it had not produced:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0018/xclbin/spine_partitioned_split_e2e.hw.xclbin
+```
+
+Evidence hashes:
+
+```text
+a7d16f057d5376906ef45347154377e8e3df3c7b4206312d235efcfc57a7868e  results/pure_pipeline_evidence_bundle_refresh_20260715_001926_external_spine_hw_active_after_8f60fcf/summary.md
+a7dd99530b47458a2e785ba2c4cffdf00f9cff7abc26cc840463e2f591573eb9  results/pure_pipeline_evidence_bundle_refresh_20260715_001926_external_spine_hw_active_after_8f60fcf/target_matrix.tsv
+74a839cf83656b37284907556f5e33491e61e33618e607e376215e72af2a3361  results/pure_pipeline_requirement_audit_refresh_20260715_001926_external_spine_hw_active_after_8f60fcf/audit.md
+14db30ac2bfa7c537455c1908555ae3a781bff594dccf883fdad76627a32e530  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_20260715_001926_external_spine_hw_active_after_8f60fcf.txt
+4642a5558fb257beffedfd390ee7b42baf1b9c861aa322392db9806b5609e95e  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_20260715_001926_external_spine_hw_active_after_8f60fcf.txt
+```
+
+When the external Spine build is gone, the next strict gate is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/check_pure_pipeline_build_readiness.sh \
+  --target hw_emu \
+  --label post_external_spine_idle_after_8f60fcf
+```
+
+If that reports `ready=yes`, the next build command is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_8f60fcf \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
