@@ -3188,3 +3188,125 @@ cd /home/chuxiao/grasu-regraph-integration
 Only after `hw_emu` links and passes the gate/full smoke should the real `hw`
 flow be launched with the same `--prepare`, `--wait-idle`, and
 `--clean-build-artifacts` discipline.
+
+## 2026-07-15 Evidence Bundle Builder Hints
+
+The evidence-bundle exporter now carries the first active related/external
+builder process from each readiness report into `target_matrix.tsv`. This makes
+the compact bundle sufficient to answer not only "how many builders are active"
+but also "which process is currently blocking the launch" without reopening the
+raw readiness report.
+
+New target-matrix columns:
+
+```text
+readiness_related_process_pid
+readiness_related_process_elapsed
+readiness_related_process_command
+readiness_related_process_args_hint
+readiness_external_process_pid
+readiness_external_process_elapsed
+readiness_external_process_command
+readiness_external_process_args_hint
+```
+
+Source commit:
+
+```text
+d5a58f10d3c3c4f3ee568ac622f2e74aee70c5c6
+```
+
+Lightweight validation:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile scripts/export_pure_pipeline_evidence_bundle.py
+```
+
+Clean evidence refresh:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+set +e
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_after_d5a58f1_process_hints
+echo "refresh_rc=$?"
+```
+
+The command exited `3` after writing readiness, audit, and bundle evidence.
+The failure is still the expected launch blocker, not a script crash:
+
+```text
+hw:
+  xclbin_exists=no
+  readiness_ready=no
+  readiness_blocking_count=1
+  readiness_external_builders=10
+  readiness_external_process_pid=3836537
+  readiness_external_process_elapsed=01:59:08
+  readiness_external_process_command=v++
+
+hw_emu:
+  xclbin_exists=no
+  readiness_ready=no
+  readiness_blocking_count=1
+  readiness_warning_count=1
+  readiness_external_builders=10
+  readiness_external_process_pid=3836537
+  readiness_external_process_elapsed=01:59:08
+  readiness_external_process_command=v++
+  build_artifacts=WARN count=7 clean_recommended=yes
+
+sw_emu:
+  xclbin_exists=yes
+  xclbin_sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+  smoke_pass=yes
+```
+
+The external process hint points at the active Spine hardware link command:
+
+```text
+/data/yxx/tools/xilinx/Vitis/2024.1/bin/v++ -l -t hw ...
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0024
+```
+
+Current evidence artifacts:
+
+```text
+results/pure_pipeline_evidence_bundle_refresh_after_d5a58f1_process_hints/summary.md
+results/pure_pipeline_evidence_bundle_refresh_after_d5a58f1_process_hints/target_matrix.tsv
+results/pure_pipeline_evidence_bundle_refresh_after_d5a58f1_process_hints/bundle_manifest.json
+results/pure_pipeline_requirement_audit_refresh_after_d5a58f1_process_hints/audit.md
+results/pure_pipeline_requirement_audit_refresh_after_d5a58f1_process_hints/audit.json
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_d5a58f1_process_hints.txt
+.tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_d5a58f1_process_hints.txt
+```
+
+Evidence hashes:
+
+```text
+26054c984c7a24a0de22dc0451c7fcedf6c2ac94807964d7bc472fb136e2d27f  scripts/export_pure_pipeline_evidence_bundle.py
+46566a39e444ec4d79de641d0e4921494abb93ed07450e4051569a8caa29e49f  results/pure_pipeline_evidence_bundle_refresh_after_d5a58f1_process_hints/summary.md
+debbc3a8f8790f67fd2de63274112d3d75df54c1b0f2f5ebcbd977927a62fe02  results/pure_pipeline_evidence_bundle_refresh_after_d5a58f1_process_hints/target_matrix.tsv
+13367ed8a5713d144a4f30b3e801b1462542ad9350239aadd47ce5c8fc6abfc8  results/pure_pipeline_evidence_bundle_refresh_after_d5a58f1_process_hints/bundle_manifest.json
+624abb3074fa63ba952b5d61382490192cf741ff9b1ba84a0aa649646492613d  results/pure_pipeline_requirement_audit_refresh_after_d5a58f1_process_hints/audit.md
+1259cccda360c08c304848563ca44f231f9b4f5754bbab1414e41722001349f1  results/pure_pipeline_requirement_audit_refresh_after_d5a58f1_process_hints/audit.json
+bc0a90281cacd2a4dcbf286b2f4a5bc5dad44ca0e8acefe040e17551c02236cf  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_d5a58f1_process_hints.txt
+70f330f8db7a9dde316630c1ec36d1e13b72e72a3c5461f085165264258eb845  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_d5a58f1_process_hints.txt
+```
+
+Next command once external Vitis/Vivado builders are gone:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_d5a58f1 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
