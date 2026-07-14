@@ -3646,3 +3646,102 @@ cd /home/chuxiao/grasu-regraph-integration
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 ```
+
+## 2026-07-15 Current HEAD SW_EMU Evidence
+
+After committing the readiness-bundle source-contract integration, the existing
+pure-pipeline `sw_emu` xclbin was re-finalized against the current integration
+HEAD. This did not rebuild hardware or start Vitis linking; it rebuilt only the
+host binary, ran the `sw_emu` smoke suite, and regenerated the same-input
+comparison against the current host/zero-cost and Spine baselines.
+
+Source commit:
+
+```text
+d2ae29825e1b37e32a59f1756bdcb717bc2c687a
+```
+
+Validation command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/finalize_pure_pipeline_build.sh \
+  --target sw_emu \
+  --label swemu_refresh_after_d2ae298 \
+  --build-host \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 180 \
+  --timeout 600
+```
+
+Smoke result:
+
+```text
+tiny_chain_v16       chain       PASS  mismatches=0 final_edges=15 supersteps=16 event_e2e_ms=5844.559499
+tiny_star_v16_u12    hot-source  PASS  mismatches=0 final_edges=28 supersteps=2  event_e2e_ms=730.792989
+tiny_spread_v16_u8   spread      PASS  mismatches=0 final_edges=24 supersteps=16 event_e2e_ms=5660.896028
+tiny_hotdst_v64_u32  hot-dest    PASS  mismatches=0 final_edges=95 supersteps=16 event_e2e_ms=6053.124932
+```
+
+Same-input comparison remains a correctness/control-flow comparison for the
+pure pipeline because the pure timing is still `sw_emu`, not hardware
+performance:
+
+```text
+tiny_chain_v16       host_zero_cost_ms=6.127929 spine_kernel_e2e_ms=1.58718 pure_target=sw_emu pure_event_e2e_ms=5844.559499
+tiny_star_v16_u12    host_zero_cost_ms=2.526626 spine_kernel_e2e_ms=1.57177 pure_target=sw_emu pure_event_e2e_ms=730.792989
+tiny_spread_v16_u8   host_zero_cost_ms=5.743649 spine_kernel_e2e_ms=1.59870 pure_target=sw_emu pure_event_e2e_ms=5660.896028
+tiny_hotdst_v64_u32  host_zero_cost_ms=6.202223 spine_kernel_e2e_ms=2.26057 pure_target=sw_emu pure_event_e2e_ms=6053.124932
+```
+
+Audit refresh:
+
+```bash
+./scripts/audit_pure_pipeline_status.py \
+  --label swemu_refresh_after_d2ae298 \
+  --out-dir results/pure_pipeline_requirement_audit_swemu_refresh_after_d2ae298
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_swemu_refresh_after_d2ae298/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_swemu_refresh_after_d2ae298
+```
+
+Audit result:
+
+```text
+status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+sw_emu: xclbin=yes smoke=yes
+hw_emu: xclbin=no smoke=no
+hw: xclbin=no smoke=no
+```
+
+Evidence artifacts:
+
+```text
+results/pure_pipeline_sw_emu_smoke_gate_swemu_refresh_after_d2ae298/summary.tsv
+results/pure_pipeline_sw_emu_smoke_swemu_refresh_after_d2ae298/summary.tsv
+results/pure_pipeline_sw_emu_smoke_swemu_refresh_after_d2ae298/run.env
+results/pure_pipeline_sw_emu_compare_swemu_refresh_after_d2ae298/comparison.tsv
+results/pure_pipeline_sw_emu_compare_swemu_refresh_after_d2ae298/comparison.md
+.tmp_build/pure_pipeline_sw_emu_stage0/run_logs/finalize_swemu_refresh_after_d2ae298.env
+.tmp_build/pure_pipeline_sw_emu_stage0/run_logs/finalize_swemu_refresh_after_d2ae298_evidence.tsv
+results/pure_pipeline_requirement_audit_swemu_refresh_after_d2ae298/audit.json
+results/pure_pipeline_evidence_bundle_swemu_refresh_after_d2ae298/summary.md
+results/pure_pipeline_evidence_bundle_swemu_refresh_after_d2ae298/target_matrix.tsv
+```
+
+Evidence hashes:
+
+```text
+b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862  .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+cb40efbffe3a091be8a8bffe03c2ee364c794a2cddb315a0571601b38c2cad5d  .tmp_build/pure_pipeline_host_stage0/pure_pipeline_host
+7e9952a65d79f878c5b42272fcba30fb7217adb07ca4ac9260e2f924e2e59418  results/pure_pipeline_sw_emu_smoke_gate_swemu_refresh_after_d2ae298/summary.tsv
+aa32da7edf105e965cae4da8d2ebb227397ff0450158bdfa8178944b0fdb6747  results/pure_pipeline_sw_emu_smoke_swemu_refresh_after_d2ae298/summary.tsv
+6cb743f7e987784638d1b89ad99d697c161c60ca8d32457137c55d35ac7cf635  results/pure_pipeline_sw_emu_smoke_swemu_refresh_after_d2ae298/run.env
+eee46991cf11ec216ea5aacba49cf7719b440e775af1b2f5b230b3f4daf9941c  results/pure_pipeline_sw_emu_compare_swemu_refresh_after_d2ae298/comparison.tsv
+4caf3ffcdebb423c06c345edfcf4a12f23bb7e858e4c818eb55ebaadd707c05a  results/pure_pipeline_sw_emu_compare_swemu_refresh_after_d2ae298/comparison.md
+5c4a59d580f4909f6d39d0ebf8310bd2eb0b01be7496ada8f739c40f654c03ff  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/finalize_swemu_refresh_after_d2ae298.env
+21472a3221db71de46d589f4a631de2ba0a79454e8929915cc63de973dd935c3  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/finalize_swemu_refresh_after_d2ae298_evidence.tsv
+16c9d7de156eae03d6dd3833bf50c0917a909f45406a4404ba31bf32bc7ca89d  results/pure_pipeline_requirement_audit_swemu_refresh_after_d2ae298/audit.json
+c6df361e2ee6f3f612f6a5b36c69313d882ae6bd7ae122459ad0e5b4c2fd2a66  results/pure_pipeline_evidence_bundle_swemu_refresh_after_d2ae298/summary.md
+c1b53a11937264bc39ff0572a1fb06e55732728a388c7da55bd313217b33116b  results/pure_pipeline_evidence_bundle_swemu_refresh_after_d2ae298/target_matrix.tsv
+```
