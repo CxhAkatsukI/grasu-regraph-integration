@@ -474,6 +474,71 @@ Expected xclbin paths after successful link:
 .tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin
 ```
 
+## Build Wrapper And Evidence
+
+As of this stage, the long `hw_emu` and `hw` builds can be run through a wrapper
+that records source state, command hashes, XO hashes, xclbin hash, and log
+paths. This does not change the generated Vitis commands; it makes the build
+run auditable.
+
+Status-only check:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label status_fa17c35 \
+  --status-only
+```
+
+Current status evidence:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_status_fa17c35.env
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_status_fa17c35_evidence.tsv
+
+d39bd3e5745fd132cf4b8cda849320ed101357e600aac170b7935ee18929bcde  build_status_fa17c35.env
+e01867430bc5414213da34a3c33f827dc0c565a09a73ac5798f5bcb3e3f7fd56  build_status_fa17c35_evidence.tsv
+```
+
+The evidence currently records the generated command script hashes and confirms
+that the `hw_emu` xclbin is still missing:
+
+```text
+d72d8ca7272f7ee07b924979d2048894c0376bf2c3985ba427b17e80395a0235  manifest.env
+d471282a9f92c38759f14600f6c0e53a53a5481790051a82f06f920ad4ef4a77  inputs.tsv
+d2a071aebca70a850852d8a42dd3e45546400be714fea41475c5f25a11df57a4  compile_commands.sh
+9faf8e9ef27add5f802ac1b95cbc793161c4fee9e912f3f24c8dc6ad5827ece4  link_command.sh
+MISSING                                                           grasu_regraph_pure_pipeline.hw_emu.xclbin
+```
+
+Recommended `hw_emu` build command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label after_fa17c35
+```
+
+Recommended `hw` build command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_build.sh \
+  --target hw \
+  --label after_fa17c35
+```
+
+The wrapper writes:
+
+```text
+.tmp_build/pure_pipeline_<target>_stage0/run_logs/build_<label>.env
+.tmp_build/pure_pipeline_<target>_stage0/run_logs/build_<label>_evidence.tsv
+.tmp_build/pure_pipeline_<target>_stage0/run_logs/compile_<label>.log
+.tmp_build/pure_pipeline_<target>_stage0/run_logs/link_<label>.log
+```
+
 ## Not Yet True
 
 The current baseline still has these gaps:
