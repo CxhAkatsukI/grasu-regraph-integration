@@ -132,13 +132,16 @@ def newest_target_flow_source_fingerprints(repo: Path) -> Path | None:
     return newest(list(repo.glob(".tmp_build/pure_pipeline_*_stage0/run_logs/source_fingerprints_*.tsv")))
 
 
-def newest_readiness(repo: Path, target: str) -> Path | None:
+def newest_readiness(repo: Path, target: str, allow_active: bool | None = None) -> Path | None:
     candidates = list(repo.glob(f".tmp_build/pure_pipeline_{target}_stage0/run_logs/readiness_*.txt"))
-    strict_candidates = []
-    for path in candidates:
-        if "allow_active_builders=0" in path.read_text(encoding="ascii", errors="replace"):
-            strict_candidates.append(path)
-    return newest(strict_candidates) or newest(candidates)
+    if allow_active is not None:
+        marker = f"allow_active_builders={1 if allow_active else 0}"
+        candidates = [
+            path
+            for path in candidates
+            if marker in path.read_text(encoding="ascii", errors="replace")
+        ]
+    return newest(candidates)
 
 
 def has_all_expected_cases(path: Path) -> bool:
@@ -1246,9 +1249,13 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         artifact(repo, "latest_hw_emu_finalize_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_*_evidence.tsv")),
         artifact(repo, "latest_hw_emu_target_flow_env", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_*.env")),
         artifact(repo, "latest_hw_emu_readiness", newest_readiness(repo, "hw_emu")),
+        artifact(repo, "latest_hw_emu_readiness_strict", newest_readiness(repo, "hw_emu", allow_active=False)),
+        artifact(repo, "latest_hw_emu_readiness_allow_active", newest_readiness(repo, "hw_emu", allow_active=True)),
         artifact(repo, "latest_hw_emu_monitor", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_*.txt")),
         artifact(repo, "latest_hw_target_flow_env", newest_glob(repo, ".tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_*.env")),
         artifact(repo, "latest_hw_readiness", newest_readiness(repo, "hw")),
+        artifact(repo, "latest_hw_readiness_strict", newest_readiness(repo, "hw", allow_active=False)),
+        artifact(repo, "latest_hw_readiness_allow_active", newest_readiness(repo, "hw", allow_active=True)),
         artifact(repo, "latest_hw_finalize_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_stage0/run_logs/finalize_*_evidence.tsv")),
     ]
     for target in TARGETS:

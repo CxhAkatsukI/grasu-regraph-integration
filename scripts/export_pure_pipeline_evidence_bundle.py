@@ -206,6 +206,10 @@ def target_rows(repo: Path, audit: dict[str, Any]) -> list[dict[str, str]]:
         if readiness is None and target == "hw_emu":
             readiness = artifact_by_name(audit, "latest_hw_emu_readiness")
         readiness_data = parse_readiness_report(artifact_path(repo, readiness))
+        strict_readiness = artifact_by_name(audit, f"latest_{target}_readiness_strict")
+        if strict_readiness is None and target == "hw_emu":
+            strict_readiness = artifact_by_name(audit, "latest_hw_emu_readiness_strict")
+        strict_readiness_data = parse_readiness_report(artifact_path(repo, strict_readiness))
         rows.append({
             "target": target,
             "xclbin_exists": "yes" if xclbin.get("exists") else "no",
@@ -217,6 +221,7 @@ def target_rows(repo: Path, audit: dict[str, Any]) -> list[dict[str, str]]:
             "smoke_summary": str(smoke.get("path", "MISSING")),
             "readiness_report": str(readiness.get("path", "MISSING")) if readiness else "MISSING",
             "readiness_sha256": str(readiness.get("sha256", "")) if readiness else "",
+            "readiness_allow_active_builders": readiness_data.get("allow_active_builders", ""),
             "readiness_ready": readiness_data.get("ready", ""),
             "readiness_blocking_count": readiness_data.get("blocking_count", ""),
             "readiness_warning_count": readiness_data.get("warning_count", ""),
@@ -238,6 +243,12 @@ def target_rows(repo: Path, audit: dict[str, Any]) -> list[dict[str, str]]:
             "readiness_build_artifacts_names": readiness_data.get("build_artifacts_names", ""),
             "readiness_build_free_gb": readiness_data.get("build_root_fs_free_gb", ""),
             "readiness_tmp_free_gb": readiness_data.get("tmp_fs_free_gb", ""),
+            "strict_readiness_report": str(strict_readiness.get("path", "MISSING")) if strict_readiness else "MISSING",
+            "strict_readiness_sha256": str(strict_readiness.get("sha256", "")) if strict_readiness else "",
+            "strict_readiness_ready": strict_readiness_data.get("ready", ""),
+            "strict_readiness_blocking_count": strict_readiness_data.get("blocking_count", ""),
+            "strict_readiness_external_builders": strict_readiness_data.get("active_builders_external", ""),
+            "strict_readiness_external_builder_breakdown": strict_readiness_data.get("active_builder_breakdown_external", ""),
         })
     return rows
 
@@ -409,10 +420,15 @@ def write_summary_md(
         "xclbin_exists",
         "xclbin_contract_pass",
         "smoke_pass",
+        "readiness_allow_active_builders",
         "readiness_ready",
         "readiness_blocking_count",
         "readiness_external_builders",
         "readiness_external_builder_breakdown",
+        "strict_readiness_ready",
+        "strict_readiness_blocking_count",
+        "strict_readiness_external_builders",
+        "strict_readiness_external_builder_breakdown",
         "readiness_external_process_pid",
         "readiness_external_process_elapsed",
         "readiness_external_process_command",
@@ -522,6 +538,7 @@ def main() -> int:
         "smoke_summary",
         "readiness_report",
         "readiness_sha256",
+        "readiness_allow_active_builders",
         "readiness_ready",
         "readiness_blocking_count",
         "readiness_warning_count",
@@ -543,6 +560,12 @@ def main() -> int:
         "readiness_build_artifacts_names",
         "readiness_build_free_gb",
         "readiness_tmp_free_gb",
+        "strict_readiness_report",
+        "strict_readiness_sha256",
+        "strict_readiness_ready",
+        "strict_readiness_blocking_count",
+        "strict_readiness_external_builders",
+        "strict_readiness_external_builder_breakdown",
     ])
     write_tsv(out_dir / "artifact_matrix.tsv", artifacts, ["name", "exists", "sha256", "size_bytes", "path"])
     write_tsv(out_dir / "source_proof_matrix.tsv", source_proofs, ["proof", "ok", "contract", "paths"])

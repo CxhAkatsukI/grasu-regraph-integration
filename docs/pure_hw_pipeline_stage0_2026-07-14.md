@@ -6363,3 +6363,110 @@ ea71cb126f3abe0b9673a6c8c4f0672747030f6bb2207cb99017bab8da1f724a  .tmp_build/pur
 97de6eb3dee8837587473c5f884a9569ab38d304068735759dd918e44b00dde7  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/evidence_bundle/summary.md
 80ba8b7c537566f684760cafa55e764dfb7c3306f746760dca80b57be4b78ca8  .tmp_build/pure_pipeline_launch_packet_hw_after_55803b3_allow_active/evidence_bundle/source_proof_matrix.tsv
 ```
+
+## Readiness Mode Split
+
+The audit and evidence-bundle scripts now distinguish two readiness meanings:
+
+- `latest_*_readiness`: the newest readiness report, which may be an
+  `--allow-active-builders` launch/readiness packet.
+- `latest_*_readiness_strict`: the newest strict readiness report with
+  `allow_active_builders=0`, used to show whether another Vitis/Vivado job is a
+  real launch blocker.
+- `latest_*_readiness_allow_active`: the newest readiness report with
+  `allow_active_builders=1`, used to show whether the pure pipeline scripts and
+  generated target build files are otherwise ready.
+
+This avoids mixing two different statements:
+
+```text
+allow-active readiness: ready=yes, blocking_count=0
+strict readiness: ready=no, blocking_count=1 because external Vitis/Vivado builders are active
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py
+
+./scripts/audit_pure_pipeline_status.py \
+  --label continuation_07efd70_readiness_modes \
+  --out-dir results/pure_pipeline_requirement_audit_continuation_07efd70_readiness_modes
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_continuation_07efd70_readiness_modes/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_continuation_07efd70_readiness_modes
+```
+
+Observed bundle target rows now show both modes. For `hw_emu` and `hw`:
+
+```text
+readiness_allow_active_builders=1
+readiness_ready=yes
+readiness_blocking_count=0
+strict_readiness_ready=no
+strict_readiness_blocking_count=1
+strict_readiness_external_builders=10
+strict_readiness_external_builder_breakdown=total=10 v++=2 vivado=4 vpl=2 vrs=2
+```
+
+After changing the scripts, the no-build target-flow snapshots were refreshed
+so source fingerprints match the current build-relevant source tree:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label prelaunch_after_07efd70_readiness_modes \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label prelaunch_after_07efd70_readiness_modes \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Prelaunch acceptance remains:
+
+```text
+hw_emu status_counts={"PASS": 4, "PENDING": 9}
+hw status_counts={"PASS": 4, "PENDING": 9}
+```
+
+The hardware status is unchanged: `sw_emu` has an xclbin, while `hw_emu` and
+`hw` still do not.
+
+Evidence hashes:
+
+```text
+20d2d8b96087fdff1b8df7993e73a0fb0a2058d3f4b9b371814c6090fb822840  scripts/audit_pure_pipeline_status.py
+76154f9e6bbdb462793d30958b6e3f3f29d568fb7cea61ee7798433206a3cf99  scripts/export_pure_pipeline_evidence_bundle.py
+4266378565dad01b0d2f129260c39e287ed7ba0a2724d831e065ea2dd2fc526d  results/pure_pipeline_requirement_audit_continuation_07efd70_readiness_modes/audit.json
+afa6f8babff0387ed78e731daa2bb39c811b3100b500c2c1a146005c9d2ca8fe  results/pure_pipeline_evidence_bundle_continuation_07efd70_readiness_modes/summary.md
+0c656471e22114fe2f4ac9641888ea0ce9b761473d5d1625d591a55dd935e410  results/pure_pipeline_evidence_bundle_continuation_07efd70_readiness_modes/target_matrix.tsv
+83fa1df8c7713303658b0df11087b41a0b6bfd86bc4b98b226d8e181fb2a4903  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_07efd70_readiness_modes.env
+40039248b688ba9ab6cb25badc89819de519b697af2b1088bb4703718a8c8260  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_fingerprints_target_flow_prelaunch_after_07efd70_readiness_modes.tsv
+51957117cfd9396c7dccdc8f5061a4a588ae265f02c046bb87bee1cb94ae56cc  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/acceptance_check_prelaunch_target_flow_prelaunch_after_07efd70_readiness_modes.tsv
+afefd7ed30cb6e72f1f6dcac0120a0f2b05eaf31f5d6e2e359f618c66ed63b9d  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_07efd70_readiness_modes.env
+40039248b688ba9ab6cb25badc89819de519b697af2b1088bb4703718a8c8260  .tmp_build/pure_pipeline_hw_stage0/run_logs/source_fingerprints_target_flow_prelaunch_after_07efd70_readiness_modes.tsv
+bb60ce0b37bc7bf616b8631f5fc314ce4a9970f36fc1d17c3aba79b0afd84776  .tmp_build/pure_pipeline_hw_stage0/run_logs/acceptance_check_prelaunch_target_flow_prelaunch_after_07efd70_readiness_modes.tsv
+2ee91812618a166c0658d2dcc67c29d55081e68119b2f80250f9b558c31e44c0  results/pure_pipeline_requirement_audit_prelaunch_after_07efd70_readiness_modes/audit.json
+febb1f36eb952351026e6597ee2a9d03657881486f1a58aacf752b1f9f9925b3  results/pure_pipeline_evidence_bundle_prelaunch_after_07efd70_readiness_modes/summary.md
+326178e652ea40a4594802e0709cbdbd880a87cd1fb30b7d17fc3d810b55ae37  results/pure_pipeline_evidence_bundle_prelaunch_after_07efd70_readiness_modes/target_matrix.tsv
+```
