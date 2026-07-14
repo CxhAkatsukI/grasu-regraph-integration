@@ -190,9 +190,9 @@ Key implementation fixes made during this milestone:
 - The adapter now decodes GraSU `row_offset[src]` as packed
   `[begin, end]` 64-bit metadata instead of treating adjacent entries as raw CSR
   offsets.
-- The adapter has a `wait_for_completion` scalar. Step 0 waits for a single
-  batch-complete token from `pma_completion_barrier`; later SSSP supersteps
-  replay the already-stable PMA graph without waiting for one-shot tokens.
+- Step 0 adapter launch waits on the profiled `pma_completion_barrier` event;
+  later SSSP supersteps replay the already-stable PMA graph without waiting for
+  one-shot GraSU tokens.
 - The host runner uses one OpenCL context/program/xclbin for GraSU, adapter,
   and ReGraph. It passes the same PMA buffers from GraSU into the adapter, so
   there is no graph D2H, host graph conversion, or graph H2D between GraSU and
@@ -722,16 +722,19 @@ separate XRT event. The current source splits this into an independent
 
 ```text
 process_cache_1.completion_token \
-process_ddr_1.completion_token   -> pma_completion_barrier -> adapter.done
+process_ddr_1.completion_token   -> pma_completion_barrier -> barrier_event
 process_cache_2.completion_token /
 process_ddr_2.completion_token  /
+
+barrier_event -> host wait list for step-0 adapter enqueue
 ```
 
 The host now creates `pma_completion_barrier:{pma_completion_barrier_1}` from
 the same OpenCL program/context, enqueues it once after GraSU launch, and records
-its event duration as `barrier_ms`. The adapter still has
-`wait_for_completion`; step 0 consumes the single barrier token, while later
-supersteps do not wait for one-shot GraSU tokens.
+its event duration as `barrier_ms`. The adapter no longer consumes a barrier
+token stream. Instead, step 0 is enqueued with an OpenCL wait list containing
+`barrier_event`; later supersteps replay the already-stable PMA graph without
+waiting for one-shot GraSU tokens.
 
 Source files:
 
@@ -767,7 +770,7 @@ d44e9d7781fad21b60f48fb0d27abbefd3f5d9d130f0086ec19ff306e609c65d  .tmp_build/pur
 Regenerated `hw_emu` command script hashes:
 
 ```text
-a54e25ce4253e4dccc02f66f8d92ffaefe2b63975ca768c4c3ebcc22bd5ab110  .tmp_build/pure_pipeline_hw_emu_stage0/compile_commands.sh
+163faf2095038f4c7e4b5074000943bfe30c1e3e78440224d7960becadf5dd18  .tmp_build/pure_pipeline_hw_emu_stage0/compile_commands.sh
 e8ba03b8f222ed81b411db3b279007a761f33e909b9799dfff86bb2a4888d971  .tmp_build/pure_pipeline_hw_emu_stage0/link_command.sh
 ```
 
@@ -778,8 +781,12 @@ stream_connect=process_cache_1.completion_token:pma_completion_barrier_1.done0:1
 stream_connect=process_ddr_1.completion_token:pma_completion_barrier_1.done1:16
 stream_connect=process_cache_2.completion_token:pma_completion_barrier_1.done2:16
 stream_connect=process_ddr_2.completion_token:pma_completion_barrier_1.done3:16
-stream_connect=pma_completion_barrier_1.done_out:pma_to_regraph_adapter_1.done:16
 ```
+
+The earlier `done_out -> adapter.done` stream form was superseded because it
+made the sw_emu bring-up harder to reason about. The active implementation uses
+the barrier kernel only as a profiled event and lets XRT enforce the adapter
+launch dependency.
 
 Requirement audit after this source change:
 
@@ -798,6 +805,107 @@ still missing. The important difference is that requirement 8 now has a
 source-level profiled barrier event; the next validation step is to rebuild and
 rerun the pure-pipeline smoke so `barrier_ms` becomes measured evidence instead
 of source intent.
+
+## Event-Dependency SW_EMU Smoke
+
+After switching the barrier to an event dependency, the first sw_emu rebuild
+still appeared to hang around ReGraph apply/merge. The root cause was in the
+generated compile command for the integration-owned stream-input little-GS
+wrapper: it did not pass `-DSW_EMU`, so `lksg_stream` missed ReGraph's
+sw_emu-specific `DATAFLOW disable_start_propagation` path. The generated build
+script now passes the target define to:
+
+```text
+pma_completion_barrier
+pma_to_regraph_adapter
+lksg_stream
+```
+
+Rebuild command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_build.sh \
+  --target sw_emu \
+  --label eventdep_debug_stage0 \
+  --prepare
+```
+
+Smoke command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_smoke.sh \
+  --target sw_emu \
+  --out-dir results/pure_pipeline_sw_emu_smoke_eventdep_debug_stage0 \
+  --timeout 180
+```
+
+Evidence:
+
+```text
+b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862  .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+56457940c0be89ddfa6592f985b604d174d2730753d32feb5ebb241bdb547d77  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/build_eventdep_debug_stage0.env
+397f75cf624fe28fa8d3a47ebd1ab95202bb10d658d74feb702f80e9ba1d67ac  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/build_eventdep_debug_stage0_evidence.tsv
+a5e3e432e91c5020e9e87cdff511eaf4ae33bee638b6bc883e7e759341675fe7  results/pure_pipeline_sw_emu_smoke_eventdep_debug_stage0/summary.tsv
+2c0ae9e325df034d9b7f740ebf011e40a2e9c839b67055aeb89c6fee8f6493d4  results/pure_pipeline_sw_emu_smoke_eventdep_debug_stage0/run.env
+```
+
+Smoke results:
+
+```text
+tiny_chain_v16       PASS  barrier_ms=0.288238  event_e2e_ms=5970.182599
+tiny_star_v16_u12    PASS  barrier_ms=0.265498  event_e2e_ms=761.096521
+tiny_spread_v16_u8   PASS  barrier_ms=0.260708  event_e2e_ms=5915.480553
+tiny_hotdst_v64_u32  PASS  barrier_ms=0.187585  event_e2e_ms=6139.775744
+```
+
+Updated requirement audit:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/audit_pure_pipeline_status.py \
+  --out-dir results/pure_pipeline_requirement_audit_eventdep_debug_stage0
+```
+
+```text
+e73e576ee7563bb3d9cb1bf41dec7db3cb8e21a9900efa0d6815a8cf09de6329  audit.json
+a93185747661ab88cb73554a76c4cbd0bcc8b9d7d47f9e995cef57fce8ba7e06  audit.md
+
+proven: 1
+partial: 8
+blocked_by_missing_artifact: 1
+```
+
+The long-build command scripts were also regenerated without launching v++:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label eventdep_debug_stage0 \
+  --prepare \
+  --status-only
+./scripts/run_pure_pipeline_build.sh \
+  --target hw \
+  --label eventdep_debug_stage0 \
+  --prepare \
+  --status-only
+```
+
+```text
+374ab45b772bc3d00711288bbbf14b2157fd8de324cdd4dfd70a38fb83132ab7  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_eventdep_debug_stage0.env
+c66ab35cb423e026b43675e27137bd23ba2633130345bcbd48b8706959d1ff88  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_eventdep_debug_stage0_evidence.tsv
+163faf2095038f4c7e4b5074000943bfe30c1e3e78440224d7960becadf5dd18  .tmp_build/pure_pipeline_hw_emu_stage0/compile_commands.sh
+e8ba03b8f222ed81b411db3b279007a761f33e909b9799dfff86bb2a4888d971  .tmp_build/pure_pipeline_hw_emu_stage0/link_command.sh
+6bcf1162146767e5c371aea2e76f5b3bbdb8e3c38acb79948ff83a310ed7db99  .tmp_build/pure_pipeline_hw_stage0/run_logs/build_eventdep_debug_stage0.env
+be2618d72ad15db3850a54b3c0b9c9868234a99124e00e08a22edc53e4de0d36  .tmp_build/pure_pipeline_hw_stage0/run_logs/build_eventdep_debug_stage0_evidence.tsv
+c6f161389358532c001f217d433067c173ac3984b671e5f1a1fbfec19277a4cd  .tmp_build/pure_pipeline_hw_stage0/compile_commands.sh
+d6488813e0ed366a7fb0ef052b5c865f50190fe9ff9a37af3a6511336f1b6d1e  .tmp_build/pure_pipeline_hw_stage0/link_command.sh
+```
+
+This means the sw_emu correctness and profiled-barrier timing evidence are now
+real, while pure `hw_emu` and `hw` xclbins/smokes remain the blocking artifacts.
 
 ## Post-Build Finalization
 
@@ -941,7 +1049,8 @@ GraSU bin_search/dispatch
   -> process_cache_1/process_cache_2/process_ddr_1/process_ddr_2
   -> four completion tokens
   -> pma_completion_barrier
-  -> one batch-complete token
+  -> profiled barrier_event
+  -> step-0 host enqueue dependency
   -> pma_to_regraph_adapter
   -> AXI4-Stream edge_burst_dt, 8 edges/burst
   -> ReGraph littleKernelScatterGather stream-input variant
@@ -1002,12 +1111,9 @@ Adapter kernel:
   - four PMA `m_axi` ports, same device buffers as GraSU's `data_device_1..4`
   - `row_offset` device buffer
   - `node_count`, `pma_slot_count`, `max_cache_segment`
-  - one batch-complete AXI stream from `pma_completion_barrier`
 - Output:
   - AXI4-Stream edge bursts carrying 8 edges/burst
 - HLS semantics:
-  - read the single barrier token before scanning PMA when
-    `wait_for_completion=1`
   - use `#pragma HLS PIPELINE II=1` on the burst emission loop
   - use fixed 512-bit stream payload compatible with `edge_burst_dt`
   - pack unit weight as `1`
@@ -1019,11 +1125,9 @@ PMA completion barrier:
   `kernels/pma_completion_barrier/pma_completion_barrier.cpp`.
 - Inputs:
   - four AXI4-Stream completion-token inputs, one from each GraSU PMA writer
-- Output:
-  - one AXI4-Stream batch-complete token to the adapter
 - HLS semantics:
   - blocking-read all four writer tokens
-  - emit exactly one output token after all four have arrived
+  - return only after all four have arrived
   - expose an independent XRT event so host timing can record `barrier_ms`
 
 ReGraph kernel changes:
@@ -1052,7 +1156,7 @@ Host changes:
 
 Connectivity changes:
 
-- Add stream connections from each PMA writer to the adapter.
+- Add stream connections from each PMA writer to `pma_completion_barrier`.
 - Add stream connection from adapter to the ReGraph stream-input GS kernel.
 - Keep ReGraph internal connections from GS to merger/apply/HBM wrapper.
 - Keep all kernels in one xclbin.

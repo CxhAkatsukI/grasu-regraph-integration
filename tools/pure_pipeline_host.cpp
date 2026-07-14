@@ -739,16 +739,18 @@ int main(int argc, char **argv)
             const bool reset_tmp_prop = (step == 0);
             check_cl(lksg.setArg(4, reset_tmp_prop), "set lksg reset_tmp_prop");
 
-            const unsigned wait_for_completion = (step == 0) ? 1u : 0u;
-            check_cl(adapter.setArg(8, wait_for_completion),
-                     "set adapter wait_for_completion");
-
             cl::Event hbm_event, apply_event, lksg_event, adapter_event;
             std::cout << "PURE_PIPELINE_HOST stage=launch_step step=" << (step + 1)
                       << std::endl;
             std::cout << "PURE_PIPELINE_HOST stage=enqueue_adapter step=" << (step + 1)
                       << std::endl;
-            check_cl(pipeline_queue.enqueueTask(adapter, nullptr, &adapter_event),
+            std::vector<cl::Event> adapter_wait_events;
+            const std::vector<cl::Event> *adapter_wait_list = nullptr;
+            if (step == 0) {
+                adapter_wait_events.push_back(barrier_event);
+                adapter_wait_list = &adapter_wait_events;
+            }
+            check_cl(pipeline_queue.enqueueTask(adapter, adapter_wait_list, &adapter_event),
                      "enqueue adapter");
             std::cout << "PURE_PIPELINE_HOST stage=enqueued_adapter step=" << (step + 1)
                       << std::endl;

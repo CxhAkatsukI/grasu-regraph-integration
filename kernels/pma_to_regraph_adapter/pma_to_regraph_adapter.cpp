@@ -9,7 +9,6 @@
 #define ADAPTER_DEBUG_PRINTF(fmt, ...)
 #endif
 
-typedef ap_axiu<32, 0, 0, 0> done_pkt_t;
 typedef ap_axiu<512, 0, 0, 0> edge_burst_pkt_t;
 
 static constexpr unsigned kSegmentSize = 16;
@@ -75,8 +74,6 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
                             unsigned node_count,
                             unsigned pma_slot_count,
                             unsigned max_cache_segment,
-                            unsigned wait_for_completion,
-                            hls::stream<done_pkt_t> &done,
                             hls::stream<edge_burst_pkt_t> &edge_burst_out)
 {
 #pragma HLS INTERFACE m_axi port=pma0 offset=slave bundle=gmem0
@@ -92,19 +89,11 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
 #pragma HLS INTERFACE s_axilite port=node_count bundle=control
 #pragma HLS INTERFACE s_axilite port=pma_slot_count bundle=control
 #pragma HLS INTERFACE s_axilite port=max_cache_segment bundle=control
-#pragma HLS INTERFACE s_axilite port=wait_for_completion bundle=control
 #pragma HLS INTERFACE s_axilite port=return bundle=control
-#pragma HLS INTERFACE axis port=done
 #pragma HLS INTERFACE axis port=edge_burst_out
 
-    ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: begin nodes=%u pma_slots=%u wait=%u\n",
-                         node_count, pma_slot_count, wait_for_completion);
-
-    if (wait_for_completion) {
-        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: waiting barrier token\n");
-        (void)done.read();
-        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: got barrier token\n");
-    }
+    ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: begin nodes=%u pma_slots=%u\n",
+                         node_count, pma_slot_count);
 
     edge_burst_pkt_t out;
     out.data = 0;

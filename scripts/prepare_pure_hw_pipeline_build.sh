@@ -305,7 +305,6 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
   echo "stream_connect=process_ddr_1.completion_token:pma_completion_barrier_1.done1:16"
   echo "stream_connect=process_cache_2.completion_token:pma_completion_barrier_1.done2:16"
   echo "stream_connect=process_ddr_2.completion_token:pma_completion_barrier_1.done3:16"
-  echo "stream_connect=pma_completion_barrier_1.done_out:pma_to_regraph_adapter_1.done:16"
   echo "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32"
   echo
   echo "# PMA completion barrier"
@@ -396,18 +395,18 @@ declare -a GENERATED_XOS=(
     "${CFG_DIR}/kernelBigGSMerger_compile.cfg" \
     "${BUILD_DIR}/kernelBigGSMerger.${TARGET}.${PLATFORM}.xo" \
     "${REGRAPH_ROOT}/acc_template/kernel_big_gs_merger/kernel_big_gs_merger.cpp"
-  printf 'v++ --target %q --compile %s --config %q -I%q -o %q %q\n' \
-    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${CFG_DIR}/pma_completion_barrier_compile.cfg" \
+  printf 'v++ --target %q --compile %s %s --config %q -I%q -o %q %q\n' \
+    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_completion_barrier_compile.cfg" \
     "${HLS_INCLUDE_ETC}" \
     "${BUILD_DIR}/pma_completion_barrier.${TARGET}.xo" \
     "${GRI_ROOT}/kernels/pma_completion_barrier/pma_completion_barrier.cpp"
-  printf 'v++ --target %q --compile %s --config %q -I%q -o %q %q\n' \
-    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
+  printf 'v++ --target %q --compile %s %s --config %q -I%q -o %q %q\n' \
+    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
     "${HLS_INCLUDE_ETC}" \
     "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo" \
     "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
-  printf 'v++ --target %q --compile %s -O3 --config %q -DHAVE_EDGE_PROP=1 -DHAVE_UNSIGNED_PROP=1 -DHAVE_APPLY_OUTDEG=0 -DHAVE_VERTEX_PROP=1 -DPARTITION_SIZE=65536 -DLITTLE_KERNEL_DST_BUFFER_SIZE=65536 -DBIG_KERNEL_DST_BUFFER_SIZE=524288 -DSRC_BUFFER_SIZE=4096 -DLOG2_SRC_BUFFER_SIZE=12 -DVERTEX_REORDER_ENABLE=1 -DENABLE_COMPRESSED_EDGE_INPUT=0 -DBIG_KERNEL_NUM=1 -DLITTLE_KERNEL_NUM=1 -I%q -I%q -I%q -I%q -I%q -I%q -I%q -o %q %q\n' \
-    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${CFG_DIR}/little_gs_stream_compile.cfg" \
+  printf 'v++ --target %q --compile %s %s -O3 --config %q -DHAVE_EDGE_PROP=1 -DHAVE_UNSIGNED_PROP=1 -DHAVE_APPLY_OUTDEG=0 -DHAVE_VERTEX_PROP=1 -DPARTITION_SIZE=65536 -DLITTLE_KERNEL_DST_BUFFER_SIZE=65536 -DBIG_KERNEL_DST_BUFFER_SIZE=524288 -DSRC_BUFFER_SIZE=4096 -DLOG2_SRC_BUFFER_SIZE=12 -DVERTEX_REORDER_ENABLE=1 -DENABLE_COMPRESSED_EDGE_INPUT=0 -DBIG_KERNEL_NUM=1 -DLITTLE_KERNEL_NUM=1 -I%q -I%q -I%q -I%q -I%q -I%q -I%q -o %q %q\n' \
+    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/little_gs_stream_compile.cfg" \
     "${HLS_INCLUDE_ETC}" \
     "${REGRAPH_ROOT}/acc_udfs/sssp" "${REGRAPH_ROOT}" "${REGRAPH_ROOT}/acc_template" \
     "${REGRAPH_ROOT}/acc_template/common" "${REGRAPH_ROOT}/acc_udfs" \

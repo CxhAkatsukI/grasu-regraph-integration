@@ -264,19 +264,17 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
                 "process_ddr_1.completion_token:pma_completion_barrier_1.done1",
                 "process_cache_2.completion_token:pma_completion_barrier_1.done2",
                 "process_ddr_2.completion_token:pma_completion_barrier_1.done3",
-                "pma_completion_barrier_1.done_out:pma_to_regraph_adapter_1.done",
             ]) and source_contains(barrier, [
                 "pma_completion_barrier",
                 "done0.read()",
                 "(void)done1.read()",
                 "(void)done2.read()",
                 "(void)done3.read()",
-                "done_out.write(out)",
-            ]) and source_contains(adapter, [
-                "wait_for_completion",
-                "(void)done.read()",
+            ]) and source_contains(host, [
+                "adapter_wait_events.push_back(barrier_event)",
+                "pipeline_queue.enqueueTask(adapter, adapter_wait_list, &adapter_event)",
             ]),
-            "paths": [display_path(repo, prepare), display_path(repo, barrier), display_path(repo, adapter)],
+            "paths": [display_path(repo, prepare), display_path(repo, barrier), display_path(repo, host)],
         },
         "adapter_to_regraph_stream": {
             "ok": source_contains(prepare, [
@@ -323,10 +321,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
 def target_state(repo: Path, target: str) -> dict[str, Any]:
     build_root = repo / f".tmp_build/pure_pipeline_{target}_stage0"
     xclbin = build_root / "build" / f"grasu_regraph_pure_pipeline.{target}.xclbin"
-    exact_summary = repo / f"results/pure_pipeline_{target}_smoke_stage35/summary.tsv"
-    summary_path = exact_summary if exact_summary.exists() else newest_glob(
-        repo, f"results/pure_pipeline_{target}_smoke_*/summary.tsv"
-    )
+    summary_path = newest_glob(repo, f"results/pure_pipeline_{target}_smoke_*/summary.tsv")
     run_env_path = summary_path.parent / "run.env" if summary_path is not None else None
     return {
         "target": target,
@@ -426,7 +421,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             [
                 "scripts/prepare_pure_hw_pipeline_build.sh stream_connect completion_token lines",
                 "kernels/pma_completion_barrier/pma_completion_barrier.cpp done0..done3 reads",
-                "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp single barrier-token read",
+                "tools/pure_pipeline_host.cpp adapter waits on barrier_event before step 0",
             ],
             [] if hw_valid else ["barrier is source/sw_emu-proven; needs hw_emu/hw validation"],
         ),
@@ -504,7 +499,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
                 proofs["timing_fields"]["path"],
                 targets["sw_emu"]["smoke_summary"]["path"],
             ],
-            [] if all_targets_valid else ["source records a profiled barrier event; rebuilt sw_emu/hw_emu/hw timing evidence is still missing"],
+            [] if all_targets_valid else ["sw_emu records profiled barrier timing; hw_emu/hw timing evidence is still missing"],
         ),
         requirement(
             9,
