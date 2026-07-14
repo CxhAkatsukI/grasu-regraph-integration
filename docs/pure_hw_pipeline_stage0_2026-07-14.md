@@ -8471,6 +8471,66 @@ dc4a75c3ba51538b1e73bbdd046d31c4c4c348944a0ae3cae947c11036b83b62  .tmp_build/pur
 ce44852e502186e2b72c0a9a347445876e07a361c18c1e206f8cde5d65579ca1  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_22f4047_allow_active/acceptance_check_prelaunch.tsv
 ```
 
+## Launch Packet Refresh After Audit Schema Update, 2026-07-15
+
+The audit/evidence schema update changed build-relevant scripts, so launch
+packets were regenerated at commit:
+
+```text
+b9b0a7c191373bc3351e76be300d9458fc8256c4
+```
+
+Current next command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b9b0a7c_allow_active/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_b9b0a7c \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Read-only report after refresh:
+
+```text
+target sw_emu: xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+target hw_emu: xclbin=no packet_current=yes waiting_xclbin
+target hw:     xclbin=no packet_current=yes waiting_xclbin
+external builders: 7 unrelated Spine Vitis/Vivado processes
+next_target=hw_emu
+next_action=build
+next_commands=.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b9b0a7c_allow_active/launch_command.sh
+```
+
+Evidence hashes:
+
+```text
+5ce5fb296d0ad2c9a044b439ad373ffd9e235e1edd8fbcabab648c54ace74345  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b9b0a7c_allow_active/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b9b0a7c_allow_active/source_contracts.tsv
+fbce45260ee00a687e3b6722d081cbeb877bfe9662ad8aed0ecbf1d487d432f1  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b9b0a7c_allow_active/source_fingerprints.tsv
+1ee7623a787bebf378315b03aedb7c7cf61a4fd4c0103e2fecfcb3fe178c1d4d  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b9b0a7c_allow_active/readiness_hw_emu.txt
+a27094fa8e9e556fb530a70b65ec403c2bc52999025be4d40ce7829c7ec14acb  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b9b0a7c_allow_active/acceptance_check_prelaunch.tsv
+
+528cecf7e52d7ef0560c28643497122c09cccdd867a389f40d28387e47e3875a  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b9b0a7c_allow_active/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b9b0a7c_allow_active/source_contracts.tsv
+fbce45260ee00a687e3b6722d081cbeb877bfe9662ad8aed0ecbf1d487d432f1  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b9b0a7c_allow_active/source_fingerprints.tsv
+482ca722d2bbebad811c341a54e7756eb6423a3dfe3e97958028addb3ed323db  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b9b0a7c_allow_active/readiness_hw.txt
+08a7dcd56ecdb670ccdad81af9fd30a46046e556b9d5b69be16c8354d974232a  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_b9b0a7c_allow_active/acceptance_check_prelaunch.tsv
+```
+
 ## Audit Bundle Stage0 Matrix Fields, 2026-07-15
 
 The requirement audit and evidence bundle now recognize the postbuild
