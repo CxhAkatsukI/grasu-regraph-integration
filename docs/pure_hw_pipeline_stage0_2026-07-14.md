@@ -652,6 +652,67 @@ remain `partial` until the boundary input is also validated on pure hardware,
 but its gap should change from "no V=65536 evidence" to "hardware boundary
 execution still missing".
 
+Clean evidence after commit:
+
+```text
+57f02679c914c6147019d1b9ea798088d9891e34
+```
+
+Boundary prepare command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/build_pure_pipeline_host.sh \
+  --out-dir .tmp_build/pure_pipeline_host_stage0
+
+./scripts/run_pure_pipeline_prepare_check.sh \
+  --preset boundary \
+  --out-dir results/pure_pipeline_prepare_boundary_after_57f0267 \
+  --timeout 240
+```
+
+Boundary prepare evidence:
+
+```text
+results/pure_pipeline_prepare_boundary_after_57f0267/summary.tsv
+results/pure_pipeline_prepare_boundary_after_57f0267/run.env
+workloads/sssp_benchmark_boundary/manifest.tsv
+
+bd59ef3b2a7013b6efe871102f1e31072b29533857fbbaf33155d1132206b20d  summary.tsv
+e8323cf44ff4d7093484509fc922be3f15398ea6215ed2420839198de770f765  run.env
+e8110d3b222ab35f3ca27a646128e4b864d6dbfd5450dacc79e0ee6f23170a62  manifest.tsv
+e7bcd78b94e0cdf7bac3af4f3f07f035cc888419e99cb1b7f4d1eb4d5d99ed51  pure_pipeline_host
+```
+
+Boundary result:
+
+```text
+boundary_star_v65536_u4096    PASS V=65536 final_edges=69632 pma_slots=1052672 row_offset_words=65537 binary_segments=65792
+boundary_spread_v65536_u4096  PASS V=65536 final_edges=69632 pma_slots=1048576 row_offset_words=65537 binary_segments=65536
+```
+
+Updated requirement audit from the same clean commit:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 scripts/audit_pure_pipeline_status.py \
+  --out-dir results/pure_pipeline_requirement_audit_after_57f0267
+```
+
+```text
+ea381e55c4b4ff045650a3275a247f884e8ad555165590e00133d74a82b85951  audit.json
+daea9cebd4d1b3b6ddbf683a47c2f2d54c34d867fb71625ee6d80497726fab72  audit.md
+
+Dirty: False
+proven: 1
+partial: 8
+blocked_by_missing_artifact: 1
+```
+
+The status count is unchanged, but requirement 6 now has concrete `V=65536`
+prepare evidence. Its remaining gap is specifically pure `hw_emu/hw` boundary
+execution.
+
 ## Post-Build Finalization
 
 After a pure-pipeline xclbin is produced, run the finalization wrapper. It
