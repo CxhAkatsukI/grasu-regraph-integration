@@ -8301,3 +8301,94 @@ d00caa15c598658fadcabd7ac33a55968f2611e213fbbd55ebc46a2846bafe10  .tmp_build/pur
 c6f161389358532c001f217d433067c173ac3984b671e5f1a1fbfec19277a4cd  .tmp_build/pure_pipeline_hw_stage0/compile_commands.sh
 d6488813e0ed366a7fb0ef052b5c865f50190fe9ff9a37af3a6511336f1b6d1e  .tmp_build/pure_pipeline_hw_stage0/link_command.sh
 ```
+
+## Pure Stage0 Postbuild Matrix Wrapper, 2026-07-15
+
+The target-flow wrapper intentionally keeps first `hw_emu`/`hw` bring-up small:
+it builds the xclbin, runs a gate case, then runs the four-case smoke suite and
+same-input comparison. For the larger tracked stage0 matrix, there is now a
+separate postbuild wrapper:
+
+```text
+scripts/run_pure_stage0_postbuild_matrix.sh
+```
+
+This script does not build an xclbin. It is used after a pure-pipeline xclbin
+exists. It:
+
+```text
+1. exports the current pure_stage0 input_identity.tsv and comparison plan,
+2. runs run_pure_pipeline_smoke.sh on the pure_stage0 manifest,
+3. audits per-case case.env hashes against input_identity.tsv,
+4. optionally emits a host/zero-cost/Spine/pure comparison table.
+```
+
+After the `hw` xclbin exists, the full 12-case matrix command is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode full \
+  --label after_<hw_build_label> \
+  --host-summary results/grasu_regraph_sssp_pure_stage0_<label>/summary.tsv \
+  --spine-summary results/spine_edge_file_pure_stage0_<label>/summary.tsv \
+  --timeout 600
+```
+
+For a smaller `hw_emu` or debug gate, use:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw_emu \
+  --mode gate \
+  --label after_<hwemu_build_label> \
+  --timeout 900
+```
+
+Validation performed without launching a long hardware build:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/run_pure_stage0_postbuild_matrix.sh
+
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode full \
+  --label dryrun_after_4016c41 \
+  --plan-dir .tmp_build/pure_stage0_postbuild_dryrun/plan \
+  --out-dir .tmp_build/pure_stage0_postbuild_dryrun/run \
+  --identity-dir .tmp_build/pure_stage0_postbuild_dryrun/identity \
+  --compare-out .tmp_build/pure_stage0_postbuild_dryrun/compare \
+  --dry-run \
+  --skip-compare
+
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target sw_emu \
+  --mode gate \
+  --label wrapper_existing_single_after_2965f33 \
+  --plan-dir .tmp_build/pure_stage0_postbuild_existing_single/plan \
+  --out-dir results/pure_pipeline_sw_emu_identity_single_after_2965f33 \
+  --identity-dir .tmp_build/pure_stage0_postbuild_existing_single/identity \
+  --case tiny_star_v16_u12 \
+  --skip-run \
+  --skip-compare
+```
+
+Validation result:
+
+```text
+dry-run printed the full hw command sequence and did not execute the xclbin.
+existing sw_emu single-case reuse: checks=20 failures=0.
+```
+
+Evidence hashes:
+
+```text
+ec5aa0cfdf6fed1f7dc0fd6f40dd53cb927ad89cfdbfdc86dfc1d6014521da48  scripts/run_pure_stage0_postbuild_matrix.sh
+fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b  .tmp_build/pure_stage0_postbuild_existing_single/plan/input_identity.tsv
+c1563d7d44ab6ed6d6fb6efacc7319f59453130e7a96edb263781e264804575c  .tmp_build/pure_stage0_postbuild_existing_single/plan/comparison_plan.tsv
+f9fad7211cd505d8f825bb040c4fd630804b1b10137ec5676635bb061530ba1a  .tmp_build/pure_stage0_postbuild_existing_single/identity/input_identity_check.tsv
+25ac38df3931afd684f57dac7328e21e3facc3e29766b60a98c76cdcbd749278  .tmp_build/pure_stage0_postbuild_dryrun/run/postbuild_matrix.env
+```
