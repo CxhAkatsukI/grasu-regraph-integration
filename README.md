@@ -187,6 +187,14 @@ Collect the current start-state evidence:
 ./scripts/collect_pure_hw_start_state.sh
 ```
 
+Refresh current `hw_emu`/`hw` readiness and export a report bundle without
+starting Vitis:
+
+```bash
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_after_$(git rev-parse --short HEAD)
+```
+
 Current reproducible target flow:
 
 ```bash

@@ -1817,3 +1817,50 @@ git push -u origin codex/pure-hw-pipeline
 Do not force push. Build products and raw logs stay out of git unless they are
 small curated evidence files; large artifacts should be represented by paths
 and SHA-256 hashes.
+
+## Readiness Bundle Refresh
+
+While external Vitis/Vivado jobs are still active, the pure `hw_emu`/`hw`
+target flow should not be launched immediately. The refresh wrapper records the
+current build readiness for both targets, then emits the requirement audit and
+compact evidence bundle without starting Vitis:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_after_$(git rev-parse --short HEAD)
+```
+
+Default behavior is strict: active unrelated builders are recorded as blockers
+and the script exits non-zero after producing the audit and bundle. Use
+`--allow-active-builders` only when the goal is to archive a warning-state
+snapshot rather than a conservative go/no-go decision.
+
+Live strict refresh on 2026-07-14 23:10 CST:
+
+```bash
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_after_74a25be_live
+```
+
+The command exited `3` after producing the audit and bundle. This is expected:
+both `hw_emu` and `hw` pass core generated-file and disk-space checks, but
+active unrelated Vitis/Vivado builders are still present.
+
+```text
+target  xclbin  smoke  readiness  blocking  related  external  build_gb  tmp_gb
+hw      no      no     no         1         0        17        217.6     2.2
+hw_emu  no      no     no         1         0        17        217.6     2.2
+sw_emu  yes     yes    n/a        n/a       n/a      n/a       n/a       n/a
+```
+
+Evidence hashes from that refresh:
+
+```text
+5ebd831e7b60c71b396caf5612b17c823b7c0677748a025eec793a649743a27c  scripts/refresh_pure_pipeline_readiness_bundle.sh
+329d6764c0dd1dd0cc3509bf69d318e38ac491be63e5a7c162c47a6432e38f17  results/pure_pipeline_evidence_bundle_refresh_after_74a25be_live/summary.md
+43a2fda72262d4e4fdc0928b8335cb860e706f9f0566fc077beb69e282f6d276  results/pure_pipeline_evidence_bundle_refresh_after_74a25be_live/target_matrix.tsv
+becd57c1fffb43a0fe422c41fc84df304fd6332fac505dbfa2137ff99fdf3faa  results/pure_pipeline_requirement_audit_refresh_after_74a25be_live/audit.md
+00f7de4713781e8ffda8533ff792bc7c642d047d9d776b0ab91543dbea998fd2  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_74a25be_live.txt
+e03d520313f43d48fab8548cd6467cfc411d51b215c65c3f2d9896e32e39afdc  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_74a25be_live.txt
+```
