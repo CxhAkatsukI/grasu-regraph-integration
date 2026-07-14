@@ -2361,3 +2361,89 @@ Evidence hashes:
 372a43e0a72659d944cb43766177b22d1510da4fb3c5fe8441ebaa4bdfd67bd5  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_20260715_003109_external_spine_active_after_e9ffca3.txt
 713141bb20759edb9426e9cea2edc936c946d56deb8026f571da5fb8dd38cd1c  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_20260715_003109_external_spine_active_after_e9ffca3.txt
 ```
+
+## 2026-07-15 Boundary Prepare Refresh
+
+While the external Spine hardware implementation continued to occupy
+Vitis/Vivado, the current HEAD `7025789` was used to refresh the non-Vitis
+boundary prepare evidence. This does not build or load an xclbin; it validates
+host graph ingest, GraSU PMA packing, CPU oracle generation, unit-weight
+constraints, and the `V <= 65536` bound for large first-stage inputs.
+
+Command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_prepare_check.sh \
+  --preset boundary \
+  --out-dir results/pure_pipeline_prepare_boundary_after_7025789
+```
+
+Result:
+
+```text
+summary: results/pure_pipeline_prepare_boundary_after_7025789/summary.tsv
+status:  passed
+git_head=7025789f6da251ce290dd6ce323506c555db7eb9
+```
+
+Cases:
+
+```text
+boundary_star_v65536_u4096
+  family: hot-source
+  vertices: 65536
+  update_edges: 4096
+  final_edges: 69632
+  supersteps: 2
+  prep: PASS
+  pma_slots: 1052672
+  reachable_vertices: 4099
+  max_distance: 2
+  unit_weight: 1
+
+boundary_spread_v65536_u4096
+  family: spread
+  vertices: 65536
+  update_edges: 4096
+  final_edges: 69632
+  supersteps: 16
+  prep: PASS
+  pma_slots: 1048576
+  reachable_vertices: 33
+  max_distance: 16
+  unit_weight: 1
+```
+
+The refreshed audit and evidence bundle were regenerated with the boundary
+prepare result as the newest boundary artifact:
+
+```bash
+./scripts/audit_pure_pipeline_status.py \
+  --label boundary_after_7025789 \
+  --out-dir results/pure_pipeline_requirement_audit_boundary_after_7025789
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_boundary_after_7025789/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_boundary_after_7025789
+```
+
+The overall requirement status remains unchanged because `hw_emu` and `hw`
+xclbins are still missing, but requirement 6 now has fresh current-HEAD
+prepare-only evidence.
+
+Evidence hashes:
+
+```text
+6afb10a8424d3f517e894a326a7a4394f0864079d348bcf20277d1425f4c4267  results/pure_pipeline_prepare_boundary_after_7025789/summary.tsv
+4a4d43be7e43cd2b56fb98dcf49de4e6e5f1122ec78d5aecacfa6edc0e463e35  results/pure_pipeline_prepare_boundary_after_7025789/run.env
+dc7683ae08220f55f0fce317da7f0244ec162b94f6aaf15f46e75cd44cf18426  results/pure_pipeline_prepare_boundary_after_7025789/generate_workloads.log
+9b4ee3ef9ac5fa8a5f5ba9fd9784da8c60be79132de23d661804ad007603e24e  results/pure_pipeline_prepare_boundary_after_7025789/boundary_star_v65536_u4096.log
+71293db21d733e62eeb5680b5aaf67e2e01aaccf6fb4233ab5c298d040e8d84d  results/pure_pipeline_prepare_boundary_after_7025789/boundary_spread_v65536_u4096.log
+e8110d3b222ab35f3ca27a646128e4b864d6dbfd5450dacc79e0ee6f23170a62  workloads/sssp_benchmark_boundary/manifest.tsv
+cb40efbffe3a091be8a8bffe03c2ee364c794a2cddb315a0571601b38c2cad5d  .tmp_build/pure_pipeline_host_stage0/pure_pipeline_host
+6441a6abdd0b1e2c90c3c96187de057eb64c42061416abed7da1ec87617bbea2  results/pure_pipeline_requirement_audit_boundary_after_7025789/audit.json
+b84333fbc2d1f76ffabf17003ea5b32ec0fef988a9391149241de8d26bcf8a6c  results/pure_pipeline_requirement_audit_boundary_after_7025789/audit.md
+8d93158e7b336541922b75ee161af060509ca3efb559084e6bb50989bb3674f9  results/pure_pipeline_evidence_bundle_boundary_after_7025789/summary.md
+7533a3bfb1f4329b81dcc32eeff958a550c34fd7a3bd571cbb9df42695bd7752  results/pure_pipeline_evidence_bundle_boundary_after_7025789/target_matrix.tsv
+```
