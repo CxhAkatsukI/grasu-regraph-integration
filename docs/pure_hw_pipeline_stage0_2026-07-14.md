@@ -8053,3 +8053,100 @@ fa45b64713168d7bdb58d187f72e842db82b3c93ecd4e917d523a650f2b7f707  .tmp_build/gra
 54f352d402554e7a94b00656d07201c91e28933cddbe5cc96cfdafd70f399309  .tmp_build/grasu_regraph_sssp_pure_stage0_identity_dryrun_after_ac8cc93/manifest.env
 e43a8daf79fac20e60bc4a1147a478ea51ee7da06aece83ee9a569a558475454  .tmp_build/grasu_regraph_sssp_pure_stage0_identity_dryrun_after_ac8cc93/input_identity_check.tsv
 ```
+
+## Pure Pipeline Input Identity Audit
+
+As of 2026-07-15 06:56 Asia/Shanghai, the pure-pipeline smoke runner also
+records per-case input hashes. This lets the same `input_identity.tsv` contract
+audit both the host-baseline runs and the pure-pipeline runs.
+
+Tooling commit:
+
+```text
+2965f3335c8d0d33a6aeba5cdedd92fb132a2c5f  Audit pure pipeline input identity
+```
+
+Changed files:
+
+```text
+scripts/run_pure_pipeline_smoke.sh           writes per-case case.env input hashes
+scripts/check_pure_stage0_input_identity.py  supports --allow-subset for gate runs
+scripts/export_pure_stage0_comparison_plan.py adds pure-pipeline identity audit steps
+```
+
+Generate the updated comparison plan:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/export_pure_stage0_comparison_plan.py \
+  --label after_2965f33 \
+  --out-dir results/pure_stage0_comparison_plan_after_2965f33
+```
+
+Run a single-case `sw_emu` gate with the tracked pure-stage0 manifest:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_smoke.sh \
+  --target sw_emu \
+  --manifest workloads/sssp_benchmark_pure_stage0/manifest.tsv \
+  --case tiny_star_v16_u12 \
+  --out-dir results/pure_pipeline_sw_emu_identity_single_after_2965f33 \
+  --timeout 180
+```
+
+Check that this pure-pipeline run used the same canonical input:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/check_pure_stage0_input_identity.py \
+  --input-identity results/pure_stage0_comparison_plan_after_2965f33/input_identity.tsv \
+  --run-root results/pure_pipeline_sw_emu_identity_single_after_2965f33 \
+  --summary results/pure_pipeline_sw_emu_identity_single_after_2965f33/summary.tsv \
+  --out-file results/pure_pipeline_sw_emu_identity_single_after_2965f33/input_identity_check.tsv \
+  --allow-subset
+```
+
+Result:
+
+```text
+case=tiny_star_v16_u12
+status=PASS
+mismatches=0
+checks=20
+failures=0
+```
+
+Runtime timing from the gate run:
+
+```text
+PURE_PIPELINE_TIMING grasu_ms=3.162157 barrier_ms=0.210886 adapter_ms=3.517476 lksg_ms=442.925087 apply_ms=725.546021 hbm_ms=723.747252 event_e2e_ms=731.410772 wall_ms=731.681959
+```
+
+Evidence hashes:
+
+```text
+fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b  results/pure_stage0_comparison_plan_after_2965f33/input_identity.tsv
+8a3d5b8ba05a6656bc6656056eb896de06e9afcc581158c68be73088717f8fd7  results/pure_stage0_comparison_plan_after_2965f33/comparison_plan.tsv
+0f98f76574107602de93d9e88f555dedd54d98519b0e8801086da71d83340350  results/pure_stage0_comparison_plan_after_2965f33/summary.md
+b08ce673794afba2770a3a553f42e54c0f94f7d475e29800b8912b5fb345c6bc  results/pure_stage0_comparison_plan_after_2965f33/run.env
+14657ceb8cf7ddaa4dce03a5745cf931a26b069429034a6a574b3d276892a90b  results/pure_pipeline_sw_emu_identity_single_after_2965f33/summary.tsv
+243f771638d754dfb3f7d878e36ea08f05d71606de7b71622d50042d8f7766b7  results/pure_pipeline_sw_emu_identity_single_after_2965f33/run.env
+85e12109ee1982ca00d67aec23a7bfb370bd8207fa68204c2db53d99d8886926  results/pure_pipeline_sw_emu_identity_single_after_2965f33/tiny_star_v16_u12/case.env
+a0c7fef5dae057d485b4a124527a9d02deb4c375718fbbe85c6542ee257e19e3  results/pure_pipeline_sw_emu_identity_single_after_2965f33/input_identity_check.tsv
+```
+
+Hardware status at this checkpoint:
+
+```text
+Current pure pipeline sw_emu xclbin exists:
+  .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+  sha256 b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+
+Current pure pipeline hw_emu xclbin: not built yet.
+Current pure pipeline hw xclbin:     not built yet.
+
+The older combined hardware xclbin is still present, but it is not the current
+pure-hardware pipeline artifact:
+  .tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin
+```
