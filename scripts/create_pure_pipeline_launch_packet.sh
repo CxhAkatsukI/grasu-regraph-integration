@@ -428,7 +428,7 @@ launch_line="$(printf '%q ' "${launch_cmd[@]}")"
   printf 'Prelaunch check output:\n\n'
   printf '```text\n%s\n```\n\n' "${ACCEPTANCE_CHECK_PRELAUNCH}"
   printf 'A successful target run must satisfy every row marked `required=yes`.\n'
-  printf 'After the target flow finishes, run:\n\n'
+  printf 'The generated target-flow command runs the postrun acceptance check automatically after a full build/run flow, and also after a `--skip-build` postrun flow when an xclbin already exists. Use the manual command below only to recheck or repack the same evidence without rerunning the target flow:\n\n'
   printf '```bash\n'
   printf 'python3 scripts/check_pure_pipeline_acceptance_gates.py \\\n'
   printf '  --acceptance-gates %q \\\n' "${ACCEPTANCE_TSV}"

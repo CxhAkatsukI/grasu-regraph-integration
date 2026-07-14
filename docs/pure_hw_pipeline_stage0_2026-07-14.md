@@ -7354,3 +7354,64 @@ bdf686670a1feb8d6d827006cfa95ea61596dcca9f869555e1abf97aa4ccfdc9  .tmp_build/pur
 1e19c8937ae77a1d123dfbb2febfad7e221c0d3542e589fd138eb4b20416bd06  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_4f3afb9_skipbuild_acceptance.env
 372c2c47329676555e6accead73d9ab1459333697d0b087ab0c7a6a72c369aac  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_4f3afb9_skipbuild_acceptance.env
 ```
+
+## Current Pure-HW Artifact Clarification, 2026-07-15
+
+This update records the current artifact boundary after checking the live
+worktree. The old `combined` GraSU+ReGraph hardware xclbin still exists, but it
+is not the current pure-hardware pipeline target. It must not be used as
+evidence that the PMA barrier + adapter + ReGraph stream pipeline has a finished
+`hw` build.
+
+Current branch and report command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+git status --short --branch
+./scripts/report_pure_pipeline_next_steps.py
+find .tmp_build -name '*.xclbin' -printf '%TY-%Tm-%Td %TH:%TM:%TS %s %p\n'
+find .tmp_build -name '*.xclbin' -exec sha256sum {} +
+```
+
+Observed state before this documentation/script cleanup:
+
+```text
+branch=codex/pure-hw-pipeline
+head=3905413ed44ce5b0fbb91a491a31739b4a312be2
+dirty=false
+source_fingerprint_sha256=baf531b0cd3e4088eb942b511077e94954b8bfe481e98deb1a3996cad408b579
+
+sw_emu xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862 postrun=pass:PASS=11,SKIP=2
+hw_emu xclbin=no postrun=waiting_xclbin
+hw xclbin=no postrun=waiting_xclbin
+
+next_target=hw_emu
+next_action=build
+next_commands=.tmp_build/pure_pipeline_launch_packet_hw_emu_after_4f3afb9_allow_active/launch_command.sh
+```
+
+Existing xclbins found in `.tmp_build`:
+
+```text
+d721465b8b377bf8272d4903edff4293522eea2eaab57a6a81c49cc58ea82ebd  .tmp_build/combined_hw_emu_link_check/build/grasu_regraph_combined.hw_emu.xclbin
+daf8bb44c32295a27827993bdf913eb9d311f27e4d21efbaf46edfc57224995f  .tmp_build/combined_hw_emu_host_compatible/build/grasu_regraph_combined.hw_emu.xclbin
+d4296714739acea95a8f6a2f66e113849f089fe8e026fd72e7ee40c9e56f05b0  .tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin
+b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862  .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+```
+
+Current interpretation:
+
+- The only current pure-pipeline xclbin is `sw_emu`.
+- The current pure-pipeline `hw_emu` and `hw` xclbins are still missing.
+- The old `combined_hw_coldinit_250mhz_20260712_112335` hardware xclbin proves
+  an earlier same-xclbin GraSU+ReGraph baseline existed, but not the current
+  no-D2H PMA-to-stream pure pipeline.
+- External Vitis/Vivado builders are active, so the next hardware command should
+  use the wait-idle guard already embedded in the launch packet.
+
+The launch packet README wording was also tightened so future packets make clear
+that `run_pure_pipeline_target_flow.sh` performs postrun acceptance
+automatically after a full target flow. The printed manual
+`check_pure_pipeline_acceptance_gates.py --mode postrun` command is now
+documented as a recheck/repack command, not as an extra mandatory step after a
+normal target-flow run.
