@@ -12,6 +12,7 @@ LABEL=""
 SMOKE_OUT=""
 GATE_OUT=""
 COMPARE_OUT=""
+XCLBIN_CONTRACT_OUT=""
 HOST_SUMMARY="${GRI_ROOT}/results/grasu_regraph_smoke_device_export_combined_hw_stage1/summary.tsv"
 SPINE_SUMMARY="${GRI_ROOT}/results/spine_edge_file_smoke_hw_stage2_split_xclbin/summary.tsv"
 TIMEOUT_SECONDS=""
@@ -45,6 +46,7 @@ Options:
   --gate-out PATH             Gate output dir. Default: results/pure_pipeline_<target>_smoke_gate_<label>
   --gate-timeout SECONDS      Per-case gate timeout. Default: same as --timeout.
   --compare-out PATH          Comparison dir. Default: results/pure_pipeline_<target>_compare_<label>
+  --xclbin-contract-out PATH  Xclbin metadata contract TSV. Default: build run_logs/xclbin_contract_<target>_<label>.tsv
   --host-summary PATH         Host baseline summary. Default: ${HOST_SUMMARY}
   --spine-summary PATH        Spine summary. Default: ${SPINE_SUMMARY}
   --timeout SECONDS           Per-case smoke timeout. Default: 1800 for hw_emu, 600 otherwise.
@@ -119,6 +121,7 @@ write_finalize_env() {
     printf 'gate_timeout_seconds=%s\n' "${GATE_TIMEOUT_SECONDS}"
     printf 'smoke_out=%s\n' "${SMOKE_OUT}"
     printf 'compare_out=%s\n' "${COMPARE_OUT}"
+    printf 'xclbin_contract_out=%s\n' "${XCLBIN_CONTRACT_OUT}"
     printf 'host_summary=%s\n' "${HOST_SUMMARY}"
     printf 'spine_summary=%s\n' "${SPINE_SUMMARY}"
     printf 'timeout_seconds=%s\n' "${TIMEOUT_SECONDS}"
@@ -149,6 +152,8 @@ write_evidence() {
     for artifact in \
       "${HOST}" \
       "${XCLBIN}" \
+      "${XCLBIN}.info" \
+      "${XCLBIN_CONTRACT_OUT}" \
       "${BUILD_ROOT}/manifest.env" \
       "${BUILD_ROOT}/inputs.tsv" \
       "${BUILD_ROOT}/compile_commands.sh" \
@@ -189,6 +194,7 @@ while [[ $# -gt 0 ]]; do
     --gate-out) GATE_OUT="$(abs_path "$2")"; shift 2 ;;
     --gate-timeout) GATE_TIMEOUT_SECONDS="$2"; shift 2 ;;
     --compare-out) COMPARE_OUT="$(abs_path "$2")"; shift 2 ;;
+    --xclbin-contract-out) XCLBIN_CONTRACT_OUT="$(abs_path "$2")"; shift 2 ;;
     --host-summary) HOST_SUMMARY="$(abs_path "$2")"; shift 2 ;;
     --spine-summary) SPINE_SUMMARY="$(abs_path "$2")"; shift 2 ;;
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
@@ -245,6 +251,9 @@ RUN_DIR="${BUILD_ROOT}/run_logs"
 mkdir -p "${RUN_DIR}"
 FINALIZE_ENV="${RUN_DIR}/finalize_${LABEL}.env"
 FINALIZE_EVIDENCE="${RUN_DIR}/finalize_${LABEL}_evidence.tsv"
+if [[ -z "${XCLBIN_CONTRACT_OUT}" ]]; then
+  XCLBIN_CONTRACT_OUT="${RUN_DIR}/xclbin_contract_${TARGET}_${LABEL}.tsv"
+fi
 
 write_finalize_env "${FINALIZE_ENV}"
 write_evidence "${FINALIZE_EVIDENCE}"
@@ -271,6 +280,13 @@ if [[ "${DRY_RUN}" == "0" ]]; then
     exit 1
   fi
 fi
+
+run_cmd "${SCRIPT_DIR}/check_pure_pipeline_xclbin_contract.py" \
+  --target "${TARGET}" \
+  --xclbin "${XCLBIN}" \
+  --label "${LABEL}" \
+  --out-file "${XCLBIN_CONTRACT_OUT}"
+write_evidence "${FINALIZE_EVIDENCE}"
 
 if [[ "${SKIP_SMOKE}" == "0" ]]; then
   if [[ -n "${GATE_CASE}" ]]; then
@@ -326,5 +342,6 @@ write_evidence "${FINALIZE_EVIDENCE}"
 
 echo "DONE finalize_env=${FINALIZE_ENV}"
 echo "DONE evidence=${FINALIZE_EVIDENCE}"
+echo "DONE xclbin_contract=${XCLBIN_CONTRACT_OUT}"
 echo "DONE smoke_out=${SMOKE_OUT}"
 echo "DONE compare_out=${COMPARE_OUT}"
