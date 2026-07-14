@@ -314,6 +314,38 @@ def input_identity_rows(identity_path: Path | None) -> list[dict[str, str]]:
     return [{column: row.get(column, "") for column in compact_columns} for row in rows]
 
 
+def case_target_rows(audit: dict[str, Any]) -> list[dict[str, str]]:
+    compact_columns = [
+        "target",
+        "case",
+        "expected_family",
+        "observed_family",
+        "present",
+        "status",
+        "oracle_mismatches",
+        "timing_complete",
+        "ok",
+        "smoke_summary",
+        "notes",
+    ]
+    rows = []
+    for row in audit.get("case_target_coverage", []):
+        rows.append({
+            "target": str(row.get("target", "")),
+            "case": str(row.get("case", "")),
+            "expected_family": str(row.get("expected_family", "")),
+            "observed_family": str(row.get("observed_family", "")),
+            "present": "yes" if row.get("present") else "no",
+            "status": str(row.get("status", "")),
+            "oracle_mismatches": str(row.get("oracle_mismatches", "")),
+            "timing_complete": "yes" if row.get("timing_complete") else "no",
+            "ok": "yes" if row.get("ok") else "no",
+            "smoke_summary": str(row.get("smoke_summary", "")),
+            "notes": str(row.get("notes", "")),
+        })
+    return [{column: row.get(column, "") for column in compact_columns} for row in rows]
+
+
 def markdown_table(columns: list[str], rows: list[dict[str, Any]]) -> str:
     lines = [
         "| " + " | ".join(columns) + " |",
@@ -335,6 +367,7 @@ def write_summary_md(
     requirements: list[dict[str, str]],
     cases: list[dict[str, str]],
     input_identity: list[dict[str, str]],
+    case_targets: list[dict[str, str]],
 ) -> None:
     counts = status_counts(audit.get("requirements", []))
     git = audit.get("git", {})
@@ -358,6 +391,17 @@ def write_summary_md(
         "manifest_edge_sha256",
         "host_edge_sha256",
         "spine_edge_sha256",
+        "notes",
+    ]
+    case_target_columns = [
+        "target",
+        "case",
+        "expected_family",
+        "present",
+        "status",
+        "oracle_mismatches",
+        "timing_complete",
+        "ok",
         "notes",
     ]
     target_columns = [
@@ -411,6 +455,10 @@ def write_summary_md(
         "",
         markdown_table(identity_columns, input_identity),
         "",
+        "## Case Target Coverage",
+        "",
+        markdown_table(case_target_columns, case_targets),
+        "",
         "Pure `sw_emu` timing is correctness/control-flow evidence only; it is not a hardware performance claim.",
         "",
         "## Next Commands",
@@ -455,6 +503,7 @@ def main() -> int:
     identity_artifact = artifact_by_name(audit, "latest_smoke_input_identity")
     identity_path = artifact_path(repo, identity_artifact)
     input_identity = input_identity_rows(identity_path)
+    case_targets = case_target_rows(audit)
 
     out_dir = args.out_dir
     if not out_dir.is_absolute():
@@ -528,6 +577,19 @@ def main() -> int:
         "pure_status",
         "notes",
     ])
+    write_tsv(out_dir / "case_target_matrix.tsv", case_targets, [
+        "target",
+        "case",
+        "expected_family",
+        "observed_family",
+        "present",
+        "status",
+        "oracle_mismatches",
+        "timing_complete",
+        "ok",
+        "smoke_summary",
+        "notes",
+    ])
     write_summary_md(
         out_dir / "summary.md",
         repo=repo,
@@ -538,6 +600,7 @@ def main() -> int:
         requirements=requirements,
         cases=cases,
         input_identity=input_identity,
+        case_targets=case_targets,
     )
     bundle_manifest = {
         "repo": str(repo),
@@ -557,6 +620,7 @@ def main() -> int:
                 "source_proof_matrix.tsv",
                 "case_matrix.tsv",
                 "input_identity_matrix.tsv",
+                "case_target_matrix.tsv",
                 "summary.md",
             )
         },

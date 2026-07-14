@@ -22,6 +22,13 @@ EXPECTED_CASES = {
 }
 
 TARGETS = ("sw_emu", "hw_emu", "hw")
+TIMING_KEYS = ("grasu_ms", "barrier_ms", "adapter_ms", "lksg_ms", "apply_ms", "event_e2e_ms")
+
+FAMILY_ALIASES = {
+    "hot-dest": "hot-destination",
+    "hot-dst": "hot-destination",
+    "hot_destination": "hot-destination",
+}
 
 
 def run_git(repo: Path, args: list[str]) -> str:
@@ -78,6 +85,10 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
 
 def parse_kv_line(line: str) -> dict[str, str]:
     return {key: value for key, value in re.findall(r"([A-Za-z0-9_]+)=([^ ]+)", line or "")}
+
+
+def canonical_family(family: str) -> str:
+    return FAMILY_ALIASES.get(family, family)
 
 
 def newest(paths: list[Path]) -> Path | None:
@@ -162,12 +173,11 @@ def pure_summary(repo: Path, path: Path | None) -> dict[str, Any]:
         for case in EXPECTED_CASES
         if "mismatches=0" not in by_case.get(case, {}).get("result_line", "")
     ]
-    timing_keys = ("grasu_ms", "barrier_ms", "adapter_ms", "lksg_ms", "apply_ms", "event_e2e_ms")
     missing_timing: dict[str, list[str]] = {}
     max_vertices = 0
     for case, row in by_case.items():
         timing = parse_kv_line(row.get("timing_line", ""))
-        missing = [key for key in timing_keys if key not in timing]
+        missing = [key for key in TIMING_KEYS if key not in timing]
         if missing:
             missing_timing[case] = missing
         try:
@@ -188,6 +198,53 @@ def pure_summary(repo: Path, path: Path | None) -> dict[str, Any]:
         "has_required_timing_fields": bool(rows) and not missing_cases and not missing_timing,
         "max_vertices_seen": max_vertices,
     }
+
+
+def target_case_coverage(repo: Path, target: str, path: Path | None) -> list[dict[str, Any]]:
+    rows = read_tsv(path) if path is not None else []
+    by_case = {row.get("case", ""): row for row in rows}
+    coverage: list[dict[str, Any]] = []
+    for case, expected_family in EXPECTED_CASES.items():
+        row = by_case.get(case, {})
+        result = parse_kv_line(row.get("result_line", ""))
+        timing = parse_kv_line(row.get("timing_line", ""))
+        observed_family = canonical_family(row.get("family", ""))
+        present = bool(row)
+        status = row.get("status", "")
+        mismatches = result.get("mismatches", "")
+        missing_timing = [key for key in TIMING_KEYS if key not in timing]
+        notes: list[str] = []
+        if not present:
+            notes.append("case_missing")
+        if present and observed_family != expected_family:
+            notes.append(f"family_mismatch observed={observed_family}")
+        if present and status != "PASS":
+            notes.append("status_not_PASS")
+        if present and mismatches != "0":
+            notes.append("oracle_mismatches_nonzero")
+        if present and missing_timing:
+            notes.append("missing_timing=" + ",".join(missing_timing))
+        ok = (
+            present
+            and observed_family == expected_family
+            and status == "PASS"
+            and mismatches == "0"
+            and not missing_timing
+        )
+        coverage.append({
+            "target": target,
+            "case": case,
+            "expected_family": expected_family,
+            "observed_family": observed_family,
+            "present": present,
+            "status": status,
+            "oracle_mismatches": mismatches,
+            "timing_complete": not missing_timing,
+            "ok": ok,
+            "smoke_summary": display_path(repo, path),
+            "notes": "; ".join(notes),
+        })
+    return coverage
 
 
 def xclbin_contract_summary(repo: Path, path: Path | None) -> dict[str, Any]:
@@ -321,6 +378,47 @@ def input_identity_summary(repo: Path, path: Path | None) -> dict[str, Any]:
         "failed_cases": failed_cases,
         "missing_hash_cases": missing_hash_cases,
         "all_expected_pass": bool(rows) and not missing_cases and not failed_cases and not missing_hash_cases,
+    }
+
+
+def zero_vs_spine_summary(repo: Path, path: Path) -> dict[str, Any]:
+    rows = read_tsv(path)
+    by_case = {row.get("label", "") or row.get("chain_case", ""): row for row in rows}
+    missing_cases = [case for case in EXPECTED_CASES if case not in by_case]
+    failed_cases = [
+        case
+        for case in EXPECTED_CASES
+        if by_case.get(case, {}).get("chain_status") != "PASS"
+        or by_case.get(case, {}).get("spine_status") != "PASS"
+    ]
+    missing_zero_cost = [
+        case
+        for case in EXPECTED_CASES
+        if not by_case.get(case, {}).get("chain_total_ms")
+        or not by_case.get(case, {}).get("grasu_ms")
+        or not by_case.get(case, {}).get("regraph_e2e_ms")
+    ]
+    same_input_mismatch = [
+        case
+        for case in EXPECTED_CASES
+        if by_case.get(case, {}).get("chain_case") != case
+        or by_case.get(case, {}).get("spine_case") != case
+        or by_case.get(case, {}).get("chain_final_edges") != by_case.get(case, {}).get("spine_input_edges")
+    ]
+    return {
+        "path": display_path(repo, path),
+        "exists": path.exists(),
+        "sha256": sha256(path),
+        "row_count": len(rows),
+        "missing_cases": missing_cases,
+        "failed_cases": failed_cases,
+        "missing_zero_cost": missing_zero_cost,
+        "same_input_mismatch": same_input_mismatch,
+        "all_expected_pass": bool(rows)
+        and not missing_cases
+        and not failed_cases
+        and not missing_zero_cost
+        and not same_input_mismatch,
     }
 
 
@@ -751,6 +849,7 @@ def target_state(repo: Path, target: str) -> dict[str, Any]:
     summary_path = newest_complete_pure_summary(repo, target)
     run_env_path = summary_path.parent / "run.env" if summary_path is not None else None
     xclbin_contract_path = newest_xclbin_contract(repo, target)
+    summary = pure_summary(repo, summary_path)
     return {
         "target": target,
         "build_root": display_path(repo, build_root),
@@ -760,8 +859,9 @@ def target_state(repo: Path, target: str) -> dict[str, Any]:
         "manifest": artifact(repo, f"pure_{target}_manifest", build_root / "manifest.env"),
         "compile_commands": artifact(repo, f"pure_{target}_compile_commands", build_root / "compile_commands.sh"),
         "link_command": artifact(repo, f"pure_{target}_link_command", build_root / "link_command.sh"),
-        "smoke_summary": pure_summary(repo, summary_path),
+        "smoke_summary": summary,
         "smoke_summary_artifact": artifact(repo, f"pure_{target}_smoke_summary", summary_path),
+        "case_coverage": target_case_coverage(repo, target, summary_path),
         "run_env": artifact(repo, f"pure_{target}_run_env", run_env_path),
     }
 
@@ -810,8 +910,19 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
 
     host = host_summary(repo, host_path)
     spine = spine_summary(repo, spine_path)
+    zero_vs_spine = zero_vs_spine_summary(repo, zero_vs_spine_path)
     same_input = input_identity_summary(repo, same_input_path)
     boundary_prepare = prepare_summary(repo, boundary_prepare_path)
+    case_target_coverage = [
+        row
+        for target in TARGETS
+        for row in targets[target]["case_coverage"]
+    ]
+    missing_case_targets = [
+        f"{row['target']}:{row['case']}"
+        for row in case_target_coverage
+        if not row["ok"]
+    ]
 
     sw_valid = targets["sw_emu"]["smoke_summary"]["all_expected_pass"]
     hw_emu_valid = targets["hw_emu"]["smoke_summary"]["all_expected_pass"]
@@ -835,6 +946,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         host["all_expected_pass"]
         and spine["all_expected_pass"]
         and three_way_path.exists()
+        and zero_vs_spine["all_expected_pass"]
         and same_input["all_expected_pass"]
     )
     max_vertices_seen = max(
@@ -934,8 +1046,12 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
                 targets["sw_emu"]["smoke_summary"]["path"],
                 targets["hw_emu"]["smoke_summary"]["path"],
                 targets["hw"]["smoke_summary"]["path"],
+                "case_target_coverage matrix in audit.json/evidence bundle",
             ],
-            [] if all_targets_valid else ["sw_emu passes; hw_emu/hw xclbin smoke outputs are not present yet"],
+            [] if all_targets_valid else [
+                "sw_emu passes; hw_emu/hw xclbin smoke outputs are not present yet",
+                "missing_or_failed_case_targets=" + ",".join(missing_case_targets),
+            ],
         ),
         requirement(
             8,
@@ -960,7 +1076,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
                 display_path(repo, three_way_path),
                 display_path(repo, zero_vs_spine_path),
             ],
-            [] if baseline_ok else ["same-input comparison or input-identity evidence is incomplete"],
+            [] if baseline_ok else ["same-input, zero-cost, or input-identity evidence is incomplete"],
         ),
         requirement(
             10,
@@ -1029,11 +1145,13 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         "baselines": {
             "host": host,
             "spine": spine,
+            "zero_vs_spine": zero_vs_spine,
             "same_input": same_input,
             "boundary_prepare": boundary_prepare,
             "three_way_comparison": artifact(repo, "three_way_comparison_tsv", three_way_path),
             "zero_vs_spine_comparison": artifact(repo, "zero_vs_spine_comparison_tsv", zero_vs_spine_path),
         },
+        "case_target_coverage": case_target_coverage,
         "requirements": requirements,
         "artifacts": artifacts,
         "next_commands": [
@@ -1112,6 +1230,20 @@ def write_markdown(repo: Path, path: Path, audit: dict[str, Any]) -> None:
             item["path"],
         ])
 
+    case_target_rows = []
+    for row in audit.get("case_target_coverage", []):
+        case_target_rows.append([
+            str(row.get("target", "")),
+            str(row.get("case", "")),
+            str(row.get("expected_family", "")),
+            "yes" if row.get("present") else "no",
+            str(row.get("status", "")),
+            str(row.get("oracle_mismatches", "")),
+            "yes" if row.get("timing_complete") else "no",
+            "yes" if row.get("ok") else "no",
+            str(row.get("notes", "")),
+        ])
+
     command_block = "\n".join(audit["next_commands"])
     lines = [
         "# Pure Pipeline Requirement Audit",
@@ -1137,6 +1269,13 @@ def write_markdown(repo: Path, path: Path, audit: dict[str, Any]) -> None:
         "## Source Proofs",
         "",
         markdown_table(["proof", "ok", "contract", "path"], proof_rows),
+        "",
+        "## Case Target Coverage",
+        "",
+        markdown_table(
+            ["target", "case", "expected_family", "present", "status", "oracle_mismatches", "timing_complete", "ok", "notes"],
+            case_target_rows,
+        ),
         "",
         "## Key Artifacts",
         "",

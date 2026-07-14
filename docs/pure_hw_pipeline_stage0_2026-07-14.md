@@ -5328,3 +5328,95 @@ dff462d464cdf33efa6089ee0cd6c810bb6a4f3f579232605833159b1ab6b633  results/pure_p
 d8182a33e71ed861a977c546f0c1317dd7ddaad42febda36e7c57291c896067c  results/pure_pipeline_evidence_bundle_writer_token_after_bf1d566/requirement_matrix.tsv
 815f3697de1ffe331b05448cdb805e9f59c1d95bd5fe905b437f53a968b5c2c8  results/pure_pipeline_evidence_bundle_writer_token_after_bf1d566/summary.md
 ```
+
+## Case-target coverage audit
+
+As of 2026-07-15 04:14 Asia/Shanghai, the audit also exports an explicit
+case-by-target coverage matrix for requirement 7. This expands the previous
+target-level smoke status into the full `sw_emu/hw_emu/hw` x
+`chain/hot-source/spread/hot-destination` matrix. Each row records whether the
+case is present, whether it passed, whether CPU-oracle mismatches are zero, and
+whether all required timing fields are present.
+
+The same change also makes requirement 9's machine check stricter: the
+zero-cost handoff comparison file is now part of the `baseline_ok` predicate,
+not only a displayed artifact.
+
+Changed files:
+
+```text
+scripts/audit_pure_pipeline_status.py
+scripts/export_pure_pipeline_evidence_bundle.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label case_target_coverage_precommit \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_case_target_coverage_precommit.tsv
+
+./scripts/check_smoke_input_identity.py \
+  --label case_target_coverage_precommit
+
+./scripts/audit_pure_pipeline_status.py \
+  --label case_target_coverage_precommit \
+  --out-dir results/pure_pipeline_requirement_audit_case_target_coverage_precommit
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_case_target_coverage_precommit/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_case_target_coverage_precommit
+```
+
+Result:
+
+```text
+required_count=13
+failed_count=0
+case_count=4
+identity_failed_count=0
+case_target_rows=12
+requirement_7_status=blocked_by_missing_artifact
+requirement_9_status=proven
+zero_vs_spine_ok=True
+status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+```
+
+Current case-target matrix:
+
+```text
+sw_emu  tiny_chain_v16       chain            PASS  mismatches=0 timing=yes ok=yes
+sw_emu  tiny_star_v16_u12    hot-source       PASS  mismatches=0 timing=yes ok=yes
+sw_emu  tiny_spread_v16_u8   spread           PASS  mismatches=0 timing=yes ok=yes
+sw_emu  tiny_hotdst_v64_u32  hot-destination  PASS  mismatches=0 timing=yes ok=yes
+hw_emu  tiny_chain_v16       chain            MISSING
+hw_emu  tiny_star_v16_u12    hot-source       MISSING
+hw_emu  tiny_spread_v16_u8   spread           MISSING
+hw_emu  tiny_hotdst_v64_u32  hot-destination  MISSING
+hw      tiny_chain_v16       chain            MISSING
+hw      tiny_star_v16_u12    hot-source       MISSING
+hw      tiny_spread_v16_u8   spread           MISSING
+hw      tiny_hotdst_v64_u32  hot-destination  MISSING
+```
+
+Evidence hashes:
+
+```text
+06935f07e61febe30e0d579ebc6285b6e2c5652fe11af80c9ddcfe79697b0a95  scripts/audit_pure_pipeline_status.py
+76cc126b0f5765b30445102eec6cfa7d45a7e720180c675ab339c5ba59a9d148  scripts/export_pure_pipeline_evidence_bundle.py
+091e206e6471fdf8a59a93b6a69ad4f3dff5033d08019bcfb63976aaeb928955  .tmp_build/pure_pipeline_source_contracts/source_contracts_case_target_coverage_precommit.tsv
+a4bb92d0bc393fb051570aff3f3ebd2f54be825cad24592bcc4d1916b7448242  results/smoke_input_identity_case_target_coverage_precommit/identity.tsv
+a4278ed2a7d603bfb3226d8d2374be3431360f249def597a6a07e0566e496c7d  results/pure_pipeline_requirement_audit_case_target_coverage_precommit/audit.md
+2ebb3d5b4d0d391a5bfae533ecc2753d19b612345e58fbe19c55645c53ac6b26  results/pure_pipeline_requirement_audit_case_target_coverage_precommit/audit.json
+e297c02d8ad59dcddbde9e4c97a4b76bad54a6a0704eeed57f98e3f8881457da  results/pure_pipeline_evidence_bundle_case_target_coverage_precommit/case_target_matrix.tsv
+ca917f5f9335c874e0f52e082065307b3e18cbd2e36628448d86942637492611  results/pure_pipeline_evidence_bundle_case_target_coverage_precommit/requirement_matrix.tsv
+5c6b92c695e45c8ad63965b5d6bb1572003b72ed78792ebd0d05532baf050795  results/pure_pipeline_evidence_bundle_case_target_coverage_precommit/summary.md
+```
+
+No Vitis build was launched in this step. The next hardware action remains the
+`hw_emu` target flow after the external Spine link releases build resources.
