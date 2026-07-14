@@ -4602,3 +4602,105 @@ cd /home/chuxiao/grasu-regraph-integration
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 ```
+
+## Launch packet readiness is audit-visible
+
+As of 2026-07-15 03:35 Asia/Shanghai, the launch-packet helper writes its
+strict readiness report to the target `run_logs` first, then copies the same
+file into the packet directory. This makes the packet-local readiness and the
+global audit/evidence-bundle readiness point at the same current gate result.
+Before this fix, a launch packet could contain a fresh readiness file while its
+embedded audit still referenced the newest older readiness under target
+`run_logs`.
+
+Source commit:
+
+```text
+0a1f163f7abf4c9319e901fe200cf01e907ef615  Sync launch packet readiness with audit
+```
+
+Changed file:
+
+```text
+scripts/create_pure_pipeline_launch_packet.sh
+```
+
+Validation command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/create_pure_pipeline_launch_packet.sh
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --label launch_packet_hwemu_after_0a1f163 \
+  --flow-label after_0a1f163
+```
+
+Result:
+
+```text
+source_contract_status=0
+readiness_status=3
+audit_status=0
+bundle_status=0
+source_contracts required_count=11 failed_count=0
+hw_emu readiness ready=no blocking_count=1 warning_count=1
+external builders=total=10 v++=2 vivado=4 vpl=2 vrs=2
+hw_emu xclbin=MISSING
+launch_packet_exit=3
+```
+
+The packet-generated audit now records:
+
+```text
+latest_hw_emu_readiness=.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_launch_packet_hwemu_after_0a1f163.txt
+sha256=0965efd8bbf3a6e233d40ea8d2c558f72e23f7934acad758ab5d440259bf5534
+```
+
+Launch command captured in the packet:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_0a1f163 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Artifacts:
+
+```text
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/README.md
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/launch_command.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/launch_packet.env
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/artifact_hashes.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/source_contracts.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/readiness_hw_emu.txt
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_launch_packet_hwemu_after_0a1f163.txt
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/audit/audit.json
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/evidence_bundle/summary.md
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/evidence_bundle/target_matrix.tsv
+```
+
+Evidence hashes:
+
+```text
+6545877d8576d7c56f23dc70b429b27b3e773af80641614c6b8c21954ca3c366  scripts/create_pure_pipeline_launch_packet.sh
+be7429de233ff95ddbd1230c8f3e04db7770a6215840edfe0ef1cb3b1d7666aa  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/README.md
+ec0ac29d9d3eb2d0248b7125493e9420909429c3f6abef5aef3d7fb88fe93b3e  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/launch_command.sh
+2966156772b8f8c14f21a6ac605b1dded394a16df8a92b06a8a56cc3fbeca55f  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/launch_packet.env
+1ffb753090e16a6b5a11fa30bcb174e0ed461b01681574acf62e390cbe52bc9a  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/artifact_hashes.tsv
+572e419a9a0b213f94f43e4cc57bdc50815a4a2ad577fe2384d802a284f25123  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/source_contracts.tsv
+0965efd8bbf3a6e233d40ea8d2c558f72e23f7934acad758ab5d440259bf5534  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/readiness_hw_emu.txt
+0965efd8bbf3a6e233d40ea8d2c558f72e23f7934acad758ab5d440259bf5534  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_launch_packet_hwemu_after_0a1f163.txt
+c4163e2e8f0e8e71cf1c193fe2818e84df0a2c5c991d40b5349827ad1f0752a6  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/audit/audit.json
+7dc2dab0ddeeb8dd7edb7a41de89ebab03de3c2a9d357e76e3b9901d5fe61214  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/evidence_bundle/summary.md
+2f75032731d3d3f4ffcae71e79f32d657f5dfcd9976d99e08778ed205665c04b  .tmp_build/pure_pipeline_launch_packet_launch_packet_hwemu_after_0a1f163/evidence_bundle/target_matrix.tsv
+```
