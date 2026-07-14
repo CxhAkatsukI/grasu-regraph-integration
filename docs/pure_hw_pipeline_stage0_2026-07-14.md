@@ -1079,7 +1079,8 @@ Process-name filtering refinement after this regression:
   by `ps` `comm` name instead of substring matches over the whole command line.
   This avoids reporting the monitor's own `awk/ps` command as a build process.
 - `run_pure_pipeline_build.sh --require-idle` uses the same process-name
-  family and includes `vrs`, `xsimk`, and `genericpcie*` workers.
+  family and includes `vrs`, `xelab`, `xsim`, `xsimk`, `xsc`, `xvlog`,
+  `xvhdl`, and `genericpcie*` workers.
 - The report headers now distinguish the short process name from full args.
 
 Recheck commands:
@@ -1929,4 +1930,74 @@ a6cab633efa287b2df48020cad042408dc61f2b778a01bb3e5a9daae4280a845  results/pure_p
 72357f76a9b8eb46eaaed2324fb56e984a51e9f161069188615b421b5673b7bc  results/pure_pipeline_requirement_audit_refresh_after_c25d7f9/audit.md
 d789eb02f596772f11445100b7d58ab1e564703f0b9ca98dbae69955057584cd  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_c25d7f9.txt
 c05521f32553bcb81c3c053d5e5860db30fa64950086b5671d1f3d8c5d05df1e  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_c25d7f9.txt
+```
+
+## Idle Gate Alignment
+
+The readiness scan, actual build wait-idle gate, and build monitor now use the
+same Vitis/Vivado/XSim process family:
+
+```text
+v++ vpl vivado vrs xocc xelab xsim xsimk xsc xvlog xvhdl genericpcie*
+```
+
+This closes the gap where `check_pure_pipeline_build_readiness.sh` could detect
+`xelab`, but `run_pure_pipeline_build.sh --wait-idle` and
+`monitor_pure_pipeline_build.sh` would not count it.
+
+Clean-code regression at HEAD `5953922`:
+
+```bash
+bash -n \
+  scripts/run_pure_pipeline_build.sh \
+  scripts/monitor_pure_pipeline_build.sh \
+  scripts/check_pure_pipeline_build_readiness.sh \
+  scripts/refresh_pure_pipeline_readiness_bundle.sh
+
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label idle_gate_after_5953922 \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --dry-run
+
+./scripts/monitor_pure_pipeline_build.sh \
+  --target hw_emu \
+  --tail-lines 5 \
+  --out-file .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_after_5953922.txt
+
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_after_5953922
+```
+
+The idle gate exited `3`, as expected, before launching any Vitis work. The
+post-fix audit reports:
+
+```text
+branch=codex/pure-hw-pipeline
+head=5953922f97992d06cd81f619796988be1f6c907f
+dirty=false
+```
+
+Current strict readiness after the fix:
+
+```text
+target  xclbin  smoke  readiness  blocking  related  external  build_gb  tmp_gb
+hw      no      no     no         1         0        10        217.6     2.2
+hw_emu  no      no     no         1         0        10        217.6     2.2
+sw_emu  yes     yes    n/a        n/a       n/a      n/a       n/a       n/a
+```
+
+Evidence hashes:
+
+```text
+c19eb67a294b7a0a79c34d88967891c1b8d67c48036481786f2c805d96702068  scripts/run_pure_pipeline_build.sh
+aca47369fb5c7161ec113184afaf2fb323f4b95b5b845f1b996a3fec6c069b76  scripts/monitor_pure_pipeline_build.sh
+d579a5f0d94131aaa7c0e93224f01fce865ac139924c83d0f0206248716502fc  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/idle_check_idle_gate_after_5953922.txt
+86cd59a90fa24f931a10af4fa6d2f75b6cda04aef7d7367b797790cea62c86ba  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_after_5953922.txt
+73d200de23e809902c35b55b644d85db5955dc5fc73645f926a1c661f94068c2  results/pure_pipeline_evidence_bundle_refresh_after_5953922/summary.md
+7455ff2464de04067b9ce353230f2f13ffe2ae328c18ca95ba1f8d8878290d31  results/pure_pipeline_evidence_bundle_refresh_after_5953922/target_matrix.tsv
+064199050db42ff7ac013403212e8f0e2d1707d0155ce6e1099d5770f03b23e0  results/pure_pipeline_requirement_audit_refresh_after_5953922/audit.md
+ae620a950698139188fc1948bb7743492c95546bd6b780916656562f0e809a0b  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_5953922.txt
+dc0570a42cdb8ff850e5efd8df8df613d9573f468b0d265045cdd535f3f7578e  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_5953922.txt
 ```
