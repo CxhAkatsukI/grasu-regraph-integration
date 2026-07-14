@@ -205,6 +205,21 @@ Connectivity changes:
 - Keep ReGraph internal connections from GS to merger/apply/HBM wrapper.
 - Keep all kernels in one xclbin.
 
+Generate the first pure-pipeline build commands without running Vitis:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/prepare_pure_hw_pipeline_build.sh \
+  --target sw_emu \
+  --build-root .tmp_build/pure_pipeline_sw_emu_stage0
+```
+
+The generated `compile_commands.sh` rebuilds only the new or interface-changed
+XOs: tokenized GraSU `process_cache`, tokenized GraSU `process_ddr`,
+`pma_to_regraph_adapter`, and `littleKernelScatterGatherStream`. The generated
+`link_command.sh` reuses the existing GraSU `bin_search`/`dispatch` XOs and the
+existing non-little-GS ReGraph SSSP XOs.
+
 ## Correctness Matrix
 
 The first matrix remains:
