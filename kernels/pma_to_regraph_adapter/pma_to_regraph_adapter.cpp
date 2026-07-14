@@ -2,6 +2,12 @@
 #include <hls_streamofblocks.h>
 #include <ap_axi_sdata.h>
 #include <ap_int.h>
+#if defined(SW_EMU) && !defined(__SYNTHESIS__)
+#include <stdio.h>
+#define ADAPTER_DEBUG_PRINTF(fmt, ...) do { printf(fmt, ##__VA_ARGS__); fflush(stdout); } while (0)
+#else
+#define ADAPTER_DEBUG_PRINTF(fmt, ...)
+#endif
 
 typedef ap_axiu<32, 0, 0, 0> done_pkt_t;
 typedef ap_axiu<512, 0, 0, 0> edge_burst_pkt_t;
@@ -40,6 +46,15 @@ static ap_uint<512> read_pma_segment(const ap_uint<512> *pma0,
     return (segment_idx & 0x1) ? pma3[local_idx] : pma1[local_idx];
 }
 
+static void unpack_row_bounds(ap_uint<64> packed,
+                              ap_uint<64> &begin,
+                              ap_uint<64> &end)
+{
+#pragma HLS INLINE
+    begin = packed.range(63, 32);
+    end = packed.range(31, 0);
+}
+
 static void write_edge_burst(edge_burst_pkt_t &pkt,
                              unsigned lane,
                              ap_uint<32> src,
@@ -60,6 +75,7 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
                             unsigned node_count,
                             unsigned pma_slot_count,
                             unsigned max_cache_segment,
+                            unsigned wait_for_completion,
                             hls::stream<done_pkt_t> &done0,
                             hls::stream<done_pkt_t> &done1,
                             hls::stream<done_pkt_t> &done2,
@@ -79,6 +95,7 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
 #pragma HLS INTERFACE s_axilite port=node_count bundle=control
 #pragma HLS INTERFACE s_axilite port=pma_slot_count bundle=control
 #pragma HLS INTERFACE s_axilite port=max_cache_segment bundle=control
+#pragma HLS INTERFACE s_axilite port=wait_for_completion bundle=control
 #pragma HLS INTERFACE s_axilite port=return bundle=control
 #pragma HLS INTERFACE axis port=done0
 #pragma HLS INTERFACE axis port=done1
@@ -86,10 +103,20 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
 #pragma HLS INTERFACE axis port=done3
 #pragma HLS INTERFACE axis port=edge_burst_out
 
-    (void)done0.read();
-    (void)done1.read();
-    (void)done2.read();
-    (void)done3.read();
+    ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: begin nodes=%u pma_slots=%u wait=%u\n",
+                         node_count, pma_slot_count, wait_for_completion);
+
+    if (wait_for_completion) {
+        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: waiting completion tokens\n");
+        (void)done0.read();
+        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: got done0\n");
+        (void)done1.read();
+        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: got done1\n");
+        (void)done2.read();
+        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: got done2\n");
+        (void)done3.read();
+        ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: got done3\n");
+    }
 
     edge_burst_pkt_t out;
     out.data = 0;
@@ -97,17 +124,25 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
     out.strb = -1;
     out.last = 0;
 
-    ap_uint<64> total_slots = row_offset[node_count];
-    if (total_slots > pma_slot_count) {
-        total_slots = pma_slot_count;
+    ap_uint<64> total_slots = 0;
+    if (node_count != 0) {
+        ap_uint<64> last_begin = 0;
+        unpack_row_bounds(row_offset[node_count - 1], last_begin, total_slots);
+        if (total_slots > pma_slot_count) {
+            total_slots = pma_slot_count;
+        }
     }
+    ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: total_slots=%u\n",
+                         static_cast<unsigned>(total_slots));
 
     ap_uint<64> emitted_slots = 0;
+    unsigned emitted_bursts = 0;
 
 source_loop:
     for (unsigned src = 0; src < node_count; ++src) {
-        const ap_uint<64> begin = row_offset[src];
-        ap_uint<64> end = row_offset[src + 1];
+        ap_uint<64> begin = 0;
+        ap_uint<64> end = 0;
+        unpack_row_bounds(row_offset[src], begin, end);
         if (end > pma_slot_count) {
             end = pma_slot_count;
         }
@@ -146,8 +181,17 @@ segment_loop:
                 emitted_slots += 8;
                 out.last = (emitted_slots >= total_slots);
                 edge_burst_out.write(out);
+                emitted_bursts++;
+                if (emitted_bursts <= 4 || (emitted_bursts & 0xf) == 0) {
+                    ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: emitted burst=%u slots=%u last=%u\n",
+                                         emitted_bursts,
+                                         static_cast<unsigned>(emitted_slots),
+                                         static_cast<unsigned>(out.last));
+                }
             }
         }
     }
+    ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: done bursts=%u slots=%u\n",
+                         emitted_bursts, static_cast<unsigned>(emitted_slots));
 }
 }

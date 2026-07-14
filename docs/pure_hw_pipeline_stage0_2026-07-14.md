@@ -58,6 +58,9 @@ sha256: 6c752a5c6abf56998753fc531dd1f8a7ce7f98395a352824a83c00ffe4dd01d5
 size:   6.2M
 ```
 
+This was the first link-only milestone. It has since been superseded by the
+correctness-tested xclbin recorded below.
+
 Generated XO inputs recorded in:
 
 ```text
@@ -93,19 +96,122 @@ Toolchain notes for this host:
   `LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu` and
   `COMPILER_PATH=/usr/bin` so gcc finds the system runtime objects and linker.
 
+## Stage 0 SW_EMU Correctness Milestone
+
+As of 2026-07-14 16:48 Asia/Shanghai, the first pure-pipeline host runner
+executes the linked `sw_emu` xclbin and passes CPU-oracle checks for the four
+required small graph families: chain, hot-source, spread, and hot-destination.
+
+Source base before this milestone:
+
+```text
+dc9f731e200338d657d86c8cb07acca976b233b1
+```
+
+Current artifacts:
+
+```text
+705fa800d62d04aef4814b275e94b76749ba7120b46aaa0036066e555d65fcdd  .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+72bd14add4a9922fe3651627f06403875b0d90918ec9637af40979f504429a19  .tmp_build/pure_pipeline_sw_emu_stage0/build/pma_to_regraph_adapter.sw_emu.xo
+9f68e9a5f1075cd0ae0c319742cdfa2129937dfeb9a354f7df4f07fdf89c83ad  .tmp_build/pure_pipeline_sw_emu_stage0/build/lksg_stream.sw_emu.xo
+ded281e1610545859ca5fcfdc4acfeecece6a1bad2805ba36ec98b0050814b06  .tmp_build/pure_pipeline_host_stage0/pure_pipeline_host
+```
+
+Host runner build:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/build_pure_pipeline_host.sh \
+  --out-dir .tmp_build/pure_pipeline_host_stage0
+```
+
+Important runtime environment note: on this Debian host,
+`/opt/xilinx/xrt/setup.sh` exits nonzero under `set -e` because its OS release
+probe leaves `OSREL` empty. For these runs, XRT was configured explicitly:
+
+```bash
+source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+export XILINX_XRT=/opt/xilinx/xrt
+export LD_LIBRARY_PATH=/opt/xilinx/xrt/lib:${LD_LIBRARY_PATH:-}
+export PATH=/opt/xilinx/xrt/bin:${PATH}
+export XCL_EMULATION_MODE=sw_emu
+export EMCONFIG_PATH=/home/chuxiao/grasu-regraph-integration/.tmp_build/pure_pipeline_sw_emu_stage0/run
+```
+
+The run command shape is:
+
+```bash
+/home/chuxiao/grasu-regraph-integration/.tmp_build/pure_pipeline_host_stage0/pure_pipeline_host \
+  /home/chuxiao/grasu-regraph-integration/.tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin \
+  <graph> \
+  <result> \
+  <source> \
+  <supersteps>
+```
+
+Correctness evidence:
+
+```text
+chain:
+  graph: workloads/sssp_benchmark_smoke/tiny_chain_v16/tiny_chain_v16.graph
+  command args: source=0 supersteps=16
+  log: .tmp_build/pure_pipeline_sw_emu_stage0/run_tiny_chain_step16_stage29.log
+  input:  vertices=16 static_edges=15 update_edges=0 final_edges=15 pma_slots=240 source_internal=0
+  timing: grasu_ms=2.680516 adapter_ms=51.484484 lksg_ms=3303.307957 apply_ms=5446.306848 hbm_ms=5430.682527 event_e2e_ms=5489.598471 wall_ms=5489.913370
+  result: PASS mismatches=0 processed_edge_slots_per_superstep=240
+
+hot-source:
+  graph: workloads/sssp_benchmark_smoke/tiny_star_v16_u12/tiny_star_v16_u12.graph
+  command args: source=0 supersteps=2
+  log: .tmp_build/pure_pipeline_sw_emu_stage0/run_tiny_star_step2_stage30.log
+  input:  vertices=16 static_edges=16 update_edges=12 final_edges=28 pma_slots=256 source_internal=0
+  timing: grasu_ms=2.703177 adapter_ms=3.035507 lksg_ms=418.941903 apply_ms=696.898421 hbm_ms=694.936735 event_e2e_ms=701.021439 wall_ms=701.262785
+  result: PASS mismatches=0 processed_edge_slots_per_superstep=256
+
+spread:
+  graph: workloads/generated/tiny_spread_v16_u8/tiny_spread_v16_u8.graph
+  command args: source=0 supersteps=16
+  log: .tmp_build/pure_pipeline_sw_emu_stage0/run_tiny_spread_step16_stage32.log
+  input:  vertices=16 static_edges=16 update_edges=8 final_edges=24 pma_slots=256 source_internal=0
+  timing: grasu_ms=3.288354 adapter_ms=66.317556 lksg_ms=3378.034651 apply_ms=5521.057076 hbm_ms=5504.958204 event_e2e_ms=5579.775674 wall_ms=5580.023040
+  result: PASS mismatches=0 processed_edge_slots_per_superstep=256
+
+hot-destination:
+  graph: workloads/sssp_benchmark_smoke/tiny_hotdst_v64_u32/tiny_hotdst_v64_u32.graph
+  command args: source=0 supersteps=16
+  log: .tmp_build/pure_pipeline_sw_emu_stage0/run_tiny_hotdst_step16_stage31.log
+  input:  vertices=64 static_edges=63 update_edges=32 final_edges=95 pma_slots=1008 source_internal=62
+  timing: grasu_ms=2.744948 adapter_ms=151.333529 lksg_ms=3785.447053 apply_ms=5982.583235 hbm_ms=5967.074364 event_e2e_ms=6042.156183 wall_ms=6042.403101
+  result: PASS mismatches=0 processed_edge_slots_per_superstep=1008
+```
+
+Key implementation fixes made during this milestone:
+
+- The adapter now decodes GraSU `row_offset[src]` as packed
+  `[begin, end]` 64-bit metadata instead of treating adjacent entries as raw CSR
+  offsets.
+- The adapter has a `wait_for_completion` scalar. Step 0 waits for the four
+  GraSU PMA writer tokens; later SSSP supersteps replay the already-stable PMA
+  graph without waiting for one-shot tokens.
+- The host runner uses one OpenCL context/program/xclbin for GraSU, adapter,
+  and ReGraph. It passes the same PMA buffers from GraSU into the adapter, so
+  there is no graph D2H, host graph conversion, or graph H2D between GraSU and
+  ReGraph.
+- The host launches the steady-state pipeline in the order
+  `adapter -> lksg_stream -> kernelHBMWrapper -> kernelApply`. In `sw_emu`,
+  launching HBM/Apply first can leave the adapter and lksg CUs queued behind
+  blocking stream consumers.
+
 ## Not Yet True
 
 The current baseline still has these gaps:
 
-- The `sw_emu` xclbin is linked, but no pure-pipeline host runner has executed it
-  yet.
-- The chain, hot-source, spread, and hot-destination CPU-oracle checks have not
-  been run through this pure-pipeline xclbin yet.
-- The unified timing fields are not available yet.
 - `hw_emu` and `hw` pure-pipeline xclbins have not been built from this script
   yet.
-- Host-conversion and zero-cost handoff baselines remain the only measured
-  baselines so far.
+- The timing above is `sw_emu` timing and is useful for control-flow evidence,
+  not performance claims.
+- Host-conversion and zero-cost handoff baselines still need to be rerun next to
+  this pure-pipeline runner on exactly the same graph files.
 
 ## Start-State Evidence Command
 

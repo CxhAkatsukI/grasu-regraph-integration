@@ -1,6 +1,12 @@
 #include <hls_stream.h>
 #include <hls_streamofblocks.h>
 #include <string.h>
+#if defined(SW_EMU) && !defined(__SYNTHESIS__)
+#include <stdio.h>
+#define LKSG_DEBUG_PRINTF(fmt, ...) do { printf(fmt, ##__VA_ARGS__); fflush(stdout); } while (0)
+#else
+#define LKSG_DEBUG_PRINTF(fmt, ...)
+#endif
 
 #include "acc_data_types.h"
 #include "l1_api.h"
@@ -69,6 +75,9 @@ void lksg_stream(
 #pragma HLS stream variable=ppb_response_stm depth=stream_depth
 #endif
 
+    LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: read_stream_edges begin part_edge_num=%u\n",
+                      (unsigned)part_edge_num);
+
 read_stream_edges:
     for (uint i = 0; i < (part_edge_num >> LOG2_NUM_EDGE_PER_BURST); i++) {
 #pragma HLS PIPELINE II=1
@@ -86,11 +95,19 @@ read_stream_edges:
 #endif
         }
         write_to_stream(edge_burst_stm, burst);
+        if (i < 4 || ((i + 1) & 0xf) == 0) {
+            LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: read burst=%u last=%u\n",
+                              (unsigned)(i + 1),
+                              (unsigned)pkt.last);
+        }
     }
+    LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: read_stream_edges done\n");
 
 #ifdef SW_EMU
+    LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: accScatterDirectAxi begin\n");
     accScatterDirectAxi(l_ppb_request_stm, l_ppb_response_stm,
                         edge_burst_stm, update_set_stm, part_edge_num);
+    LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: accScatterDirectAxi done\n");
 #else
     stream2axistream(ppb_request_stm, l_ppb_request_stm);
     axistream2stream(l_ppb_response_stm, ppb_response_stm);
@@ -98,7 +115,11 @@ read_stream_edges:
                edge_burst_stm, update_set_stm, part_edge_num);
 #endif
 
+    LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: accGather begin\n");
     accGather(part_edge_num, update_set_stm, tmp_prop_stm, reset_tmp_prop);
+    LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: accGather done\n");
+    LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: mergeWriteResults begin\n");
     mergeWriteResults(tmp_prop_stm, part_dst_offset, l_tmp_prop_stm);
+    LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: mergeWriteResults done\n");
 }
 }
