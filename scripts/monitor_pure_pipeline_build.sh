@@ -108,19 +108,25 @@ emit_log_summary() {
 
 emit_processes() {
   printf 'matching_processes\n'
-  ps -eo pid,ppid,etime,stat,pcpu,pmem,args |
+  ps -eo pid,ppid,etime,stat,pcpu,pmem,comm,args |
     awk -v root="${BUILD_ROOT}" -v xclbin="${OUT_XCLBIN}" '
-      NR == 1 { header = $0; next }
+      NR == 1 {
+        header = "    PID    PPID     ELAPSED STAT %CPU %MEM COMMAND         ARGS"
+        next
+      }
       {
         if (index($0, "awk -v root=") ||
             index($0, "monitor_pure_pipeline_build.sh")) {
           next
         }
-        is_builder = index($0, "v++") || index($0, "vivado") ||
-                     index($0, "vitis") || index($0, "xocc") ||
-                     index($0, "run_pure_pipeline_build") ||
-                     index($0, "compile_commands.sh") ||
-                     index($0, "link_command.sh")
+        comm = $7
+        is_builder = comm == "v++" || comm == "vpl" ||
+                     comm == "vivado" || comm == "vrs" ||
+                     comm == "xocc" || comm == "xsimk" ||
+                     index(comm, "genericpcie") == 1 ||
+                     comm == "run_pure_pipel" ||
+                     comm == "compile_command" ||
+                     comm == "link_command.sh"
         is_related = index($0, root) || index($0, xclbin) ||
                      index($0, "pure_pipeline")
         if (is_builder && is_related) {
@@ -150,17 +156,22 @@ emit_system_resources() {
 
 emit_other_builders() {
   printf 'other_vitis_vivado_processes\n'
-  ps -eo pid,ppid,etime,stat,pcpu,pmem,args |
+  ps -eo pid,ppid,etime,stat,pcpu,pmem,comm,args |
     awk -v root="${BUILD_ROOT}" -v xclbin="${OUT_XCLBIN}" '
-      NR == 1 { header = $0; next }
+      NR == 1 {
+        header = "    PID    PPID     ELAPSED STAT %CPU %MEM COMMAND         ARGS"
+        next
+      }
       {
         if (index($0, "awk -v root=") ||
             index($0, "monitor_pure_pipeline_build.sh")) {
           next
         }
-        is_builder = index($0, "v++") || index($0, "vpl") ||
-                     index($0, "vivado") || index($0, "vitis") ||
-                     index($0, "xocc") || index($0, "genericpciemodel")
+        comm = $7
+        is_builder = comm == "v++" || comm == "vpl" ||
+                     comm == "vivado" || comm == "vrs" ||
+                     comm == "xocc" || comm == "xsimk" ||
+                     index(comm, "genericpcie") == 1
         is_related = index($0, root) || index($0, xclbin) ||
                      index($0, "run_pure_pipeline_build") ||
                      index($0, "compile_commands.sh") ||

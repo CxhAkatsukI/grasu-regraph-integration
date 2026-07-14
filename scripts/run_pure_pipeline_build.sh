@@ -81,8 +81,8 @@ active_vitis_vivado_processes() {
       {
         comm = $7
         is_builder = comm == "v++" || comm == "vpl" || comm == "vivado" ||
-                     comm == "xocc" || comm == "xsimk" ||
-                     comm == "genericpciemode" || comm == "genericpciemod"
+                     comm == "vrs" || comm == "xocc" || comm == "xsimk" ||
+                     index(comm, "genericpcie") == 1
         if (is_builder) {
           print
         }
@@ -92,6 +92,8 @@ active_vitis_vivado_processes() {
 
 write_idle_check() {
   local out_file="$1"
+  local active_processes
+  active_processes="$(active_vitis_vivado_processes || true)"
   {
     printf 'pure_pipeline_build_idle_check\n'
     printf 'timestamp=%s\n' "$(date --iso-8601=seconds)"
@@ -100,8 +102,12 @@ write_idle_check() {
     printf 'require_idle=%s\n' "${REQUIRE_IDLE}"
     printf '\n'
     printf 'active_vitis_vivado_processes\n'
-    printf '    PID    PPID     ELAPSED STAT %%CPU %%MEM COMMAND\n'
-    active_vitis_vivado_processes || true
+    printf '    PID    PPID     ELAPSED STAT %%CPU %%MEM COMMAND         ARGS\n'
+    if [[ -n "${active_processes}" ]]; then
+      printf '%s\n' "${active_processes}"
+    else
+      printf 'none\n'
+    fi
   } > "${out_file}"
 }
 

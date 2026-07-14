@@ -1027,6 +1027,56 @@ idle_guard_rc=3
 afc13697844f7391caf7d6bfa9d3403f7130c5b81b22470548b28a612bd603c0  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/idle_check_idle_guard_check.txt
 ```
 
+Process-name filtering refinement after this regression:
+
+- `monitor_pure_pipeline_build.sh` now filters Vitis/Vivado activity primarily
+  by `ps` `comm` name instead of substring matches over the whole command line.
+  This avoids reporting the monitor's own `awk/ps` command as a build process.
+- `run_pure_pipeline_build.sh --require-idle` uses the same process-name
+  family and includes `vrs`, `xsimk`, and `genericpcie*` workers.
+- The report headers now distinguish the short process name from full args.
+
+Recheck commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/monitor_pure_pipeline_build.sh
+bash -n scripts/run_pure_pipeline_build.sh
+
+./scripts/monitor_pure_pipeline_build.sh \
+  --target hw_emu \
+  --tail-lines 20 \
+  --out-file .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_process_filter_after_ab81cd4.txt
+
+set +e
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label idle_guard_comm_check2 \
+  --require-idle \
+  --dry-run \
+  --skip-compile \
+  --skip-link
+echo "idle_guard_rc=$?"
+```
+
+Evidence:
+
+```text
+idle_guard_rc=3
+6a423982ce768cfe4ddaebdb805cb8d894d778715e6ab993eb02a9b9e74e4f6b  scripts/monitor_pure_pipeline_build.sh
+2dc8ffc1efa1d294fc62800c997a2a5c3606ec35dd8b61562e5229621cbae4b2  scripts/run_pure_pipeline_build.sh
+794e806203ef9e5925a4f9638d5ded28f3cad894254a674bc5e9c84c950a6b4f  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_process_filter_after_ab81cd4.txt
+31ee2d6d3328d13ca5a580f0ddfad0d01b84abf2bfc37efb908b9717bc5faf21  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/idle_check_idle_guard_comm_check2.txt
+```
+
+Current observation from the refined monitor:
+
+```text
+pure pipeline matching_processes: none
+pure hw_emu xclbin: MISSING
+other_vitis_vivado_processes: active unrelated Spine hw link plus vadd hw_emu probe
+```
+
 ## Staged Smoke Gate
 
 The full requirement still needs all four smoke families on `sw_emu`, `hw_emu`,
