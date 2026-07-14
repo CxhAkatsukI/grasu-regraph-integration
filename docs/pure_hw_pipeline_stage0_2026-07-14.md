@@ -1864,3 +1864,35 @@ becd57c1fffb43a0fe422c41fc84df304fd6332fac505dbfa2137ff99fdf3faa  results/pure_p
 00f7de4713781e8ffda8533ff792bc7c642d047d9d776b0ab91543dbea998fd2  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_74a25be_live.txt
 e03d520313f43d48fab8548cd6467cfc411d51b215c65c3f2d9896e32e39afdc  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_74a25be_live.txt
 ```
+
+Follow-up detection fix: the active-builder scan now also treats Vivado/XSim
+front-end processes as blockers: `xelab`, `xsim`, `xsc`, `xvlog`, and `xvhdl`.
+This matters for `hw_emu`, where `xelab` can consume significant CPU before an
+`xsimk` process exists.
+
+Refresh after that fix:
+
+```bash
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_after_d9a27f0_xsimdet
+```
+
+The command again exited `3` after writing the audit and bundle. The strict
+readiness matrix now counts `19` external builders for both pending targets,
+including the active `xelab` processes:
+
+```text
+target  xclbin  smoke  readiness  blocking  related  external  build_gb  tmp_gb
+hw      no      no     no         1         0        19        217.6     2.2
+hw_emu  no      no     no         1         0        19        217.6     2.2
+sw_emu  yes     yes    n/a        n/a       n/a      n/a       n/a       n/a
+```
+
+```text
+5dea61b63caf55d7f0639f4da4416f14289b53cecb7692393e6369b230590914  scripts/check_pure_pipeline_build_readiness.sh
+1ba80cc19f5725b00fa3f81c548df74dc857114c6ac6c348ef2c6e6547bd6bc4  results/pure_pipeline_evidence_bundle_refresh_after_d9a27f0_xsimdet/summary.md
+dc69273dd308b9e0726ea7a569e13893229a61c63c5fd6747bc2bdfeba8ef488  results/pure_pipeline_evidence_bundle_refresh_after_d9a27f0_xsimdet/target_matrix.tsv
+471b8b1c5099777a731c11de1935cd163d1a1841085876499b5a94946d1eb8fb  results/pure_pipeline_requirement_audit_refresh_after_d9a27f0_xsimdet/audit.md
+6d39b35c43183a24911d155f0d8fd34f66bcafab8af1396dc211bd9d8d048208  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_after_d9a27f0_xsimdet.txt
+ca842e695a318f4399e862a1fff172fd85f6750844380e00769c63cf2b7c99bb  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_after_d9a27f0_xsimdet.txt
+```

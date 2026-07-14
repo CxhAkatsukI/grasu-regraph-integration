@@ -85,7 +85,10 @@ active_builder_processes() {
         comm = $7
         is_builder = comm == "v++" || comm == "vpl" ||
                      comm == "vivado" || comm == "vrs" ||
-                     comm == "xocc" || comm == "xsimk" ||
+                     comm == "xocc" || comm == "xelab" ||
+                     comm == "xsim" || comm == "xsimk" ||
+                     comm == "xsc" || comm == "xvlog" ||
+                     comm == "xvhdl" ||
                      index(comm, "genericpcie") == 1
         if (is_builder) {
           print
