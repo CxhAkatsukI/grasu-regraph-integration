@@ -22,6 +22,12 @@ COLUMNS = [
     "host_regraph_e2e_ms",
     "host_zero_cost_ms",
     "host_mismatch_count",
+    "spine_status",
+    "spine_maint_ms",
+    "spine_conv_ms",
+    "spine_kernel_e2e_ms",
+    "spine_errors",
+    "host_zero_over_spine_kernel",
     "pure_status",
     "pure_target",
     "pure_event_e2e_ms",
@@ -82,20 +88,28 @@ def case_union(*tables: dict[str, dict[str, str]]) -> list[str]:
 def joined_rows(
     host_rows: dict[str, dict[str, str]],
     pure_rows: dict[str, dict[str, str]],
+    spine_rows: dict[str, dict[str, str]],
     pure_target: str,
 ) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
-    for case in case_union(host_rows, pure_rows):
+    for case in case_union(host_rows, pure_rows, spine_rows):
         host = host_rows.get(case, {})
         pure = pure_rows.get(case, {})
+        spine = spine_rows.get(case, {})
         timing = timing_map(pure.get("timing_line", ""))
         grasu_ms = parse_float(host.get("grasu_ms"))
         regraph_ms = parse_float(host.get("regraph_e2e_ms"))
         zero_cost_ms = None if grasu_ms is None or regraph_ms is None else grasu_ms + regraph_ms
+        spine_kernel_ms = parse_float(spine.get("kernel_e2e_ms"))
+        host_over_spine = None
+        if zero_cost_ms is not None and spine_kernel_ms not in (None, 0.0):
+            host_over_spine = zero_cost_ms / spine_kernel_ms
 
         notes = []
         if host.get("status") != "PASS":
             notes.append("host baseline not PASS")
+        if spine_rows and spine.get("status") != "PASS":
+            notes.append("spine not PASS")
         if pure.get("status") != "PASS":
             notes.append("pure pipeline not PASS")
         if pure_target != "hw":
@@ -114,6 +128,12 @@ def joined_rows(
             "host_regraph_e2e_ms": fmt(regraph_ms),
             "host_zero_cost_ms": fmt(zero_cost_ms),
             "host_mismatch_count": host.get("mismatch_count", ""),
+            "spine_status": spine.get("status", ""),
+            "spine_maint_ms": spine.get("maint_ms", ""),
+            "spine_conv_ms": spine.get("conv_ms", ""),
+            "spine_kernel_e2e_ms": spine.get("kernel_e2e_ms", ""),
+            "spine_errors": spine.get("errors", ""),
+            "host_zero_over_spine_kernel": fmt(host_over_spine),
             "pure_status": pure.get("status", ""),
             "pure_target": pure_target,
             "pure_event_e2e_ms": timing.get("event_e2e_ms", ""),
@@ -142,9 +162,12 @@ def markdown_table(rows: list[dict[str, str]]) -> str:
         "host_zero_cost_ms",
         "host_grasu_ms",
         "host_regraph_e2e_ms",
+        "spine_kernel_e2e_ms",
+        "host_zero_over_spine_kernel",
         "pure_target",
         "pure_event_e2e_ms",
         "host_status",
+        "spine_status",
         "pure_status",
         "notes",
     ]
@@ -163,6 +186,7 @@ def write_markdown(
     *,
     host_summary: Path,
     pure_summary: Path,
+    spine_summary: Path | None,
     pure_env: Path | None,
 ) -> None:
     lines = [
@@ -176,6 +200,8 @@ def write_markdown(
         f"- Host baseline summary: `{host_summary}`",
         f"- Pure pipeline summary: `{pure_summary}`",
     ]
+    if spine_summary is not None:
+        lines.append(f"- Spine summary: `{spine_summary}`")
     if pure_env is not None:
         lines.append(f"- Pure pipeline environment: `{pure_env}`")
     lines.extend(("", markdown_table(rows)))
@@ -186,6 +212,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host-summary", type=Path, required=True)
     parser.add_argument("--pure-summary", type=Path, required=True)
+    parser.add_argument("--spine-summary", type=Path, default=None)
     parser.add_argument("--pure-env", type=Path, default=None)
     parser.add_argument("--pure-target", default=None)
     parser.add_argument("--out-dir", type=Path, required=True)
@@ -193,7 +220,13 @@ def main() -> int:
 
     pure_env = read_env(args.pure_env)
     pure_target = args.pure_target or pure_env.get("target", "unknown")
-    rows = joined_rows(rows_by_case(args.host_summary), rows_by_case(args.pure_summary), pure_target)
+    spine_rows = rows_by_case(args.spine_summary) if args.spine_summary is not None else {}
+    rows = joined_rows(
+        rows_by_case(args.host_summary),
+        rows_by_case(args.pure_summary),
+        spine_rows,
+        pure_target,
+    )
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     write_tsv(args.out_dir / "comparison.tsv", rows)
@@ -202,6 +235,7 @@ def main() -> int:
         rows,
         host_summary=args.host_summary.resolve(),
         pure_summary=args.pure_summary.resolve(),
+        spine_summary=args.spine_summary.resolve() if args.spine_summary is not None else None,
         pure_env=args.pure_env.resolve() if args.pure_env is not None else None,
     )
     print(f"DONE comparison_tsv={args.out_dir / 'comparison.tsv'}")

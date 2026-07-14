@@ -333,6 +333,103 @@ Current comparison note: the pure-pipeline timing is still `sw_emu`, so it is
 correctness/control-flow evidence only. The first real timing comparison starts
 after `hw_emu` and `hw` pure-pipeline xclbins are built and validated.
 
+## Same-Input Spine Smoke
+
+Spine was also run on the same edge files exported by GraSU's actual PMA image.
+This gives a first three-way smoke table: host-conversion baseline,
+zero-cost handoff baseline, and Spine. The pure-pipeline column is still
+`sw_emu` only.
+
+Important setup note: this edge-file host must be paired with the split-CU
+Spine xclbin and `SPINE_PARTITIONED_SPLIT=1`. A non-split xclbin fails because
+`spine_partconv_rdmaint_kernel` and `spine_partconv_compute_kernel` are absent;
+non-split mode with the split host can also fail active-bin validation.
+
+Command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+export XILINX_XRT=/opt/xilinx/xrt
+export LD_LIBRARY_PATH=/opt/xilinx/xrt/lib:${LD_LIBRARY_PATH:-}
+export PATH=/opt/xilinx/xrt/bin:${PATH}
+
+SPINE_PARTITIONED_SPLIT_VALUE=1 \
+./scripts/run_spine_edge_file_sweep.sh \
+  --chain-root results/grasu_regraph_smoke_device_export_combined_hw_stage1 \
+  --out-root results/spine_edge_file_smoke_hw_stage2_split_xclbin \
+  --spine-host .tmp_build/spine_split_edge_host_chunked_repro_20260712_202403/host_partitioned_csr_e2e_smoke_edge \
+  --spine-xclbin /data/feiyang/spine-dynamic-graph-builds/split_e2e_hw_150_depth32_bram_20260711_2100/xclbin/spine_partitioned_split_e2e.hw.xclbin \
+  --timeout 300 \
+  --no-source-xrt
+```
+
+Evidence:
+
+```text
+summary: results/spine_edge_file_smoke_hw_stage2_split_xclbin/summary.tsv
+sha256:  9188dc379ce2c68d6bd2ec9b29d222c94f0e02503abb9c474dd4141935137409
+
+Spine edge-file host sha256:
+  df0aa0dca3eddb09aa58805fe7bb1c65e4c1a7484ab8ae6ca230c11bbff90bdd
+Spine split xclbin sha256:
+  69145517738cc1ffff95e91c24393260c346ac683db9eef2989bbc1bdb7a3469
+```
+
+Result:
+
+```text
+tiny_chain_v16       PASS input_edges=15 spine_kernel_e2e_ms=1.58718 errors=0
+tiny_star_v16_u12    PASS input_edges=28 spine_kernel_e2e_ms=1.57177 errors=0
+tiny_spread_v16_u8   PASS input_edges=24 spine_kernel_e2e_ms=1.59870 errors=0
+tiny_hotdst_v64_u32  PASS input_edges=95 spine_kernel_e2e_ms=2.26057 errors=0
+```
+
+Spine-vs-zero-cost comparison:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 scripts/compare_spine_chain_summaries.py \
+  --chain-summary results/grasu_regraph_smoke_device_export_combined_hw_stage1/summary.tsv \
+  --spine-summary results/spine_edge_file_smoke_hw_stage2_split_xclbin/summary.tsv \
+  --out-dir results/spine_vs_grasu_regraph_smoke_same_input_hw_stage0
+```
+
+Comparison artifacts:
+
+```text
+ddea6bde1d2b69180db197aa72a8ab12c7c531d82b0b7d8c0f43bb4b8f1a64ce  results/spine_vs_grasu_regraph_smoke_same_input_hw_stage0/comparison.tsv
+1ca8f862d9c1502134b361f9f1181757ad6cec52a6534f91e592a22fce111689  results/spine_vs_grasu_regraph_smoke_same_input_hw_stage0/comparison.md
+```
+
+Three-way smoke table:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 scripts/summarize_pure_pipeline_smoke.py \
+  --host-summary results/grasu_regraph_smoke_device_export_combined_hw_stage1/summary.tsv \
+  --spine-summary results/spine_edge_file_smoke_hw_stage2_split_xclbin/summary.tsv \
+  --pure-summary results/pure_pipeline_sw_emu_smoke_stage35/summary.tsv \
+  --pure-env results/pure_pipeline_sw_emu_smoke_stage35/run.env \
+  --out-dir results/pure_pipeline_smoke_compare_stage1_with_spine
+```
+
+Three-way artifacts:
+
+```text
+9a4a3a6f2005b8c4b830bd2523f432d366e59616c69168d78f72c5b7ba86759d  results/pure_pipeline_smoke_compare_stage1_with_spine/comparison.tsv
+c1125dd3d8b3c018618a57c2b75b06a13c51418f352a82ef699064e1f37c9582  results/pure_pipeline_smoke_compare_stage1_with_spine/comparison.md
+```
+
+Current smoke-level observation:
+
+```text
+tiny_chain_v16       zero_cost_ms=6.127929 spine_kernel_e2e_ms=1.58718 zero_cost/spine=3.860891
+tiny_star_v16_u12    zero_cost_ms=2.526626 spine_kernel_e2e_ms=1.57177 zero_cost/spine=1.607504
+tiny_spread_v16_u8   zero_cost_ms=5.743649 spine_kernel_e2e_ms=1.59870 zero_cost/spine=3.592700
+tiny_hotdst_v64_u32  zero_cost_ms=6.202223 spine_kernel_e2e_ms=2.26057 zero_cost/spine=2.743654
+```
+
 After `hw_emu` or `hw` xclbins exist, run the same smoke cases with:
 
 ```bash
@@ -385,8 +482,9 @@ The current baseline still has these gaps:
   xclbins have not been produced or validated yet.
 - The timing above is `sw_emu` timing and is useful for control-flow evidence,
   not performance claims.
-- Spine still needs to be rerun or remapped on exactly the same graph files
-  before a full four-way performance table is claim-ready.
+- Spine has been run on the same smoke edge files. Larger review/capacity
+  workloads still need the same strict input alignment before broad performance
+  claims are claim-ready.
 
 ## Start-State Evidence Command
 
