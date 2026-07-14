@@ -453,17 +453,33 @@ def postrun_command(target: str, git_short: str) -> str:
 
 def stage0_baseline_state(repo: Path, label: str) -> dict[str, Any]:
     plan_dir = repo / "results" / f"pure_stage0_comparison_plan_{label}"
+    plan_tsv = plan_dir / "comparison_plan.tsv"
+    input_identity = plan_dir / "input_identity.tsv"
+    summary_md = plan_dir / "summary.md"
+    run_env = plan_dir / "run.env"
     host_summary = repo / "results" / f"grasu_regraph_sssp_pure_stage0_{label}" / "summary.tsv"
     spine_summary = repo / "results" / f"spine_edge_file_pure_stage0_{label}" / "summary.tsv"
     return {
         "label": label,
         "plan_dir": rel(repo, plan_dir),
-        "plan_tsv": rel(repo, plan_dir / "comparison_plan.tsv"),
-        "plan_exists": (plan_dir / "comparison_plan.tsv").is_file(),
+        "plan_tsv": rel(repo, plan_tsv),
+        "plan_exists": plan_tsv.is_file(),
+        "plan_sha256": sha256(plan_tsv),
+        "input_identity": rel(repo, input_identity),
+        "input_identity_exists": input_identity.is_file(),
+        "input_identity_sha256": sha256(input_identity),
+        "summary_md": rel(repo, summary_md),
+        "summary_exists": summary_md.is_file(),
+        "summary_sha256": sha256(summary_md),
+        "run_env": rel(repo, run_env),
+        "run_env_exists": run_env.is_file(),
+        "run_env_sha256": sha256(run_env),
         "host_summary": rel(repo, host_summary),
         "host_summary_exists": host_summary.is_file(),
+        "host_summary_sha256": sha256(host_summary),
         "spine_summary": rel(repo, spine_summary),
         "spine_summary_exists": spine_summary.is_file(),
+        "spine_summary_sha256": sha256(spine_summary),
         "plan_command": (
             f"./scripts/export_pure_stage0_comparison_plan.py --label {label} "
             f"--out-dir results/pure_stage0_comparison_plan_{label}"
@@ -651,6 +667,11 @@ def print_text(report: dict[str, Any]) -> None:
         f"spine_summary={'yes' if baseline['spine_summary_exists'] else 'no'}"
     )
     print(f"baseline_plan\t{baseline['plan_command']}")
+    print(f"comparison_plan\t{baseline['plan_tsv']}\tsha256={baseline['plan_sha256'] or 'MISSING'}")
+    print(
+        f"input_identity\t{baseline['input_identity']}\t"
+        f"sha256={baseline['input_identity_sha256'] or 'MISSING'}"
+    )
     print(f"host_summary\t{baseline['host_summary']}")
     print(f"spine_summary\t{baseline['spine_summary']}")
     for item in report["stage0_followup"]["commands"]:
