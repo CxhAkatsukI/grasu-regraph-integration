@@ -2659,3 +2659,68 @@ a6863e2539695477cf4f45f482a8490b5333f45cc6cef311d3924a7b3e7d9a71  scripts/check_
 a749093fcefbb54e379c29d3387d17d56c15c41b8e65a19b453db4cb5c3249a0  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_stale_cleanup_probe_after_5d5cdff_evidence.tsv
 a51b07fe73ea953477a0d1d796ecdd8b5c21c03a4a126e31b6b590a5511bb087  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_stale_cleanup_strict_after_5d5cdff.txt
 ```
+
+## 2026-07-15 Readiness Stale-Artifact Warning
+
+After adding the cleanup switch, the readiness preflight was tightened so that
+it records whether the target `build/` directory already contains children
+while the target xclbin is still missing. This state is not a hard blocker, but
+it is a reproducibility warning and should be paired with
+`--clean-build-artifacts` for the next long build.
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+
+bash -n scripts/check_pure_pipeline_build_readiness.sh
+
+./scripts/check_pure_pipeline_build_readiness.sh \
+  --target hw_emu \
+  --label stale_artifact_warn_after_2e0ca4a \
+  --allow-active-builders
+
+./scripts/check_pure_pipeline_build_readiness.sh \
+  --target hw \
+  --label stale_artifact_warn_hw_after_2e0ca4a \
+  --allow-active-builders \
+  --out-file .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_stale_artifact_warn_hw_after_2e0ca4a.txt
+```
+
+Observed `hw_emu` report:
+
+```text
+ready=yes
+warning_count=2
+build_artifacts  WARN  children=7 clean_recommended=yes names=bin_search,bin_search.hw_emu.xo,bin_search.hw_emu.xo.compile_summary,bin_search.mdb,dispatch,dispatch.hw_emu.xo.compile_summary,dispatch.mdb
+active_builders  FAIL  related=0 external=10
+```
+
+Observed `hw` report:
+
+```text
+ready=yes
+warning_count=1
+build_artifacts  PASS  children=0 clean_recommended=no names=none
+active_builders  FAIL  related=0 external=10
+```
+
+With strict active-builder handling, `hw_emu` still exits `3` because the
+external Spine hardware link is active:
+
+```text
+ready=no
+blocking_count=1
+warning_count=1
+build_artifacts  WARN  children=7 clean_recommended=yes
+active_builders  FAIL  related=0 external=10
+```
+
+Evidence hashes:
+
+```text
+787fa4624d8bb8f4e93259dbf2277109982ec944358d8359b30bfc8b59e641a3  scripts/check_pure_pipeline_build_readiness.sh
+f262467082fee91d895ba3ccb502afcad80a217824417c757d140e0953193d10  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_stale_artifact_warn_after_2e0ca4a.txt
+c2b98434ba117258d7327502a60ea026fe8291588ea7165d99ef88398012cd0b  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_stale_artifact_strict_after_2e0ca4a.txt
+d940130339c82f5c8615fc30ab65a09f9a71a3ab208368ff6e8851c77a8cb41e  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_stale_artifact_warn_hw_after_2e0ca4a.txt
+```

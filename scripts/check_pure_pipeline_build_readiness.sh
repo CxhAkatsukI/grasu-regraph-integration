@@ -21,7 +21,7 @@ Usage: $0 [options]
 Check whether the GraSU -> ReGraph pure-pipeline target is ready to start a
 long hw_emu/hw build. This script does not start Vitis. It records generated
 command-script hashes, required environment files, disk headroom, existing
-xclbin status, and active Vitis/Vivado builders.
+xclbin status, stale target build artifacts, and active Vitis/Vivado builders.
 
 Options:
   --target sw_emu|hw_emu|hw   Target mode. Default: ${TARGET}
@@ -180,6 +180,7 @@ MANIFEST="${BUILD_ROOT}/manifest.env"
 COMPILE_COMMANDS=""
 LINK_COMMAND=""
 OUT_XCLBIN="${BUILD_ROOT}/build/grasu_regraph_pure_pipeline.${TARGET}.xclbin"
+BUILD_DIR="${BUILD_ROOT}/build"
 if [[ -f "${MANIFEST}" ]]; then
   COMPILE_COMMANDS="$(manifest_value COMPILE_COMMANDS)"
   LINK_COMMAND="$(manifest_value LINK_COMMAND)"
@@ -272,6 +273,31 @@ if [[ -f "${OUT_XCLBIN}" ]]; then
   xclbin_status="PRESENT"
 fi
 
+build_artifacts_count=0
+build_artifacts_names="none"
+if [[ -d "${BUILD_DIR}" ]]; then
+  build_artifacts_count="$(
+    find "${BUILD_DIR}" -mindepth 1 -maxdepth 1 |
+      wc -l |
+      awk '{ print $1 }'
+  )"
+  if (( build_artifacts_count > 0 )); then
+    build_artifacts_names="$(
+      find "${BUILD_DIR}" -mindepth 1 -maxdepth 1 -printf '%f\n' |
+        sort |
+        paste -sd, -
+    )"
+  fi
+fi
+
+build_artifacts_status="PASS"
+build_artifacts_detail="children=${build_artifacts_count} clean_recommended=no names=${build_artifacts_names}"
+if (( build_artifacts_count > 0 )) && [[ "${xclbin_status}" == "MISSING" ]]; then
+  build_artifacts_status="WARN"
+  build_artifacts_detail="children=${build_artifacts_count} clean_recommended=yes names=${build_artifacts_names}"
+  warning_count=$((warning_count + 1))
+fi
+
 ready="no"
 if (( blocking_count == 0 )); then
   ready="yes"
@@ -305,6 +331,7 @@ report="$(
     printf 'link_command\t%s\t%s sha256=%s size=%s\n' "${link_status}" "${LINK_COMMAND:-MISSING}" "$(sha_or_missing "${LINK_COMMAND:-}")" "$(size_or_missing "${LINK_COMMAND:-}")"
     printf 'vitis_settings\t%s\t%s\n' "${vitis_status}" "${VITIS_SETTINGS}"
     printf 'out_xclbin\t%s\t%s sha256=%s size=%s\n' "${xclbin_status}" "${OUT_XCLBIN}" "$(sha_or_missing "${OUT_XCLBIN}")" "$(size_or_missing "${OUT_XCLBIN}")"
+    printf 'build_artifacts\t%s\t%s\n' "${build_artifacts_status}" "${build_artifacts_detail}"
     printf 'active_builders\t%s\trelated=%s external=%s\n' "${builder_status}" "${related_count}" "${external_count}"
     printf 'active_builder_breakdown\t%s\trelated=\"%s\" external=\"%s\"\n' "${builder_status}" "${related_breakdown}" "${external_breakdown}"
     printf '\n'

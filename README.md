@@ -218,6 +218,11 @@ directory, monitors the build output, runs a staged smoke gate, then emits the
 requirement audit. Use `--strict-readiness` when you want active external
 builders to abort before the wait-idle phase.
 
+Readiness reports include a `build_artifacts` row. If the target xclbin is
+missing while the target `build/` directory still contains old children, the row
+is `WARN` and the recommended flow's `--clean-build-artifacts` option should be
+kept enabled.
+
 Export a compact evidence bundle for reports:
 
 ```bash
