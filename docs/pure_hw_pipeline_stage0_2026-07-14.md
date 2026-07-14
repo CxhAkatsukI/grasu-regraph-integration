@@ -7787,3 +7787,78 @@ physopt path, not this integration repository. The next long build remains:
 cd /home/chuxiao/grasu-regraph-integration
 .tmp_build/pure_pipeline_launch_packet_hw_emu_after_28af0e5_allow_active/launch_command.sh
 ```
+
+## Tracked Pure Stage0 Workloads
+
+As of 2026-07-15 06:38 Asia/Shanghai, the pure stage0 benchmark input set has
+been promoted from generated output into Git. This makes the later pure
+pipeline, host baseline, zero-cost handoff baseline, Spine, and optional
+LSMGraph comparisons reference the same input files instead of re-generating
+similar-looking cases per run.
+
+Workload commit:
+
+```text
+f33450772d6dff7b96a0cc56ac0bc00def1377fd  Track pure stage0 benchmark workloads
+```
+
+Tracked root:
+
+```text
+workloads/sssp_benchmark_pure_stage0
+```
+
+This directory contains 61 text files and is about 11 MB. It was added with
+`git add -f` because generated benchmark directories are ignored by default and
+must be promoted deliberately.
+
+Manifest:
+
+```text
+094dbe66fa58b6fa14d22fc74edcc564978c7c8c3e5ea9ff7407cc78077a098a  workloads/sssp_benchmark_pure_stage0/manifest.tsv
+```
+
+Bundle hash command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+find workloads/sssp_benchmark_pure_stage0 -type f -print0 | \
+  sort -z | xargs -0 sha256sum | sha256sum
+```
+
+Bundle hash:
+
+```text
+06043a673c3d717f037a893a2a8375afef447858dc5c42adb1952a73b8fdb5e2  -
+```
+
+The tracked workload was validated with the pure-pipeline prepare-only path:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_prepare_check.sh \
+  --preset pure_stage0 \
+  --workload-root workloads/sssp_benchmark_pure_stage0 \
+  --out-dir results/pure_pipeline_prepare_pure_stage0_after_f334507_tracked_workloads \
+  --timeout 300 \
+  --skip-generate
+```
+
+Prepare-only evidence:
+
+```text
+git_head=f33450772d6dff7b96a0cc56ac0bc00def1377fd
+manifest_sha256=094dbe66fa58b6fa14d22fc74edcc564978c7c8c3e5ea9ff7407cc78077a098a
+result=12/12 PASS
+
+6d2819ff0ce6d3edfcb526c022a7823cc0b962dccae3d214177f91bb4cd7c1dd  results/pure_pipeline_prepare_pure_stage0_after_f334507_tracked_workloads/summary.tsv
+e19c1d08d7ce5a174042e797cf0d157c21b6f429f9d0272391c911d041a994be  results/pure_pipeline_prepare_pure_stage0_after_f334507_tracked_workloads/run.env
+```
+
+The matrix export for the same committed source state is:
+
+```text
+3ec7e2fddbe923c349f7601209ab16511765277c694072cb5208f69199754d2d  results/pure_pipeline_stage0_case_matrix_after_f334507_tracked_workloads/case_matrix.tsv
+e89f2fc0d4e2fa9fc7ddfb49b961d6667dc3d986969548028ffae9c4e75081a8  results/pure_pipeline_stage0_case_matrix_after_f334507_tracked_workloads/summary.md
+c3ac1924d6d858db93646e87d9c0d6da94de5fb51abf537c6a691f56a8fd8c13  results/pure_pipeline_stage0_case_matrix_after_f334507_tracked_workloads/run.env
+```
