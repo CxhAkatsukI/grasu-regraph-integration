@@ -606,9 +606,9 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         "next_commands": [
             "./scripts/run_pure_pipeline_prepare_check.sh --preset boundary --out-dir results/pure_pipeline_prepare_boundary_after_" + git_short,
             "./scripts/check_pure_pipeline_build_readiness.sh --target hw_emu --label after_" + git_short,
-            "./scripts/run_pure_pipeline_target_flow.sh --target hw_emu --label after_" + git_short + " --wait-idle 7200 --idle-poll 60 --gate-case tiny_star_v16_u12 --gate-timeout 900",
+            "./scripts/run_pure_pipeline_target_flow.sh --target hw_emu --label after_" + git_short + " --wait-idle 7200 --idle-poll 60 --idle-settle 120 --gate-case tiny_star_v16_u12 --gate-timeout 900",
             "./scripts/check_pure_pipeline_build_readiness.sh --target hw --label after_" + git_short,
-            "./scripts/run_pure_pipeline_target_flow.sh --target hw --label after_" + git_short + " --wait-idle 7200 --idle-poll 60 --gate-case tiny_star_v16_u12 --gate-timeout 300",
+            "./scripts/run_pure_pipeline_target_flow.sh --target hw --label after_" + git_short + " --wait-idle 7200 --idle-poll 60 --idle-settle 120 --gate-case tiny_star_v16_u12 --gate-timeout 300",
             "./scripts/export_pure_pipeline_evidence_bundle.py --out-dir results/pure_pipeline_evidence_bundle_after_" + git_short,
         ],
     }

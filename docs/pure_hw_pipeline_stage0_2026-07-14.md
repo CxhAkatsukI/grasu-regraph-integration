@@ -2276,3 +2276,88 @@ a92c69dfe77d93e05beb1989647acce48723243cd0710ad274ddf70d4054b7da  .tmp_build/pur
 d3db08cd613e041e80985bbd73288fe094709355fd81cd440b60f5d61755f0e3  scripts/run_pure_pipeline_target_flow.sh
 56b164f31664008deb80c6473247960013d65faa5d3ccbc9ff33f0c438f94d74  scripts/check_pure_pipeline_build_readiness.sh
 ```
+
+## 2026-07-15 E9ffca3 Refresh
+
+After committing the idle-settle guard, the current code HEAD is:
+
+```text
+e9ffca3a3392d658e6dc669e653c06342f0d4855
+```
+
+The pure-pipeline xclbin status is unchanged:
+
+```text
+.tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin  exists
+.tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin  missing
+.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin          missing
+```
+
+Current refresh command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_20260715_003109_external_spine_active_after_e9ffca3
+```
+
+The command exited `3` after writing evidence. The only readiness blocker is
+the active external Spine hardware link; no pure-pipeline builder was running:
+
+```text
+target  xclbin  smoke  readiness  blocking  related  external  external_breakdown
+hw      no      no     no         1         0        10        total=10 v++=2 vivado=4 vpl=2 vrs=2
+hw_emu  no      no     no         1         0        10        total=10 v++=2 vivado=4 vpl=2 vrs=2
+sw_emu  yes     yes    n/a        n/a       n/a      n/a       n/a
+```
+
+The active external build path is:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0024
+```
+
+At the time of this snapshot, this external build still had not produced:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0024/xclbin/spine_partitioned_split_e2e.hw.xclbin
+```
+
+During this refresh, `scripts/audit_pure_pipeline_status.py` was updated so
+its exported `next_commands` include the same `--idle-settle 120` launch guard
+as the readiness report and README. The refreshed bundle now recommends:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_e9ffca3 \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Regeneration after the audit-script fix:
+
+```bash
+./scripts/audit_pure_pipeline_status.py \
+  --label refresh_20260715_003109_external_spine_active_after_e9ffca3 \
+  --out-dir results/pure_pipeline_requirement_audit_refresh_20260715_003109_external_spine_active_after_e9ffca3
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_refresh_20260715_003109_external_spine_active_after_e9ffca3/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_refresh_20260715_003109_external_spine_active_after_e9ffca3
+```
+
+Evidence hashes:
+
+```text
+40eefe7e5673191957d4a21a8002e2e69729cf224783ad73fc083b745061ea1b  scripts/audit_pure_pipeline_status.py
+4baa841136690ca33ef1fa0d2619ebd3b0089f54a5d9f80a12757afda6580b0c  results/pure_pipeline_evidence_bundle_refresh_20260715_003109_external_spine_active_after_e9ffca3/summary.md
+7533a3bfb1f4329b81dcc32eeff958a550c34fd7a3bd571cbb9df42695bd7752  results/pure_pipeline_evidence_bundle_refresh_20260715_003109_external_spine_active_after_e9ffca3/target_matrix.tsv
+710113f22884e965d5c81ae7c80d8dbe0007d3ae54560d8d1a0942cd48d55ada  results/pure_pipeline_requirement_audit_refresh_20260715_003109_external_spine_active_after_e9ffca3/audit.md
+17f19682d72d9223395f49b3fa87c6a15cc3f27f689225d8d57381673a195150  results/pure_pipeline_requirement_audit_refresh_20260715_003109_external_spine_active_after_e9ffca3/audit.json
+372a43e0a72659d944cb43766177b22d1510da4fb3c5fe8441ebaa4bdfd67bd5  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_20260715_003109_external_spine_active_after_e9ffca3.txt
+713141bb20759edb9426e9cea2edc936c946d56deb8026f571da5fb8dd38cd1c  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_20260715_003109_external_spine_active_after_e9ffca3.txt
+```
