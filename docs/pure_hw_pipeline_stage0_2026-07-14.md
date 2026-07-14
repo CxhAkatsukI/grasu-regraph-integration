@@ -7415,3 +7415,112 @@ automatically after a full target flow. The printed manual
 `check_pure_pipeline_acceptance_gates.py --mode postrun` command is now
 documented as a recheck/repack command, not as an extra mandatory step after a
 normal target-flow run.
+
+## Revalidated Launch Packets After README Cleanup
+
+After committing the launch-packet README clarification as
+`9e7c4bb0969f21e4a4113e60f0957c4cf7ee3de1`, the build-relevant source
+fingerprint became:
+
+```text
+97b17b31658d08ce665b13577c2943e25f258074992a490918fa926096167e49
+```
+
+Because `create_pure_pipeline_launch_packet.sh` is part of the reproducibility
+source set, the old launch packets were intentionally treated as stale. Fresh
+hardware packets and no-build prelaunch evidence were generated:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label after_9e7c4bb \
+  --label hw_emu_after_9e7c4bb_allow_active \
+  --allow-active-builders
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw \
+  --flow-label after_9e7c4bb \
+  --label hw_after_9e7c4bb_allow_active \
+  --allow-active-builders
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label prelaunch_after_9e7c4bb_packet_readme \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label prelaunch_after_9e7c4bb_packet_readme \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+The existing `sw_emu` xclbin was then revalidated without relinking:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target sw_emu \
+  --label postrun_after_9e7c4bb_packet_readme \
+  --skip-build \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 180 \
+  --timeout 300
+```
+
+Postrun result:
+
+```text
+acceptance_check_postrun: PASS=11, SKIP=2
+summary: results/pure_pipeline_sw_emu_smoke_postrun_after_9e7c4bb_packet_readme/summary.tsv
+chain: PASS, mismatches=0, vertices=16, final_edges=15, supersteps=16
+hot-source: PASS, mismatches=0, vertices=16, final_edges=28, supersteps=2
+spread: PASS, mismatches=0, vertices=16, final_edges=24, supersteps=16
+hot-dest: PASS, mismatches=0, vertices=64, final_edges=95, supersteps=16
+```
+
+Current report after the refresh:
+
+```text
+head=9e7c4bb0969f21e4a4113e60f0957c4cf7ee3de1
+source_fingerprint_sha256=97b17b31658d08ce665b13577c2943e25f258074992a490918fa926096167e49
+dirty=false
+
+sw_emu xclbin=yes postrun=pass:PASS=11,SKIP=2 flow_current=yes
+hw_emu xclbin=no postrun=waiting_xclbin flow_current=yes packet_current=yes
+hw xclbin=no postrun=waiting_xclbin flow_current=yes packet_current=yes
+
+next_target=hw_emu
+next_action=build
+next_commands=.tmp_build/pure_pipeline_launch_packet_hw_emu_after_9e7c4bb_allow_active/launch_command.sh
+```
+
+Evidence hashes:
+
+```text
+07763905b54fbd4b3d0d46734934b0523d2bd6b3c76f7bc9542dc69df1c33790  scripts/create_pure_pipeline_launch_packet.sh
+253a3e68cd0b42ac47fbf2b601faa5fc78e6009b4d6b668ccfe3310bea8d6ac6  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/acceptance_check_postrun_target_flow_postrun_after_9e7c4bb_packet_readme.tsv
+a0361669e4c8d7b76752d00da73ecc5153b37fde75efa08eb5a48d8fed3660e3  results/pure_pipeline_sw_emu_smoke_postrun_after_9e7c4bb_packet_readme/summary.tsv
+c990777a19ce932eed38f48a1b0984a7f97d0cb079517a4a5af7917f57f1e0f6  results/pure_pipeline_sw_emu_compare_postrun_after_9e7c4bb_packet_readme/comparison.tsv
+519c878cb2fffcf41de41d12f3c8bf0ec33832ceefca67e1009b2bec569008e3  results/pure_pipeline_requirement_audit_postrun_after_9e7c4bb_packet_readme/audit.json
+bb51b170bf8103183efb4d642fe72084df3e6cd70613f7ed189ecb9eb6639685  results/pure_pipeline_evidence_bundle_postrun_after_9e7c4bb_packet_readme/summary.md
+efb81dbb22c02755cf8529038339b736e0456750055721605d6407c777f2e43e  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_9e7c4bb_allow_active/launch_command.sh
+0cd0f873d0aaa78819834c67242bb27a6898f99cc4bacbadc5a7790d78c2575e  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_9e7c4bb_allow_active/acceptance_check_prelaunch.tsv
+9f5f8724027b818f166ff027db2882c101fc35868e8013d815363e421beda0aa  .tmp_build/pure_pipeline_launch_packet_hw_after_9e7c4bb_allow_active/launch_command.sh
+8210650ddf6b8d470d3dea47e0b38e64539279dc9ca776c764929c4fca29855e  .tmp_build/pure_pipeline_launch_packet_hw_after_9e7c4bb_allow_active/acceptance_check_prelaunch.tsv
+52f6e1b485ca9e69c9a2d72e7e837f227011d42b9443e0320117e16db3d9684c  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_9e7c4bb_packet_readme.env
+86e16823cf510c6d39e96813f8f4270e3d41f1db37168e485ffe6b6b26d90aeb  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_9e7c4bb_packet_readme.env
+```
