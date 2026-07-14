@@ -8153,17 +8153,21 @@ pure-hardware pipeline artifact:
 
 ## Current HW_EMU/HW Launch Packets, 2026-07-15
 
-As of 2026-07-15 07:01 Asia/Shanghai, the current integration HEAD has fresh
+As of 2026-07-15 07:01 Asia/Shanghai, the build-relevant source has fresh
 launch packets for both `hw_emu` and `hw`. These packets do not start Vitis;
 they regenerate target compile/link/config scripts, record source fingerprints,
 run source-contract checks, run readiness checks, and write the exact long-build
 command that should be launched next.
 
-Current HEAD:
+Launch-packet integration commit:
 
 ```text
 b46051cf246848b74080c7844cadc71e5034ad78
 ```
+
+Later documentation-only commits do not invalidate the packet; use
+`scripts/report_pure_pipeline_next_steps.py` to check `packet_current=yes`
+against the build-relevant source fingerprints.
 
 Regenerate the packets:
 
