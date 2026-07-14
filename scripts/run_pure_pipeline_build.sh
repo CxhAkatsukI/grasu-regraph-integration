@@ -14,6 +14,8 @@ SKIP_LINK=0
 STATUS_ONLY=0
 DRY_RUN=0
 REQUIRE_IDLE=0
+WAIT_IDLE_SECONDS=0
+IDLE_POLL_SECONDS=60
 
 usage() {
   cat <<USAGE
@@ -34,6 +36,8 @@ Options:
   --status-only               Only collect evidence; do not run compile/link.
   --dry-run                   Print commands that would run and collect evidence.
   --require-idle              Refuse to start if Vitis/Vivado processes are active.
+  --wait-idle SECONDS         Wait up to SECONDS for Vitis/Vivado to go idle; implies --require-idle.
+  --idle-poll SECONDS         Poll interval for --wait-idle. Default: ${IDLE_POLL_SECONDS}
   -h, --help                  Show this help.
 
 Examples:
@@ -41,6 +45,7 @@ Examples:
   $0 --target hw --label after_fa17c35 --skip-compile
   $0 --target hw_emu --status-only
   $0 --target hw_emu --label after_fa17c35 --require-idle
+  $0 --target hw_emu --label after_fa17c35 --wait-idle 7200
 USAGE
 }
 
@@ -92,14 +97,18 @@ active_vitis_vivado_processes() {
 
 write_idle_check() {
   local out_file="$1"
-  local active_processes
-  active_processes="$(active_vitis_vivado_processes || true)"
+  local active_processes="${2-}"
+  if [[ $# -lt 2 ]]; then
+    active_processes="$(active_vitis_vivado_processes || true)"
+  fi
   {
     printf 'pure_pipeline_build_idle_check\n'
     printf 'timestamp=%s\n' "$(date --iso-8601=seconds)"
     printf 'target=%s\n' "${TARGET}"
     printf 'build_root=%s\n' "${BUILD_ROOT}"
     printf 'require_idle=%s\n' "${REQUIRE_IDLE}"
+    printf 'wait_idle_seconds=%s\n' "${WAIT_IDLE_SECONDS}"
+    printf 'idle_poll_seconds=%s\n' "${IDLE_POLL_SECONDS}"
     printf '\n'
     printf 'active_vitis_vivado_processes\n'
     printf '    PID    PPID     ELAPSED STAT %%CPU %%MEM COMMAND         ARGS\n'
@@ -149,6 +158,8 @@ write_run_env() {
     printf 'status_only=%s\n' "${STATUS_ONLY}"
     printf 'dry_run=%s\n' "${DRY_RUN}"
     printf 'require_idle=%s\n' "${REQUIRE_IDLE}"
+    printf 'wait_idle_seconds=%s\n' "${WAIT_IDLE_SECONDS}"
+    printf 'idle_poll_seconds=%s\n' "${IDLE_POLL_SECONDS}"
     printf 'integration_branch=%s\n' "$(git_field "${GRI_ROOT}" branch)"
     printf 'integration_head=%s\n' "$(git_field "${GRI_ROOT}" head)"
     printf 'integration_tracked_dirty=%s\n' "$(git_field "${GRI_ROOT}" dirty)"
@@ -223,10 +234,23 @@ while [[ $# -gt 0 ]]; do
     --status-only) STATUS_ONLY=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --require-idle) REQUIRE_IDLE=1; shift ;;
+    --wait-idle) WAIT_IDLE_SECONDS="$2"; REQUIRE_IDLE=1; shift 2 ;;
+    --idle-poll) IDLE_POLL_SECONDS="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+case "${WAIT_IDLE_SECONDS}" in
+  ''|*[!0-9]*) echo "--wait-idle must be a non-negative integer" >&2; exit 2 ;;
+esac
+case "${IDLE_POLL_SECONDS}" in
+  ''|*[!0-9]*) echo "--idle-poll must be a positive integer" >&2; exit 2 ;;
+esac
+if (( IDLE_POLL_SECONDS < 1 )); then
+  echo "--idle-poll must be at least 1" >&2
+  exit 2
+fi
 
 case "${TARGET}" in
   sw_emu|hw_emu|hw) ;;
@@ -299,13 +323,34 @@ if [[ "${STATUS_ONLY}" == "1" ]]; then
 fi
 
 if [[ "${REQUIRE_IDLE}" == "1" ]]; then
-  active_processes="$(active_vitis_vivado_processes || true)"
-  write_idle_check "${IDLE_CHECK}"
-  if [[ -n "${active_processes}" ]]; then
-    echo "Active Vitis/Vivado processes detected; refusing to start." >&2
+  idle_start_epoch="$(date +%s)"
+  while true; do
+    active_processes="$(active_vitis_vivado_processes || true)"
+    write_idle_check "${IDLE_CHECK}" "${active_processes}"
+    if [[ -z "${active_processes}" ]]; then
+      break
+    fi
+
+    now_epoch="$(date +%s)"
+    idle_wait_elapsed=$((now_epoch - idle_start_epoch))
+    if (( WAIT_IDLE_SECONDS == 0 || idle_wait_elapsed >= WAIT_IDLE_SECONDS )); then
+      echo "Active Vitis/Vivado processes detected; refusing to start." >&2
+      echo "Idle-check report: ${IDLE_CHECK}" >&2
+      exit 3
+    fi
+
+    idle_wait_remaining=$((WAIT_IDLE_SECONDS - idle_wait_elapsed))
+    sleep_seconds="${IDLE_POLL_SECONDS}"
+    if (( sleep_seconds > idle_wait_remaining )); then
+      sleep_seconds="${idle_wait_remaining}"
+    fi
+    if (( sleep_seconds < 1 )); then
+      sleep_seconds=1
+    fi
+    echo "Active Vitis/Vivado processes detected; waiting ${sleep_seconds}s (${idle_wait_elapsed}/${WAIT_IDLE_SECONDS}s elapsed)." >&2
     echo "Idle-check report: ${IDLE_CHECK}" >&2
-    exit 3
-  fi
+    sleep "${sleep_seconds}"
+  done
 fi
 
 # shellcheck disable=SC1090

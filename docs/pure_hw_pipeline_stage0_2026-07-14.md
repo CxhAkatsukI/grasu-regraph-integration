@@ -1034,6 +1034,22 @@ With `--require-idle`, the script scans for active Vitis/Vivado processes before
 executing compile/link. If any are found, it writes an idle-check report and
 exits with code `3` instead of starting a competing build.
 
+For unattended launch, the same wrapper can wait for the machine to become
+idle before starting:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label after_<commit> \
+  --wait-idle 7200 \
+  --idle-poll 60
+```
+
+`--wait-idle` implies `--require-idle`. If Vitis/Vivado processes are still
+active when the timeout expires, the script exits with code `3` and leaves the
+latest idle-check report in the build root.
+
 Guard regression while the unrelated Spine `hw` link was active:
 
 ```bash
@@ -1105,6 +1121,41 @@ Current observation from the refined monitor:
 pure pipeline matching_processes: none
 pure hw_emu xclbin: MISSING
 other_vitis_vivado_processes: active unrelated Spine hw link plus vadd hw_emu probe
+```
+
+Wait-idle regression while the unrelated Spine `hw` link was still active:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+set +e
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label wait_idle_probe_1s \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --dry-run \
+  --skip-compile \
+  --skip-link
+echo "wait_idle_rc=$?"
+
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --wait-idle nope \
+  --dry-run \
+  --skip-compile \
+  --skip-link
+echo "invalid_wait_rc=$?"
+```
+
+Evidence:
+
+```text
+wait_idle_rc=3
+invalid_wait_rc=2
+a2aec907715fd3aaf1b75da2c5aab374de0eedb9afd46708a83a28fdce8c8d1c  scripts/run_pure_pipeline_build.sh
+d4302bd3bfeae47037e29ac9d3e384dce8fc26ae7805c47836652fb15be5c79f  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/idle_check_wait_idle_probe_1s.txt
+5a47ff1d2c8f2ebc2443babe39dbc3fb5b1a891424f81b12ecc3fb42039a790f  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_wait_idle_probe_1s.env
+c66ab35cb423e026b43675e27137bd23ba2633130345bcbd48b8706959d1ff88  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_wait_idle_probe_1s_evidence.tsv
 ```
 
 ## Staged Smoke Gate
