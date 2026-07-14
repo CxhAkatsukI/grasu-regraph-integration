@@ -7672,3 +7672,118 @@ e57e40d17c15b7e55b7db2997e5214aa01cb2be0c6da2c877fd7392e321cf26e  .tmp_build/pur
 ffd1092c5fce87ac97a14fa44b6f2c9bf70989767b16be69e4c236a694d59e82  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_28af0e5_name_contract.env
 2123c57b880ffc477f73a0415e4df5a18cc81c601ad758221af6c98bf172d8cd  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_28af0e5_name_contract.env
 ```
+
+## Stage 0 Case Matrix Milestone
+
+As of 2026-07-15 06:34 Asia/Shanghai, the pure-pipeline test matrix has a
+dedicated first-stage preset and export script.
+
+Tooling commit:
+
+```text
+db3aec3fd24eec9781871e8625d137bb9751864e  Add pure stage0 workload matrix tooling
+```
+
+New or changed files:
+
+```text
+scripts/generate_sssp_benchmark_workloads.py   adds the pure_stage0 preset
+scripts/export_pure_stage0_case_matrix.py      exports TSV/Markdown matrix evidence
+scripts/run_pure_pipeline_prepare_check.sh     accepts --preset pure_stage0
+```
+
+The `pure_stage0` preset contains 12 unit-weight SSSP cases, all within
+`V <= 65536`:
+
+```text
+family          cases  purpose
+chain           3      high-diameter / superstep overhead
+hot-source      3      broad source fanout / edge throughput
+spread          3      balanced partition traffic
+hot-dest        3      gather/min hotspot behavior
+```
+
+Run tiers:
+
+```text
+gate      4 cases: tiny chain, hot-source, spread, hot-dest for every target
+review    5 cases: small regular hw_emu/hw comparison cases
+boundary  3 cases: V=65536 or high-cost cases for prepare-only and hw timing
+```
+
+Regenerate the matrix summary:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/export_pure_stage0_case_matrix.py \
+  --label after_db3aec3 \
+  --out-dir results/pure_pipeline_stage0_case_matrix_after_db3aec3
+```
+
+Generate the workload files used by the prepare-only evidence:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/generate_sssp_benchmark_workloads.py \
+  --preset pure_stage0 \
+  --out-root .tmp_build/workloads_pure_stage0_after_db3aec3
+```
+
+Run prepare-only validation:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_prepare_check.sh \
+  --preset pure_stage0 \
+  --workload-root .tmp_build/workloads_pure_stage0_after_db3aec3 \
+  --out-dir results/pure_pipeline_prepare_pure_stage0_after_db3aec3 \
+  --timeout 300 \
+  --skip-generate
+```
+
+Prepare-only result:
+
+```text
+12/12 PASS
+tiny_chain_v16                    PASS  V=16     final_edges=15     supersteps=16
+tiny_star_v16_u12                 PASS  V=16     final_edges=28     supersteps=2
+tiny_spread_v16_u8                PASS  V=16     final_edges=24     supersteps=16
+tiny_hotdst_v64_u32               PASS  V=64     final_edges=95     supersteps=16
+small_chain_v64                   PASS  V=64     final_edges=63     supersteps=64
+small_star_v4096_u1024            PASS  V=4096   final_edges=5120   supersteps=2
+small_spread_v4096_u1024          PASS  V=4096   final_edges=5120   supersteps=16
+small_hotdst_v4096_u1024          PASS  V=4096   final_edges=5119   supersteps=32
+large_chain_v4096                 PASS  V=4096   final_edges=4095   supersteps=4096
+medium_star_v65536_u8192          PASS  V=65536  final_edges=73728  supersteps=2
+medium_spread_v65536_u16384       PASS  V=65536  final_edges=81920  supersteps=32
+boundary_hotdst_v65536_u4096      PASS  V=65536  final_edges=69631  supersteps=64
+```
+
+Evidence hashes:
+
+```text
+3ec7e2fddbe923c349f7601209ab16511765277c694072cb5208f69199754d2d  results/pure_pipeline_stage0_case_matrix_after_db3aec3/case_matrix.tsv
+2f0aa1180b87c483f49db7e97b242d800aa6ea3d3078076604a7b3dcd8209e05  results/pure_pipeline_stage0_case_matrix_after_db3aec3/summary.md
+8f9d145ff20b70ead272a687eab62dedbf81fd801c9803aa7bc9cf38bc33cf5e  results/pure_pipeline_stage0_case_matrix_after_db3aec3/run.env
+0931955f423a6c99bf1a9b80521f0c3c35db7e2a73493c7de543221bd4dea878  .tmp_build/workloads_pure_stage0_after_db3aec3/manifest.tsv
+67c8e724c4336566f971d93bcb2022a7009225374249e4934c7a036f63c0aa75  results/pure_pipeline_prepare_pure_stage0_after_db3aec3/summary.tsv
+a327103c3c35d3a0c24ada417e2e61090ab6ad68318c962ce3629dacaca67967  results/pure_pipeline_prepare_pure_stage0_after_db3aec3/run.env
+```
+
+Current hardware artifact status at this checkpoint:
+
+```text
+pure_pipeline sw_emu xclbin: present
+b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862  .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+
+pure_pipeline hw_emu xclbin: missing
+pure_pipeline hw xclbin:     missing
+```
+
+Latest process check still shows unrelated external Vivado work from the Spine
+physopt path, not this integration repository. The next long build remains:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_hw_emu_after_28af0e5_allow_active/launch_command.sh
+```
