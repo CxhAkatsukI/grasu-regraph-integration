@@ -16,6 +16,8 @@ BUILD_HOST=1
 SKIP_BUILD=0
 SKIP_FINALIZE=0
 SKIP_AUDIT=0
+READINESS_CHECK=1
+STRICT_READINESS=0
 DRY_RUN=0
 
 usage() {
@@ -37,6 +39,9 @@ Options:
   --timeout SECONDS           Full smoke timeout. Default: finalize wrapper default.
   --build-host                Rebuild pure_pipeline_host during finalize. Default.
   --no-build-host             Do not rebuild pure_pipeline_host during finalize.
+  --readiness                 Record a build-readiness preflight report. Default.
+  --no-readiness              Do not run the readiness preflight.
+  --strict-readiness          Fail preflight when unrelated Vitis/Vivado builders are active.
   --skip-build                Do not run the build wrapper.
   --skip-finalize             Do not run finalize/smoke/compare.
   --skip-audit                Do not run requirement audit.
@@ -71,6 +76,9 @@ while [[ $# -gt 0 ]]; do
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
     --build-host) BUILD_HOST=1; shift ;;
     --no-build-host) BUILD_HOST=0; shift ;;
+    --readiness) READINESS_CHECK=1; shift ;;
+    --no-readiness) READINESS_CHECK=0; shift ;;
+    --strict-readiness) STRICT_READINESS=1; shift ;;
     --skip-build) SKIP_BUILD=1; shift ;;
     --skip-finalize) SKIP_FINALIZE=1; shift ;;
     --skip-audit) SKIP_AUDIT=1; shift ;;
@@ -117,6 +125,7 @@ BUILD_ROOT="${GRI_ROOT}/.tmp_build/pure_pipeline_${TARGET}_stage0"
 RUN_DIR="${BUILD_ROOT}/run_logs"
 mkdir -p "${RUN_DIR}"
 FLOW_ENV="${RUN_DIR}/target_flow_${LABEL}.env"
+READINESS_OUT="${RUN_DIR}/readiness_target_flow_${LABEL}.txt"
 MONITOR_OUT="${RUN_DIR}/monitor_after_${LABEL}.txt"
 AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
 
@@ -130,14 +139,30 @@ AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
   printf 'gate_timeout_seconds=%s\n' "${GATE_TIMEOUT_SECONDS}"
   printf 'timeout_seconds=%s\n' "${TIMEOUT_SECONDS}"
   printf 'build_host=%s\n' "${BUILD_HOST}"
+  printf 'readiness_check=%s\n' "${READINESS_CHECK}"
+  printf 'strict_readiness=%s\n' "${STRICT_READINESS}"
   printf 'skip_build=%s\n' "${SKIP_BUILD}"
   printf 'skip_finalize=%s\n' "${SKIP_FINALIZE}"
   printf 'skip_audit=%s\n' "${SKIP_AUDIT}"
   printf 'dry_run=%s\n' "${DRY_RUN}"
   printf 'git_head=%s\n' "$(git -C "${GRI_ROOT}" rev-parse HEAD)"
+  printf 'readiness_out=%s\n' "${READINESS_OUT}"
   printf 'monitor_out=%s\n' "${MONITOR_OUT}"
   printf 'audit_out=%s\n' "${AUDIT_OUT}"
 } > "${FLOW_ENV}"
+
+if [[ "${READINESS_CHECK}" == "1" ]]; then
+  readiness_cmd=(
+    "${SCRIPT_DIR}/check_pure_pipeline_build_readiness.sh"
+    --target "${TARGET}"
+    --label "target_flow_${LABEL}"
+    --out-file "${READINESS_OUT}"
+  )
+  if [[ "${STRICT_READINESS}" == "0" ]]; then
+    readiness_cmd+=(--allow-active-builders)
+  fi
+  run_cmd "${readiness_cmd[@]}"
+fi
 
 if [[ "${SKIP_BUILD}" == "0" ]]; then
   run_cmd "${SCRIPT_DIR}/run_pure_pipeline_build.sh" \
@@ -177,5 +202,6 @@ if [[ "${SKIP_AUDIT}" == "0" ]]; then
 fi
 
 echo "DONE flow_env=${FLOW_ENV}"
+echo "DONE readiness_out=${READINESS_OUT}"
 echo "DONE monitor_out=${MONITOR_OUT}"
 echo "DONE audit_out=${AUDIT_OUT}"

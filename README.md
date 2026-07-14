@@ -201,9 +201,10 @@ Current reproducible target flow:
 ```
 
 Run the same wrapper with `--target hw` after `hw_emu` passes. The wrapper
-records the build parameters, waits for other Vitis/Vivado jobs to become idle,
-monitors the build output, runs a staged smoke gate, then emits the requirement
-audit.
+records the build parameters, writes a readiness preflight report, waits for
+other Vitis/Vivado jobs to become idle, monitors the build output, runs a staged
+smoke gate, then emits the requirement audit. Use `--strict-readiness` when you
+want active external builders to abort before the wait-idle phase.
 
 Export a compact evidence bundle for reports:
 

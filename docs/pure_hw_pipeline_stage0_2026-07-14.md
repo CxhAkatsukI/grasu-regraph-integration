@@ -1364,6 +1364,54 @@ cff1fdc08c277f141d12f5f9e0565ff949dd47c4222f0b6b78e94510e7d7d54e  scripts/audit_
 b60698a253e72a7bb1cc280611fe43c3f471397fd7e9305da8fb47fc65bf1a16  /tmp/pure_target_flow_dryrun_check.log
 ```
 
+The target-flow wrapper now runs a readiness preflight before the build step.
+By default the preflight records active external Vitis/Vivado builders as a
+warning, because `run_pure_pipeline_build.sh --wait-idle` is still responsible
+for waiting until the machine is idle. Use `--strict-readiness` to fail before
+the wait-idle phase when any unrelated builder is active.
+
+Metadata-only regression, without compile/link/finalize/audit:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label flow_readiness_metadata_63d95c5 \
+  --skip-build \
+  --skip-finalize \
+  --skip-audit \
+  --monitor-tail 20
+```
+
+Strict-readiness regression while external builders are active:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label flow_readiness_strict_63d95c5 \
+  --strict-readiness \
+  --skip-build \
+  --skip-finalize \
+  --skip-audit
+```
+
+The strict command exits `3` with `ready=no`, `blocking_count=1`, and
+`active_builders=FAIL related=0 external=10`.
+
+Evidence:
+
+```text
+d389bd23d32aa5319bff8b1f86e43bb9503af64569f9ced7378561a5c706adfb  scripts/run_pure_pipeline_target_flow.sh
+57615752e72f69eccca1df28bf18b37ce310ceb4d535269587e8e995eed4822f  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_flow_readiness_metadata_63d95c5.env
+53b0c23199d7fa480ff1c9e603d42389675f514e66a6837736f3197a39d4c0cf  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_target_flow_flow_readiness_metadata_63d95c5.txt
+c8ba5344b62e3d186dfff43da3cc55fe085498d8e92209c439261c91a2ed321b  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/monitor_after_flow_readiness_metadata_63d95c5.txt
+7e02c3a6eaff756346fdfffd277e185a7a0048e263ceca512fd98410c0fc687e  /tmp/pure_target_flow_readiness_dryrun.log
+f43f1f6e34cbef134ad2c6709a276aae385aa378c2b5ee81844aa775301c7ecf  /tmp/pure_target_flow_readiness_metadata.log
+21a29e043c2b981e4c4d5584c96d38881f31833d9b5826930bfa28c00807b63b  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_target_flow_flow_readiness_strict_63d95c5.txt
+8add304a6b4eb5bba3b9850639aa5ae4ea2c783b25d7d217f05ca262b8dd9695  /tmp/pure_target_flow_readiness_strict.log
+```
+
 Post-commit evidence after `da31403`:
 
 ```bash
