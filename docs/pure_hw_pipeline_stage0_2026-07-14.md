@@ -3968,3 +3968,129 @@ cd /home/chuxiao/grasu-regraph-integration
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 ```
+
+## Host runtime/config contract gate
+
+The source-contract gate now includes one more required proof:
+
+```text
+host_runtime_matches_generated_config
+```
+
+This closes a launch-time gap left by the previous source checks. The earlier
+checks proved that the adapter, barrier, stream little-GS wrapper, generated
+compile scripts, and link configs existed. This new proof checks that the host
+runtime actually opens the same CU names that the `hw_emu` and `hw` link
+configs generate, and that it binds the key PMA, ReGraph, barrier, and timing
+arguments expected by the pure pipeline.
+
+It currently checks:
+
+```text
+tools/pure_pipeline_host.cpp:
+  bin_search_1..4, dispatch_1
+  process_cache_1/2, process_ddr_1/2
+  pma_completion_barrier_1, pma_to_regraph_adapter_1
+  lksg_stream_1, kernelApply_1, kernelHBMWrapper_1
+  adapter args 0..3 are real pma_dev[0..3]
+  adapter arg 4 is row_dev[0]
+  adapter waits on barrier_event for step 0
+  lksg/hbm/apply are launched in the same pipeline queue
+  GraSU/barrier/adapter/lksg/apply/event_e2e timing fields are printed
+
+.tmp_build/pure_pipeline_hw_emu_stage0/config/pure_pipeline_hw_emu.cfg
+.tmp_build/pure_pipeline_hw_stage0/config/pure_pipeline_hw.cfg:
+  matching nk= lines for all host-opened CUs
+  four PMA completion_token streams into pma_completion_barrier_1
+  pma_to_regraph_adapter_1.edge_burst_out -> lksg_stream_1.edge_burst_in
+  adapter PMA HBM ports and ReGraph apply/HBM ports
+```
+
+Source commit:
+
+```text
+db94abdb2e04c04f3cb290cec94f355c986e5af4
+```
+
+Changed files:
+
+```text
+scripts/audit_pure_pipeline_status.py
+scripts/check_pure_pipeline_source_contracts.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/check_pure_pipeline_source_contracts.py \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label host_runtime_contract_after_db94abd \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_host_runtime_contract_after_db94abd.tsv
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --label launch_packet_host_runtime_contract_after_db94abd \
+  --flow-label after_db94abd
+```
+
+Result:
+
+```text
+required_count=11
+failed_count=0
+host_runtime_matches_generated_config ok=yes
+launch_packet_exit=3
+readiness_status=3
+active_builders external=2
+hw_emu xclbin=MISSING
+```
+
+The nonzero launch-packet exit is expected in the current machine state. It is
+caused by the missing pure `hw_emu` xclbin and unrelated active Spine `v++`
+processes. It does not indicate a source-contract failure.
+
+Launch-packet artifacts:
+
+```text
+.tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/source_contracts.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/readiness_hw_emu.txt
+.tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/audit/audit.json
+.tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/evidence_bundle/summary.md
+.tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/evidence_bundle/source_proof_matrix.tsv
+.tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/launch_command.sh
+```
+
+Evidence hashes:
+
+```text
+40949d5498b330c84a366669bb8868928ea039eb4399c9494f79af2ab26cbf55  scripts/audit_pure_pipeline_status.py
+d4faaf573970b2f7b88c31fc3bb451c88d76cd1211ea20d0fece6f5d0fef1f2e  scripts/check_pure_pipeline_source_contracts.py
+572e419a9a0b213f94f43e4cc57bdc50815a4a2ad577fe2384d802a284f25123  .tmp_build/pure_pipeline_source_contracts/source_contracts_host_runtime_contract_after_db94abd.tsv
+572e419a9a0b213f94f43e4cc57bdc50815a4a2ad577fe2384d802a284f25123  .tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/source_contracts.tsv
+292962aa7a8b2632291c12280f39444abe0ff2789bb1eb1e981f553837b3490d  .tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/readiness_hw_emu.txt
+066205d99ed27efeb804fabb3c643f7d156004e2fcb2ae72dfff1ebac440c669  .tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/audit/audit.json
+bc19f5a852c4d60b23723cc61e492d0e7457b502ccaa6829df701fa7b327a968  .tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/evidence_bundle/summary.md
+3d158ed0cbee9d910fc0a2faa4a28b06a114d2e0071196ae6fcefb8293844356  .tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/evidence_bundle/source_proof_matrix.tsv
+618fffb76bb1e20fc97c11c86dd6aa1b7ae3e0929eadb5d4211d14e3fb296f86  .tmp_build/pure_pipeline_launch_packet_launch_packet_host_runtime_contract_after_db94abd/launch_command.sh
+```
+
+Next launch command after external builders are idle:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_db94abd \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
