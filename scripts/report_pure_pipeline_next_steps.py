@@ -362,7 +362,11 @@ def target_state(
         "latest_acceptance_postrun_status": acceptance_postrun_summary["status"],
         "latest_acceptance_postrun_counts": acceptance_postrun_summary["counts"],
         "latest_acceptance_postrun_detail": acceptance_postrun_summary["detail"],
-        "latest_acceptance_postrun_label": postrun_label(acceptance_postrun_summary),
+        "latest_acceptance_postrun_label": (
+            postrun_label(acceptance_postrun_summary)
+            if xclbin.is_file()
+            else "waiting_xclbin"
+        ),
     }
 
 
