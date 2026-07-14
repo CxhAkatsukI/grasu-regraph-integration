@@ -9131,6 +9131,35 @@ The wrapper coordinates three reproducibility steps:
 - run the accepted `GraSU -> host -> ReGraph` baseline with device graph export;
 - run Spine on the edge files exported from GraSU's actual PMA graph.
 
+In this follow-up, the wrapper was tightened so its default baseline paths match
+the accepted hardware artifacts instead of relying on older helper-script
+defaults. Unless overridden, it now uses:
+
+```text
+GraSU export host:
+  repos/GraSU/.tmp_build/u55c_hbm_hw/GraSU_host_u55c_export
+  sha256=95edb2a0b0028cd17ae340c56f3a642c86a7d6d4fd03e19e3ab1ac505c89b9e1
+combined GraSU/ReGraph hw xclbin:
+  .tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin
+  sha256=d4296714739acea95a8f6a2f66e113849f089fe8e026fd72e7ee40c9e56f05b0
+ReGraph hw host:
+  /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp
+  sha256=9ceb054575e63aa9c6b045875eae2de205e14788a1f211c9116b411df4fed8c8
+Spine split host:
+  .tmp_build/spine_split_edge_host_chunked_repro_20260712_202403/host_partitioned_csr_e2e_smoke_edge
+  sha256=df0aa0dca3eddb09aa58805fe7bb1c65e4c1a7484ab8ae6ca230c11bbff90bdd
+Spine split xclbin:
+  /data/feiyang/spine-dynamic-graph-builds/split_e2e_hw_150_depth32_bram_20260711_2100/xclbin/spine_partitioned_split_e2e.hw.xclbin
+  sha256=69145517738cc1ffff95e91c24393260c346ac683db9eef2989bbc1bdb7a3469
+Spine mode:
+  SPINE_PARTITIONED_SPLIT_VALUE=1
+Runtime env:
+  source /data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh
+  export XILINX_XRT=/opt/xilinx/xrt
+  prepend /opt/xilinx/xrt/lib to LD_LIBRARY_PATH
+  prepend /opt/xilinx/xrt/bin to PATH
+```
+
 It also writes `baseline_run.env` beside the plan so later runs can identify
 which host/xclbin paths and labels were used. The default output directories are:
 
@@ -9148,10 +9177,11 @@ cd /home/chuxiao/grasu-regraph-integration
 bash -n scripts/run_pure_stage0_baselines.sh
 python3 -m py_compile scripts/report_pure_pipeline_next_steps.py
 ./scripts/run_pure_stage0_baselines.sh --label after_0306101 --status-only
+./scripts/run_pure_stage0_baselines.sh --label after_0306101_defaults_check2 --dry-run
 ```
 
-Status-only output confirms that the plan exists, while the host and Spine
-baseline runs are intentionally still pending:
+Status-only output confirms the exact baseline artifacts and also confirms that
+the host and Spine baseline runs are intentionally still pending:
 
 ```text
 pure_stage0_baselines_status
@@ -9160,10 +9190,25 @@ plan_dir=/home/chuxiao/grasu-regraph-integration/results/pure_stage0_comparison_
 comparison_plan=yes sha256=f9fd9158c9c3eb0ff16cf730e95b62a3c614720c9af5ece793285c3a863ac4ae
 input_identity=yes sha256=fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b
 host_out=/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_pure_stage0_after_0306101
+grasu_host=/home/chuxiao/grasu-regraph-integration/repos/GraSU/.tmp_build/u55c_hbm_hw/GraSU_host_u55c_export sha256=95edb2a0b0028cd17ae340c56f3a642c86a7d6d4fd03e19e3ab1ac505c89b9e1
+combined_xclbin=/home/chuxiao/grasu-regraph-integration/.tmp_build/combined_hw_coldinit_250mhz_20260712_112335/build/grasu_regraph_combined.hw.xclbin sha256=d4296714739acea95a8f6a2f66e113849f089fe8e026fd72e7ee40c9e56f05b0
+regraph_host=/data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp sha256=9ceb054575e63aa9c6b045875eae2de205e14788a1f211c9116b411df4fed8c8
 host_summary=no sha256=MISSING
 host_identity_out=no sha256=MISSING
 spine_out=/home/chuxiao/grasu-regraph-integration/results/spine_edge_file_pure_stage0_after_0306101
+spine_host=/home/chuxiao/grasu-regraph-integration/.tmp_build/spine_split_edge_host_chunked_repro_20260712_202403/host_partitioned_csr_e2e_smoke_edge sha256=df0aa0dca3eddb09aa58805fe7bb1c65e4c1a7484ab8ae6ca230c11bbff90bdd
+spine_xclbin=/data/feiyang/spine-dynamic-graph-builds/split_e2e_hw_150_depth32_bram_20260711_2100/xclbin/spine_partitioned_split_e2e.hw.xclbin sha256=69145517738cc1ffff95e91c24393260c346ac683db9eef2989bbc1bdb7a3469
+spine_partitioned_split=1
+setup_runtime_env=1
+vitis_settings=/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh sha256=42f0fd4c5900960e3e750ce6cc97b1464f09f28038ef5ad1833ca7217bf60a67
 spine_summary=no sha256=MISSING
+```
+
+The dry-run command expands to the intended hardware paths:
+
+```text
+run_grasu_regraph_sssp_sweep.sh ... --grasu-host .../GraSU_host_u55c_export --regraph-host /data/tmp/chuxiao/ReGraph_sssp_hw_coldinit_250mhz_scratch/host_graph_fpga_sssp --combined-xclbin .../grasu_regraph_combined.hw.xclbin
+env SPINE_PARTITIONED_SPLIT_VALUE=1 run_spine_edge_file_sweep.sh ... --spine-host .../host_partitioned_csr_e2e_smoke_edge --spine-xclbin .../spine_partitioned_split_e2e.hw.xclbin --no-source-xrt
 ```
 
 Current next-steps report:
