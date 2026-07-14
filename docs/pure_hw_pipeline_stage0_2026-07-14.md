@@ -518,7 +518,8 @@ Recommended `hw_emu` build command:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_build.sh \
   --target hw_emu \
-  --label after_8e19745
+  --label after_8e19745 \
+  --require-idle
 ```
 
 Recommended `hw` build command:
@@ -527,7 +528,8 @@ Recommended `hw` build command:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_build.sh \
   --target hw \
-  --label after_8e19745
+  --label after_8e19745 \
+  --require-idle
 ```
 
 The wrapper writes:
