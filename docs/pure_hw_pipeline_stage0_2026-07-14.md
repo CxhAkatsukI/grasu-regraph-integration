@@ -8883,3 +8883,95 @@ fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pur
 6addb9afa96bb40426ed492d76c4137fb4234cf3734b623cb4b27c04aab1730b  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_866cb78/readiness_hw.txt
 7f41841c116368baa8e557a9b57750a6563d7abb39a7024922b3b76a0f29dbee  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_866cb78/acceptance_check_prelaunch.tsv
 ```
+
+## Launch Packet Refresh After Stage0 Followup Label Fix, 2026-07-15
+
+`report_pure_pipeline_next_steps.py` now chooses the stage0 postbuild label
+from the current launch packet `flow_label` when one exists. This keeps
+baseline and postbuild result directories tied to the build-relevant source
+commit even if a later commit only edits documentation.
+
+Final read-only status after commit `118704c05e3b9496709e2e10c9f57fb6c2c079cd`:
+
+```text
+repo=/home/chuxiao/grasu-regraph-integration
+branch=codex/pure-hw-pipeline
+dirty=false
+
+sw_emu: xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+hw_emu: xclbin=no packet_current=yes waiting_xclbin
+hw:     xclbin=no packet_current=yes waiting_xclbin
+
+next_target=hw_emu
+next_action=build
+next_command=.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_118704c/launch_command.sh
+
+stage0_followup:
+baseline label=after_118704c label_source=hw_emu_launch_packet plan=no host_summary=no spine_summary=no
+baseline_plan ./scripts/export_pure_stage0_comparison_plan.py --label after_118704c --out-dir results/pure_stage0_comparison_plan_after_118704c
+hw_emu_gate ./scripts/run_pure_stage0_postbuild_matrix.sh --target hw_emu --mode gate --label after_118704c --baseline-label after_118704c --require-compare
+hw_gate     ./scripts/run_pure_stage0_postbuild_matrix.sh --target hw --mode gate --label after_118704c --baseline-label after_118704c --require-compare
+hw_full     ./scripts/run_pure_stage0_postbuild_matrix.sh --target hw --mode full --label after_118704c --baseline-label after_118704c --require-compare
+```
+
+Immediate `hw_emu` build command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_118704c/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_118704c \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Prepared later `hw` build command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_118704c/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label after_118704c \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Packet evidence hashes:
+
+```text
+d69ed7374df705be0d2f459c976e0923c21694eb1c26dc0400c0aeba715d9caa  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_118704c/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_118704c/source_contracts.tsv
+033bf8cc2714a651eb3e62f9fce27e24240d5ffac4ca432a465166885d9eda90  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_118704c/source_fingerprints.tsv
+0613ba0e62507ac6f74cca7ebd11b0db5966db153fe770271237cb429047b342  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_118704c/readiness_hw_emu.txt
+f96c36cd27be7cd6445e4f234cc4e32a54018ae06fc4718bb0288da4779f47a6  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_118704c/acceptance_check_prelaunch.tsv
+
+72bbb7eb66f267460e8eee9d188bf0137b5140a306d780fde63043c95752856c  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_118704c/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_118704c/source_contracts.tsv
+033bf8cc2714a651eb3e62f9fce27e24240d5ffac4ca432a465166885d9eda90  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_118704c/source_fingerprints.tsv
+6ecb87b49aebfc5db3c49ad55372486781531720a77644763a3f8235d7783a37  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_118704c/readiness_hw.txt
+41eb47d38f7b97121e2933aaef69f7478e8ea81d1419ca99e553fe1ecb3a96dc  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_118704c/acceptance_check_prelaunch.tsv
+```
