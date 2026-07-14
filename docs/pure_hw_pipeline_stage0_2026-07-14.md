@@ -9112,3 +9112,191 @@ bb6d89952f89275c5d5f8e9c134da8af4fd27f6adfc28c15159e4c50963e2e12  .tmp_build/pur
 Important: `results/*` is ignored by Git, so the generated plan files are not
 committed. The command and hashes above are the reproducibility record for this
 local plan instance.
+
+## Stage0 Baseline Runner And Current Launch Packets
+
+As of commit `030610181d929af8de4bae19b95541b5a0440aaf`, the same-input
+baseline follow-up has a single wrapper:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_baselines.sh --label after_0306101 --status-only
+./scripts/run_pure_stage0_baselines.sh --label after_0306101 --dry-run
+./scripts/run_pure_stage0_baselines.sh --label after_0306101
+```
+
+The wrapper coordinates three reproducibility steps:
+
+- export the stage0 comparison plan and input-identity table;
+- run the accepted `GraSU -> host -> ReGraph` baseline with device graph export;
+- run Spine on the edge files exported from GraSU's actual PMA graph.
+
+It also writes `baseline_run.env` beside the plan so later runs can identify
+which host/xclbin paths and labels were used. The default output directories are:
+
+```text
+results/pure_stage0_comparison_plan_after_0306101
+results/grasu_regraph_sssp_pure_stage0_after_0306101
+results/pure_stage0_host_identity_after_0306101
+results/spine_edge_file_pure_stage0_after_0306101
+```
+
+Lightweight validation performed before documenting this stage:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/run_pure_stage0_baselines.sh
+python3 -m py_compile scripts/report_pure_pipeline_next_steps.py
+./scripts/run_pure_stage0_baselines.sh --label after_0306101 --status-only
+```
+
+Status-only output confirms that the plan exists, while the host and Spine
+baseline runs are intentionally still pending:
+
+```text
+pure_stage0_baselines_status
+label=after_0306101
+plan_dir=/home/chuxiao/grasu-regraph-integration/results/pure_stage0_comparison_plan_after_0306101
+comparison_plan=yes sha256=f9fd9158c9c3eb0ff16cf730e95b62a3c614720c9af5ece793285c3a863ac4ae
+input_identity=yes sha256=fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b
+host_out=/home/chuxiao/grasu-regraph-integration/results/grasu_regraph_sssp_pure_stage0_after_0306101
+host_summary=no sha256=MISSING
+host_identity_out=no sha256=MISSING
+spine_out=/home/chuxiao/grasu-regraph-integration/results/spine_edge_file_pure_stage0_after_0306101
+spine_summary=no sha256=MISSING
+```
+
+Current next-steps report:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/report_pure_pipeline_next_steps.py
+```
+
+Important lines:
+
+```text
+head=030610181d929af8de4bae19b95541b5a0440aaf
+source_fingerprint_sha256=f2cfaf8e665dfdbea925afb02a158d94755ce38cd4c8914dbf7f0448675ff460
+dirty=false
+
+sw_emu: xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+hw_emu: xclbin=no packet_current=yes waiting_xclbin
+hw:     xclbin=no packet_current=yes waiting_xclbin
+
+next_target=hw_emu
+next_action=build
+next_command=.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_0306101/launch_command.sh
+
+stage0_followup:
+baseline label=after_0306101 label_source=hw_emu_launch_packet plan=yes host_summary=no spine_summary=no
+comparison_plan results/pure_stage0_comparison_plan_after_0306101/comparison_plan.tsv sha256=f9fd9158c9c3eb0ff16cf730e95b62a3c614720c9af5ece793285c3a863ac4ae
+input_identity results/pure_stage0_comparison_plan_after_0306101/input_identity.tsv sha256=fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b
+host_summary=results/grasu_regraph_sssp_pure_stage0_after_0306101/summary.tsv
+spine_summary=results/spine_edge_file_pure_stage0_after_0306101/summary.tsv
+```
+
+The immediate `hw_emu` build command is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_0306101/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_0306101 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+The prepared later `hw` command is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_0306101/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label after_0306101 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Current plan and packet hashes:
+
+```text
+fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b  results/pure_stage0_comparison_plan_after_0306101/input_identity.tsv
+f9fd9158c9c3eb0ff16cf730e95b62a3c614720c9af5ece793285c3a863ac4ae  results/pure_stage0_comparison_plan_after_0306101/comparison_plan.tsv
+c59cff771b74e291be1080cb5e3f63ff7c50d74b70bcc9a7d4bd9c026126ab8c  results/pure_stage0_comparison_plan_after_0306101/summary.md
+6be60003cd212c87b9fa1e4ec50241dc6f035f42eb41ed3ff10b4106ecb3cede  results/pure_stage0_comparison_plan_after_0306101/run.env
+0c9c1d589f346a09b0e19462b690320bf5a5fabc0fc3cf1d2002c1d868a7b2fc  results/pure_stage0_comparison_plan_after_0306101/baseline_run.env
+
+ecfabd5b1c2e88578f19845d82aebeed68c8c60d229af2409081475c45712f5d  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_0306101/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_0306101/source_contracts.tsv
+b3380a2e632fa79c1e80bd03006026b9251798a6406e42266488d2bb6d2a43f6  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_0306101/source_fingerprints.tsv
+4a7afc5455a51759ace47b92b7c3d2fcd4b9b896f2797066e35ad4adb32f3186  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_0306101/readiness_hw_emu.txt
+90ceffd05e7a10f3d7e552c783472ff159499e8a797405e5e9a4b1b705575d6d  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_0306101/acceptance_check_prelaunch.tsv
+
+cb60b312cae6158cdee3f1afbae656e94df7f9aaa2dc6669d2d1538964bee103  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_0306101/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_0306101/source_contracts.tsv
+b3380a2e632fa79c1e80bd03006026b9251798a6406e42266488d2bb6d2a43f6  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_0306101/source_fingerprints.tsv
+718ab565be3e16b750ef2d9d91b306da6d6f70e4e66b0c18261e78fe1bc10765  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_0306101/readiness_hw.txt
+b2dda77c5ae00e039eeb0b163156c20f3e681958b2957636be85e1cb08aa33d6  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_0306101/acceptance_check_prelaunch.tsv
+```
+
+Current blocker remains artifact availability, not source preparation:
+
+```text
+pure_pipeline hw_emu xclbin: MISSING
+pure_pipeline hw xclbin:     MISSING
+```
+
+After either xclbin exists and the postrun acceptance report passes, run:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw_emu \
+  --mode gate \
+  --label after_0306101 \
+  --baseline-label after_0306101 \
+  --require-compare
+
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode gate \
+  --label after_0306101 \
+  --baseline-label after_0306101 \
+  --require-compare
+
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode full \
+  --label after_0306101 \
+  --baseline-label after_0306101 \
+  --require-compare
+```
+
+Important: `results/*` and `.tmp_build/*` remain ignored by Git. The source,
+scripts, and this document are the committed record; the local result paths and
+hashes above are the reproducibility evidence for this machine.
