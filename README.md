@@ -166,3 +166,23 @@ Generate smoke workloads and dry-run the chain:
 ./scripts/run_grasu_regraph_sssp_sweep.sh --preset smoke --dry-run
 ./scripts/run_spine_builtin_sweep.sh --preset smoke --dry-run
 ```
+
+## Pure Hardware Pipeline Branch
+
+The pure GraSU -> ReGraph hardware-pipeline goal starts on:
+
+```text
+codex/pure-hw-pipeline
+```
+
+Stage-0 design and reproducibility notes:
+
+```text
+docs/pure_hw_pipeline_stage0_2026-07-14.md
+```
+
+Collect the current start-state evidence:
+
+```bash
+./scripts/collect_pure_hw_start_state.sh
+```
