@@ -3038,3 +3038,153 @@ d7d0485257accd5ef394b327e5468ac62310bb0d918fadae0ba70d221971629a  README.md
 134a28fde2cd79ea56ac4372820139f8c0cef5bff45f10678aaf47a36c3a9a12  results/pure_pipeline_requirement_audit_prepare_command_check_after_9e1f28c/audit.json
 ce460ce9c2fff18e024f3131e630a342734a5d80d5be532d3dea0f879b549b73  results/pure_pipeline_requirement_audit_prepare_command_check_after_9e1f28c/audit.md
 ```
+
+## 2026-07-15 HW Status Refresh
+
+Question answered at this checkpoint: there is not yet a successful pure
+GraSU-ReGraph `hw` build artifact. The only pure-pipeline xclbin currently
+present is the correctness-tested `sw_emu` artifact.
+
+Current source state:
+
+```text
+branch: codex/pure-hw-pipeline
+commit: 963d0e018fd75c636d7ab16cb94ba196adfd6c90
+```
+
+Current pure-pipeline xclbins:
+
+```text
+present:
+  .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+  sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+  size=6541774 bytes
+
+missing:
+  .tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin
+  .tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin
+```
+
+The current generated `hw_emu` and `hw` build roots have been prepared from the
+current source, but the long Vitis builds have not produced xclbins yet:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/prepare_pure_hw_pipeline_build.sh \
+  --target hw_emu \
+  --build-root .tmp_build/pure_pipeline_hw_emu_stage0
+./scripts/prepare_pure_hw_pipeline_build.sh \
+  --target hw \
+  --build-root .tmp_build/pure_pipeline_hw_stage0
+```
+
+Readiness/evidence refresh command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+set +e
+./scripts/refresh_pure_pipeline_readiness_bundle.sh \
+  --label refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing
+echo "refresh_rc=$?"
+```
+
+The refresh returned `3`, which means the reports were written successfully but
+the targets are not ready to claim as built. The blocking facts are:
+
+```text
+hw:
+  xclbin_exists=no
+  readiness_ready=no
+  readiness_blocking_count=1
+  readiness_external_builders=10
+  build_artifacts=PASS count=0 clean_recommended=no
+
+hw_emu:
+  xclbin_exists=no
+  readiness_ready=no
+  readiness_blocking_count=1
+  readiness_warning_count=1
+  readiness_external_builders=10
+  build_artifacts=WARN count=7 clean_recommended=yes
+```
+
+The `hw_emu` warning is stale partial build-output under the build root:
+
+```text
+bin_search
+bin_search.hw_emu.xo
+bin_search.hw_emu.xo.compile_summary
+bin_search.mdb
+dispatch
+dispatch.hw_emu.xo.compile_summary
+dispatch.mdb
+```
+
+Because the next target-flow command uses `--clean-build-artifacts`, these
+stale partial artifacts should not be reused by the next real `hw_emu` launch.
+
+Current refresh artifacts:
+
+```text
+results/pure_pipeline_evidence_bundle_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing/summary.md
+results/pure_pipeline_evidence_bundle_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing/target_matrix.tsv
+results/pure_pipeline_evidence_bundle_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing/bundle_manifest.json
+results/pure_pipeline_requirement_audit_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing/audit.md
+results/pure_pipeline_requirement_audit_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing/audit.json
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing.txt
+.tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing.txt
+```
+
+Evidence hashes:
+
+```text
+8c8a1065d85e329b8a8a3c8a54c467f48f2101f5be423aa91543d31ec63959f9  results/pure_pipeline_evidence_bundle_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing/summary.md
+48d2d4cbc9605ff06cd37e6a3e112c5ffa815826cf2e8ff46a086f933abc2606  results/pure_pipeline_evidence_bundle_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing/target_matrix.tsv
+3f43f01592da469d8011fb8c8837b04472dc2af1b5b2fe13067f2d6bb067a0f6  results/pure_pipeline_evidence_bundle_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing/bundle_manifest.json
+0c85c46870047d65d1490d7e0859441fd5a66f747845b448ddaa355dc268cff0  results/pure_pipeline_requirement_audit_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing/audit.md
+3a3bd18cb4ca4fcafab88c35c52fc2cb2c3c23741a2812d005aadf024c569543  results/pure_pipeline_requirement_audit_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing/audit.json
+e2c49f27ed266811f5005b1b00ab35ec30edc7569bff4d039bb3476329fb113a  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing.txt
+fd13f2b3d479374b9246b2b83ae717c7c0fc4c99e3ca324a8232888b9bd15962  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_20260715_0217_hw_status_no_xclbin_external_spine_routing.txt
+```
+
+The active external builder is still the Spine hardware link:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0024
+```
+
+At this checkpoint the target Spine xclbin was also still missing from that
+active directory:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0024/xclbin/spine_partitioned_split_e2e.hw.xclbin
+```
+
+The last inspected Vitis log was in routing:
+
+```text
+[01:55:59] Finished 4th of 6 tasks (FPGA logic placement).
+[01:55:59] Starting logic routing..
+[02:04:04] Phase 5 Rip-up And Reroute
+[02:04:04] Phase 5.1 Global Iteration 0
+```
+
+Next command once the machine is idle enough for a new long build:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_963d0e0 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Only after `hw_emu` links and passes the gate/full smoke should the real `hw`
+flow be launched with the same `--prepare`, `--wait-idle`, and
+`--clean-build-artifacts` discipline.
