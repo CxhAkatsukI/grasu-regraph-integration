@@ -2531,3 +2531,131 @@ Evidence hashes:
 776a01e29573e63abddcf0fd07f2b5ac5deb38eacf3584ec3bcdd23d2c6c130f  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_refresh_20260715_010014_external_spine_active_after_346fa59.txt
 ee3205ef6141afb514506d0770abdc8eaafbd5d0a7a722d623d54e0d848f1122  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_refresh_20260715_010014_external_spine_active_after_346fa59.txt
 ```
+
+## 2026-07-15 Stale HW_EMU Artifact Guard
+
+The interrupted `hw_emu` launch from `2026-07-15T00:23` left partial build
+artifacts in the pure-pipeline target directory. The important observation is
+that `bin_search` completed, but `dispatch` did not produce its final `.xo`:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/build/bin_search.hw_emu.xo                  exists
+.tmp_build/pure_pipeline_hw_emu_stage0/build/dispatch.hw_emu.xo                    missing
+.tmp_build/pure_pipeline_hw_emu_stage0/build/dispatch.hw_emu.xo.compile_summary    exists
+.tmp_build/pure_pipeline_hw_emu_stage0/build/dispatch.mdb                          exists
+```
+
+To make the next long run deterministic, `run_pure_pipeline_build.sh` now
+supports:
+
+```bash
+--clean-build-artifacts
+```
+
+The option only removes children under the standard target build directory:
+
+```text
+/home/chuxiao/grasu-regraph-integration/.tmp_build/pure_pipeline_<target>_stage0/build/
+```
+
+It refuses non-standard build roots, records `cleanup_<label>.txt`, and leaves
+the manifest, generated config files, compile/link command scripts, and run
+logs in place. `run_pure_pipeline_target_flow.sh` forwards the same option, and
+the readiness/audit next-command hints now include it.
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+
+bash -n \
+  scripts/run_pure_pipeline_build.sh \
+  scripts/run_pure_pipeline_target_flow.sh \
+  scripts/check_pure_pipeline_build_readiness.sh
+
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label stale_cleanup_probe_after_5d5cdff \
+  --dry-run \
+  --clean-build-artifacts \
+  --status-only
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label stale_cleanup_flow_probe_after_5d5cdff \
+  --dry-run \
+  --clean-build-artifacts \
+  --skip-finalize \
+  --skip-audit \
+  --no-readiness \
+  --monitor-tail 5
+```
+
+The cleanup probe returned `0` and did not delete any files because
+`--dry-run` was set. Its cleanup log listed the stale children before and after
+unchanged:
+
+```text
+action=dry_run_no_delete
+bin_search.hw_emu.xo
+bin_search.hw_emu.xo.compile_summary
+bin_search.mdb
+bin_search/
+dispatch.hw_emu.xo.compile_summary
+dispatch.mdb
+dispatch/
+```
+
+A strict readiness snapshot at the same code state still blocks new
+`hw_emu/hw` launch because the external Spine hardware link is active:
+
+```text
+ready=no
+blocking_count=1
+active_builders=FAIL related=0 external=10
+external_breakdown="total=10 v++=2 vivado=4 vpl=2 vrs=2"
+```
+
+The external Spine link still has not produced:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0024/xclbin/spine_partitioned_split_e2e.hw.xclbin
+```
+
+It is still making progress in placement; the latest inspected log tail reached:
+
+```text
+[01:35:46] Phase 4.2 Post Placement Cleanup
+[01:35:46] Phase 4.3 Placer Reporting
+[01:35:46] Phase 4.3.1 Print Estimated Congestion
+[01:35:46] Phase 4.4 Final Placement Cleanup
+```
+
+Next command once external builders are gone:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_5d5cdff \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Evidence hashes:
+
+```text
+f9cceb1f3d24ef9948afdbb58f4c14f6bedd909ed15a6a241909507929583fa4  scripts/run_pure_pipeline_build.sh
+5c384ac7bcdc0b5f8f6ac9f9463b1294812a41faa6dd50e143dcd78f9fcf3c51  scripts/run_pure_pipeline_target_flow.sh
+a6863e2539695477cf4f45f482a8490b5333f45cc6cef311d3924a7b3e7d9a71  scripts/check_pure_pipeline_build_readiness.sh
+5b2caa3c347f294261de276ec28350c07ad45d9bea00c3fed8850a2d9d7dec26  scripts/audit_pure_pipeline_status.py
+55f34e9a8f3ab3ac8714c09451cea5b739d019b9ca046d01918fadfd09e9b8db  README.md
+08eba9ff1d68375ffe8e4fd4e20f5639507b201832d8f7c5ae964720f7ecfabf  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/cleanup_stale_cleanup_probe_after_5d5cdff.txt
+816e9c0d86f1542f2a80bf5e474da3adf0b6550b632aa275e64fd1a5d0c78ef9  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_stale_cleanup_probe_after_5d5cdff.env
+a749093fcefbb54e379c29d3387d17d56c15c41b8e65a19b453db4cb5c3249a0  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_stale_cleanup_probe_after_5d5cdff_evidence.tsv
+a51b07fe73ea953477a0d1d796ecdd8b5c21c03a4a126e31b6b590a5511bb087  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_stale_cleanup_strict_after_5d5cdff.txt
+```

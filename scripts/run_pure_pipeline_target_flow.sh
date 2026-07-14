@@ -17,6 +17,7 @@ BUILD_HOST=1
 SKIP_BUILD=0
 SKIP_FINALIZE=0
 SKIP_AUDIT=0
+CLEAN_BUILD_ARTIFACTS=0
 READINESS_CHECK=1
 STRICT_READINESS=0
 DRY_RUN=0
@@ -41,6 +42,7 @@ Options:
   --timeout SECONDS           Full smoke timeout. Default: finalize wrapper default.
   --build-host                Rebuild pure_pipeline_host during finalize. Default.
   --no-build-host             Do not rebuild pure_pipeline_host during finalize.
+  --clean-build-artifacts     Remove existing target build/ artifacts before launching.
   --readiness                 Record a build-readiness preflight report. Default.
   --no-readiness              Do not run the readiness preflight.
   --strict-readiness          Fail preflight when unrelated Vitis/Vivado builders are active.
@@ -79,6 +81,7 @@ while [[ $# -gt 0 ]]; do
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
     --build-host) BUILD_HOST=1; shift ;;
     --no-build-host) BUILD_HOST=0; shift ;;
+    --clean-build-artifacts) CLEAN_BUILD_ARTIFACTS=1; shift ;;
     --readiness) READINESS_CHECK=1; shift ;;
     --no-readiness) READINESS_CHECK=0; shift ;;
     --strict-readiness) STRICT_READINESS=1; shift ;;
@@ -143,6 +146,7 @@ AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
   printf 'gate_timeout_seconds=%s\n' "${GATE_TIMEOUT_SECONDS}"
   printf 'timeout_seconds=%s\n' "${TIMEOUT_SECONDS}"
   printf 'build_host=%s\n' "${BUILD_HOST}"
+  printf 'clean_build_artifacts=%s\n' "${CLEAN_BUILD_ARTIFACTS}"
   printf 'readiness_check=%s\n' "${READINESS_CHECK}"
   printf 'strict_readiness=%s\n' "${STRICT_READINESS}"
   printf 'skip_build=%s\n' "${SKIP_BUILD}"
@@ -169,12 +173,18 @@ if [[ "${READINESS_CHECK}" == "1" ]]; then
 fi
 
 if [[ "${SKIP_BUILD}" == "0" ]]; then
-  run_cmd "${SCRIPT_DIR}/run_pure_pipeline_build.sh" \
-    --target "${TARGET}" \
-    --label "${LABEL}" \
-    --wait-idle "${WAIT_IDLE_SECONDS}" \
-    --idle-poll "${IDLE_POLL_SECONDS}" \
+  build_cmd=(
+    "${SCRIPT_DIR}/run_pure_pipeline_build.sh"
+    --target "${TARGET}"
+    --label "${LABEL}"
+    --wait-idle "${WAIT_IDLE_SECONDS}"
+    --idle-poll "${IDLE_POLL_SECONDS}"
     --idle-settle "${IDLE_SETTLE_SECONDS}"
+  )
+  if [[ "${CLEAN_BUILD_ARTIFACTS}" == "1" ]]; then
+    build_cmd+=(--clean-build-artifacts)
+  fi
+  run_cmd "${build_cmd[@]}"
 fi
 
 run_cmd "${SCRIPT_DIR}/monitor_pure_pipeline_build.sh" \

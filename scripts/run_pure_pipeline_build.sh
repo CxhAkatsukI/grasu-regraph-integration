@@ -13,6 +13,7 @@ SKIP_COMPILE=0
 SKIP_LINK=0
 STATUS_ONLY=0
 DRY_RUN=0
+CLEAN_BUILD_ARTIFACTS=0
 REQUIRE_IDLE=0
 WAIT_IDLE_SECONDS=0
 IDLE_POLL_SECONDS=60
@@ -36,6 +37,7 @@ Options:
   --skip-link                 Do not run link_command.sh.
   --status-only               Only collect evidence; do not run compile/link.
   --dry-run                   Print commands that would run and collect evidence.
+  --clean-build-artifacts     Remove existing target build/ artifacts before launching.
   --require-idle              Refuse to start if Vitis/Vivado processes are active.
   --wait-idle SECONDS         Wait up to SECONDS for Vitis/Vivado to go idle; implies --require-idle.
   --idle-poll SECONDS         Poll interval for --wait-idle. Default: ${IDLE_POLL_SECONDS}
@@ -48,7 +50,7 @@ Examples:
   $0 --target hw_emu --status-only
   $0 --target hw_emu --label after_fa17c35 --require-idle
   $0 --target hw_emu --label after_fa17c35 --wait-idle 7200
-  $0 --target hw_emu --label after_fa17c35 --wait-idle 7200 --idle-settle 120
+  $0 --target hw_emu --label after_fa17c35 --wait-idle 7200 --idle-settle 120 --clean-build-artifacts
 USAGE
 }
 
@@ -163,6 +165,7 @@ write_run_env() {
     printf 'skip_link=%s\n' "${SKIP_LINK}"
     printf 'status_only=%s\n' "${STATUS_ONLY}"
     printf 'dry_run=%s\n' "${DRY_RUN}"
+    printf 'clean_build_artifacts=%s\n' "${CLEAN_BUILD_ARTIFACTS}"
     printf 'require_idle=%s\n' "${REQUIRE_IDLE}"
     printf 'wait_idle_seconds=%s\n' "${WAIT_IDLE_SECONDS}"
     printf 'idle_poll_seconds=%s\n' "${IDLE_POLL_SECONDS}"
@@ -209,6 +212,52 @@ write_artifact_evidence() {
   } > "${out_file}"
 }
 
+clean_build_artifacts() {
+  local log_file="$1"
+  local build_dir="${BUILD_ROOT}/build"
+  local repo_real
+  local build_root_real
+  local build_dir_real
+  repo_real="$(realpath -m "${GRI_ROOT}")"
+  build_root_real="$(realpath -m "${BUILD_ROOT}")"
+  build_dir_real="${build_root_real}/build"
+
+  case "${build_root_real}" in
+    "${repo_real}/.tmp_build/pure_pipeline_"*"_stage0") ;;
+    *)
+      echo "--clean-build-artifacts refuses non-standard build root: ${BUILD_ROOT}" >&2
+      echo "Expected a path under ${repo_real}/.tmp_build/pure_pipeline_<target>_stage0" >&2
+      exit 2
+      ;;
+  esac
+
+  mkdir -p "${build_dir}"
+  {
+    printf 'pure_pipeline_build_artifact_cleanup\n'
+    printf 'timestamp=%s\n' "$(date --iso-8601=seconds)"
+    printf 'target=%s\n' "${TARGET}"
+    printf 'label=%s\n' "${LABEL}"
+    printf 'build_root=%s\n' "${BUILD_ROOT}"
+    printf 'build_dir=%s\n' "${build_dir}"
+    printf 'dry_run=%s\n' "${DRY_RUN}"
+    printf '\n'
+    printf 'before\n'
+    find "${build_dir}" -mindepth 1 -maxdepth 1 -printf '%y\t%s\t%p\n' | sort || true
+    printf '\n'
+    if [[ "${DRY_RUN}" == "1" ]]; then
+      printf 'action=dry_run_no_delete\n'
+    else
+      printf 'action=delete_build_dir_children\n'
+      find "${build_dir}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+    fi
+    printf '\n'
+    printf 'after\n'
+    find "${build_dir}" -mindepth 1 -maxdepth 1 -printf '%y\t%s\t%p\n' | sort || true
+  } > "${log_file}"
+
+  echo "Cleaned target build artifacts: ${log_file}"
+}
+
 run_logged_script() {
   local script="$1"
   local log_file="$2"
@@ -240,6 +289,7 @@ while [[ $# -gt 0 ]]; do
     --skip-link) SKIP_LINK=1; shift ;;
     --status-only) STATUS_ONLY=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --clean-build-artifacts) CLEAN_BUILD_ARTIFACTS=1; shift ;;
     --require-idle) REQUIRE_IDLE=1; shift ;;
     --wait-idle) WAIT_IDLE_SECONDS="$2"; REQUIRE_IDLE=1; shift 2 ;;
     --idle-poll) IDLE_POLL_SECONDS="$2"; shift 2 ;;
@@ -323,6 +373,11 @@ LINK_LOG="${RUN_DIR}/link_${LABEL}.log"
 COMPILE_RC="${RUN_DIR}/compile_${LABEL}.rc"
 LINK_RC="${RUN_DIR}/link_${LABEL}.rc"
 IDLE_CHECK="${RUN_DIR}/idle_check_${LABEL}.txt"
+CLEANUP_LOG="${RUN_DIR}/cleanup_${LABEL}.txt"
+
+if [[ "${CLEAN_BUILD_ARTIFACTS}" == "1" ]]; then
+  clean_build_artifacts "${CLEANUP_LOG}"
+fi
 
 write_run_env "${RUN_ENV}"
 write_artifact_evidence "${EVIDENCE}"
