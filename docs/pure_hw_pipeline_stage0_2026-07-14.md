@@ -8392,3 +8392,81 @@ c1563d7d44ab6ed6d6fb6efacc7319f59453130e7a96edb263781e264804575c  .tmp_build/pur
 f9fad7211cd505d8f825bb040c4fd630804b1b10137ec5676635bb061530ba1a  .tmp_build/pure_stage0_postbuild_existing_single/identity/input_identity_check.tsv
 25ac38df3931afd684f57dac7328e21e3facc3e29766b60a98c76cdcbd749278  .tmp_build/pure_stage0_postbuild_dryrun/run/postbuild_matrix.env
 ```
+
+## Launch Packet Refresh After Postbuild Wrapper, 2026-07-15
+
+Adding `scripts/run_pure_stage0_postbuild_matrix.sh` changes the integration
+script fingerprint, so the `hw_emu` and `hw` launch packets were regenerated at
+commit:
+
+```text
+22f404755e674567e01837736d3fe57a5fab5989
+```
+
+Regenerate:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label after_22f4047 \
+  --label launch_packet_hw_emu_after_22f4047_allow_active \
+  --allow-active-builders
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw \
+  --flow-label after_22f4047 \
+  --label launch_packet_hw_after_22f4047_allow_active \
+  --allow-active-builders
+```
+
+Current next command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_22f4047_allow_active/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_22f4047 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Read-only report after refresh:
+
+```text
+target sw_emu: xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+target hw_emu: xclbin=no packet_current=yes waiting_xclbin
+target hw:     xclbin=no packet_current=yes waiting_xclbin
+next_target=hw_emu
+next_action=build
+next_commands=.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_22f4047_allow_active/launch_command.sh
+```
+
+Evidence hashes:
+
+```text
+93c25d518760b9a55beda6fae0f1377b4c50ecccab807f2aa7290a6f0afff16e  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_22f4047_allow_active/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_22f4047_allow_active/source_contracts.tsv
+dc4a75c3ba51538b1e73bbdd046d31c4c4c348944a0ae3cae947c11036b83b62  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_22f4047_allow_active/source_fingerprints.tsv
+eea833c76dac665f0cb70d4870140c2a3bce4eaf60f5a46468439c95d5c87e69  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_22f4047_allow_active/readiness_hw_emu.txt
+44524524333509e46c9bf0c699271b42e06f0acd8fb92186f4da4cceb48b2308  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_22f4047_allow_active/acceptance_check_prelaunch.tsv
+
+34d513d912c3eed46584b4a68daa77756f872f1eed6cd5c143d69b9103879e02  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_22f4047_allow_active/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_22f4047_allow_active/source_contracts.tsv
+dc4a75c3ba51538b1e73bbdd046d31c4c4c348944a0ae3cae947c11036b83b62  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_22f4047_allow_active/source_fingerprints.tsv
+681687bf067c4fe742479aac3134e433a3eb2682ccd3ccbc452eccd3139f7ffa  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_22f4047_allow_active/readiness_hw.txt
+ce44852e502186e2b72c0a9a347445876e07a361c18c1e206f8cde5d65579ca1  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_22f4047_allow_active/acceptance_check_prelaunch.tsv
+```
