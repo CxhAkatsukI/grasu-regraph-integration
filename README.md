@@ -202,6 +202,7 @@ Current reproducible target flow:
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw_emu \
   --label after_$(git rev-parse --short HEAD) \
+  --prepare \
   --wait-idle 7200 \
   --idle-poll 60 \
   --idle-settle 120 \
@@ -213,10 +214,11 @@ Current reproducible target flow:
 Run the same wrapper with `--target hw` after `hw_emu` passes. The wrapper
 records the build parameters, writes a readiness preflight report, waits for
 other Vitis/Vivado jobs to become idle, optionally requires a continuous idle
-settle window, optionally clears stale target artifacts from the build
-directory, monitors the build output, runs a staged smoke gate, then emits the
-requirement audit. Use `--strict-readiness` when you want active external
-builders to abort before the wait-idle phase.
+settle window, optionally regenerates compile/link/config scripts, optionally
+clears stale target artifacts from the build directory, monitors the build
+output, runs a staged smoke gate, then emits the requirement audit. Use
+`--strict-readiness` when you want active external builders to abort before the
+wait-idle phase.
 
 Readiness reports include a `build_artifacts` row. If the target xclbin is
 missing while the target `build/` directory still contains old children, the row

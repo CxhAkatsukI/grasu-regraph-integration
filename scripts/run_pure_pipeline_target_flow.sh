@@ -18,6 +18,7 @@ SKIP_BUILD=0
 SKIP_FINALIZE=0
 SKIP_AUDIT=0
 CLEAN_BUILD_ARTIFACTS=0
+PREPARE=0
 READINESS_CHECK=1
 STRICT_READINESS=0
 DRY_RUN=0
@@ -42,6 +43,7 @@ Options:
   --timeout SECONDS           Full smoke timeout. Default: finalize wrapper default.
   --build-host                Rebuild pure_pipeline_host during finalize. Default.
   --no-build-host             Do not rebuild pure_pipeline_host during finalize.
+  --prepare                   Regenerate compile/link/config scripts before readiness and build.
   --clean-build-artifacts     Remove existing target build/ artifacts before launching.
   --readiness                 Record a build-readiness preflight report. Default.
   --no-readiness              Do not run the readiness preflight.
@@ -81,6 +83,7 @@ while [[ $# -gt 0 ]]; do
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
     --build-host) BUILD_HOST=1; shift ;;
     --no-build-host) BUILD_HOST=0; shift ;;
+    --prepare) PREPARE=1; shift ;;
     --clean-build-artifacts) CLEAN_BUILD_ARTIFACTS=1; shift ;;
     --readiness) READINESS_CHECK=1; shift ;;
     --no-readiness) READINESS_CHECK=0; shift ;;
@@ -146,6 +149,7 @@ AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
   printf 'gate_timeout_seconds=%s\n' "${GATE_TIMEOUT_SECONDS}"
   printf 'timeout_seconds=%s\n' "${TIMEOUT_SECONDS}"
   printf 'build_host=%s\n' "${BUILD_HOST}"
+  printf 'prepare=%s\n' "${PREPARE}"
   printf 'clean_build_artifacts=%s\n' "${CLEAN_BUILD_ARTIFACTS}"
   printf 'readiness_check=%s\n' "${READINESS_CHECK}"
   printf 'strict_readiness=%s\n' "${STRICT_READINESS}"
@@ -158,6 +162,12 @@ AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
   printf 'monitor_out=%s\n' "${MONITOR_OUT}"
   printf 'audit_out=%s\n' "${AUDIT_OUT}"
 } > "${FLOW_ENV}"
+
+if [[ "${PREPARE}" == "1" ]]; then
+  run_cmd "${SCRIPT_DIR}/prepare_pure_hw_pipeline_build.sh" \
+    --target "${TARGET}" \
+    --build-root "${BUILD_ROOT}"
+fi
 
 if [[ "${READINESS_CHECK}" == "1" ]]; then
   readiness_cmd=(
@@ -183,6 +193,9 @@ if [[ "${SKIP_BUILD}" == "0" ]]; then
   )
   if [[ "${CLEAN_BUILD_ARTIFACTS}" == "1" ]]; then
     build_cmd+=(--clean-build-artifacts)
+  fi
+  if [[ "${PREPARE}" == "1" ]]; then
+    build_cmd+=(--prepare)
   fi
   run_cmd "${build_cmd[@]}"
 fi

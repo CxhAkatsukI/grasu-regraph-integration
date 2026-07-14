@@ -2950,3 +2950,91 @@ f438681ff6549272a68919092fd6827b9f41d9a9ed6798717f148e81c8c8213a  results/pure_p
 9f53bb119f3e979699e19aa5f373a612bcd0608fe65224517c63a91899929823  results/pure_pipeline_evidence_bundle_refresh_20260715_0204_external_spine_routing_after_59c8f56/target_matrix.tsv
 aafc3f4d6c260387d2a12db56ff7bde2c78e627531e92fbc90f2e06b0e8f40b8  results/pure_pipeline_evidence_bundle_refresh_20260715_0204_external_spine_routing_after_59c8f56/bundle_manifest.json
 ```
+
+## 2026-07-15 Prepare-Aware Target Flow
+
+The reproducible target flow now accepts:
+
+```bash
+--prepare
+```
+
+When enabled, the wrapper regenerates the pure-pipeline compile/link/config
+scripts before the readiness preflight, and also forwards `--prepare` into the
+build wrapper so the build evidence records that the generated scripts were
+refreshed. This keeps the next long `hw_emu` launch tied to the current source
+tree instead of relying on old generated files in `.tmp_build`.
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+
+bash -n \
+  scripts/run_pure_pipeline_target_flow.sh \
+  scripts/check_pure_pipeline_build_readiness.sh
+
+python3 -m py_compile scripts/audit_pure_pipeline_status.py
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label prepare_build_cmd_dryrun_after_9e1f28c \
+  --prepare \
+  --dry-run \
+  --skip-finalize \
+  --skip-audit \
+  --no-readiness \
+  --monitor-tail 5
+
+./scripts/check_pure_pipeline_build_readiness.sh \
+  --target hw_emu \
+  --label prepare_recommend_after_9e1f28c \
+  --allow-active-builders
+
+./scripts/audit_pure_pipeline_status.py \
+  --label prepare_command_check_after_9e1f28c \
+  --out-dir results/pure_pipeline_requirement_audit_prepare_command_check_after_9e1f28c
+```
+
+Dry-run output showed the expected command order without launching Vitis:
+
+```text
+prepare_pure_hw_pipeline_build.sh --target hw_emu --build-root ...
+run_pure_pipeline_build.sh --target hw_emu --label prepare_build_cmd_dryrun_after_9e1f28c --wait-idle 7200 --idle-poll 60 --idle-settle 0 --prepare
+monitor_pure_pipeline_build.sh --target hw_emu ...
+```
+
+The dry-run flow environment records:
+
+```text
+prepare=1
+skip_build=0
+dry_run=1
+```
+
+The readiness and audit next commands now recommend:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_9e1f28c \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Evidence hashes:
+
+```text
+ba70e2150878d16f558bfe326720d1e2b8302f0ef0bd610e2765a585dbc5125b  scripts/run_pure_pipeline_target_flow.sh
+8079bbcc6d1ea78133886def8dabe5233aee1884286e410293e603b53acf732b  scripts/check_pure_pipeline_build_readiness.sh
+3ee6f030e87740e52721296db1a4ca7afa2f34b9f3b494e005f4742896b104ca  scripts/audit_pure_pipeline_status.py
+d7d0485257accd5ef394b327e5468ac62310bb0d918fadae0ba70d221971629a  README.md
+718daa54131e3f94598e857cfdeb893eb91f235f430644f4314598769f37dd7d  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prepare_build_cmd_dryrun_after_9e1f28c.env
+134a28fde2cd79ea56ac4372820139f8c0cef5bff45f10678aaf47a36c3a9a12  results/pure_pipeline_requirement_audit_prepare_command_check_after_9e1f28c/audit.json
+ce460ce9c2fff18e024f3131e630a342734a5d80d5be532d3dea0f879b549b73  results/pure_pipeline_requirement_audit_prepare_command_check_after_9e1f28c/audit.md
+```
