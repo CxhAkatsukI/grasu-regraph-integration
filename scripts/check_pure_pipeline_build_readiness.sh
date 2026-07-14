@@ -106,6 +106,22 @@ count_lines() {
   fi
 }
 
+process_breakdown() {
+  local text="$1"
+  if [[ -z "${text}" ]]; then
+    printf 'total=0'
+    return
+  fi
+  local total
+  total="$(printf '%s\n' "${text}" | wc -l | awk '{print $1}')"
+  printf 'total=%s' "${total}"
+  printf '%s\n' "${text}" |
+    awk '{ print $7 }' |
+    sort |
+    uniq -c |
+    awk '{ printf " %s=%s", $2, $1 }'
+}
+
 emit_process_block() {
   local title="$1"
   local rows="$2"
@@ -239,6 +255,8 @@ fi
 
 related_count="$(count_lines "${related_builders}")"
 external_count="$(count_lines "${external_builders}")"
+related_breakdown="$(process_breakdown "${related_builders}")"
+external_breakdown="$(process_breakdown "${external_builders}")"
 builder_status="PASS"
 if (( related_count > 0 || external_count > 0 )); then
   builder_status="FAIL"
@@ -288,6 +306,7 @@ report="$(
     printf 'vitis_settings\t%s\t%s\n' "${vitis_status}" "${VITIS_SETTINGS}"
     printf 'out_xclbin\t%s\t%s sha256=%s size=%s\n' "${xclbin_status}" "${OUT_XCLBIN}" "$(sha_or_missing "${OUT_XCLBIN}")" "$(size_or_missing "${OUT_XCLBIN}")"
     printf 'active_builders\t%s\trelated=%s external=%s\n' "${builder_status}" "${related_count}" "${external_count}"
+    printf 'active_builder_breakdown\t%s\trelated=\"%s\" external=\"%s\"\n' "${builder_status}" "${related_breakdown}" "${external_breakdown}"
     printf '\n'
 
     printf 'resources\n'

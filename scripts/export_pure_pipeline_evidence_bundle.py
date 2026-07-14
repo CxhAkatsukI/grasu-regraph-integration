@@ -110,6 +110,10 @@ def parse_readiness_report(path: Path | None) -> dict[str, str]:
             data["active_builders_status"] = parts[1]
             for key, value in re.findall(r"([A-Za-z0-9_]+)=([^ ]+)", parts[2]):
                 data[f"active_builders_{key}"] = value
+        if len(parts) >= 3 and parts[0] == "active_builder_breakdown":
+            data["active_builder_breakdown_status"] = parts[1]
+            for key, value in re.findall(r'([A-Za-z0-9_]+)="([^"]*)"', parts[2]):
+                data[f"active_builder_breakdown_{key}"] = value
         if len(parts) >= 5 and parts[0] in ("build_root_fs", "tmp_fs"):
             prefix = parts[0]
             data[f"{prefix}_status"] = parts[1]
@@ -161,6 +165,8 @@ def target_rows(repo: Path, audit: dict[str, Any]) -> list[dict[str, str]]:
             "readiness_warning_count": readiness_data.get("warning_count", ""),
             "readiness_related_builders": readiness_data.get("active_builders_related", ""),
             "readiness_external_builders": readiness_data.get("active_builders_external", ""),
+            "readiness_related_builder_breakdown": readiness_data.get("active_builder_breakdown_related", ""),
+            "readiness_external_builder_breakdown": readiness_data.get("active_builder_breakdown_external", ""),
             "readiness_build_free_gb": readiness_data.get("build_root_fs_free_gb", ""),
             "readiness_tmp_free_gb": readiness_data.get("tmp_fs_free_gb", ""),
         })
@@ -244,6 +250,7 @@ def write_summary_md(
         "readiness_ready",
         "readiness_blocking_count",
         "readiness_external_builders",
+        "readiness_external_builder_breakdown",
         "readiness_report",
     ]
     lines = [
@@ -330,6 +337,8 @@ def main() -> int:
         "readiness_warning_count",
         "readiness_related_builders",
         "readiness_external_builders",
+        "readiness_related_builder_breakdown",
+        "readiness_external_builder_breakdown",
         "readiness_build_free_gb",
         "readiness_tmp_free_gb",
     ])
