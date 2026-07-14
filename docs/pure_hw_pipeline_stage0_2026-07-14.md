@@ -202,12 +202,117 @@ Key implementation fixes made during this milestone:
   launching HBM/Apply first can leave the adapter and lksg CUs queued behind
   blocking stream consumers.
 
+## Reproducible Smoke Runner
+
+As of 2026-07-14 17:21 Asia/Shanghai, the smoke workload manifest is tracked
+under:
+
+```text
+workloads/sssp_benchmark_smoke/manifest.tsv
+```
+
+It contains the four first-stage correctness families:
+
+```text
+tiny_chain_v16        chain            V=16 static=15 updates=0  final=15 source=0 supersteps=16
+tiny_star_v16_u12     hot-source       V=16 static=16 updates=12 final=28 source=0 supersteps=2
+tiny_spread_v16_u8    spread           V=16 static=16 updates=8  final=24 source=0 supersteps=16
+tiny_hotdst_v64_u32   hot-destination  V=64 static=63 updates=32 final=95 source=0 supersteps=16
+```
+
+Regenerate the same manifest from source if needed:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/generate_sssp_benchmark_workloads.py \
+  --preset smoke \
+  --out-root workloads/sssp_benchmark_smoke
+```
+
+The smoke runner records the host/xclbin hashes, environment, per-case logs,
+result line, and timing line:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_smoke.sh \
+  --target sw_emu \
+  --out-dir results/pure_pipeline_sw_emu_smoke_stage35 \
+  --timeout 300
+```
+
+Evidence from this run:
+
+```text
+summary: results/pure_pipeline_sw_emu_smoke_stage35/summary.tsv
+run env: results/pure_pipeline_sw_emu_smoke_stage35/run.env
+
+10ffeca10cba00144378a1fb0c1632053ad7f45eeea80713c4973dc44b05a668  summary.tsv
+e30ffbe2b791c21bc613cb51d9396e22eff14540e0d9938acdb43520665ee4c7  run.env
+
+host_sha256=ded281e1610545859ca5fcfdc4acfeecece6a1bad2805ba36ec98b0050814b06
+xclbin_sha256=705fa800d62d04aef4814b275e94b76749ba7120b46aaa0036066e555d65fcdd
+git_head=12b4fe7090b46f7867453bf174adeff1437ae9b4
+```
+
+Result summary:
+
+```text
+tiny_chain_v16       PASS mismatches=0 vertices=16 final_edges=15  supersteps=16 event_e2e_ms=5934.524338
+tiny_star_v16_u12    PASS mismatches=0 vertices=16 final_edges=28  supersteps=2  event_e2e_ms=726.008724
+tiny_spread_v16_u8   PASS mismatches=0 vertices=16 final_edges=24  supersteps=16 event_e2e_ms=5894.365224
+tiny_hotdst_v64_u32  PASS mismatches=0 vertices=64 final_edges=95  supersteps=16 event_e2e_ms=5919.880981
+```
+
+After `hw_emu` or `hw` xclbins exist, run the same smoke cases with:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/build_pure_pipeline_host.sh \
+  --out-dir .tmp_build/pure_pipeline_host_stage0
+
+./scripts/run_pure_pipeline_smoke.sh \
+  --target hw_emu \
+  --out-dir results/pure_pipeline_hw_emu_smoke_<label> \
+  --timeout 1800
+
+./scripts/run_pure_pipeline_smoke.sh \
+  --target hw \
+  --out-dir results/pure_pipeline_hw_smoke_<label> \
+  --timeout 600
+```
+
+## HW_EMU And HW Build Commands
+
+The command scripts for the next two builds are generated and ready to hand to
+the long-running build process:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+
+.tmp_build/pure_pipeline_hw_emu_stage0/compile_commands.sh \
+  2>&1 | tee .tmp_build/pure_pipeline_hw_emu_stage0/compile_commands_after_12b4fe7.log
+.tmp_build/pure_pipeline_hw_emu_stage0/link_command.sh \
+  2>&1 | tee .tmp_build/pure_pipeline_hw_emu_stage0/link_command_after_12b4fe7.log
+
+.tmp_build/pure_pipeline_hw_stage0/compile_commands.sh \
+  2>&1 | tee .tmp_build/pure_pipeline_hw_stage0/compile_commands_after_12b4fe7.log
+.tmp_build/pure_pipeline_hw_stage0/link_command.sh \
+  2>&1 | tee .tmp_build/pure_pipeline_hw_stage0/link_command_after_12b4fe7.log
+```
+
+Expected xclbin paths after successful link:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin
+.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin
+```
+
 ## Not Yet True
 
 The current baseline still has these gaps:
 
-- `hw_emu` and `hw` pure-pipeline xclbins have not been built from this script
-  yet.
+- `hw_emu` and `hw` command scripts are generated, but the pure-pipeline
+  xclbins have not been produced or validated yet.
 - The timing above is `sw_emu` timing and is useful for control-flow evidence,
   not performance claims.
 - Host-conversion and zero-cost handoff baselines still need to be rerun next to

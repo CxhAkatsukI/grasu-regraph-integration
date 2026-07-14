@@ -27,6 +27,7 @@ PRESETS: dict[str, list[CaseSpec]] = {
     "smoke": [
         CaseSpec("tiny_chain_v16", "chain", 16, 0, 16),
         CaseSpec("tiny_star_v16_u12", "hot-source", 16, 12, 2),
+        CaseSpec("tiny_spread_v16_u8", "spread", 16, 8, 16),
         CaseSpec("tiny_hotdst_v64_u32", "hot-dest", 64, 32, 16),
     ],
     "review": [
