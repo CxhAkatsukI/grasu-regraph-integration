@@ -201,6 +201,7 @@ def target_rows(repo: Path, audit: dict[str, Any]) -> list[dict[str, str]]:
     for target, state in sorted(audit.get("targets", {}).items()):
         smoke = state.get("smoke_summary", {})
         xclbin = state.get("xclbin", {})
+        xclbin_contract = state.get("xclbin_contract", {})
         readiness = artifact_by_name(audit, f"latest_{target}_readiness")
         if readiness is None and target == "hw_emu":
             readiness = artifact_by_name(audit, "latest_hw_emu_readiness")
@@ -209,6 +210,9 @@ def target_rows(repo: Path, audit: dict[str, Any]) -> list[dict[str, str]]:
             "target": target,
             "xclbin_exists": "yes" if xclbin.get("exists") else "no",
             "xclbin_sha256": xclbin.get("sha256") or "",
+            "xclbin_contract_pass": "yes" if xclbin_contract.get("all_checks_pass") else "no",
+            "xclbin_contract": str(xclbin_contract.get("path", "MISSING")),
+            "xclbin_contract_sha256": xclbin_contract.get("sha256") or "",
             "smoke_pass": "yes" if smoke.get("all_expected_pass") else "no",
             "smoke_summary": str(smoke.get("path", "MISSING")),
             "readiness_report": str(readiness.get("path", "MISSING")) if readiness else "MISSING",
@@ -359,6 +363,7 @@ def write_summary_md(
     target_columns = [
         "target",
         "xclbin_exists",
+        "xclbin_contract_pass",
         "smoke_pass",
         "readiness_ready",
         "readiness_blocking_count",
@@ -461,6 +466,9 @@ def main() -> int:
         "target",
         "xclbin_exists",
         "xclbin_sha256",
+        "xclbin_contract_pass",
+        "xclbin_contract",
+        "xclbin_contract_sha256",
         "smoke_pass",
         "smoke_summary",
         "readiness_report",

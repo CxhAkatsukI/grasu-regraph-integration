@@ -91,6 +91,19 @@ def newest_glob(repo: Path, pattern: str) -> Path | None:
     return newest(list(repo.glob(pattern)))
 
 
+def newest_xclbin_contract(repo: Path, target: str) -> Path | None:
+    candidates = []
+    prefix = f"xclbin_contract_{target}_"
+    for path in repo.glob(".tmp_build/pure_pipeline_xclbin_contracts/xclbin_contract_*.tsv"):
+        name = path.name
+        if target == "hw":
+            if name.startswith(prefix) and not name.startswith("xclbin_contract_hw_emu_"):
+                candidates.append(path)
+        elif name.startswith(prefix):
+            candidates.append(path)
+    return newest(candidates)
+
+
 def newest_readiness(repo: Path, target: str) -> Path | None:
     candidates = list(repo.glob(f".tmp_build/pure_pipeline_{target}_stage0/run_logs/readiness_*.txt"))
     strict_candidates = []
@@ -157,6 +170,19 @@ def pure_summary(repo: Path, path: Path | None) -> dict[str, Any]:
         "all_expected_pass": bool(rows) and not missing_cases and not failed_cases and not mismatch_cases,
         "has_required_timing_fields": bool(rows) and not missing_cases and not missing_timing,
         "max_vertices_seen": max_vertices,
+    }
+
+
+def xclbin_contract_summary(repo: Path, path: Path | None) -> dict[str, Any]:
+    rows = read_tsv(path) if path is not None else []
+    failed = [row.get("check", "") for row in rows if row.get("ok") != "yes"]
+    return {
+        "path": display_path(repo, path),
+        "exists": path is not None and path.exists(),
+        "sha256": sha256(path) if path is not None else None,
+        "row_count": len(rows),
+        "failed_checks": failed,
+        "all_checks_pass": bool(rows) and not failed,
     }
 
 
@@ -624,10 +650,13 @@ def target_state(repo: Path, target: str) -> dict[str, Any]:
     xclbin = build_root / "build" / f"grasu_regraph_pure_pipeline.{target}.xclbin"
     summary_path = newest_complete_pure_summary(repo, target)
     run_env_path = summary_path.parent / "run.env" if summary_path is not None else None
+    xclbin_contract_path = newest_xclbin_contract(repo, target)
     return {
         "target": target,
         "build_root": display_path(repo, build_root),
         "xclbin": artifact(repo, f"pure_{target}_xclbin", xclbin),
+        "xclbin_contract": xclbin_contract_summary(repo, xclbin_contract_path),
+        "xclbin_contract_artifact": artifact(repo, f"pure_{target}_xclbin_contract", xclbin_contract_path),
         "manifest": artifact(repo, f"pure_{target}_manifest", build_root / "manifest.env"),
         "compile_commands": artifact(repo, f"pure_{target}_compile_commands", build_root / "compile_commands.sh"),
         "link_command": artifact(repo, f"pure_{target}_link_command", build_root / "link_command.sh"),
@@ -720,6 +749,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             [
                 proofs["single_context_program"]["path"],
                 targets["sw_emu"]["xclbin"]["path"],
+                targets["sw_emu"]["xclbin_contract"]["path"],
                 targets["sw_emu"]["smoke_summary"]["path"],
             ],
             [] if hw_valid else ["pure hw_emu/hw xclbins and smoke evidence are still missing"],
@@ -755,6 +785,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
                 "8 lanes per burst in adapter lane loop",
                 "adapter edge_burst_out connects to lksg_stream edge_burst_in",
                 proofs["stream_burst_8_edge_contract"]["contract"],
+                targets["sw_emu"]["xclbin_contract"]["path"],
             ],
             [] if hw_valid else ["needs linked hw_emu/hw xclbin evidence for the stream connection"],
         ),
@@ -854,6 +885,9 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         artifact(repo, "latest_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_source_contracts/source_contracts_*.tsv")),
         artifact(repo, "latest_hw_emu_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_*.tsv")),
         artifact(repo, "latest_hw_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_hw_stage0/run_logs/source_contracts_*.tsv")),
+        artifact(repo, "latest_sw_emu_xclbin_contract", newest_xclbin_contract(repo, "sw_emu")),
+        artifact(repo, "latest_hw_emu_xclbin_contract", newest_xclbin_contract(repo, "hw_emu")),
+        artifact(repo, "latest_hw_xclbin_contract", newest_xclbin_contract(repo, "hw")),
         artifact(repo, "latest_hw_emu_build_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_*_evidence.tsv")),
         artifact(repo, "latest_hw_emu_finalize_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_*_evidence.tsv")),
         artifact(repo, "latest_hw_emu_target_flow_env", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_*.env")),
@@ -897,6 +931,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         "artifacts": artifacts,
         "next_commands": [
             "./scripts/check_pure_pipeline_source_contracts.py --label after_" + git_short,
+            "./scripts/check_pure_pipeline_xclbin_contract.py --target sw_emu --label after_" + git_short,
             "./scripts/check_smoke_input_identity.py --label after_" + git_short,
             "./scripts/refresh_pure_pipeline_readiness_bundle.sh --label refresh_after_" + git_short,
             "./scripts/run_pure_pipeline_prepare_check.sh --preset boundary --out-dir results/pure_pipeline_prepare_boundary_after_" + git_short,
