@@ -31,6 +31,7 @@ DEFAULT_REQUIRED_PROOFS = (
     "target_build_scripts_cover_pure_pipeline",
     "host_runtime_matches_generated_config",
     "target_flow_exports_evidence_bundle",
+    "launch_packet_records_acceptance_gates",
 )
 
 

@@ -5666,3 +5666,76 @@ e56ee7c8735a81058d4854034e5c0e4967f2c8632cece952e893b47df2d0f967  .tmp_build/pur
 f4a951160a9759ea968089704fff35dc4b84b52ea4456bab2f78b7774000dba7  results/pure_pipeline_evidence_bundle_target_flow_bundle_proof_check/requirement_matrix.tsv
 9560d0e929d8e692b97e482599d6bd01183bb697dab5f19b45494753d0bee6da  results/pure_pipeline_evidence_bundle_target_flow_bundle_proof_check/summary.md
 ```
+
+## Launch Packet Acceptance Gates
+
+As of 2026-07-15 04:38 Asia/Shanghai, the pure-pipeline launch packet also
+emits a machine-readable acceptance checklist:
+
+```text
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_gates_recheck/acceptance_gates.tsv
+```
+
+This file does not start Vitis. It records what a later `hw_emu` or `hw`
+target-flow run must leave behind before we treat that target as accepted:
+source fingerprints, source contracts, readiness, compile/link logs, target
+xclbin, xclbin metadata contract, gate smoke, full four-case smoke,
+same-input comparison, requirement audit, and compact evidence bundle.
+
+Changed files:
+
+```text
+scripts/create_pure_pipeline_launch_packet.sh
+scripts/audit_pure_pipeline_status.py
+scripts/check_pure_pipeline_source_contracts.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/create_pure_pipeline_launch_packet.sh
+
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/check_pure_pipeline_source_contracts.py
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label acceptance_gates_recheck \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_acceptance_gates_recheck.tsv
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label acceptance_gates_recheck \
+  --label launch_packet_hw_emu_acceptance_gates_recheck \
+  --allow-active-builders
+```
+
+Result:
+
+```text
+source_contracts_required_count=15
+source_contracts_failed_count=0
+proof=launch_packet_records_acceptance_gates ok=yes
+launch_packet_acceptance_gates=.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_gates_recheck/acceptance_gates.tsv
+launch_packet_readiness=ready=yes allow_active_builders=1 warning_count=2
+launch_packet_audit_status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+```
+
+The readiness packet intentionally used `--allow-active-builders` so it could be
+generated while the unrelated Spine `hw` link was still running. The actual
+target-flow launch should still use the idle-waiting command generated in the
+packet.
+
+Evidence hashes:
+
+```text
+ee15511b2eec4a45c80a8eee892a41fed54e29b820b3ee8bfa50387e561a6275  scripts/create_pure_pipeline_launch_packet.sh
+e31f3609ccd81bac7c1ca70a896931e264319cc6dff8751cfcf45106033ab79c  scripts/audit_pure_pipeline_status.py
+d42746b9045bbd02136b4a40501a1f1ace776142d0eb0c77e84786e6154e3db0  scripts/check_pure_pipeline_source_contracts.py
+a7faa029abd07f7db783fd23f18e3caf127eaa2c4145f85c99102b6a2366990d  .tmp_build/pure_pipeline_source_contracts/source_contracts_acceptance_gates_recheck.tsv
+3fa1d9d723865d25bf386967fbd83e2bd712f4753032bc248b328b7adba233e9  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_gates_recheck/acceptance_gates.tsv
+e5e8df3b6bfe1dc19012649c7e6cd66461e43727755475c0003ca9049be209d0  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_gates_recheck/artifact_hashes.tsv
+576387b85636bd40ebd52089f8a7e38caff40b4175095ee4da2cf86cff525d19  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_gates_recheck/README.md
+01176dc5e173255a41638b30bdb434443398e397ce889bef3cef05fd54c8480d  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_acceptance_gates_recheck/evidence_bundle/source_proof_matrix.tsv
+```

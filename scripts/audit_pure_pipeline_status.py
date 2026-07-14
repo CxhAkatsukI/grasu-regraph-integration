@@ -673,6 +673,32 @@ def target_flow_exports_evidence_bundle(repo: Path) -> dict[str, Any]:
     }
 
 
+def launch_packet_records_acceptance_gates(repo: Path) -> dict[str, Any]:
+    launch_packet = repo / "scripts/create_pure_pipeline_launch_packet.sh"
+    return {
+        "ok": source_contains(launch_packet, [
+            'ACCEPTANCE_TSV="${OUT_DIR}/acceptance_gates.tsv"',
+            'printf \'acceptance_gates=%s\\n\' "${ACCEPTANCE_TSV}"',
+            "gate\\trequired\\tevidence_path\\tpass_condition",
+            "source_fingerprints\\tyes",
+            "source_contracts\\tyes",
+            "readiness\\tyes",
+            "target_xclbin\\tyes",
+            "xclbin_contract\\tyes",
+            "gate_smoke\\tyes",
+            "full_smoke\\tyes",
+            "same_input_compare\\tyes",
+            "requirement_audit\\tyes",
+            "evidence_bundle\\tyes",
+            "A successful target run must satisfy every row marked `required=yes`.",
+            '"${ACCEPTANCE_TSV}"',
+            '"${BUNDLE_FLOW_DIR}"',
+        ]),
+        "path": display_path(repo, launch_packet),
+        "contract": "launch packet emits acceptance_gates.tsv that names the required target xclbin, smoke, comparison, audit, and evidence-bundle pass conditions",
+    }
+
+
 def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     host = repo / "tools/pure_pipeline_host.cpp"
     adapter = repo / "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
@@ -863,6 +889,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
         "target_build_scripts_cover_pure_pipeline": target_build_scripts_cover_pure_pipeline(repo),
         "host_runtime_matches_generated_config": host_runtime_matches_generated_config(repo),
         "target_flow_exports_evidence_bundle": target_flow_exports_evidence_bundle(repo),
+        "launch_packet_records_acceptance_gates": launch_packet_records_acceptance_gates(repo),
     }
 
 

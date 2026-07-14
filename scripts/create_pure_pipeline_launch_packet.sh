@@ -183,10 +183,17 @@ COMMANDS_SH="${OUT_DIR}/launch_command.sh"
 PACKET_ENV="${OUT_DIR}/launch_packet.env"
 SUMMARY_MD="${OUT_DIR}/README.md"
 HASHES_TSV="${OUT_DIR}/artifact_hashes.tsv"
+ACCEPTANCE_TSV="${OUT_DIR}/acceptance_gates.tsv"
 
 OUT_XCLBIN="${BUILD_ROOT}/build/grasu_regraph_pure_pipeline.${TARGET}.xclbin"
 HOST_BIN="${GRI_ROOT}/.tmp_build/pure_pipeline_host_stage0/pure_pipeline_host"
 SW_XCLBIN="${GRI_ROOT}/.tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin"
+XCLBIN_CONTRACT_OUT="${BUILD_ROOT}/run_logs/xclbin_contract_${TARGET}_${FLOW_LABEL}.tsv"
+GATE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_smoke_gate_${FLOW_LABEL}"
+SMOKE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_smoke_${FLOW_LABEL}"
+COMPARE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_compare_${FLOW_LABEL}"
+AUDIT_FLOW_DIR="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${FLOW_LABEL}"
+BUNDLE_FLOW_DIR="${GRI_ROOT}/results/pure_pipeline_evidence_bundle_${FLOW_LABEL}"
 
 if [[ "${PREPARE}" == "1" ]]; then
   run_capture_status "${SCRIPT_DIR}/prepare_pure_hw_pipeline_build.sh" \
@@ -301,6 +308,7 @@ chmod +x "${COMMANDS_SH}"
   printf 'audit_status=%s\n' "${audit_status}"
   printf 'bundle_dir=%s\n' "${BUNDLE_DIR}"
   printf 'bundle_status=%s\n' "${bundle_status}"
+  printf 'acceptance_gates=%s\n' "${ACCEPTANCE_TSV}"
   printf 'launch_command=%s\n' "${COMMANDS_SH}"
   printf 'integration_branch=%s\n' "$(git_value "${GRI_ROOT}" branch)"
   printf 'integration_head=%s\n' "$(git_value "${GRI_ROOT}" head)"
@@ -310,6 +318,27 @@ chmod +x "${COMMANDS_SH}"
   printf 'regraph_head=%s\n' "$(git_value "${REGRAPH_ROOT}" head)"
   printf 'regraph_tracked_dirty=%s\n' "$(git_value "${REGRAPH_ROOT}" tracked_dirty)"
 } > "${PACKET_ENV}"
+
+{
+  printf 'gate\trequired\tevidence_path\tpass_condition\n'
+  printf 'source_fingerprints\tyes\t%s\tsource_fingerprint_status=0 and source tree hashes are recorded before launch\n' "${SOURCE_FINGERPRINTS_OUT}"
+  printf 'source_contracts\tyes\t%s\tsource_contract_status=0 with all required pure-pipeline proofs ok=yes\n' "${SOURCE_CONTRACT_OUT}"
+  printf 'readiness\tyes\t%s\treadiness_status=0 before launch; external active builders require --allow-active-builders or idle wait in target flow\n' "${READINESS_OUT}"
+  printf 'launch_command\tyes\t%s\texecute this command file from the recorded integration commit without editing generated target arguments\n' "${COMMANDS_SH}"
+  printf 'compile_log\tyes\t%s\tlog exists after target flow and has nonzero size\n' "${BUILD_ROOT}/run_logs/compile_${FLOW_LABEL}.log"
+  printf 'link_log\tyes\t%s\tlog exists after target flow and has nonzero size\n' "${BUILD_ROOT}/run_logs/link_${FLOW_LABEL}.log"
+  printf 'target_xclbin\tyes\t%s\txclbin exists after link, has nonzero size, and its sha256 is recorded in artifact_hashes.tsv or finalize evidence\n' "${OUT_XCLBIN}"
+  printf 'xclbin_contract\tyes\t%s\tall xclbin metadata checks pass for target=%s\n' "${XCLBIN_CONTRACT_OUT}" "${TARGET}"
+  if [[ -n "${GATE_CASE}" ]]; then
+    printf 'gate_smoke\tyes\t%s\tsummary.tsv contains %s with status=PASS and mismatches=0 before running the full smoke suite\n' "${GATE_OUT}/summary.tsv" "${GATE_CASE}"
+  else
+    printf 'gate_smoke\tno\t%s\tgate disabled by launch packet options\n' "${GATE_OUT}/summary.tsv"
+  fi
+  printf 'full_smoke\tyes\t%s\tsummary.tsv contains chain, hot-source, spread, and hot-destination cases with status=PASS, mismatches=0, and required timing fields\n' "${SMOKE_OUT}/summary.tsv"
+  printf 'same_input_compare\tyes\t%s\tcomparison.tsv exists and aligns pure pipeline, host zero-cost baseline, and Spine on the same smoke inputs\n' "${COMPARE_OUT}/comparison.tsv"
+  printf 'requirement_audit\tyes\t%s\taudit.json exists after target flow and records requirement status for target=%s\n' "${AUDIT_FLOW_DIR}/audit.json" "${TARGET}"
+  printf 'evidence_bundle\tyes\t%s\tbundle exists with requirement_matrix.tsv, target_matrix.tsv, case_target_matrix.tsv, input_identity_matrix.tsv, source_proof_matrix.tsv, and artifact_matrix.tsv\n' "${BUNDLE_FLOW_DIR}"
+} > "${ACCEPTANCE_TSV}"
 
 {
   printf 'role\tpath\tsha256\tsize_bytes\n'
@@ -335,6 +364,7 @@ chmod +x "${COMMANDS_SH}"
     "${BUNDLE_DIR}/input_identity_matrix.tsv" \
     "${BUNDLE_DIR}/source_proof_matrix.tsv" \
     "${BUNDLE_DIR}/artifact_matrix.tsv" \
+    "${ACCEPTANCE_TSV}" \
     "${COMMANDS_SH}" \
     "${PACKET_ENV}"; do
     printf 'artifact\t%s\t%s\t%s\n' "${artifact}" "$(sha_or_missing "${artifact}")" "$(size_or_missing "${artifact}")"
@@ -371,8 +401,13 @@ launch_line="$(printf '%q ' "${launch_cmd[@]}")"
   printf '%s\n' "${BUNDLE_DIR}/target_matrix.tsv"
   printf '%s\n' "${BUNDLE_DIR}/case_target_matrix.tsv"
   printf '%s\n' "${BUNDLE_DIR}/input_identity_matrix.tsv"
+  printf '%s\n' "${ACCEPTANCE_TSV}"
   printf '%s\n' "${HASHES_TSV}"
   printf '```\n\n'
+  printf '## Acceptance Gates\n\n'
+  printf 'The packet writes a machine-readable acceptance checklist:\n\n'
+  printf '```text\n%s\n```\n\n' "${ACCEPTANCE_TSV}"
+  printf 'A successful target run must satisfy every row marked `required=yes`.\n\n'
   printf '## Current XCLBIN State\n\n'
   printf '```text\n'
   printf 'sw_emu %s %s bytes %s\n' "$(sha_or_missing "${SW_XCLBIN}")" "$(size_or_missing "${SW_XCLBIN}")" "${SW_XCLBIN}"
