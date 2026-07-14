@@ -11,6 +11,8 @@ MIN_BUILD_FREE_GB=100
 MIN_TMP_FREE_GB=1
 AUDIT_DIR=""
 BUNDLE_DIR=""
+SOURCE_CONTRACT_CHECK=1
+SOURCE_CONTRACT_OUT=""
 
 usage() {
   cat <<USAGE
@@ -28,6 +30,8 @@ Options:
   --min-tmp-free-gb N         Required free GB on /tmp. Default: ${MIN_TMP_FREE_GB}
   --audit-dir PATH            Audit output dir. Default: results/pure_pipeline_requirement_audit_<label>
   --bundle-dir PATH           Bundle output dir. Default: results/pure_pipeline_evidence_bundle_<label>
+  --source-contracts          Check source-level PMA/stream/barrier contracts before readiness. Default.
+  --no-source-contracts       Skip source-level contract check.
   -h, --help                  Show this help.
 USAGE
 }
@@ -69,6 +73,23 @@ run_readiness() {
   return "${status}"
 }
 
+run_source_contracts() {
+  local cmd=(
+    "${SCRIPT_DIR}/check_pure_pipeline_source_contracts.py"
+    --label "${LABEL}"
+    --out-file "${SOURCE_CONTRACT_OUT}"
+  )
+  print_cmd "${cmd[@]}"
+  set +e
+  "${cmd[@]}"
+  local status=$?
+  set -e
+  if (( status != 0 )); then
+    echo "WARN source-contracts exit=${status}" >&2
+  fi
+  return "${status}"
+}
+
 user_targets=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -86,6 +107,8 @@ while [[ $# -gt 0 ]]; do
     --min-tmp-free-gb) MIN_TMP_FREE_GB="$2"; shift 2 ;;
     --audit-dir) AUDIT_DIR="$(abs_path "$2")"; shift 2 ;;
     --bundle-dir) BUNDLE_DIR="$(abs_path "$2")"; shift 2 ;;
+    --source-contracts) SOURCE_CONTRACT_CHECK=1; shift ;;
+    --no-source-contracts) SOURCE_CONTRACT_CHECK=0; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -121,8 +144,19 @@ fi
 if [[ -z "${BUNDLE_DIR}" ]]; then
   BUNDLE_DIR="${GRI_ROOT}/results/pure_pipeline_evidence_bundle_${LABEL}"
 fi
+SOURCE_CONTRACT_OUT="${GRI_ROOT}/.tmp_build/pure_pipeline_source_contracts/source_contracts_${LABEL}.tsv"
 
 overall_status=0
+if [[ "${SOURCE_CONTRACT_CHECK}" == "1" ]]; then
+  if run_source_contracts; then
+    :
+  else
+    status=$?
+    if (( overall_status == 0 )); then
+      overall_status="${status}"
+    fi
+  fi
+fi
 for target in "${TARGETS[@]}"; do
   if run_readiness "${target}"; then
     :
@@ -151,6 +185,7 @@ print_cmd "${bundle_cmd[@]}"
 "${bundle_cmd[@]}"
 
 echo "DONE label=${LABEL}"
+echo "DONE source_contract_out=${SOURCE_CONTRACT_OUT}"
 echo "DONE audit_dir=${AUDIT_DIR}"
 echo "DONE bundle_dir=${BUNDLE_DIR}"
 exit "${overall_status}"

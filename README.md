@@ -188,7 +188,8 @@ Collect the current start-state evidence:
 ```
 
 Refresh current `hw_emu`/`hw` readiness and export a report bundle without
-starting Vitis:
+starting Vitis. The refresh also records the source-level PMA handoff,
+completion-token, AXI stream, timing, and boundary-preparation contract check:
 
 ```bash
 ./scripts/refresh_pure_pipeline_readiness_bundle.sh \

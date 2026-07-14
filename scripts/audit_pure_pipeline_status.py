@@ -601,6 +601,9 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         artifact(repo, "zero_vs_spine_comparison_tsv", zero_vs_spine_path),
         artifact(repo, "boundary_prepare_summary", boundary_prepare_path),
         artifact(repo, "boundary_prepare_run_env", boundary_prepare_env),
+        artifact(repo, "latest_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_source_contracts/source_contracts_*.tsv")),
+        artifact(repo, "latest_hw_emu_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_contracts_*.tsv")),
+        artifact(repo, "latest_hw_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_hw_stage0/run_logs/source_contracts_*.tsv")),
         artifact(repo, "latest_hw_emu_build_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_*_evidence.tsv")),
         artifact(repo, "latest_hw_emu_finalize_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/finalize_*_evidence.tsv")),
         artifact(repo, "latest_hw_emu_target_flow_env", newest_glob(repo, ".tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_*.env")),
@@ -642,6 +645,8 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         "requirements": requirements,
         "artifacts": artifacts,
         "next_commands": [
+            "./scripts/check_pure_pipeline_source_contracts.py --label after_" + git_short,
+            "./scripts/refresh_pure_pipeline_readiness_bundle.sh --label refresh_after_" + git_short,
             "./scripts/run_pure_pipeline_prepare_check.sh --preset boundary --out-dir results/pure_pipeline_prepare_boundary_after_" + git_short,
             "./scripts/check_pure_pipeline_build_readiness.sh --target hw_emu --label after_" + git_short,
             "./scripts/run_pure_pipeline_target_flow.sh --target hw_emu --label after_" + git_short + " --prepare --wait-idle 7200 --idle-poll 60 --idle-settle 120 --clean-build-artifacts --gate-case tiny_star_v16_u12 --gate-timeout 900",
