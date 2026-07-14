@@ -21,7 +21,7 @@ for a workload manifest. It is intended for large boundary cases that are too
 slow for sw_emu but must still have reproducible capacity evidence.
 
 Options:
-  --preset smoke|review|boundary|capacity
+  --preset smoke|review|boundary|pure_stage0|capacity
                               Workload preset. Default: ${PRESET}
   --workload-root PATH        Workload root. Default: workloads/sssp_benchmark_<preset>
   --host PATH                 pure_pipeline_host binary. Default: ${HOST}
@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "${PRESET}" in
-  smoke|review|boundary|capacity) ;;
+  smoke|review|boundary|pure_stage0|capacity) ;;
   *) echo "Invalid --preset: ${PRESET}" >&2; exit 2 ;;
 esac
 
