@@ -251,6 +251,36 @@ def spine_summary(repo: Path, path: Path) -> dict[str, Any]:
     }
 
 
+def input_identity_summary(repo: Path, path: Path | None) -> dict[str, Any]:
+    rows = read_tsv(path) if path is not None else []
+    by_case = {row.get("case", ""): row for row in rows}
+    missing_cases = [case for case in EXPECTED_CASES if case not in by_case]
+    failed_cases = [
+        case
+        for case in EXPECTED_CASES
+        if by_case.get(case, {}).get("ok") != "yes"
+    ]
+    missing_hash_cases = [
+        case
+        for case in EXPECTED_CASES
+        if not by_case.get(case, {}).get("manifest_edge_sha256")
+        or by_case.get(case, {}).get("manifest_edge_sha256")
+        != by_case.get(case, {}).get("host_edge_sha256")
+        or by_case.get(case, {}).get("manifest_edge_sha256")
+        != by_case.get(case, {}).get("spine_edge_sha256")
+    ]
+    return {
+        "path": display_path(repo, path),
+        "exists": path is not None and path.exists(),
+        "sha256": sha256(path) if path is not None else None,
+        "row_count": len(rows),
+        "missing_cases": missing_cases,
+        "failed_cases": failed_cases,
+        "missing_hash_cases": missing_hash_cases,
+        "all_expected_pass": bool(rows) and not missing_cases and not failed_cases and not missing_hash_cases,
+    }
+
+
 def source_contains(path: Path, needles: list[str]) -> bool:
     if not path.is_file():
         return False
@@ -645,11 +675,13 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     three_way_path = repo / "results/pure_pipeline_smoke_compare_stage1_with_spine/comparison.tsv"
     three_way_md = repo / "results/pure_pipeline_smoke_compare_stage1_with_spine/comparison.md"
     zero_vs_spine_path = repo / "results/spine_vs_grasu_regraph_smoke_same_input_hw_stage0/comparison.tsv"
+    same_input_path = newest_glob(repo, "results/smoke_input_identity_*/identity.tsv")
     boundary_prepare_path = newest_glob(repo, "results/pure_pipeline_prepare_boundary_*/summary.tsv")
     boundary_prepare_env = boundary_prepare_path.parent / "run.env" if boundary_prepare_path is not None else None
 
     host = host_summary(repo, host_path)
     spine = spine_summary(repo, spine_path)
+    same_input = input_identity_summary(repo, same_input_path)
     boundary_prepare = prepare_summary(repo, boundary_prepare_path)
 
     sw_valid = targets["sw_emu"]["smoke_summary"]["all_expected_pass"]
@@ -668,7 +700,12 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     source_unit = proofs["unit_weight_sssp_packing"]["ok"]
     source_timing = proofs["timing_fields"]["ok"]
 
-    baseline_ok = host["all_expected_pass"] and spine["all_expected_pass"] and three_way_path.exists()
+    baseline_ok = (
+        host["all_expected_pass"]
+        and spine["all_expected_pass"]
+        and three_way_path.exists()
+        and same_input["all_expected_pass"]
+    )
     max_vertices_seen = max(
         [targets[target]["smoke_summary"]["max_vertices_seen"] for target in TARGETS]
         + [boundary_prepare["max_vertices_seen"]]
@@ -784,10 +821,11 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             [
                 host["path"],
                 spine["path"],
+                same_input["path"],
                 display_path(repo, three_way_path),
                 display_path(repo, zero_vs_spine_path),
             ],
-            [] if baseline_ok else ["same-input comparison evidence is incomplete"],
+            [] if baseline_ok else ["same-input comparison or input-identity evidence is incomplete"],
         ),
         requirement(
             10,
@@ -810,6 +848,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         artifact(repo, "three_way_comparison_tsv", three_way_path),
         artifact(repo, "three_way_comparison_md", three_way_md),
         artifact(repo, "zero_vs_spine_comparison_tsv", zero_vs_spine_path),
+        artifact(repo, "latest_smoke_input_identity", same_input_path),
         artifact(repo, "boundary_prepare_summary", boundary_prepare_path),
         artifact(repo, "boundary_prepare_run_env", boundary_prepare_env),
         artifact(repo, "latest_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_source_contracts/source_contracts_*.tsv")),
@@ -849,6 +888,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         "baselines": {
             "host": host,
             "spine": spine,
+            "same_input": same_input,
             "boundary_prepare": boundary_prepare,
             "three_way_comparison": artifact(repo, "three_way_comparison_tsv", three_way_path),
             "zero_vs_spine_comparison": artifact(repo, "zero_vs_spine_comparison_tsv", zero_vs_spine_path),
@@ -857,6 +897,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         "artifacts": artifacts,
         "next_commands": [
             "./scripts/check_pure_pipeline_source_contracts.py --label after_" + git_short,
+            "./scripts/check_smoke_input_identity.py --label after_" + git_short,
             "./scripts/refresh_pure_pipeline_readiness_bundle.sh --label refresh_after_" + git_short,
             "./scripts/run_pure_pipeline_prepare_check.sh --preset boundary --out-dir results/pure_pipeline_prepare_boundary_after_" + git_short,
             "./scripts/check_pure_pipeline_build_readiness.sh --target hw_emu --label after_" + git_short,

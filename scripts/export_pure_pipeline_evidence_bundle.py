@@ -289,6 +289,27 @@ def case_rows(comparison_path: Path | None) -> list[dict[str, str]]:
     return compact_rows
 
 
+def input_identity_rows(identity_path: Path | None) -> list[dict[str, str]]:
+    rows = read_tsv(identity_path)
+    compact_columns = [
+        "case",
+        "family",
+        "ok",
+        "manifest_vertices",
+        "manifest_final_edges",
+        "manifest_source",
+        "manifest_supersteps",
+        "manifest_edge_sha256",
+        "host_edge_sha256",
+        "spine_edge_sha256",
+        "host_status",
+        "spine_status",
+        "pure_status",
+        "notes",
+    ]
+    return [{column: row.get(column, "") for column in compact_columns} for row in rows]
+
+
 def markdown_table(columns: list[str], rows: list[dict[str, Any]]) -> str:
     lines = [
         "| " + " | ".join(columns) + " |",
@@ -309,6 +330,7 @@ def write_summary_md(
     targets: list[dict[str, str]],
     requirements: list[dict[str, str]],
     cases: list[dict[str, str]],
+    input_identity: list[dict[str, str]],
 ) -> None:
     counts = status_counts(audit.get("requirements", []))
     git = audit.get("git", {})
@@ -324,6 +346,16 @@ def write_summary_md(
     ]
     req_columns = ["id", "status", "requirement", "gaps"]
     proof_columns = ["proof", "ok", "contract", "paths"]
+    identity_columns = [
+        "case",
+        "ok",
+        "manifest_vertices",
+        "manifest_final_edges",
+        "manifest_edge_sha256",
+        "host_edge_sha256",
+        "spine_edge_sha256",
+        "notes",
+    ]
     target_columns = [
         "target",
         "xclbin_exists",
@@ -370,6 +402,10 @@ def write_summary_md(
         "",
         markdown_table(case_columns, cases),
         "",
+        "## Smoke Input Identity",
+        "",
+        markdown_table(identity_columns, input_identity),
+        "",
         "Pure `sw_emu` timing is correctness/control-flow evidence only; it is not a hardware performance claim.",
         "",
         "## Next Commands",
@@ -411,6 +447,9 @@ def main() -> int:
     artifacts = artifact_rows(audit)
     source_proofs = source_proof_rows(audit)
     cases = case_rows(comparison_path)
+    identity_artifact = artifact_by_name(audit, "latest_smoke_input_identity")
+    identity_path = artifact_path(repo, identity_artifact)
+    input_identity = input_identity_rows(identity_path)
 
     out_dir = args.out_dir
     if not out_dir.is_absolute():
@@ -465,6 +504,22 @@ def main() -> int:
         "pure_event_e2e_ms",
         "notes",
     ])
+    write_tsv(out_dir / "input_identity_matrix.tsv", input_identity, [
+        "case",
+        "family",
+        "ok",
+        "manifest_vertices",
+        "manifest_final_edges",
+        "manifest_source",
+        "manifest_supersteps",
+        "manifest_edge_sha256",
+        "host_edge_sha256",
+        "spine_edge_sha256",
+        "host_status",
+        "spine_status",
+        "pure_status",
+        "notes",
+    ])
     write_summary_md(
         out_dir / "summary.md",
         repo=repo,
@@ -474,6 +529,7 @@ def main() -> int:
         targets=targets,
         requirements=requirements,
         cases=cases,
+        input_identity=input_identity,
     )
     bundle_manifest = {
         "repo": str(repo),
@@ -492,6 +548,7 @@ def main() -> int:
                 "artifact_matrix.tsv",
                 "source_proof_matrix.tsv",
                 "case_matrix.tsv",
+                "input_identity_matrix.tsv",
                 "summary.md",
             )
         },
