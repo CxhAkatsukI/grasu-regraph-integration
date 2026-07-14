@@ -94,13 +94,22 @@ def newest_glob(repo: Path, pattern: str) -> Path | None:
 def newest_xclbin_contract(repo: Path, target: str) -> Path | None:
     candidates = []
     prefix = f"xclbin_contract_{target}_"
-    for path in repo.glob(".tmp_build/pure_pipeline_xclbin_contracts/xclbin_contract_*.tsv"):
-        name = path.name
-        if target == "hw":
-            if name.startswith(prefix) and not name.startswith("xclbin_contract_hw_emu_"):
+    patterns = (
+        ".tmp_build/pure_pipeline_xclbin_contracts/xclbin_contract_*.tsv",
+        f".tmp_build/pure_pipeline_{target}_stage0/run_logs/xclbin_contract_{target}_*.tsv",
+    )
+    seen: set[Path] = set()
+    for pattern in patterns:
+        for path in repo.glob(pattern):
+            if path in seen:
+                continue
+            seen.add(path)
+            name = path.name
+            if target == "hw":
+                if name.startswith(prefix) and not name.startswith("xclbin_contract_hw_emu_"):
+                    candidates.append(path)
+            elif name.startswith(prefix):
                 candidates.append(path)
-        elif name.startswith(prefix):
-            candidates.append(path)
     return newest(candidates)
 
 
