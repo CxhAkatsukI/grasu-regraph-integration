@@ -487,18 +487,18 @@ Status-only check:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_build.sh \
   --target hw_emu \
-  --label status_fa17c35 \
+  --label status_8e19745 \
   --status-only
 ```
 
 Current status evidence:
 
 ```text
-.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_status_fa17c35.env
-.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_status_fa17c35_evidence.tsv
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_status_8e19745.env
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_status_8e19745_evidence.tsv
 
-d39bd3e5745fd132cf4b8cda849320ed101357e600aac170b7935ee18929bcde  build_status_fa17c35.env
-e01867430bc5414213da34a3c33f827dc0c565a09a73ac5798f5bcb3e3f7fd56  build_status_fa17c35_evidence.tsv
+5a8cbc2ef590e7fa68c12956833e67a173114a9af8134c07b922bea15d967335  build_status_8e19745.env
+e01867430bc5414213da34a3c33f827dc0c565a09a73ac5798f5bcb3e3f7fd56  build_status_8e19745_evidence.tsv
 ```
 
 The evidence currently records the generated command script hashes and confirms
@@ -518,7 +518,7 @@ Recommended `hw_emu` build command:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_build.sh \
   --target hw_emu \
-  --label after_fa17c35
+  --label after_8e19745
 ```
 
 Recommended `hw` build command:
@@ -527,7 +527,7 @@ Recommended `hw` build command:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_build.sh \
   --target hw \
-  --label after_fa17c35
+  --label after_8e19745
 ```
 
 The wrapper writes:
