@@ -2828,3 +2828,45 @@ fbd079236a34228931c284a55aeb71af03acb662c4862fa824c094b4bfcfefb6  results/pure_p
 bcbbfd750dfe5a5e5a7669c73821b1d63d5d936da153e1297901c0cd734ada15  results/pure_pipeline_evidence_bundle_swemu_refresh_after_8f5fdff/bundle_manifest.json
 cbf16deca443a0ab0c88337016d230a2f2a8dd5944956bd0e4ce4852377d4b57  scripts/export_pure_pipeline_evidence_bundle.py
 ```
+
+## 2026-07-15 Bundle Stale-Artifact Matrix
+
+The evidence bundle exporter now preserves the readiness report's
+`build_artifacts` row in `target_matrix.tsv` and in the compact markdown target
+table. This makes the stale partial `hw_emu` build state visible from the
+bundle itself, without reopening the raw readiness report.
+
+Validation command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_swemu_refresh_after_8f5fdff/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_swemu_refresh_after_e493833
+```
+
+Observed target matrix rows:
+
+```text
+hw_emu  xclbin=no  smoke=no  readiness=no  external_builders=10  build_artifacts=WARN  clean_recommended=yes  children=7
+hw      xclbin=no  smoke=no  readiness=no  external_builders=10  build_artifacts=<empty>
+sw_emu  xclbin=yes smoke=yes
+```
+
+The detailed `hw_emu` artifact list is:
+
+```text
+bin_search,bin_search.hw_emu.xo,bin_search.hw_emu.xo.compile_summary,bin_search.mdb,dispatch,dispatch.hw_emu.xo.compile_summary,dispatch.mdb
+```
+
+This is still only a reporting improvement. The next actual build command
+should keep using `--clean-build-artifacts` before launching `hw_emu`.
+
+Evidence hashes:
+
+```text
+51d1225f5f95f9e0215a64a499967f9dd7d282d7418b738db31fb558935d8ca4  scripts/export_pure_pipeline_evidence_bundle.py
+f503d1895bf874deefadc5b6fea1731060b2278370e30b2d39fdf94fe0686585  results/pure_pipeline_evidence_bundle_swemu_refresh_after_e493833/summary.md
+bbd50df93b4e43fb458ca5e069eab698542bf3d5379fc35f97aca6aa3232b74d  results/pure_pipeline_evidence_bundle_swemu_refresh_after_e493833/target_matrix.tsv
+aceea952b9ba5f6b4ac166fc386911dbbdea76d592823b55a12fe238b81aa307  results/pure_pipeline_evidence_bundle_swemu_refresh_after_e493833/bundle_manifest.json
+```
