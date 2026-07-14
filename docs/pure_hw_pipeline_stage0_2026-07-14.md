@@ -757,8 +757,10 @@ cd /home/chuxiao/grasu-regraph-integration
 Evidence:
 
 ```text
-c9276647c887c5fb74ed2ff0ab0d83cacde9c99e1ca6607b8966332810b69412  .tmp_build/pma_to_regraph_adapter_check_barrier_stage0/SHA256SUMS
-770531712948d91584d245d2ecbe3ea5626ac758b5ba34713047a91f4c0e2ece  .tmp_build/pma_completion_barrier_check_stage0/SHA256SUMS
+55eda7df87478f074b59fb630dd5b8e2e0cca039  source commit
+
+7e650de096dedddcd369b6ec864fe6c9e78f5a288a759642f30c871c0dd17aa0  .tmp_build/pma_to_regraph_adapter_check_after_55eda7d/SHA256SUMS
+23c103f01e25d3c13a5c2783fb2d07d7cf723b3501f4becfb4a0bab6d02a23f1  .tmp_build/pma_completion_barrier_check_after_55eda7d/SHA256SUMS
 d44e9d7781fad21b60f48fb0d27abbefd3f5d9d130f0086ec19ff306e609c65d  .tmp_build/pure_pipeline_host_stage0/pure_pipeline_host
 ```
 
@@ -782,9 +784,10 @@ stream_connect=pma_completion_barrier_1.done_out:pma_to_regraph_adapter_1.done:1
 Requirement audit after this source change:
 
 ```text
-7caf88893f1f6c555ed5cf552fac71a33e6a2b9ea8c585117d9310e0cf342ce4  audit.json
-f9e994492feb3047f5364a17441403ec85b5cbb5514c3d2e4a4e9ab5bc645b84  audit.md
+c4a90c2d4b437ca60916adb60b187d04c3a711615b8d654a156994e2fc0f61f4  audit.json
+09a9c2e654a68547d9286ad18279a9a46296ab417428750485c0a04ae28ebc9c  audit.md
 
+Dirty: False
 proven: 1
 partial: 8
 blocked_by_missing_artifact: 1
