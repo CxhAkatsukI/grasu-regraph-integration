@@ -178,6 +178,10 @@ ReGraph kernel changes:
 
 - Add a stream-input variant of the little scatter-gather kernel or guard the
   current `m_axi part_edge_array` path behind a compile-time switch.
+- Current integration-owned stream wrapper:
+  `kernels/regraph_stream_little_gs/little_gs_stream.cpp`
+- Lightweight syntax check:
+  `./scripts/check_regraph_stream_little_gs.sh`
 - HLS semantics:
   - `hls::stream<edge_burst_pkt> &edge_burst_in`
   - `#pragma HLS INTERFACE axis port=edge_burst_in`
