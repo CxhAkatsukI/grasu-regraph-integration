@@ -4297,3 +4297,114 @@ e8110d3b222ab35f3ca27a646128e4b864d6dbfd5450dacc79e0ee6f23170a62  workloads/sssp
 5479a6be92b68a37d6db0a3c0dc0718cc9d458e1f6145d1812ae85241bc95f91  results/pure_pipeline_evidence_bundle_boundary_after_213000d/summary.md
 409a4f192f6563857140840ba23b242f34967ca4a134388f7e119c203ba0a8df  results/pure_pipeline_evidence_bundle_boundary_after_213000d/bundle_manifest.json
 ```
+
+## Xclbin metadata contract gate
+
+The source/config checks now have a post-link counterpart:
+
+```text
+scripts/check_pure_pipeline_xclbin_contract.py
+```
+
+This checker reads the built `.xclbin.info` metadata and verifies that the
+actual linked binary contains the required pure-pipeline kernels, CU instances,
+adapter/barrier signatures, completion-token ports, and recorded link
+connectivity. This is stronger than checking source files alone because it
+inspects the produced xclbin metadata.
+
+Current verified target:
+
+```text
+sw_emu
+```
+
+The `hw_emu` and `hw` xclbin contracts are still missing because those xclbins
+have not been built yet.
+
+Source commit:
+
+```text
+566dd44f9c076b4df6fa167a79e3706b33dc8900
+```
+
+Changed files:
+
+```text
+scripts/check_pure_pipeline_xclbin_contract.py
+scripts/audit_pure_pipeline_status.py
+scripts/export_pure_pipeline_evidence_bundle.py
+```
+
+Validation command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/check_pure_pipeline_xclbin_contract.py \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py \
+  scripts/check_pure_pipeline_source_contracts.py
+
+./scripts/check_pure_pipeline_xclbin_contract.py \
+  --target sw_emu \
+  --label after_566dd44
+
+./scripts/audit_pure_pipeline_status.py \
+  --label xclbin_after_566dd44 \
+  --out-dir results/pure_pipeline_requirement_audit_xclbin_after_566dd44
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_xclbin_after_566dd44/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_xclbin_after_566dd44
+```
+
+Result:
+
+```text
+target=sw_emu
+check_count=9
+failed_count=0
+xclbin_exists=yes
+xclbin_sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+info_exists=yes
+info_sha256=8b0cf0c3b63ea7d623a599af4db65c4464aae8fadc93e07c089d374bbc2b0f04
+required_kernels=yes
+required_instances=yes
+kernel_metadata_contract=yes
+link_connectivity_contract=yes
+```
+
+The evidence bundle target matrix now includes:
+
+```text
+sw_emu  xclbin_exists=yes  xclbin_contract_pass=yes
+hw_emu  xclbin_exists=no   xclbin_contract_pass=no
+hw      xclbin_exists=no   xclbin_contract_pass=no
+```
+
+Artifacts:
+
+```text
+.tmp_build/pure_pipeline_xclbin_contracts/xclbin_contract_sw_emu_after_566dd44.tsv
+.tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+.tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin.info
+results/pure_pipeline_requirement_audit_xclbin_after_566dd44/audit.json
+results/pure_pipeline_evidence_bundle_xclbin_after_566dd44/summary.md
+results/pure_pipeline_evidence_bundle_xclbin_after_566dd44/target_matrix.tsv
+results/pure_pipeline_evidence_bundle_xclbin_after_566dd44/bundle_manifest.json
+```
+
+Evidence hashes:
+
+```text
+3157fa749d2d61e2417192e4f49de9596c5995367f79753d5fb33479866b5646  scripts/check_pure_pipeline_xclbin_contract.py
+0250aa12c3522794b210a08dda4ad9855a712fb374e5313f7e5a1336f262320f  scripts/audit_pure_pipeline_status.py
+e21f5bc00a02600e8ff3a00737a89885cc842b7819984b043747181d5fb10281  scripts/export_pure_pipeline_evidence_bundle.py
+e41cce545651d7e38c6ba8c0ed559d212055e61128194f82e6c443e0075929d1  .tmp_build/pure_pipeline_xclbin_contracts/xclbin_contract_sw_emu_after_566dd44.tsv
+b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862  .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
+8b0cf0c3b63ea7d623a599af4db65c4464aae8fadc93e07c089d374bbc2b0f04  .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin.info
+c424538b54d3cfb585ff356f992f8b94a684f8b6ae12d8100fd2e24db24a16ea  results/pure_pipeline_requirement_audit_xclbin_after_566dd44/audit.json
+2d7e1ecf543c76a492265ef8d7b79de5e316596ed1795a64a2ae955fbbd74344  results/pure_pipeline_evidence_bundle_xclbin_after_566dd44/summary.md
+73def000b79826a80b4d1598aa46fbcc7a8f676263904a36d86b9fbfd6b2bbdc  results/pure_pipeline_evidence_bundle_xclbin_after_566dd44/target_matrix.tsv
+d9d2b6ca5e02bcda30fbcc5a81acac3cc6dd3737a10a3128697e2726f8b94e14  results/pure_pipeline_evidence_bundle_xclbin_after_566dd44/bundle_manifest.json
+```
