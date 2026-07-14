@@ -143,6 +143,14 @@ GraSU kernel changes:
 
 - Add one AXI4-Stream completion-token output to each PMA writer kernel.
 - Emit exactly one token after the PMA writer has completed all writes.
+- Applied in local GraSU branch `codex/explore-grasu-u55c` as commit
+  `25d1bb5 Add optional PMA writer completion tokens`.
+- Current patch:
+  `patches/grasu_completion_tokens_20260714.diff`
+- Lightweight syntax check:
+  `./scripts/check_grasu_completion_tokens.sh`
+- Current check evidence:
+  `.tmp_build/grasu_completion_token_check_20260714_stage2`
 - HLS semantics:
   - `hls::stream<ap_axiu<32,0,0,0>> &done`
   - `#pragma HLS INTERFACE axis port=done`

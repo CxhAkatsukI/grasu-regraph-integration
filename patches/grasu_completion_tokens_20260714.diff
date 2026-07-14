@@ -1,0 +1,111 @@
+diff --git a/GraSU/GraSU_kernels/src/kernel_config.h b/GraSU/GraSU_kernels/src/kernel_config.h
+index dddbc20..e180a35 100644
+--- a/GraSU/GraSU_kernels/src/kernel_config.h
++++ b/GraSU/GraSU_kernels/src/kernel_config.h
+@@ -29,5 +29,18 @@
+ #endif
+ 
+ typedef ap_axiu<96, 0, 0, 0> pipe_type_96;
++typedef ap_axiu<32, 0, 0, 0> grasu_done_pkt_t;
++
++#ifdef GRASU_ENABLE_COMPLETION_TOKEN
++static void write_grasu_completion_token(hls::stream<grasu_done_pkt_t> &done_stream,
++                                         ap_uint<32> value) {
++    grasu_done_pkt_t done;
++    done.data = value;
++    done.keep = -1;
++    done.strb = -1;
++    done.last = 1;
++    done_stream.write(done);
++}
++#endif
+ 
+ #endif
+diff --git a/GraSU/GraSU_kernels/src/kernel_process_cache.cpp b/GraSU/GraSU_kernels/src/kernel_process_cache.cpp
+index ccd05b5..34a6faf 100644
+--- a/GraSU/GraSU_kernels/src/kernel_process_cache.cpp
++++ b/GraSU/GraSU_kernels/src/kernel_process_cache.cpp
+@@ -264,11 +264,18 @@ void process(
+ extern "C" {
+ void process_cache(
+     ap_uint<512> *pma_cache,
+-    hls::stream<pipe_type_96> &update_stream) {
++    hls::stream<pipe_type_96> &update_stream
++#ifdef GRASU_ENABLE_COMPLETION_TOKEN
++    , hls::stream<grasu_done_pkt_t> &completion_token
++#endif
++    ) {
+ #pragma HLS INTERFACE m_axi port = pma_cache offset = slave bundle = gmem0
+ #pragma HLS INTERFACE s_axilite port = pma_cache bundle = control
+ #pragma HLS INTERFACE s_axilite port = return bundle = control
+ #pragma HLS INTERFACE axis port=update_stream
++#ifdef GRASU_ENABLE_COMPLETION_TOKEN
++#pragma HLS INTERFACE axis port=completion_token
++#endif
+ 
+     GRASU_KDEBUG("process_cache kernel begin\n");
+ 
+@@ -277,6 +284,7 @@ void process_cache(
+ #if defined(SW_EMU) && !defined(__SYNTHESIS__)
+     process_cache_direct_swemu(pma_cache, update_stream);
+ #else
++{
+ #ifdef SW_EMU
+ #pragma HLS DATAFLOW disable_start_propagation
+ #else
+@@ -284,6 +292,10 @@ void process_cache(
+ #endif
+     dispatch_update(update_stream, update_stream_cache);
+     process(pma_cache, update_stream_cache);
++}
++#endif
++#ifdef GRASU_ENABLE_COMPLETION_TOKEN
++    write_grasu_completion_token(completion_token, 1);
+ #endif
+     GRASU_KDEBUG("process_cache kernel done\n");
+ }
+diff --git a/GraSU/GraSU_kernels/src/kernel_process_ddr.cpp b/GraSU/GraSU_kernels/src/kernel_process_ddr.cpp
+index 0d68997..cf57881 100644
+--- a/GraSU/GraSU_kernels/src/kernel_process_ddr.cpp
++++ b/GraSU/GraSU_kernels/src/kernel_process_ddr.cpp
+@@ -109,7 +109,11 @@ void process_ddr(
+     const ap_uint<512> *pma_in1_ddr,
+     ap_uint<512> *pma_out0_ddr,
+     ap_uint<512> *pma_out1_ddr,
+-    hls::stream<pipe_type_96> &update_stream) {
++    hls::stream<pipe_type_96> &update_stream
++#ifdef GRASU_ENABLE_COMPLETION_TOKEN
++    , hls::stream<grasu_done_pkt_t> &completion_token
++#endif
++    ) {
+ #ifdef GRASU_SHARE_HBM_PORTS
+ #pragma HLS INTERFACE m_axi port = pma_in0_ddr offset = slave bundle = gmem0
+ #pragma HLS INTERFACE m_axi port = pma_out0_ddr offset = slave bundle = gmem0
+@@ -127,12 +131,16 @@ void process_ddr(
+ #pragma HLS INTERFACE s_axilite port = pma_out1_ddr bundle = control
+ #pragma HLS INTERFACE s_axilite port = return bundle = control
+ #pragma HLS INTERFACE axis port=update_stream
++#ifdef GRASU_ENABLE_COMPLETION_TOKEN
++#pragma HLS INTERFACE axis port=completion_token
++#endif
+ 
+     GRASU_KDEBUG("process_ddr kernel begin\n");
+ 
+     hls::stream<ap_uint<96> > update_stream_ddr_0[UPDATE_STREAM_DDR_NUM];
+     hls::stream<ap_uint<96> > update_stream_ddr_1[UPDATE_STREAM_DDR_NUM];
+ 
++{
+ #ifdef SW_EMU
+ #pragma HLS DATAFLOW disable_start_propagation
+ #else
+@@ -141,6 +149,10 @@ void process_ddr(
+     dispatch_update(update_stream, update_stream_ddr_0, update_stream_ddr_1);
+     process(pma_in0_ddr, pma_out0_ddr, update_stream_ddr_0);
+     process(pma_in1_ddr, pma_out1_ddr, update_stream_ddr_1);
++}
++#ifdef GRASU_ENABLE_COMPLETION_TOKEN
++    write_grasu_completion_token(completion_token, 1);
++#endif
+     GRASU_KDEBUG("process_ddr kernel done\n");
+ }
+ }
