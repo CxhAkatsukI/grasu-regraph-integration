@@ -226,6 +226,10 @@ ReGraph source directories. This is required because the local ReGraph tree is
 not currently a git repository, so the launch packet must record a content hash
 in addition to git commit IDs.
 
+The target-flow wrapper records the same source fingerprints in the target
+`run_logs/` directory before build launch, so direct invocations of
+`run_pure_pipeline_target_flow.sh` are also source-hash reproducible.
+
 Run the same wrapper with `--target hw` after `hw_emu` passes. The wrapper
 records the build parameters, checks source-level PMA/stream/barrier contracts,
 writes a readiness preflight report, waits for other Vitis/Vivado jobs to become

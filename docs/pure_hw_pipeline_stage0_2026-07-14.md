@@ -5054,3 +5054,108 @@ f0b552702afee3c982bcd3ad559fc807589ecfdc3afc45701a7100c3fbd935d5  scripts/audit_
 a9bc995acb3d481037a7a86e769a0f86b54dfb3796aa6fbcc220c7eb4f350808  results/pure_pipeline_evidence_bundle_source_fp_check/artifact_matrix.tsv
 8afbdc468b3c62fe077e5cd0354d6f28cd6a669bb54f83b1095f2b92aa549831  results/pure_pipeline_evidence_bundle_source_fp_check/summary.md
 ```
+
+## Target-flow source fingerprints
+
+As of 2026-07-15 03:59 Asia/Shanghai, source fingerprint collection is a shared
+script and is called by both launch packets and the target-flow wrapper. This
+matters because the real build entry point is `run_pure_pipeline_target_flow.sh`;
+the build run now writes its own `source_fingerprints_target_flow_<label>.tsv`
+under the target `run_logs/` directory before any Vitis build launch.
+
+Changed files:
+
+```text
+README.md
+scripts/collect_pure_pipeline_source_fingerprints.sh
+scripts/create_pure_pipeline_launch_packet.sh
+scripts/run_pure_pipeline_target_flow.sh
+scripts/audit_pure_pipeline_status.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/collect_pure_pipeline_source_fingerprints.sh
+bash -n scripts/create_pure_pipeline_launch_packet.sh
+bash -n scripts/run_pure_pipeline_target_flow.sh
+python3 -m py_compile scripts/audit_pure_pipeline_status.py
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label target_flow_source_fp_after_6564f46 \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --skip-audit \
+  --monitor-tail 5
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --label launch_packet_source_fp_after_6564f46 \
+  --flow-label source_fp_after_6564f46 \
+  --wait-idle 60 \
+  --idle-poll 10 \
+  --idle-settle 10 \
+  --no-gate
+
+./scripts/audit_pure_pipeline_status.py \
+  --label source_fp_after_6564f46 \
+  --out-dir results/pure_pipeline_requirement_audit_source_fp_after_6564f46
+
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_source_fp_after_6564f46/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_source_fp_after_6564f46
+```
+
+Result:
+
+```text
+integration_head=6564f461cad8a08d8b18d4be30ad58e25ab0c0d7
+target_flow_rc=0
+launch_packet_rc=3
+audit_rc=0
+bundle_rc=0
+target-flow fingerprint sha256=c80a18aae28b9924ff74b39866f0bb2d18731852d9d4fc7d8eb8547d69e6f47c
+launch-packet fingerprint sha256=c80a18aae28b9924ff74b39866f0bb2d18731852d9d4fc7d8eb8547d69e6f47c
+readiness remains blocked for strict launch packets because unrelated Spine Vitis/Vivado builders are active
+hw_emu xclbin=MISSING
+```
+
+The audit and evidence bundle now expose all three source-fingerprint artifacts:
+
+```text
+latest_launch_packet_source_fingerprints
+latest_target_flow_source_fingerprints
+start_state_source_fingerprints
+```
+
+Current source fingerprints:
+
+```text
+integration_scripts  4d6830cc87a8d1a82ae79e1d93333ec756875fe4df7fa37c75fc51501aae086e
+integration_kernels  d4e044aa815f07ecc308484748496db93247d29a9a872f5ec1c7eaa811b37f88
+integration_tools    25acbe258816f976a0f986b7b99625a977fcacc8e2eb065dda0f2f6dcf4b7192
+grasu_kernel_src     db745c5d32223c703581e386e301326bd6b15fa3a0317addcf6af81ccec9504c
+grasu_host_src       183d604a583a6e6bba2988e18adb3aaa8b90817ce5f5b2f31108cb14d464ee4d
+grasu_u55c_scripts   d88beea35b92b18b8fa248c9803d66dc8b12b6e95003bdd8f3ae39e5b019add4
+regraph_acc_template 2b858c5b0df83a3dc8bcbad0e3ae2f168303cbaab7098259cc32e29e299d65f2
+regraph_acc_udfs     da1d16656e72a3f83754208a70b657931035d22e38a04d1c35791e09c80adc71
+regraph_host_src     be0d2556f07e166c5adbe91a2f48bdeab517caec6ea08f93ead1ad8202e07a1b
+```
+
+Evidence hashes:
+
+```text
+66abd6a07660664a26a2dbdd2e63a39cfcc1c2f93d77a977e7ca9d551198facd  scripts/collect_pure_pipeline_source_fingerprints.sh
+a6c453598a0534eee8f573fda6213b4248f9b3284891510d4b5d958691b526ef  scripts/create_pure_pipeline_launch_packet.sh
+e7a028265fd429b9c2b4b63013349bc6ebdac691beacbb9bac1fa9b04b7bd092  scripts/run_pure_pipeline_target_flow.sh
+7b5b00b9fb95c388ce925a434d847fe2a35f6dbd3e0e938582107c41ad4f7d20  scripts/audit_pure_pipeline_status.py
+c80a18aae28b9924ff74b39866f0bb2d18731852d9d4fc7d8eb8547d69e6f47c  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/source_fingerprints_target_flow_target_flow_source_fp_after_6564f46.tsv
+c80a18aae28b9924ff74b39866f0bb2d18731852d9d4fc7d8eb8547d69e6f47c  .tmp_build/pure_pipeline_launch_packet_launch_packet_source_fp_after_6564f46/source_fingerprints.tsv
+4ce437f2d3e541f56790bada6e14e6e1f69764e80b1a7f08282293d98646def4  results/pure_pipeline_requirement_audit_source_fp_after_6564f46/audit.md
+f0a0242868eaafb6459df462e771fce03ccf6459526917c6d7fde8b92ca42b5a  results/pure_pipeline_requirement_audit_source_fp_after_6564f46/audit.json
+84a198e8238e2ef888797d1700cdeea8068d012c446d1bdc963cb5e0864ace94  results/pure_pipeline_evidence_bundle_source_fp_after_6564f46/artifact_matrix.tsv
+20d7bf71ef57482cd8043c6ae04938428b75a689455d3fb2a59fc4a3a8b9d9f8  results/pure_pipeline_evidence_bundle_source_fp_after_6564f46/summary.md
+```
