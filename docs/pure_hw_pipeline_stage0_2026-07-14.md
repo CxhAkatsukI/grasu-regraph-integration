@@ -8975,3 +8975,140 @@ fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pur
 6ecb87b49aebfc5db3c49ad55372486781531720a77644763a3f8235d7783a37  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_118704c/readiness_hw.txt
 41eb47d38f7b97121e2933aaef69f7478e8ea81d1419ca99e553fe1ecb3a96dc  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_118704c/acceptance_check_prelaunch.tsv
 ```
+
+## Stage0 Plan Hash Reporting, 2026-07-15
+
+`scripts/report_pure_pipeline_next_steps.py` now includes sha256 hashes for the
+generated same-input `comparison_plan.tsv` and `input_identity.tsv` when they
+exist. This makes the read-only next-steps report usable as a quick evidence
+index for the baseline files, not only as a command reminder.
+
+Changed script:
+
+```text
+scripts/report_pure_pipeline_next_steps.py
+```
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile scripts/report_pure_pipeline_next_steps.py
+git diff --check
+```
+
+Committed source hash:
+
+```text
+commit=add6302543151d4f9f009b0b2ef7979994ba03be
+```
+
+Launch packets were refreshed for that source commit. The immediate `hw_emu`
+build command is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_add6302/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_add6302 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Prepared later `hw` command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_add6302/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label after_add6302 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+The stage0 same-input plan was generated locally with:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/export_pure_stage0_comparison_plan.py \
+  --label after_add6302 \
+  --out-dir results/pure_stage0_comparison_plan_after_add6302
+```
+
+Generation result:
+
+```text
+cases=12
+input_identity=results/pure_stage0_comparison_plan_after_add6302/input_identity.tsv
+comparison_plan=results/pure_stage0_comparison_plan_after_add6302/comparison_plan.tsv
+summary=results/pure_stage0_comparison_plan_after_add6302/summary.md
+run_env=results/pure_stage0_comparison_plan_after_add6302/run.env
+```
+
+Read-only next-steps status after plan generation:
+
+```text
+sw_emu: xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+hw_emu: xclbin=no packet_current=yes waiting_xclbin
+hw:     xclbin=no packet_current=yes waiting_xclbin
+
+next_target=hw_emu
+next_action=build
+next_command=.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_add6302/launch_command.sh
+
+stage0_followup:
+baseline label=after_add6302 label_source=hw_emu_launch_packet plan=yes host_summary=no spine_summary=no
+comparison_plan results/pure_stage0_comparison_plan_after_add6302/comparison_plan.tsv sha256=9279bb01dd1a6a9d4ab45c7fc78df9d3f5c6349abe5cd1b8e95d6d320f62b7d5
+input_identity results/pure_stage0_comparison_plan_after_add6302/input_identity.tsv sha256=fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b
+host_summary=results/grasu_regraph_sssp_pure_stage0_after_add6302/summary.tsv
+spine_summary=results/spine_edge_file_pure_stage0_after_add6302/summary.tsv
+```
+
+Plan and packet hashes:
+
+```text
+fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b  results/pure_stage0_comparison_plan_after_add6302/input_identity.tsv
+9279bb01dd1a6a9d4ab45c7fc78df9d3f5c6349abe5cd1b8e95d6d320f62b7d5  results/pure_stage0_comparison_plan_after_add6302/comparison_plan.tsv
+ec98c835923995447b8747af70a27a03d8799894e2c96f3442abcf25b763f8b2  results/pure_stage0_comparison_plan_after_add6302/summary.md
+4e976273dce6e308097407dcee2b8b23f57e4397037dcf26e1aa254006e0cde8  results/pure_stage0_comparison_plan_after_add6302/run.env
+
+420844555fa676893f07e6a8a53ee831674596860b7ceed1a9a4d26d50b590e6  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_add6302/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_add6302/source_contracts.tsv
+4f1d2403d2d18833e66a71f61700876b7d880c75ad6d79a505c2702ecd95e891  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_add6302/source_fingerprints.tsv
+2761a5e034bc291c4039faffceeac5119de354b29d9499022c08ff96d998e600  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_add6302/readiness_hw_emu.txt
+dce7f52292ee1e4b588ad1f3945e40681dcf4cc009eb3349927b2968f94736f5  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_add6302/acceptance_check_prelaunch.tsv
+
+559f6b6da3b6c6be3a83f918004bb8260af1c006e7577495d2f808f3ac602620  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_add6302/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_add6302/source_contracts.tsv
+4f1d2403d2d18833e66a71f61700876b7d880c75ad6d79a505c2702ecd95e891  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_add6302/source_fingerprints.tsv
+bb6d89952f89275c5d5f8e9c134da8af4fd27f6adfc28c15159e4c50963e2e12  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_add6302/readiness_hw.txt
+212d9bc0adff5cb9ce9ea2a8a57fe828cd5264ef06a8d95b6332b9dd35780209  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_add6302/acceptance_check_prelaunch.tsv
+```
+
+Important: `results/*` is ignored by Git, so the generated plan files are not
+committed. The command and hashes above are the reproducibility record for this
+local plan instance.
