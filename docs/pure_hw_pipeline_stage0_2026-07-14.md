@@ -9345,3 +9345,114 @@ cd /home/chuxiao/grasu-regraph-integration
 Important: `results/*` and `.tmp_build/*` remain ignored by Git. The source,
 scripts, and this document are the committed record; the local result paths and
 hashes above are the reproducibility evidence for this machine.
+
+## Current Packet After Baseline Artifact Pinning
+
+Commit `c029ac959c3b7de40179a1aae9bd420f4a6610ae` pins the stage0 baseline
+runner to the accepted combined-hardware and split-Spine artifacts. Because the
+runner participates in the tracked source fingerprint, the launch packets were
+refreshed under label `after_c029ac9`.
+
+Current next-steps status:
+
+```text
+head=c029ac959c3b7de40179a1aae9bd420f4a6610ae
+source_fingerprint_sha256=def7e051cafaaf5c9264bb6b40300838302d3d4857517a0c9015db4fb6549d51
+dirty=false
+
+sw_emu: xclbin=yes sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+hw_emu: xclbin=no packet_current=yes waiting_xclbin
+hw:     xclbin=no packet_current=yes waiting_xclbin
+
+next_target=hw_emu
+next_action=build
+next_command=.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_c029ac9/launch_command.sh
+```
+
+The immediate `hw_emu` command is now:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_c029ac9/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_c029ac9 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+The prepared later `hw` command is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_c029ac9/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label after_c029ac9 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+Current same-input baseline plan:
+
+```text
+fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b  results/pure_stage0_comparison_plan_after_c029ac9/input_identity.tsv
+79930361f4fc14f7690884711724b2c3cb05722410e553258f4125a930b9a520  results/pure_stage0_comparison_plan_after_c029ac9/comparison_plan.tsv
+8a339499b4af4efba9df6c65f6d6dd1e54e385902593953d1adf61f1f93669a2  results/pure_stage0_comparison_plan_after_c029ac9/summary.md
+c2cf0bf9904824ba5e0bd9b3ac6da2bdb33c6cc7b872cd490ff6af616af231bf  results/pure_stage0_comparison_plan_after_c029ac9/run.env
+a0f814153c4a40286a8ccdd2eca9b71ea3a0ea7c09a2a9d8851d766fe01442b6  results/pure_stage0_comparison_plan_after_c029ac9/baseline_run.env
+```
+
+Current packet hashes:
+
+```text
+e92fb3249329c8359bf1c736df93feea0409fc94c0a3427fd15354a5603759e7  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_c029ac9/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_c029ac9/source_contracts.tsv
+e66a6f8dd3adea789e471269447e1c8735b911a35ecab14a4cc4f53e7f3d8b66  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_c029ac9/source_fingerprints.tsv
+a705d323116dbb1df8f768d3c587497fa00c2d9f5e1aeee17f436f8b1df7e1a1  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_c029ac9/readiness_hw_emu.txt
+ead5869225cfc80e374ad60a29a77f749b485c1994d6178c9e411d87243ef55a  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_c029ac9/acceptance_check_prelaunch.tsv
+
+577fea0dcf6fd760bc7388498c6a9e7ffa76ec1423076930502dce5f05a2e68f  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_c029ac9/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_c029ac9/source_contracts.tsv
+e66a6f8dd3adea789e471269447e1c8735b911a35ecab14a4cc4f53e7f3d8b66  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_c029ac9/source_fingerprints.tsv
+b5d3e305d40bdcd9c745403b08c6b1a956322d81fb25a82844628ee5f2eb3d93  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_c029ac9/readiness_hw.txt
+849e2f79b51b1fe2cd94456c3ecc08261bcf2cc8cb79875e845dd1b7f354ce77  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_c029ac9/acceptance_check_prelaunch.tsv
+```
+
+Current blocker remains the same:
+
+```text
+pure_pipeline hw_emu xclbin: MISSING
+pure_pipeline hw xclbin:     MISSING
+```
+
+The host and Spine same-input baselines for `after_c029ac9` are prepared but not
+yet executed:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_baselines.sh --label after_c029ac9 --status-only
+./scripts/run_pure_stage0_baselines.sh --label after_c029ac9
+```
