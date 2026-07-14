@@ -204,15 +204,17 @@ Current reproducible target flow:
   --label after_$(git rev-parse --short HEAD) \
   --wait-idle 7200 \
   --idle-poll 60 \
+  --idle-settle 120 \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 ```
 
 Run the same wrapper with `--target hw` after `hw_emu` passes. The wrapper
 records the build parameters, writes a readiness preflight report, waits for
-other Vitis/Vivado jobs to become idle, monitors the build output, runs a staged
-smoke gate, then emits the requirement audit. Use `--strict-readiness` when you
-want active external builders to abort before the wait-idle phase.
+other Vitis/Vivado jobs to become idle, optionally requires a continuous idle
+settle window, monitors the build output, runs a staged smoke gate, then emits
+the requirement audit. Use `--strict-readiness` when you want active external
+builders to abort before the wait-idle phase.
 
 Export a compact evidence bundle for reports:
 

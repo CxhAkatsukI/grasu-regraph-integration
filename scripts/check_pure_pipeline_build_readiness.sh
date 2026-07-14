@@ -277,7 +277,7 @@ if (( blocking_count == 0 )); then
   ready="yes"
 fi
 
-next_command="./scripts/run_pure_pipeline_target_flow.sh --target ${TARGET} --label after_$(git -C "${GRI_ROOT}" rev-parse --short HEAD 2>/dev/null || printf unknown) --wait-idle 7200 --idle-poll 60 --gate-case tiny_star_v16_u12"
+next_command="./scripts/run_pure_pipeline_target_flow.sh --target ${TARGET} --label after_$(git -C "${GRI_ROOT}" rev-parse --short HEAD 2>/dev/null || printf unknown) --wait-idle 7200 --idle-poll 60 --idle-settle 120 --gate-case tiny_star_v16_u12"
 case "${TARGET}" in
   hw_emu) next_command="${next_command} --gate-timeout 900" ;;
   hw) next_command="${next_command} --gate-timeout 300" ;;

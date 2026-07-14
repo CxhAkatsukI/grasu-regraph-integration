@@ -2137,6 +2137,142 @@ cd /home/chuxiao/grasu-regraph-integration
   --label after_8f60fcf \
   --wait-idle 7200 \
   --idle-poll 60 \
+  --idle-settle 120 \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
+```
+
+## 2026-07-15 Idle-Settle Guard
+
+After the external Spine builders went idle, strict readiness passed for both
+pending pure-pipeline targets:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/check_pure_pipeline_build_readiness.sh \
+  --target hw_emu \
+  --label post_external_spine_idle_after_5174168
+
+./scripts/check_pure_pipeline_build_readiness.sh \
+  --target hw \
+  --label post_external_spine_idle_after_5174168
+```
+
+Both reports showed:
+
+```text
+ready=yes
+blocking_count=0
+active_builders=PASS related=0 external=0
+active_builder_breakdown=PASS related="total=0" external="total=0"
+```
+
+The first `hw_emu` target-flow attempt was then started:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_5174168 \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+It reached the first `hw_emu` compile and successfully produced:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/build/bin_search.hw_emu.xo
+sha256: a5b0991d116600587a473cd94794a302d62c1bb7af82f11659070369171a2884
+size:   206779
+mtime:  2026-07-15 00:24:27.667169030 +0800
+```
+
+During that run, another unrelated Spine hardware link started under:
+
+```text
+/data/feiyang/spine-dynamic-graph-builds/restore_split_tiny_20260713_1118/hw_link_133_extratiming_vitis_20260715_0024
+```
+
+The pure-pipeline attempt was intentionally interrupted to avoid competing
+with the external hardware implementation. This attempt did not produce:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin
+```
+
+Post-interrupt checks showed:
+
+```text
+related_hwemu_processes=0
+builders total=20 runme.sh=2 vrs=2 v++=4 vivado=4 loader=4 vpl=4
+```
+
+This exposed a launch race: a one-shot idle check can pass, and an unrelated
+hardware build can still start immediately afterward. To make the launch more
+reproducible, the build wrapper now supports a continuous idle settle window:
+
+```bash
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label after_<commit> \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120
+```
+
+`run_pure_pipeline_target_flow.sh` forwards the same option. The readiness
+script's recommended next command now also includes `--idle-settle 120`.
+
+Regression checks:
+
+```bash
+bash -n \
+  scripts/run_pure_pipeline_build.sh \
+  scripts/run_pure_pipeline_target_flow.sh \
+  scripts/check_pure_pipeline_build_readiness.sh
+
+set +e
+./scripts/run_pure_pipeline_build.sh \
+  --target hw_emu \
+  --label idle_settle_guard_after_5174168 \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 2 \
+  --dry-run \
+  --skip-compile \
+  --skip-link
+echo "idle_settle_guard_rc=$?"
+```
+
+The guard regression returned `idle_settle_guard_rc=3`, as expected while
+external Spine builders were active, and did not launch a pure-pipeline Vitis
+compile.
+
+Updated next command once external builders are gone:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_$(git rev-parse --short HEAD) \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Evidence hashes:
+
+```text
+50f40fa98a2f1b124ea6f1d929be96209b92a0ffac1885f4e794b14b140c6c1c  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/readiness_post_external_spine_idle_after_5174168.txt
+00d794e5814c4d2daf8f3d2df83115686acac21cc5b4020fc9a5d9144ea74c66  .tmp_build/pure_pipeline_hw_stage0/run_logs/readiness_post_external_spine_idle_after_5174168.txt
+2cb5a5f59a85988df34c0908de9a5436e9b26c1f14b6ca30317afd69201f66c4  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/compile_after_5174168.log
+a749093fcefbb54e379c29d3387d17d56c15c41b8e65a19b453db4cb5c3249a0  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_after_5174168_evidence.tsv
+a5b0991d116600587a473cd94794a302d62c1bb7af82f11659070369171a2884  .tmp_build/pure_pipeline_hw_emu_stage0/build/bin_search.hw_emu.xo
+a92c69dfe77d93e05beb1989647acce48723243cd0710ad274ddf70d4054b7da  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/idle_check_idle_settle_guard_after_5174168.txt
+67f44795fe90d65e2ccb4e7fd328d4b25b6e41809904f8fef6abe010339af31d  scripts/run_pure_pipeline_build.sh
+d3db08cd613e041e80985bbd73288fe094709355fd81cd440b60f5d61755f0e3  scripts/run_pure_pipeline_target_flow.sh
+56b164f31664008deb80c6473247960013d65faa5d3ccbc9ff33f0c438f94d74  scripts/check_pure_pipeline_build_readiness.sh
 ```

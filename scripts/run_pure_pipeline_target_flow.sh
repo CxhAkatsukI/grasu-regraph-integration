@@ -8,6 +8,7 @@ TARGET="hw_emu"
 LABEL=""
 WAIT_IDLE_SECONDS=7200
 IDLE_POLL_SECONDS=60
+IDLE_SETTLE_SECONDS=0
 MONITOR_TAIL_LINES=40
 GATE_CASE="tiny_star_v16_u12"
 GATE_TIMEOUT_SECONDS=""
@@ -32,6 +33,7 @@ Options:
   --label NAME                Evidence suffix. Default: after_<current git short hash>.
   --wait-idle SECONDS         Build wait-idle timeout. Default: ${WAIT_IDLE_SECONDS}
   --idle-poll SECONDS         Build wait-idle poll interval. Default: ${IDLE_POLL_SECONDS}
+  --idle-settle SECONDS       Continuous idle required before build launch. Default: ${IDLE_SETTLE_SECONDS}
   --monitor-tail N            Monitor tail lines. Default: ${MONITOR_TAIL_LINES}
   --gate-case NAME            Finalize gate case. Default: ${GATE_CASE}
   --no-gate                   Do not run a staged gate before full smoke.
@@ -69,6 +71,7 @@ while [[ $# -gt 0 ]]; do
     --label) LABEL="$2"; shift 2 ;;
     --wait-idle) WAIT_IDLE_SECONDS="$2"; shift 2 ;;
     --idle-poll) IDLE_POLL_SECONDS="$2"; shift 2 ;;
+    --idle-settle) IDLE_SETTLE_SECONDS="$2"; shift 2 ;;
     --monitor-tail) MONITOR_TAIL_LINES="$2"; shift 2 ;;
     --gate-case) GATE_CASE="$2"; shift 2 ;;
     --no-gate) GATE_CASE=""; shift ;;
@@ -92,7 +95,7 @@ case "${TARGET}" in
   sw_emu|hw_emu|hw) ;;
   *) echo "Invalid --target: ${TARGET}" >&2; exit 2 ;;
 esac
-for numeric in WAIT_IDLE_SECONDS IDLE_POLL_SECONDS MONITOR_TAIL_LINES; do
+for numeric in WAIT_IDLE_SECONDS IDLE_POLL_SECONDS IDLE_SETTLE_SECONDS MONITOR_TAIL_LINES; do
   value="${!numeric}"
   case "${value}" in
     ''|*[!0-9]*) echo "--${numeric,,} must be a non-negative integer" >&2; exit 2 ;;
@@ -134,6 +137,7 @@ AUDIT_OUT="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${LABEL}"
   printf 'label=%s\n' "${LABEL}"
   printf 'wait_idle_seconds=%s\n' "${WAIT_IDLE_SECONDS}"
   printf 'idle_poll_seconds=%s\n' "${IDLE_POLL_SECONDS}"
+  printf 'idle_settle_seconds=%s\n' "${IDLE_SETTLE_SECONDS}"
   printf 'monitor_tail_lines=%s\n' "${MONITOR_TAIL_LINES}"
   printf 'gate_case=%s\n' "${GATE_CASE}"
   printf 'gate_timeout_seconds=%s\n' "${GATE_TIMEOUT_SECONDS}"
@@ -169,7 +173,8 @@ if [[ "${SKIP_BUILD}" == "0" ]]; then
     --target "${TARGET}" \
     --label "${LABEL}" \
     --wait-idle "${WAIT_IDLE_SECONDS}" \
-    --idle-poll "${IDLE_POLL_SECONDS}"
+    --idle-poll "${IDLE_POLL_SECONDS}" \
+    --idle-settle "${IDLE_SETTLE_SECONDS}"
 fi
 
 run_cmd "${SCRIPT_DIR}/monitor_pure_pipeline_build.sh" \
