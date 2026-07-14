@@ -123,6 +123,22 @@ partition descriptor through a metadata stream.
 
 ## Required Source Changes
 
+Current integration-branch seed code:
+
+```text
+kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp
+```
+
+Lightweight syntax check:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/check_pma_to_regraph_adapter.sh
+```
+
+This check only proves that the adapter source parses against the Vitis HLS C++
+headers. It is not an XO compile, link, or hardware correctness proof.
+
 GraSU kernel changes:
 
 - Add one AXI4-Stream completion-token output to each PMA writer kernel.
