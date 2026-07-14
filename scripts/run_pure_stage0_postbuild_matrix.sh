@@ -16,6 +16,7 @@ IDENTITY_DIR=""
 COMPARE_OUT=""
 HOST_SUMMARY=""
 SPINE_SUMMARY=""
+BASELINE_LABEL=""
 TIMEOUT_SECONDS=600
 CASE_FILTER=""
 FAMILY_FILTER=""
@@ -23,6 +24,7 @@ MAX_CASES=0
 SKIP_RUN=0
 SKIP_IDENTITY=0
 SKIP_COMPARE=0
+REQUIRE_COMPARE=0
 DRY_RUN=0
 
 GATE_CASES=(
@@ -52,8 +54,9 @@ Options:
   --out-dir PATH              Pure run dir. Default: results/pure_pipeline_<target>_pure_stage0_<mode>_<label>
   --identity-dir PATH         Identity audit dir. Default: results/pure_pipeline_<target>_pure_stage0_identity_<mode>_<label>
   --compare-out PATH          Comparison dir. Default: results/pure_pipeline_<target>_pure_stage0_compare_<label>
-  --host-summary PATH         Host baseline summary for comparison. Optional.
-  --spine-summary PATH        Spine summary for comparison. Optional.
+  --host-summary PATH         Host baseline summary for comparison. Default inferred from --baseline-label.
+  --spine-summary PATH        Spine summary for comparison. Default inferred from --baseline-label.
+  --baseline-label NAME       Baseline result suffix. Default: --label.
   --timeout SECONDS           Per-case timeout. Default: ${TIMEOUT_SECONDS}
   --case LIST                 Run only comma-separated case names. Can be repeated.
   --family LIST               Run only comma-separated families. Can be repeated.
@@ -61,6 +64,7 @@ Options:
   --skip-run                  Reuse an existing --out-dir; do not run the xclbin.
   --skip-identity             Do not run the input-identity audit.
   --skip-compare              Do not generate comparison.tsv.
+  --require-compare           Fail unless host and Spine baseline summaries exist.
   --dry-run                   Print commands; do not execute them.
   -h, --help                  Show this help.
 USAGE
@@ -119,6 +123,7 @@ while [[ $# -gt 0 ]]; do
     --compare-out) COMPARE_OUT="$(abs_path "$2")"; shift 2 ;;
     --host-summary) HOST_SUMMARY="$(abs_path "$2")"; shift 2 ;;
     --spine-summary) SPINE_SUMMARY="$(abs_path "$2")"; shift 2 ;;
+    --baseline-label) BASELINE_LABEL="$2"; shift 2 ;;
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
     --case) CASE_FILTER="$(append_csv "${CASE_FILTER}" "$2")"; shift 2 ;;
     --family) FAMILY_FILTER="$(append_csv "${FAMILY_FILTER}" "$2")"; shift 2 ;;
@@ -126,6 +131,7 @@ while [[ $# -gt 0 ]]; do
     --skip-run) SKIP_RUN=1; shift ;;
     --skip-identity) SKIP_IDENTITY=1; shift ;;
     --skip-compare) SKIP_COMPARE=1; shift ;;
+    --require-compare) REQUIRE_COMPARE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
@@ -150,8 +156,17 @@ cd "${GRI_ROOT}"
 if [[ -z "${LABEL}" ]]; then
   LABEL="after_$(git -C "${GRI_ROOT}" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d_%H%M%S)"
 fi
+if [[ -z "${BASELINE_LABEL}" ]]; then
+  BASELINE_LABEL="${LABEL}"
+fi
 if [[ -z "${XCLBIN}" ]]; then
   XCLBIN="${GRI_ROOT}/.tmp_build/pure_pipeline_${TARGET}_stage0/build/grasu_regraph_pure_pipeline.${TARGET}.xclbin"
+fi
+if [[ -z "${HOST_SUMMARY}" ]]; then
+  HOST_SUMMARY="${GRI_ROOT}/results/grasu_regraph_sssp_pure_stage0_${BASELINE_LABEL}/summary.tsv"
+fi
+if [[ -z "${SPINE_SUMMARY}" ]]; then
+  SPINE_SUMMARY="${GRI_ROOT}/results/spine_edge_file_pure_stage0_${BASELINE_LABEL}/summary.tsv"
 fi
 if [[ -z "${PLAN_DIR}" ]]; then
   PLAN_DIR="${GRI_ROOT}/results/pure_stage0_comparison_plan_${LABEL}"
@@ -197,7 +212,10 @@ mkdir -p "${OUT_DIR}" "${IDENTITY_DIR}"
   printf 'identity_out=%s\n' "${IDENTITY_OUT}"
   printf 'compare_out=%s\n' "${COMPARE_OUT}"
   printf 'host_summary=%s\n' "${HOST_SUMMARY}"
+  printf 'host_summary_sha256=%s\n' "$(sha_or_missing "${HOST_SUMMARY}")"
   printf 'spine_summary=%s\n' "${SPINE_SUMMARY}"
+  printf 'spine_summary_sha256=%s\n' "$(sha_or_missing "${SPINE_SUMMARY}")"
+  printf 'baseline_label=%s\n' "${BASELINE_LABEL}"
   printf 'timeout_seconds=%s\n' "${TIMEOUT_SECONDS}"
   printf 'case_filter=%s\n' "${CASE_FILTER}"
   printf 'family_filter=%s\n' "${FAMILY_FILTER}"
@@ -205,6 +223,7 @@ mkdir -p "${OUT_DIR}" "${IDENTITY_DIR}"
   printf 'skip_run=%s\n' "${SKIP_RUN}"
   printf 'skip_identity=%s\n' "${SKIP_IDENTITY}"
   printf 'skip_compare=%s\n' "${SKIP_COMPARE}"
+  printf 'require_compare=%s\n' "${REQUIRE_COMPARE}"
   printf 'dry_run=%s\n' "${DRY_RUN}"
   printf 'git_head=%s\n' "$(git -C "${GRI_ROOT}" rev-parse HEAD)"
 } > "${POSTBUILD_ENV}"
@@ -251,8 +270,25 @@ if [[ "${SKIP_IDENTITY}" == "0" ]]; then
 fi
 
 if [[ "${SKIP_COMPARE}" == "0" ]]; then
-  if [[ -z "${HOST_SUMMARY}" || ! -f "${HOST_SUMMARY}" ]]; then
-    echo "Skipping comparison: missing --host-summary" >&2
+  missing_compare_inputs=0
+  if [[ ! -f "${HOST_SUMMARY}" ]]; then
+    echo "Missing host baseline summary: ${HOST_SUMMARY}" >&2
+    missing_compare_inputs=1
+  fi
+  if [[ ! -f "${SPINE_SUMMARY}" ]]; then
+    echo "Missing Spine summary: ${SPINE_SUMMARY}" >&2
+    if [[ "${REQUIRE_COMPARE}" == "1" ]]; then
+      missing_compare_inputs=1
+    fi
+  fi
+  if [[ "${REQUIRE_COMPARE}" == "1" && "${missing_compare_inputs}" != "0" ]]; then
+    echo "Comparison is required. Generate the same-input baseline with:" >&2
+    echo "  ${SCRIPT_DIR}/export_pure_stage0_comparison_plan.py --label ${BASELINE_LABEL}" >&2
+    echo "then run the host-baseline and Spine commands listed in the generated plan." >&2
+    exit 1
+  fi
+  if [[ ! -f "${HOST_SUMMARY}" ]]; then
+    echo "Skipping comparison: host baseline summary is missing." >&2
   else
     compare_cmd=(
       python3 "${SCRIPT_DIR}/summarize_pure_pipeline_smoke.py"
@@ -264,6 +300,8 @@ if [[ "${SKIP_COMPARE}" == "0" ]]; then
     )
     if [[ -n "${SPINE_SUMMARY}" && -f "${SPINE_SUMMARY}" ]]; then
       compare_cmd+=(--spine-summary "${SPINE_SUMMARY}")
+    else
+      echo "Comparison will omit Spine columns because the Spine summary is missing." >&2
     fi
     run_cmd "${compare_cmd[@]}"
   fi

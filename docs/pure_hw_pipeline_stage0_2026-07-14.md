@@ -8601,3 +8601,97 @@ f798479e0a138773530e565067989c7af10d7d4fbaa4c28d19cb8967395541ed  .tmp_build/pur
 12ed20797de4e6e7c01133c8c1c7907600847529c3276130d401fdcca9a83eb1  .tmp_build/pure_pipeline_evidence_stage0_matrix_fields_precommit2/target_matrix.tsv
 6cd61e2ca2de9ebdda3cc5762b493a61d46a29b54be9f0669cfe09d95d2be527  .tmp_build/pure_pipeline_evidence_stage0_matrix_fields_precommit2/summary.md
 ```
+
+## Postbuild Baseline Discovery, 2026-07-15
+
+`scripts/run_pure_stage0_postbuild_matrix.sh` now auto-fills the same-input
+host and Spine baseline summary paths from a shared result suffix:
+
+```text
+results/grasu_regraph_sssp_pure_stage0_<baseline-label>/summary.tsv
+results/spine_edge_file_pure_stage0_<baseline-label>/summary.tsv
+```
+
+By default `<baseline-label>` equals `--label`. Use `--baseline-label NAME`
+when the pure-pipeline postbuild result should be compared against an existing
+baseline run with a different suffix. Use `--require-compare` for final
+evidence collection; it fails if either the host baseline or Spine summary is
+missing instead of silently producing a partial comparison.
+
+After a pure `hw_emu` xclbin exists, run the four-family gate and compare it
+against the same-input baselines:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw_emu \
+  --mode gate \
+  --label after_<build-label> \
+  --baseline-label <same-input-baseline-label> \
+  --require-compare
+```
+
+After a pure `hw` xclbin exists and the gate passes, run the full tracked
+stage0 matrix. This is the evidence used for the `V <= 65536` first-stage
+requirement:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode full \
+  --label after_<build-label> \
+  --baseline-label <same-input-baseline-label> \
+  --require-compare
+```
+
+If the required baselines are missing, generate the canonical plan first:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/export_pure_stage0_comparison_plan.py \
+  --label <same-input-baseline-label> \
+  --out-dir results/pure_stage0_comparison_plan_<same-input-baseline-label>
+```
+
+Then run the host-baseline and Spine commands listed in
+`results/pure_stage0_comparison_plan_<same-input-baseline-label>/comparison_plan.tsv`.
+
+Validation commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/run_pure_stage0_postbuild_matrix.sh
+
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode full \
+  --label dryrun_auto_baseline_after_744a4de \
+  --plan-dir .tmp_build/pure_stage0_postbuild_autobaseline_dryrun/plan \
+  --out-dir .tmp_build/pure_stage0_postbuild_autobaseline_dryrun/run \
+  --identity-dir .tmp_build/pure_stage0_postbuild_autobaseline_dryrun/identity \
+  --compare-out .tmp_build/pure_stage0_postbuild_autobaseline_dryrun/compare \
+  --dry-run \
+  --skip-compare
+
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode gate \
+  --label dryrun_require_compare_missing_after_744a4de \
+  --plan-dir .tmp_build/pure_stage0_postbuild_require_compare_dryrun/plan \
+  --out-dir .tmp_build/pure_stage0_postbuild_require_compare_dryrun/run \
+  --identity-dir .tmp_build/pure_stage0_postbuild_require_compare_dryrun/identity \
+  --compare-out .tmp_build/pure_stage0_postbuild_require_compare_dryrun/compare \
+  --dry-run \
+  --skip-run \
+  --skip-identity \
+  --require-compare
+```
+
+Validation result:
+
+```text
+bash -n: PASS
+auto-baseline dry-run: PASS, printed smoke and identity commands without launching hw
+require-compare dry-run: expected status=1, reported the missing host and Spine summary paths
+```
