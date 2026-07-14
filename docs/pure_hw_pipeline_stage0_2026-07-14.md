@@ -7201,3 +7201,156 @@ d8390d14e24535073abad0e8f3db48db287858085dd919aa7d246ad64c96599a  .tmp_build/pur
 c2bc15e21dc316c5b900e6ff1bbb4a6eaca59e52e509fccd242672732dfe3c42  results/pure_pipeline_evidence_bundle_prelaunch_after_71d901a_postrun_report/summary.md
 824429466f8275a30a2c6e70d50fec47c34d9cce54f98880a15f083e199f3d23  results/pure_pipeline_evidence_bundle_prelaunch_after_71d901a_postrun_report/target_matrix.tsv
 ```
+
+## Skip-Build Postrun Acceptance Fix
+
+As of commit `4f3afb93ac5180da7d1d61e18eeeb2e01991050f`, the target-flow
+wrapper correctly supports postrun validation on an already-built xclbin. This
+matters because the next-step helper recommends a `--skip-build` command when a
+target xclbin exists but its smoke/compare/audit/bundle acceptance has not yet
+passed.
+
+The bug was:
+
+- `run_pure_pipeline_target_flow.sh --skip-build` skipped the postrun
+  acceptance check entirely.
+- Its acceptance checklist still required `compile_<label>.log` and
+  `link_<label>.log` for the new postrun label, even though the build was
+  intentionally skipped.
+
+The fix:
+
+- Postrun acceptance now runs even when `--skip-build` is set, as long as
+  finalize, audit, bundle, and acceptance are not skipped.
+- In skip-build flows, `compile_log` and `link_log` are marked `required=no`.
+  The flow still requires the existing xclbin, xclbin metadata contract, smoke
+  summaries, same-input comparison, requirement audit, and evidence bundle.
+
+Validation before committing:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/run_pure_pipeline_target_flow.sh
+git diff --check
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target sw_emu \
+  --label skipbuild_acceptance_contract_check \
+  --skip-build \
+  --skip-finalize \
+  --skip-audit \
+  --skip-bundle \
+  --dry-run
+```
+
+The dry-run acceptance checklist correctly contained:
+
+```text
+compile_log required=no
+link_log    required=no
+```
+
+After committing, current `sw_emu` postrun validation was rerun without
+relinking:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target sw_emu \
+  --label postrun_after_4f3afb9 \
+  --skip-build \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 180 \
+  --timeout 300
+```
+
+Result:
+
+```text
+acceptance_check_postrun: PASS=11, SKIP=2
+smoke: chain, hot-source, spread, hot-destination all PASS with mismatches=0
+compare: same-input host zero-cost and Spine comparison regenerated
+```
+
+The current status report is:
+
+```text
+head=4f3afb93ac5180da7d1d61e18eeeb2e01991050f
+source_fingerprint_sha256=baf531b0cd3e4088eb942b511077e94954b8bfe481e98deb1a3996cad408b579
+dirty=false
+
+sw_emu xclbin=yes flow_current=yes postrun=pass:PASS=11,SKIP=2
+hw_emu xclbin=no flow_current=yes packet_current=yes postrun=waiting_xclbin
+hw xclbin=no flow_current=yes packet_current=yes postrun=waiting_xclbin
+
+next_target=hw_emu
+next_action=build
+next_commands=.tmp_build/pure_pipeline_launch_packet_hw_emu_after_4f3afb9_allow_active/launch_command.sh
+```
+
+Fresh hardware launch packets were regenerated because the target-flow script is
+part of the build-relevant source fingerprint:
+
+```bash
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label after_4f3afb9 \
+  --label hw_emu_after_4f3afb9_allow_active \
+  --allow-active-builders
+
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw \
+  --flow-label after_4f3afb9 \
+  --label hw_after_4f3afb9_allow_active \
+  --allow-active-builders
+```
+
+No-build target-flow evidence was also refreshed:
+
+```bash
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label prelaunch_after_4f3afb9_skipbuild_acceptance \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label prelaunch_after_4f3afb9_skipbuild_acceptance \
+  --prepare \
+  --skip-build \
+  --skip-finalize \
+  --wait-idle 1 \
+  --idle-poll 1 \
+  --idle-settle 0 \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+The next long command remains:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_hw_emu_after_4f3afb9_allow_active/launch_command.sh
+```
+
+Evidence hashes:
+
+```text
+9f2e7f212091ccc729678e520dad132dfeebf23156adbf9b234934ca466a34e8  scripts/run_pure_pipeline_target_flow.sh
+c506fed573012f01c15edc26582b75b84e4e2db9bf9798ef08345b6351843c53  .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/acceptance_check_postrun_target_flow_postrun_after_4f3afb9.tsv
+e9ac52e7b51072094450dceb0f0387871320f33f9023cf2c5216ee8f3f6cf776  results/pure_pipeline_sw_emu_smoke_postrun_after_4f3afb9/summary.tsv
+76e638cb0ce204afab2843cb83b796a0b0b4ccbf1f0d30adc85aaffeb738872d  results/pure_pipeline_sw_emu_compare_postrun_after_4f3afb9/comparison.tsv
+4863c32fae7df3e7735333f65a164149e07af3ec6e1f9e01fe1ac35e44e05c67  results/pure_pipeline_requirement_audit_postrun_after_4f3afb9/audit.json
+b3188d00aed6bd41b88c6c9bb43aa26f86d2f45ceb1ef9ce11f676d9f9be436a  results/pure_pipeline_evidence_bundle_postrun_after_4f3afb9/summary.md
+81bcaf388bd2a2ae40b2e55eac3ae88d804b19aecd28b26540e24eb38baa6fd4  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_4f3afb9_allow_active/launch_command.sh
+ef37d99376b44fdb71e4e215e251a100a06dd417ef7dc51f23da631342ff1dae  .tmp_build/pure_pipeline_launch_packet_hw_emu_after_4f3afb9_allow_active/acceptance_check_prelaunch.tsv
+8257b73503fa179703391454059be7d8d86bd72dc838cb5a7e5cae1cdbcc0750  .tmp_build/pure_pipeline_launch_packet_hw_after_4f3afb9_allow_active/launch_command.sh
+bdf686670a1feb8d6d827006cfa95ea61596dcca9f869555e1abf97aa4ccfdc9  .tmp_build/pure_pipeline_launch_packet_hw_after_4f3afb9_allow_active/acceptance_check_prelaunch.tsv
+1e19c8937ae77a1d123dfbb2febfad7e221c0d3542e589fd138eb4b20416bd06  .tmp_build/pure_pipeline_hw_emu_stage0/run_logs/target_flow_prelaunch_after_4f3afb9_skipbuild_acceptance.env
+372c2c47329676555e6accead73d9ab1459333697d0b087ab0c7a6a72c369aac  .tmp_build/pure_pipeline_hw_stage0/run_logs/target_flow_prelaunch_after_4f3afb9_skipbuild_acceptance.env
+```

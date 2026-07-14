@@ -220,7 +220,10 @@ post-build acceptance check for each target. A target is not treated as finished
 just because its xclbin exists; if the xclbin is present but `postrun` is not
 `pass`, the helper recommends a `--skip-build` target-flow command that reruns
 smoke correctness, same-input comparison, requirement audit, evidence bundle
-export, and postrun acceptance gates on the existing xclbin.
+export, and postrun acceptance gates on the existing xclbin. In a `--skip-build`
+postrun flow, the compile/link log gates are marked `required=no`; the run still
+requires the existing xclbin, xclbin metadata contract, smoke summaries,
+comparison table, audit, and evidence bundle to pass.
 
 Current reproducible target flow:
 
