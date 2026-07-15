@@ -24,6 +24,7 @@ command = build_acceptance_command(
     require_compare=True,
     skip_postrun=False,
     skip_matrix=False,
+    skip_claim_check=False,
 )
 
 assert command == [
@@ -41,6 +42,7 @@ assert command == [
     "--gate-timeout",
     "300",
 ]
+assert "--skip-claim-check" not in command
 
 command = build_acceptance_command(
     target="hw_emu",
@@ -52,11 +54,13 @@ command = build_acceptance_command(
     require_compare=False,
     skip_postrun=True,
     skip_matrix=False,
+    skip_claim_check=True,
 )
 
 assert "--no-require-compare" in command
 assert "--skip-postrun" in command
 assert "--skip-matrix" not in command
+assert "--skip-claim-check" in command
 
 with tempfile.TemporaryDirectory() as tmp:
     missing = Path(tmp) / "missing.xclbin"

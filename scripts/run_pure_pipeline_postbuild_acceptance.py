@@ -2,11 +2,12 @@
 """Run post-build validation on an already-built pure-pipeline xclbin.
 
 This wrapper is intentionally post-build only: it never invokes Vitis compile or
-link. It sequences the two commands that should run after a manually produced
+link. It sequences the commands that should run after a manually produced
 hw_emu/hw xclbin appears:
 
 1. target-flow postrun validation with --skip-build
 2. same-input pure_stage0 matrix comparison
+3. machine-checkable claim validation for the requested proof level
 """
 
 from __future__ import annotations
@@ -47,6 +48,12 @@ def default_labels(repo: Path) -> tuple[str, str]:
     return labels_from_report(make_report(repo))
 
 
+def claim_level_for(mode: str, skip_matrix: bool) -> str:
+    if skip_matrix:
+        return "build"
+    return mode
+
+
 def build_commands(
     target: str,
     label: str,
@@ -57,6 +64,7 @@ def build_commands(
     require_compare: bool,
     skip_postrun: bool,
     skip_matrix: bool,
+    skip_claim_check: bool,
 ) -> list[list[str]]:
     commands: list[list[str]] = []
     if not skip_postrun:
@@ -87,6 +95,14 @@ def build_commands(
         if require_compare:
             matrix.append("--require-compare")
         commands.append(matrix)
+    if not skip_claim_check:
+        commands.append([
+            "./scripts/check_pure_pipeline_claim.py",
+            "--target",
+            target,
+            "--level",
+            claim_level_for(mode, skip_matrix),
+        ])
     return commands
 
 
@@ -108,6 +124,7 @@ def main() -> int:
     parser.add_argument("--no-require-compare", action="store_true")
     parser.add_argument("--skip-postrun", action="store_true")
     parser.add_argument("--skip-matrix", action="store_true")
+    parser.add_argument("--skip-claim-check", action="store_true")
     parser.add_argument("--allow-missing-xclbin", action="store_true", help="Only useful with --dry-run.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -156,6 +173,7 @@ def main() -> int:
         not args.no_require_compare,
         args.skip_postrun,
         args.skip_matrix,
+        args.skip_claim_check,
     )
     for command in commands:
         run_command(command, args.dry_run)
