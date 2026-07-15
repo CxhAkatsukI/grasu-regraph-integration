@@ -186,6 +186,10 @@ HASHES_TSV="${OUT_DIR}/artifact_hashes.tsv"
 ACCEPTANCE_TSV="${OUT_DIR}/acceptance_gates.tsv"
 ACCEPTANCE_CHECK_PRELAUNCH="${OUT_DIR}/acceptance_check_prelaunch.tsv"
 ACCEPTANCE_CHECK_POSTRUN="${OUT_DIR}/acceptance_check_postrun.tsv"
+POSTBUILD_ACCEPTANCE_GATE_SH="${OUT_DIR}/postbuild_acceptance_gate.sh"
+POSTBUILD_ACCEPTANCE_FULL_SH="${OUT_DIR}/postbuild_acceptance_full.sh"
+WAIT_THEN_ACCEPT_GATE_SH="${OUT_DIR}/wait_then_accept_gate.sh"
+WAIT_THEN_ACCEPT_FULL_SH="${OUT_DIR}/wait_then_accept_full.sh"
 
 OUT_XCLBIN="${BUILD_ROOT}/build/grasu_regraph_pure_pipeline.${TARGET}.xclbin"
 HOST_BIN="${GRI_ROOT}/.tmp_build/pure_pipeline_host_stage0/pure_pipeline_host"
@@ -196,6 +200,19 @@ SMOKE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_smoke_${FLOW_LABEL}"
 COMPARE_OUT="${GRI_ROOT}/results/pure_pipeline_${TARGET}_compare_${FLOW_LABEL}"
 AUDIT_FLOW_DIR="${GRI_ROOT}/results/pure_pipeline_requirement_audit_${FLOW_LABEL}"
 BUNDLE_FLOW_DIR="${GRI_ROOT}/results/pure_pipeline_evidence_bundle_${FLOW_LABEL}"
+
+BASELINE_LABEL="$(
+  python3 - <<'PY'
+from pathlib import Path
+import sys
+
+repo = Path.cwd()
+sys.path.insert(0, str(repo / "scripts"))
+from report_pure_pipeline_next_steps import make_report  # noqa: E402
+
+print(make_report(repo)["stage0_followup"]["baseline"]["label"])
+PY
+)"
 
 if [[ "${PREPARE}" == "1" ]]; then
   run_capture_status "${SCRIPT_DIR}/prepare_pure_hw_pipeline_build.sh" \
@@ -292,6 +309,42 @@ fi
 } > "${COMMANDS_SH}"
 chmod +x "${COMMANDS_SH}"
 
+postbuild_helper_paths=()
+write_postbuild_helper() {
+  local path="$1"
+  local mode="$2"
+  local script="$3"
+  shift 3
+
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'set -euo pipefail\n'
+    printf 'cd %q\n' "${GRI_ROOT}"
+    printf 'exec %q' "${script}"
+    printf ' --target %q' "${TARGET}"
+    printf ' --label %q' "${FLOW_LABEL}"
+    printf ' --baseline-label %q' "${BASELINE_LABEL}"
+    printf ' --mode %q' "${mode}"
+    if [[ -n "${GATE_CASE}" ]]; then
+      printf ' --gate-case %q' "${GATE_CASE}"
+      printf ' --gate-timeout %q' "${GATE_TIMEOUT_SECONDS}"
+    fi
+    for extra in "$@"; do
+      printf ' %q' "${extra}"
+    done
+    printf '\n'
+  } > "${path}"
+  chmod +x "${path}"
+  postbuild_helper_paths+=("${path}")
+}
+
+if [[ "${TARGET}" != "sw_emu" ]]; then
+  write_postbuild_helper "${POSTBUILD_ACCEPTANCE_GATE_SH}" gate "./scripts/run_pure_pipeline_postbuild_acceptance.py"
+  write_postbuild_helper "${POSTBUILD_ACCEPTANCE_FULL_SH}" full "./scripts/run_pure_pipeline_postbuild_acceptance.py"
+  write_postbuild_helper "${WAIT_THEN_ACCEPT_GATE_SH}" gate "./scripts/wait_for_pure_pipeline_xclbin_then_accept.py" --poll-seconds "${IDLE_POLL_SECONDS}"
+  write_postbuild_helper "${WAIT_THEN_ACCEPT_FULL_SH}" full "./scripts/wait_for_pure_pipeline_xclbin_then_accept.py" --poll-seconds "${IDLE_POLL_SECONDS}"
+fi
+
 {
   printf 'gate\trequired\tevidence_path\tpass_condition\n'
   printf 'source_fingerprints\tyes\t%s\tsource_fingerprint_status=0 and source tree hashes are recorded before launch\n' "${SOURCE_FINGERPRINTS_OUT}"
@@ -346,6 +399,13 @@ fi
   printf 'acceptance_check_postrun=%s\n' "${ACCEPTANCE_CHECK_POSTRUN}"
   printf 'acceptance_check_status=%s\n' "${acceptance_check_status}"
   printf 'launch_command=%s\n' "${COMMANDS_SH}"
+  printf 'baseline_label=%s\n' "${BASELINE_LABEL}"
+  if [[ "${TARGET}" != "sw_emu" ]]; then
+    printf 'postbuild_acceptance_gate=%s\n' "${POSTBUILD_ACCEPTANCE_GATE_SH}"
+    printf 'postbuild_acceptance_full=%s\n' "${POSTBUILD_ACCEPTANCE_FULL_SH}"
+    printf 'wait_then_accept_gate=%s\n' "${WAIT_THEN_ACCEPT_GATE_SH}"
+    printf 'wait_then_accept_full=%s\n' "${WAIT_THEN_ACCEPT_FULL_SH}"
+  fi
   printf 'integration_branch=%s\n' "$(git_value "${GRI_ROOT}" branch)"
   printf 'integration_head=%s\n' "$(git_value "${GRI_ROOT}" head)"
   printf 'integration_tracked_dirty=%s\n' "$(git_value "${GRI_ROOT}" tracked_dirty)"
@@ -383,6 +443,7 @@ fi
     "${ACCEPTANCE_CHECK_PRELAUNCH}" \
     "${SCRIPT_DIR}/check_pure_pipeline_acceptance_gates.py" \
     "${COMMANDS_SH}" \
+    "${postbuild_helper_paths[@]}" \
     "${PACKET_ENV}"; do
     printf 'artifact\t%s\t%s\t%s\n' "${artifact}" "$(sha_or_missing "${artifact}")" "$(size_or_missing "${artifact}")"
   done
@@ -406,6 +467,17 @@ launch_line="$(printf '%q ' "${launch_cmd[@]}")"
   printf '```\n\n'
   printf 'Equivalent executable command file:\n\n'
   printf '```text\n%s\n```\n\n' "${COMMANDS_SH}"
+  if [[ "${TARGET}" != "sw_emu" ]]; then
+    printf '## Post-Build Helpers\n\n'
+    printf 'These packet-local helpers do not launch Vitis. Use them after the xclbin appears, or while a long build is still running in another terminal:\n\n'
+    printf '```text\n'
+    printf '%s\n' "${POSTBUILD_ACCEPTANCE_GATE_SH}"
+    printf '%s\n' "${WAIT_THEN_ACCEPT_GATE_SH}"
+    printf '%s\n' "${POSTBUILD_ACCEPTANCE_FULL_SH}"
+    printf '%s\n' "${WAIT_THEN_ACCEPT_FULL_SH}"
+    printf '```\n\n'
+    printf 'They pin `--label %s` and `--baseline-label %s`, then run the guarded post-build acceptance sequence, artifact manifest collection, and claim check for the selected mode.\n\n' "${FLOW_LABEL}" "${BASELINE_LABEL}"
+  fi
   printf '## Evidence Files\n\n'
   printf '```text\n'
   printf '%s\n' "${SOURCE_CONTRACT_OUT}"
@@ -420,6 +492,9 @@ launch_line="$(printf '%q ' "${launch_cmd[@]}")"
   printf '%s\n' "${BUNDLE_DIR}/input_identity_matrix.tsv"
   printf '%s\n' "${ACCEPTANCE_TSV}"
   printf '%s\n' "${ACCEPTANCE_CHECK_PRELAUNCH}"
+  for helper_path in "${postbuild_helper_paths[@]}"; do
+    printf '%s\n' "${helper_path}"
+  done
   printf '%s\n' "${HASHES_TSV}"
   printf '```\n\n'
   printf '## Acceptance Gates\n\n'
@@ -452,6 +527,12 @@ echo "DONE audit_dir=${AUDIT_DIR}"
 echo "DONE bundle_dir=${BUNDLE_DIR}"
 echo "DONE acceptance_gates=${ACCEPTANCE_TSV}"
 echo "DONE acceptance_check_prelaunch=${ACCEPTANCE_CHECK_PRELAUNCH}"
+if [[ "${TARGET}" != "sw_emu" ]]; then
+  echo "DONE postbuild_acceptance_gate=${POSTBUILD_ACCEPTANCE_GATE_SH}"
+  echo "DONE wait_then_accept_gate=${WAIT_THEN_ACCEPT_GATE_SH}"
+  echo "DONE postbuild_acceptance_full=${POSTBUILD_ACCEPTANCE_FULL_SH}"
+  echo "DONE wait_then_accept_full=${WAIT_THEN_ACCEPT_FULL_SH}"
+fi
 
 if (( source_status != 0 )); then
   exit "${source_status}"
