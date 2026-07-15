@@ -348,8 +348,27 @@ def required_manifest_keys(level: str) -> set[tuple[str, str]]:
         ("stage0", "summary"),
         ("stage0", "input_identity"),
         ("stage0", "comparison"),
+        ("stage0", "acceptance_gates"),
+        ("stage0", "acceptance_check"),
     }
     return build_keys | (stage0_keys if level in {"gate", "full"} else set())
+
+
+def acceptance_check_issues(path: Path, row_id: str) -> list[str]:
+    rows = read_tsv_rows(path)
+    if not rows:
+        return [f"acceptance_check_empty:{row_id}"]
+    required = [row for row in rows if row.get("required") == "yes"]
+    if not required:
+        return [f"acceptance_check_no_required:{row_id}"]
+    failed = [
+        row.get("gate", "unknown")
+        for row in required
+        if row.get("status") != "PASS"
+    ]
+    if failed:
+        return [f"acceptance_check_failed:{row_id}:{','.join(failed)}"]
+    return []
 
 
 def artifact_manifest_integrity_issues(
@@ -386,6 +405,10 @@ def artifact_manifest_integrity_issues(
                         issues.append(f"size_mismatch:{row_id}")
                 except ValueError:
                     issues.append(f"bad_size:{row_id}")
+            if name == "acceptance_check" or (
+                category == "postrun" and name == "acceptance_check_postrun"
+            ):
+                issues.extend(acceptance_check_issues(path, row_id))
 
     xclbin_row = next(
         (row for row in rows if row.get("category") == "target" and row.get("name") == "xclbin"),

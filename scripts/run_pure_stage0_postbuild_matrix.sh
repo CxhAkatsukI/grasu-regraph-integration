@@ -230,6 +230,8 @@ SUMMARY="${OUT_DIR}/summary.tsv"
 RUN_ENV="${OUT_DIR}/run.env"
 IDENTITY_OUT="${IDENTITY_DIR}/input_identity_check.tsv"
 POSTBUILD_ENV="${OUT_DIR}/postbuild_matrix.env"
+STAGE0_ACCEPTANCE_GATES="${COMPARE_OUT}/acceptance_gates_stage0_${MODE}.tsv"
+STAGE0_ACCEPTANCE_CHECK="${COMPARE_OUT}/acceptance_check_stage0_${MODE}.tsv"
 
 mkdir -p "${OUT_DIR}" "${IDENTITY_DIR}"
 {
@@ -250,6 +252,8 @@ mkdir -p "${OUT_DIR}" "${IDENTITY_DIR}"
   printf 'identity_dir=%s\n' "${IDENTITY_DIR}"
   printf 'identity_out=%s\n' "${IDENTITY_OUT}"
   printf 'compare_out=%s\n' "${COMPARE_OUT}"
+  printf 'stage0_acceptance_gates=%s\n' "${STAGE0_ACCEPTANCE_GATES}"
+  printf 'stage0_acceptance_check=%s\n' "${STAGE0_ACCEPTANCE_CHECK}"
   printf 'host_summary=%s\n' "${HOST_SUMMARY}"
   printf 'host_summary_sha256=%s\n' "$(sha_or_missing "${HOST_SUMMARY}")"
   printf 'host_identity=%s\n' "${HOST_IDENTITY}"
@@ -366,6 +370,20 @@ if [[ "${SKIP_COMPARE}" == "0" ]]; then
       echo "Comparison will omit host identity counts because the host identity audit is missing." >&2
     fi
     run_cmd "${compare_cmd[@]}"
+    if [[ "${DRY_RUN}" == "0" ]]; then
+      mkdir -p "${COMPARE_OUT}"
+      {
+        printf 'gate\trequired\tevidence_path\tdetail\n'
+        printf 'same_input_compare\tyes\t%s\tstage0 comparison covers gate families with PASS status, zero mismatches, and split timing fields\n' \
+          "${COMPARE_OUT}/comparison.tsv"
+      } > "${STAGE0_ACCEPTANCE_GATES}"
+    else
+      echo "+ write ${STAGE0_ACCEPTANCE_GATES}"
+    fi
+    run_cmd "${SCRIPT_DIR}/check_pure_pipeline_acceptance_gates.py" \
+      --acceptance-gates "${STAGE0_ACCEPTANCE_GATES}" \
+      --mode postrun \
+      --out-file "${STAGE0_ACCEPTANCE_CHECK}"
   fi
 fi
 
@@ -380,6 +398,10 @@ else
 fi
 if [[ "${SKIP_COMPARE}" == "0" ]]; then
   echo "DONE compare_out=${COMPARE_OUT}"
+  echo "DONE stage0_acceptance_gates=${STAGE0_ACCEPTANCE_GATES}"
+  echo "DONE stage0_acceptance_check=${STAGE0_ACCEPTANCE_CHECK}"
 else
   echo "DONE compare_out=SKIPPED"
+  echo "DONE stage0_acceptance_gates=SKIPPED"
+  echo "DONE stage0_acceptance_check=SKIPPED"
 fi

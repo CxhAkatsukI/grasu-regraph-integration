@@ -222,6 +222,8 @@ def build_manifest_rows(
     add_artifact(rows, repo, "stage0", "summary", repo / "results" / f"pure_pipeline_{target}_pure_stage0_{mode}_{label}" / "summary.tsv", stage0_required, "pure stage0 matrix summary")
     add_artifact(rows, repo, "stage0", "input_identity", repo / "results" / f"pure_pipeline_{target}_pure_stage0_identity_{mode}_{label}" / "input_identity_check.tsv", stage0_required, "pure stage0 input identity audit")
     add_artifact(rows, repo, "stage0", "comparison", repo / "results" / f"pure_pipeline_{target}_pure_stage0_compare_{label}" / "comparison.tsv", stage0_required, "pure stage0 same-input comparison")
+    add_artifact(rows, repo, "stage0", "acceptance_gates", repo / "results" / f"pure_pipeline_{target}_pure_stage0_compare_{label}" / f"acceptance_gates_stage0_{mode}.tsv", stage0_required, "stage0 comparison acceptance-gate specification")
+    add_artifact(rows, repo, "stage0", "acceptance_check", repo / "results" / f"pure_pipeline_{target}_pure_stage0_compare_{label}" / f"acceptance_check_stage0_{mode}.tsv", stage0_required, "stage0 comparison acceptance-gate result")
     return rows
 
 

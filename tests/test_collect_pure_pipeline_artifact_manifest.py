@@ -88,6 +88,8 @@ with TemporaryDirectory() as tmp:
         repo / "results" / f"pure_pipeline_{target}_pure_stage0_gate_{label}" / "summary.tsv",
         repo / "results" / f"pure_pipeline_{target}_pure_stage0_identity_gate_{label}" / "input_identity_check.tsv",
         repo / "results" / f"pure_pipeline_{target}_pure_stage0_compare_{label}" / "comparison.tsv",
+        repo / "results" / f"pure_pipeline_{target}_pure_stage0_compare_{label}" / "acceptance_gates_stage0_gate.tsv",
+        repo / "results" / f"pure_pipeline_{target}_pure_stage0_compare_{label}" / "acceptance_check_stage0_gate.tsv",
     ]:
         touch(path)
 
@@ -106,6 +108,10 @@ with TemporaryDirectory() as tmp:
     assert helper_row["category"] == "launch_packet"
     assert helper_row["exists"] == "yes"
     assert helper_row["required"] == "yes"
+    stage0_acceptance = next(row for row in rows if row["name"] == "acceptance_check")
+    assert stage0_acceptance["category"] == "stage0"
+    assert stage0_acceptance["exists"] == "yes"
+    assert stage0_acceptance["required"] == "yes"
 
     out_file = repo / ".tmp_build" / "manifest.tsv"
     write_manifest(out_file, rows)

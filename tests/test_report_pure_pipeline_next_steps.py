@@ -74,7 +74,20 @@ def write_complete_manifest(
             continue
         if row["path"] == "MISSING":
             continue
-        touch(repo_path(repo, row["path"]), f"{row['category']}:{row['name']}\n")
+        path = repo_path(repo, row["path"])
+        if row["name"] == "acceptance_check" or (
+            row["category"] == "postrun" and row["name"] == "acceptance_check_postrun"
+        ):
+            touch(
+                path,
+                "\n".join([
+                    "gate\trequired\tmode\tstatus\tevidence_path\tdetail",
+                    "same_input_compare\tyes\tpostrun\tPASS\tcomparison.tsv\tunit",
+                    "",
+                ]),
+            )
+        else:
+            touch(path, f"{row['category']}:{row['name']}\n")
     rows = build_manifest_rows(repo, target, label, baseline_label, mode, level)
     out_file = (
         repo
@@ -208,6 +221,29 @@ with TemporaryDirectory() as tmp:
     manifest_state = artifact_manifest_state(repo, target, "gate", label)
     assert manifest_state["status"] == "fail"
     assert "sha256_mismatch:target:xclbin" in manifest_state["integrity_issues"]
+
+    write_complete_manifest(repo, target, label, baseline_label, "gate", "gate")
+    acceptance_check = (
+        repo
+        / "results"
+        / f"pure_pipeline_{target}_pure_stage0_compare_{label}"
+        / "acceptance_check_stage0_gate.tsv"
+    )
+    acceptance_check.write_text(
+        "\n".join([
+            "gate\trequired\tmode\tstatus\tevidence_path\tdetail",
+            "same_input_compare\tyes\tpostrun\tFAIL\tcomparison.tsv\tmissing_pure_apply_ms",
+            "",
+        ]),
+        encoding="ascii",
+    )
+    rows = build_manifest_rows(repo, target, label, baseline_label, "gate", "gate")
+    write_manifest(manifest, rows)
+    manifest_state = artifact_manifest_state(repo, target, "gate", label)
+    assert manifest_state["status"] == "fail"
+    assert "acceptance_check_failed:stage0:acceptance_check:same_input_compare" in (
+        manifest_state["integrity_issues"]
+    )
 
     manifest.write_text(
         "\n".join([
