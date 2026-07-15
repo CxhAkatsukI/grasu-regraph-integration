@@ -138,6 +138,103 @@ same-input comparison: a8754cdc6a457bc76547cb755b8d82b04761bda99704d8cedaf69597a
 postbuild env:         918e25919dfedf3042671095456b1fc79742f834ecd489512c66695f8b586029
 ```
 
+## sw_emu Full Matrix Attempt After f461c07
+
+The existing `sw_emu` xclbin was also used for a full 12-case
+`pure_stage0` matrix attempt. This did not rebuild the xclbin:
+
+```text
+repo=/home/chuxiao/grasu-regraph-integration
+branch=codex/pure-hw-pipeline
+head_before_this_doc_update=2810eba83723283ad3ee047cc213ea0d91da8cfb
+source_fingerprint_sha256=86d6692740c28cece89ddcb6b80a206b435f51cf8e4398ff2ae668bae63ee9a2
+```
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target sw_emu \
+  --mode full \
+  --label after_f461c07 \
+  --baseline-label after_64ba9c3 \
+  --require-compare
+```
+
+The smoke phase exited non-zero because one case timed out, but the script
+continued across the full manifest and produced a useful partial-full evidence
+set:
+
+```text
+rows=12
+PASS=11
+FAIL=1
+failure=large_chain_v4096 exit_code=124 status=FAIL
+```
+
+The failed case is the deep `large_chain_v4096` workload: 4096 vertices,
+4095 final edges, and 4096 SSSP supersteps. Under `sw_emu` plus verbose kernel
+debug, it hit the per-case 600 second timeout before it could finish. This is
+not accepted as a full pass and keeps `sw_emu` `stage0_full=fail`.
+
+The other 11 cases matched the CPU oracle with `mismatches=0`, including the
+three `V=65536` review/boundary cases:
+
+```text
+medium_star_v65536_u8192        hot-source  PASS vertices=65536 updates=8192  supersteps=2
+medium_spread_v65536_u16384     spread      PASS vertices=65536 updates=16384 supersteps=32
+boundary_hotdst_v65536_u4096    hot-dest    PASS vertices=65536 updates=4096  supersteps=64
+```
+
+After the run, the identity and comparison reports were generated without
+rerunning kernels:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target sw_emu \
+  --mode full \
+  --label after_f461c07 \
+  --baseline-label after_64ba9c3 \
+  --require-compare \
+  --skip-run
+```
+
+The same-input audit passed:
+
+```text
+checks=240 failures=0
+```
+
+Full-attempt evidence hashes:
+
+```text
+summary:              a644784ae48582f36c456bee2c17defbe86da8bafd31c192175f12a76ef93d65
+run env:              bf64bba0fedc9fd534c2d0dd509d1c08a996295338ff3d131d7deb4c6dc95626
+postbuild env:        e513fd6480ba01590a69ac57adf10baf2daff9f5af2cd66ae08fa7d59bd7515f
+identity audit:       cbfccccda37d81897ff6bebdcfaeb0381dc317246def257feb010c83194bbf1c
+same-input tsv:       d40750727c5df0d103dbb31e1b51087861f1eee333af80dacc126e8efeb65d1c
+same-input md:        79d1975d59c998a1f007c0ea921b9c6976cddc439aee325d0c468bf5209cd97f
+comparison run env:   88924535ac9a47ba87c0f768c465300c4f6f12ab620fc4d8ab67ddc134fd1894
+input identity plan:  fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b
+comparison plan:      05156ed3f348429d837a62e965f889495659de294db18dc333e2544da2ed7688
+plan summary:         392f052bd3218bf8f6c6efb9c01c0e71575770e4d3fa234a673d4dcc30c710e3
+plan run env:         c267fd5c2bd2297f3b8b0daa9de698a88f27fca9998f90ff8d17017010f3d105
+```
+
+Important paths:
+
+```text
+results/pure_pipeline_sw_emu_pure_stage0_full_after_f461c07/summary.tsv
+results/pure_pipeline_sw_emu_pure_stage0_full_after_f461c07/large_chain_v4096.log
+results/pure_pipeline_sw_emu_pure_stage0_identity_full_after_f461c07/input_identity_check.tsv
+results/pure_pipeline_sw_emu_pure_stage0_compare_after_f461c07/comparison.tsv
+results/pure_pipeline_sw_emu_pure_stage0_compare_after_f461c07/comparison.md
+```
+
+This strengthens `sw_emu` large-case correctness evidence only. It does not
+change the final completion status: `hw_emu_gate`, `hw_gate`, and `hw_full`
+are still missing.
+
 The current requirement audit and evidence bundle were refreshed by the
 `sw_emu` postrun command above at commit
 `c29ee70c5aa3cffd1d5e4701434dcf5a919b8534`:
@@ -200,7 +297,7 @@ to claim the target as built, gate-validated, or fully validated.
 Observed result for this snapshot:
 
 ```text
-sw_emu: xclbin=yes, flow_current=no, packet_current=no,  postrun=pass:PASS=11,SKIP=2, stage0_gate=pass,    stage0_full=missing
+sw_emu: xclbin=yes, flow_current=no, packet_current=no,  postrun=pass:PASS=11,SKIP=2, stage0_gate=pass,    stage0_full=fail
 hw_emu: xclbin=no,  flow_current=no, packet_current=yes, postrun=waiting_xclbin,        stage0_gate=missing, stage0_full=missing, artifact_manifests=build:missing,gate:missing,full:missing
 hw:     xclbin=no,  flow_current=no, packet_current=yes, postrun=waiting_xclbin,        stage0_gate=missing, stage0_full=missing, artifact_manifests=build:missing,gate:missing,full:missing
 completion claimable=no; missing=hw_emu_gate,hw_gate,hw_full
