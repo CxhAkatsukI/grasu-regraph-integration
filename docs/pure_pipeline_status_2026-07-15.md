@@ -236,6 +236,25 @@ cd /home/chuxiao/grasu-regraph-integration
   --mode gate
 ```
 
+If the long `hw_emu` or `hw` build is already running elsewhere, the wait helper
+can watch for the expected xclbin and then run the same guarded acceptance
+sequence. It does not launch Vitis:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/wait_for_pure_pipeline_xclbin_then_accept.py \
+  --target hw_emu \
+  --label after_c29ee70 \
+  --baseline-label after_64ba9c3 \
+  --mode gate
+
+./scripts/wait_for_pure_pipeline_xclbin_then_accept.py \
+  --target hw \
+  --label after_c29ee70 \
+  --baseline-label after_64ba9c3 \
+  --mode gate
+```
+
 Equivalent low-level postrun validation commands:
 
 ```bash

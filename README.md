@@ -287,6 +287,14 @@ fails before running anything if the target xclbin is still missing:
 ./scripts/run_pure_pipeline_postbuild_acceptance.py --target hw --mode gate
 ```
 
+If the long build is running in another terminal, wait for the target xclbin and
+launch the same guarded acceptance sequence automatically:
+
+```bash
+./scripts/wait_for_pure_pipeline_xclbin_then_accept.py --target hw_emu
+./scripts/wait_for_pure_pipeline_xclbin_then_accept.py --target hw --mode gate
+```
+
 Preview the exact postrun and matrix commands before the xclbin exists:
 
 ```bash
