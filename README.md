@@ -285,7 +285,9 @@ If a long build was run manually and produced the expected xclbin, use the
 guarded wrapper first runs the `--skip-build` postrun flow, then launches the
 same-input stage0 matrix. The low-level `postrun_followup` and
 `stage0_followup` blocks remain available when the two phases need to be run or
-debugged separately.
+debugged separately. The wrapper prints the selected source fingerprint, launch
+packet, and current claim-status gaps before running, so the acceptance log can
+be tied back to a specific build-relevant source tree.
 
 The same post-build sequence can be launched through a guarded wrapper. It
 fails before running anything if the target xclbin is still missing:
@@ -302,6 +304,9 @@ launch the same guarded acceptance sequence automatically:
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py --target hw_emu
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py --target hw --mode gate
 ```
+
+The wait helper prints the same source fingerprint, launch packet, and
+claim-status context before waiting.
 
 Preview the exact postrun and matrix commands before the xclbin exists:
 
