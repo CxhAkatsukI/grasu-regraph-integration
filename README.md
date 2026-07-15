@@ -255,6 +255,18 @@ postrun acceptance are present; it is not gate-claimable until the same-input
 gate and input-identity checks pass; the final completion claim additionally
 requires the real `hw` full stage-0 matrix.
 
+Use the claim checker when a script needs an exit code instead of a status
+table:
+
+```bash
+./scripts/check_pure_pipeline_claim.py --level completion
+./scripts/check_pure_pipeline_claim.py --target hw --level build
+./scripts/check_pure_pipeline_claim.py --target sw_emu --level gate
+```
+
+The command exits `0` only when the selected claim is proven and exits `1` when
+required evidence is still missing.
+
 Current reproducible target flow:
 
 ```bash
