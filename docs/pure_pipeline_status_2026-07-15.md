@@ -7,7 +7,7 @@ Status command input tree, before this documentation-only update:
 ```text
 /home/chuxiao/grasu-regraph-integration
 branch: codex/pure-hw-pipeline
-head: e2861d448564257e45bc9a042f553d718544b9a9
+head: b1bafb2e1183d32dd7ec2fe013f8dbf33a9a5edb
 source_fingerprint_sha256: 46547110418976febae9c4dd8f97f3bb59f611f9628445ee4e77f903aef4da6b
 dirty: false
 ```
@@ -41,7 +41,7 @@ Current `sw_emu` postrun evidence was refreshed without rebuilding the xclbin:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target sw_emu \
-  --label postrun_after_b5c60ca \
+  --label postrun_after_b1bafb2 \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 180
@@ -60,12 +60,14 @@ tiny_hotdst_v64_u32   hot-dest    PASS mismatches=0
 Refreshed `sw_emu` evidence hashes:
 
 ```text
-gate summary:          7be55be9ac19f13fe8ab180f8ad95b03f058188a68dcfbc81a42c8cb123190c3
-full summary:          8baaff4969490b20bc6b1f9eb8dee5baeb969950ffe479dbdbd13756a2ef3fe9
-same-input comparison: eabf1d160160e21220fe267e894b2a11fdd817aef1daf9cf94d58b2e276b908f
-requirement audit:     3a19c9611c60a3f3f3095a556fa2be00e5e0ec3c68f273e1e6eba14609ef9857
-evidence bundle:       0c230da94647e656e00bb578dab154d5fb14b8865acaaf858ced740eacd7e6a3
-postrun acceptance:    68f2fe3d437c9618e94cd4cf93926b1d5a6a638a9418ce8ce6a2fa4862a2386c
+source contracts:      fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac
+source fingerprints:   7f683856535c88ce056c3892d99eebd268624f8cd9b08f61e9c74121e91355f1
+readiness report:      2025eaf24d4a49c0f171651f8ce4b38393d57eee46e4a273bd823b66cc485317
+smoke summary:         5902ad49dc9d845b03417daad2fdb8039fad9abbfd57eb2a0c6c726aed571b1f
+same-input comparison: 60989f5251b1bba37ef4a1cf483e06515977976cf6da436d894c78e948cbc05a
+requirement audit:     ee6e48b005c157bfc5d3392013b940820570a7443726285667f33f996ee9c78c
+evidence bundle:       0c0cae338433b301537fcdc8ec11f18fda45c8515e0500b5bea3924bde843691
+postrun acceptance:    a430fe19b31fef5eabf8e3ff3ef5304c8e9c5204ae8484a147ac54e41c2b6994
 xclbin contract:       1cc3d8e5ad44862262cbb1294a3b0b6b0a685bf49aefb132325dad28060adcd3
 ```
 
@@ -77,7 +79,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target sw_emu \
   --mode gate \
-  --label after_b5c60ca \
+  --label after_b1bafb2 \
   --baseline-label after_64ba9c3 \
   --require-compare \
   --timeout 600
@@ -96,35 +98,35 @@ tiny_hotdst_v64_u32   hot-dest    PASS mismatches=0
 Refreshed `sw_emu` stage0 gate hashes:
 
 ```text
-comparison plan:       62792c78244b339c4798dab18ddba79a6b8ad5eaa16a555c24ab19982b9d963e
+comparison plan:       04de92af08bbe215a685ae1e771d070bbbfc2c86901ca3f0a338b206d0a8c2a5
 input identity plan:   fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b
-gate summary:          c332380e540a36e62b418f0bfc6d4311640c52ca0be4f5b74b2bc59068144fc8
-identity audit:        b7399e4086f14e4670d3b6dd429c8c12587c77b769a7215d4c0ca76b785c28d0
-same-input comparison: f08bdd3d98aaad2821a543d7d543e12d6e100d238c0f8e2ae51511164dedb68d
-postbuild env:         52d323b1b883c129bbcce4b6b109135545719f57edb376662ec9368688bf1be4
+gate summary:          e7df944d4de7b7af89a977f14dabfd1388d8af1673c57cbb664a767d64763268
+identity audit:        b15473b09bd155620c2a03fe7677aaf77b4681f86656088a7ad4df2e64a1be90
+same-input comparison: d21b75657ba30e9e5d7a41b294c4fc25df28c77a215bc23edf9b5099a13ec3c4
+postbuild env:         f6a3066cb32843c492f35bcb5e5a433807651fed323cfc8ca1321d398404278e
 ```
 
-The current requirement audit and evidence bundle were refreshed at commit
-`6c26605a07097bd7f0d152b0d78d17463e46e6cf`:
+The current requirement audit and evidence bundle were refreshed by the
+`sw_emu` postrun command above at commit
+`b1bafb2e1183d32dd7ec2fe013f8dbf33a9a5edb`:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/audit_pure_pipeline_status.py \
-  --label after_6c26605 \
-  --out-dir results/pure_pipeline_requirement_audit_after_6c26605
+  --label postrun_after_b1bafb2 \
+  --out-dir results/pure_pipeline_requirement_audit_postrun_after_b1bafb2
 ./scripts/export_pure_pipeline_evidence_bundle.py \
-  --audit results/pure_pipeline_requirement_audit_after_6c26605/audit.json \
-  --out-dir results/pure_pipeline_evidence_bundle_after_6c26605
+  --audit results/pure_pipeline_requirement_audit_postrun_after_b1bafb2/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_postrun_after_b1bafb2
 ```
 
-The first bundle attempt was started in parallel with the audit and failed
-because `audit.json` did not exist yet; the sequential command above passed.
+The target-flow wrapper ran these steps sequentially after smoke and comparison
+completed.
 
 ```text
-requirement audit json: e4a3fe5d4ae31144d66b520c25b3318547ee817ad8f662627cfd6da99570f695
-requirement audit md:   fa227290730e08e673d1df679f9b25fad93b231a715f8d4f205681573d7f3de9
-evidence manifest:      a6fc63d0e5087a3c51a1be05fe41f4664ba0f0e5d0a20a065c8b88d6ce1edbb0
-evidence summary:       f6500a5959c35f97aa0710bafabc155e157d027a54f1df0811375c9ff3e1b799
+requirement audit json: ee6e48b005c157bfc5d3392013b940820570a7443726285667f33f996ee9c78c
+evidence manifest:      0c0cae338433b301537fcdc8ec11f18fda45c8515e0500b5bea3924bde843691
+evidence summary:       457d0ea8e9ca189048e4d40a87ad3063deec1d42bb02ba4162f0d7c7d9551276
 status counts:          blocked_by_missing_artifact=1, partial=8, proven=1
 ```
 
@@ -161,7 +163,7 @@ that target; `stage0_full` is reserved for the full tracked stage-0 matrix.
 Observed result for this snapshot:
 
 ```text
-sw_emu: xclbin=yes, flow_current=no,  packet_current=no,  postrun=pass:PASS=11,SKIP=2, stage0_gate=pass,    stage0_full=missing
+sw_emu: xclbin=yes, flow_current=yes, packet_current=no,  postrun=pass:PASS=11,SKIP=2, stage0_gate=pass,    stage0_full=missing
 hw_emu: xclbin=no,  flow_current=no,  packet_current=yes, postrun=waiting_xclbin,        stage0_gate=missing, stage0_full=missing
 hw:     xclbin=no,  flow_current=no,  packet_current=yes, postrun=waiting_xclbin,        stage0_gate=missing, stage0_full=missing
 active_builders=related:0 external:10
@@ -319,6 +321,7 @@ postbuild_acceptance hw_emu dry-run PASS
 ## Interpretation
 
 The current source tree has a proven `sw_emu` control-flow/correctness artifact
-for stage 0, plus current launch packets for `hw_emu` and `hw`. It does not yet
-have evidence for a successful pure-pipeline `hw_emu` or real U55C `hw` build.
-Therefore the hardware pipeline goal remains active and incomplete.
+for stage 0 aligned to the current build-relevant source fingerprint, plus
+current launch packets for `hw_emu` and `hw`. It does not yet have evidence for
+a successful pure-pipeline `hw_emu` or real U55C `hw` build. Therefore the
+hardware pipeline goal remains active and incomplete.
