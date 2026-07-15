@@ -45,20 +45,21 @@ requirement audit rule: audit.json embeds the current claim report and lists mis
 postbuild label rule: real postbuild/wait runs fail early if --label does not match the target's current launch packet label; this is now a required source-contract proof
 timing gate: same-input comparison must contain pure_grasu_ms, pure_barrier_ms, pure_adapter_ms, pure_lksg_ms, pure_apply_ms, and pure_event_e2e_ms
 hw_emu xclbin: available through containerized 22.04 link
-hw xclbin: still missing/running externally
+hw xclbin: available from direct after_f1c6720 build
 ```
 
-This snapshot answers the narrow build-status question first: there is not yet a
-successful pure-pipeline `hw` xclbin. A pure-pipeline `hw_emu` xclbin is now
-available from the containerized link milestone below.
+This snapshot answers the narrow build-status question first: pure-pipeline
+`hw_emu` and `hw` xclbins now both exist. The `hw` artifact is a successful
+build/link artifact; real U55C runtime correctness and performance are still
+pending.
 
 ## Target State
 
 ```text
 target    xclbin  status
 sw_emu    yes     stage0 gate already passed
-hw_emu    yes     xclbin linked in Ubuntu 22.04 container; runtime gate pending
-hw        no      waiting_xclbin
+hw_emu    yes     xclbin linked in Ubuntu 22.04 container; runtime started, gate not passed yet
+hw        yes     xclbin linked; U55C runtime gate pending
 ```
 
 Current `sw_emu` artifact:
@@ -123,6 +124,136 @@ The warnings that remain are platform/IP-lock and SLR locality warnings. They
 did not block `hw_emu` xclbin generation. This milestone proves link/build
 success only; `hw_emu` runtime correctness for chain, hot-source, spread, and
 hot-destination still needs to be run against the CPU oracle.
+
+## hw Build Milestone
+
+The direct `hw` build for the same pure pipeline completed successfully and
+created the real U55C xclbin.
+
+Build command shape:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+nohup ./scripts/run_pure_pipeline_build.sh \
+  --target hw \
+  --label after_f1c6720_direct \
+  --prepare \
+  --clean-build-artifacts \
+  > .tmp_build/pure_pipeline_hw_stage0/run_logs/manual_hw_after_f1c6720_direct.nohup.log 2>&1 &
+```
+
+Successful output:
+
+```text
+xclbin: .tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin
+sha256: d91a015a64d26100e93ae1867d34ec01dfe8e4dfe73c62de525e94d1a64b9a37
+size:   74710265 bytes
+created: 2026-07-15 19:41:55 +0800
+v++ elapsed: 4h 0m 30s
+```
+
+Key proof lines:
+
+```text
+Run vpl: FINISHED. Run Status: impl Complete!
+Vivado: Bitgen Completed Successfully.
+Vivado: write_bitstream completed successfully.
+xclbinutil: Successfully wrote (74710265 bytes) to .../grasu_regraph_pure_pipeline.hw.xclbin
+v++: Created .../grasu_regraph_pure_pipeline.hw.xclbin
+v++: Run completed.
+```
+
+Clock and timing notes from the link log:
+
+```text
+kernel DATA clock: requested 200 MHz, selected 197 MHz
+system HBM clock: requested 450 MHz, selected 430 MHz
+Vivado reported a timing critical warning, then auto-frequency scaling enabled proper functionality.
+```
+
+Important evidence paths:
+
+```text
+.tmp_build/pure_pipeline_hw_stage0/run_logs/build_after_f1c6720_direct.env
+.tmp_build/pure_pipeline_hw_stage0/run_logs/build_after_f1c6720_direct_evidence.tsv
+.tmp_build/pure_pipeline_hw_stage0/run_logs/compile_after_f1c6720_direct.log
+.tmp_build/pure_pipeline_hw_stage0/run_logs/link_after_f1c6720_direct.log
+.tmp_build/pure_pipeline_hw_stage0/run_logs/manual_hw_after_f1c6720_direct.nohup.log
+.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin
+.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin.info
+.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin.link_summary
+.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.ltx
+.tmp_build/pure_pipeline_hw_stage0/logs/link/link/vivado.log
+.tmp_build/pure_pipeline_hw_stage0/reports/link/link/imp/impl_1_hw_bb_locked_timing_summary_routed.rpt
+results/pure_pipeline_hw_artifact_manifest_after_f1c6720_build/artifact_manifest.tsv
+```
+
+The build-level artifact manifest binds the `hw` xclbin to the launch packet
+and hashes the available build artifacts. Its target/build rows pass; postrun
+rows are still missing because real U55C runtime acceptance has not been run.
+
+The xclbin metadata lists the expected pure-pipeline kernels:
+
+```text
+lksg_stream, kernelHBMWrapper, kernelApply, pma_to_regraph_adapter,
+dispatch, process_cache, kernelLittleGSMerger, kernelBigGSMerger,
+bin_search, bigKernelScatterGather, process_ddr, pma_completion_barrier
+```
+
+This milestone proves hardware build/link success. It does not prove U55C
+runtime correctness yet.
+
+## hw_emu Runtime Partial Evidence
+
+The freshly linked `hw_emu` xclbin was used for a same-input stage0 gate run:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw_emu \
+  --mode gate \
+  --label container22_after_038c87a_runtime_gate \
+  --baseline-label after_64ba9c3 \
+  --xclbin /home/chuxiao/grasu-regraph-integration/.tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin \
+  --require-compare \
+  --timeout 1200
+```
+
+The run was stopped after collecting enough evidence. Current partial results:
+
+```text
+results/pure_pipeline_hw_emu_pure_stage0_gate_container22_after_038c87a_runtime_gate/summary.tsv
+
+tiny_chain_v16:
+  status: FAIL
+  exit_code: 124
+  reason: per-case timeout at 1200s, not a CPU-oracle mismatch
+  last observed stage: wait_step step=8 of 16
+
+tiny_star_v16_u12:
+  status: manually interrupted during evidence collection
+  last observed stage: PURE_PIPELINE_HOST stage=launch_grasu
+```
+
+The chain case proves that `hw_emu` runtime can load the xclbin, configure ERT
+dataflow, launch the GraSU/barrier/adapter/ReGraph/apply sequence, and advance
+multiple SSSP supersteps. It does not prove gate correctness because the case
+timed out before all 16 supersteps completed. The star case shows that the
+update-heavy GraSU PMA path is very slow in `hw_emu`; it had not passed
+`launch_grasu` when the run was stopped.
+
+Important evidence paths:
+
+```text
+results/pure_pipeline_hw_emu_pure_stage0_gate_container22_after_038c87a_runtime_gate/run.env
+results/pure_pipeline_hw_emu_pure_stage0_gate_container22_after_038c87a_runtime_gate/postbuild_matrix.env
+results/pure_pipeline_hw_emu_pure_stage0_gate_container22_after_038c87a_runtime_gate/summary.tsv
+results/pure_pipeline_hw_emu_pure_stage0_gate_container22_after_038c87a_runtime_gate/tiny_chain_v16.log
+results/pure_pipeline_hw_emu_pure_stage0_gate_container22_after_038c87a_runtime_gate/tiny_chain_v16/case.env
+results/pure_pipeline_hw_emu_pure_stage0_gate_container22_after_038c87a_runtime_gate/tiny_star_v16_u12.log
+results/pure_pipeline_hw_emu_pure_stage0_gate_container22_after_038c87a_runtime_gate/tiny_star_v16_u12/case.env
+results/pure_stage0_comparison_plan_container22_after_038c87a_runtime_gate/input_identity.tsv
+```
 
 Current `sw_emu` postrun evidence was refreshed without rebuilding the xclbin:
 

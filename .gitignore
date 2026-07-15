@@ -19,6 +19,7 @@ build/
 *.ltx
 *.jou
 xcd.log
+emulation_debug.log
 *.str
 *.wdb
 
