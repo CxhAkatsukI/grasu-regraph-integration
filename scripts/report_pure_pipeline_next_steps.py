@@ -790,17 +790,17 @@ def postbuild_acceptance_commands(label: str, baseline_label: str) -> list[dict[
     return [
         {
             "name": "hw_emu_postbuild_acceptance",
-            "when": "after hw_emu xclbin exists; runs skip-build postrun validation, gate matrix, then gate claim check",
+            "when": "after hw_emu xclbin exists; runs skip-build postrun validation, gate matrix, artifact manifest, then gate claim check",
             "command": postbuild_acceptance_command("hw_emu", "gate", label, baseline_label),
         },
         {
             "name": "hw_postbuild_acceptance_gate",
-            "when": "after hw xclbin exists; runs skip-build postrun validation, gate matrix, then gate claim check",
+            "when": "after hw xclbin exists; runs skip-build postrun validation, gate matrix, artifact manifest, then gate claim check",
             "command": postbuild_acceptance_command("hw", "gate", label, baseline_label),
         },
         {
             "name": "hw_postbuild_acceptance_full",
-            "when": "after hw gate passes; runs skip-build postrun validation, full matrix, then full claim check",
+            "when": "after hw gate passes; runs skip-build postrun validation, full matrix, artifact manifest, then full claim check",
             "command": postbuild_acceptance_command("hw", "full", label, baseline_label),
         },
     ]
@@ -817,17 +817,17 @@ def postbuild_wait_commands(label: str, baseline_label: str) -> list[dict[str, s
     return [
         {
             "name": "hw_emu_wait_then_accept",
-            "when": "while a hw_emu launch packet is running; waits for xclbin, then runs postbuild acceptance and claim check",
+            "when": "while a hw_emu launch packet is running; waits for xclbin, then runs postbuild acceptance, artifact manifest, and claim check",
             "command": postbuild_wait_command("hw_emu", "gate", label, baseline_label),
         },
         {
             "name": "hw_wait_then_accept_gate",
-            "when": "while a hw launch packet is running; waits for xclbin, then runs gate acceptance and claim check",
+            "when": "while a hw launch packet is running; waits for xclbin, then runs gate acceptance, artifact manifest, and claim check",
             "command": postbuild_wait_command("hw", "gate", label, baseline_label),
         },
         {
             "name": "hw_wait_then_accept_full",
-            "when": "after hw gate is trusted or when running a full acceptance watch; waits for xclbin, then runs full acceptance and claim check",
+            "when": "after hw gate is trusted or when running a full acceptance watch; waits for xclbin, then runs full acceptance, artifact manifest, and claim check",
             "command": postbuild_wait_command("hw", "full", label, baseline_label),
         },
     ]

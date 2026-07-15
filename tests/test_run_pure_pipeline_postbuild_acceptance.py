@@ -40,6 +40,7 @@ commands = build_commands(
     require_compare=True,
     skip_postrun=False,
     skip_matrix=False,
+    skip_artifact_manifest=False,
     skip_claim_check=False,
 )
 
@@ -68,6 +69,19 @@ assert commands[1] == [
     "--require-compare",
 ]
 assert commands[2] == [
+    "./scripts/collect_pure_pipeline_artifact_manifest.py",
+    "--target",
+    "hw_emu",
+    "--label",
+    "after_abc1234",
+    "--baseline-label",
+    "after_base",
+    "--mode",
+    "gate",
+    "--level",
+    "gate",
+]
+assert commands[3] == [
     "./scripts/check_pure_pipeline_claim.py",
     "--target",
     "hw_emu",
@@ -85,14 +99,28 @@ commands = build_commands(
     require_compare=False,
     skip_postrun=True,
     skip_matrix=False,
+    skip_artifact_manifest=False,
     skip_claim_check=False,
 )
-assert len(commands) == 2
+assert len(commands) == 3
 assert commands[0][0] == "./scripts/run_pure_stage0_postbuild_matrix.sh"
 assert "--require-compare" not in commands[0]
 assert "--mode" in commands[0]
 assert "full" in commands[0]
 assert commands[1] == [
+    "./scripts/collect_pure_pipeline_artifact_manifest.py",
+    "--target",
+    "hw",
+    "--label",
+    "manual_label",
+    "--baseline-label",
+    "after_base",
+    "--mode",
+    "full",
+    "--level",
+    "full",
+]
+assert commands[2] == [
     "./scripts/check_pure_pipeline_claim.py",
     "--target",
     "hw",
@@ -110,11 +138,25 @@ commands = build_commands(
     require_compare=True,
     skip_postrun=False,
     skip_matrix=True,
+    skip_artifact_manifest=False,
     skip_claim_check=False,
 )
-assert len(commands) == 2
+assert len(commands) == 3
 assert commands[0][0] == "./scripts/run_pure_pipeline_target_flow.sh"
 assert commands[1] == [
+    "./scripts/collect_pure_pipeline_artifact_manifest.py",
+    "--target",
+    "hw",
+    "--label",
+    "manual_label",
+    "--baseline-label",
+    "after_base",
+    "--mode",
+    "gate",
+    "--level",
+    "build",
+]
+assert commands[2] == [
     "./scripts/check_pure_pipeline_claim.py",
     "--target",
     "hw",
@@ -132,6 +174,23 @@ commands = build_commands(
     require_compare=True,
     skip_postrun=False,
     skip_matrix=False,
+    skip_artifact_manifest=True,
+    skip_claim_check=True,
+)
+assert all(command[0] != "./scripts/collect_pure_pipeline_artifact_manifest.py" for command in commands)
+assert all(command[0] != "./scripts/check_pure_pipeline_claim.py" for command in commands)
+
+commands = build_commands(
+    target="hw",
+    label="manual_label",
+    baseline_label="after_base",
+    mode="gate",
+    gate_case="tiny_star_v16_u12",
+    gate_timeout=300,
+    require_compare=True,
+    skip_postrun=False,
+    skip_matrix=False,
+    skip_artifact_manifest=False,
     skip_claim_check=True,
 )
 assert all(command[0] != "./scripts/check_pure_pipeline_claim.py" for command in commands)

@@ -5,7 +5,8 @@ This helper is intentionally post-build only. It is useful when a long
 hw_emu/hw Vitis launch packet is running in another terminal: this script waits
 for the expected xclbin path to appear, then delegates to
 run_pure_pipeline_postbuild_acceptance.py for skip-build validation and the
-same-input stage0 matrix, followed by machine-checkable claim validation.
+same-input stage0 matrix, followed by artifact manifest sealing and
+machine-checkable claim validation.
 """
 
 from __future__ import annotations
@@ -52,6 +53,7 @@ def build_acceptance_command(
     require_compare: bool,
     skip_postrun: bool,
     skip_matrix: bool,
+    skip_artifact_manifest: bool,
     skip_claim_check: bool,
 ) -> list[str]:
     command = [
@@ -75,6 +77,8 @@ def build_acceptance_command(
         command.append("--skip-postrun")
     if skip_matrix:
         command.append("--skip-matrix")
+    if skip_artifact_manifest:
+        command.append("--skip-artifact-manifest")
     if skip_claim_check:
         command.append("--skip-claim-check")
     return command
@@ -136,6 +140,7 @@ def main() -> int:
     parser.add_argument("--no-require-compare", action="store_true")
     parser.add_argument("--skip-postrun", action="store_true")
     parser.add_argument("--skip-matrix", action="store_true")
+    parser.add_argument("--skip-artifact-manifest", action="store_true")
     parser.add_argument("--skip-claim-check", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Print the wait target and acceptance command without waiting.")
     args = parser.parse_args()
@@ -171,6 +176,7 @@ def main() -> int:
         not args.no_require_compare,
         args.skip_postrun,
         args.skip_matrix,
+        args.skip_artifact_manifest,
         args.skip_claim_check,
     )
 

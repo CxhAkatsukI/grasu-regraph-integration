@@ -7,7 +7,8 @@ hw_emu/hw xclbin appears:
 
 1. target-flow postrun validation with --skip-build
 2. same-input pure_stage0 matrix comparison
-3. machine-checkable claim validation for the requested proof level
+3. artifact manifest sealing for the requested proof level
+4. machine-checkable claim validation for the requested proof level
 """
 
 from __future__ import annotations
@@ -64,9 +65,11 @@ def build_commands(
     require_compare: bool,
     skip_postrun: bool,
     skip_matrix: bool,
+    skip_artifact_manifest: bool,
     skip_claim_check: bool,
 ) -> list[list[str]]:
     commands: list[list[str]] = []
+    claim_level = claim_level_for(mode, skip_matrix)
     if not skip_postrun:
         commands.append([
             "./scripts/run_pure_pipeline_target_flow.sh",
@@ -95,13 +98,27 @@ def build_commands(
         if require_compare:
             matrix.append("--require-compare")
         commands.append(matrix)
+    if not skip_artifact_manifest:
+        commands.append([
+            "./scripts/collect_pure_pipeline_artifact_manifest.py",
+            "--target",
+            target,
+            "--label",
+            label,
+            "--baseline-label",
+            baseline_label,
+            "--mode",
+            mode,
+            "--level",
+            claim_level,
+        ])
     if not skip_claim_check:
         commands.append([
             "./scripts/check_pure_pipeline_claim.py",
             "--target",
             target,
             "--level",
-            claim_level_for(mode, skip_matrix),
+            claim_level,
         ])
     return commands
 
@@ -124,6 +141,7 @@ def main() -> int:
     parser.add_argument("--no-require-compare", action="store_true")
     parser.add_argument("--skip-postrun", action="store_true")
     parser.add_argument("--skip-matrix", action="store_true")
+    parser.add_argument("--skip-artifact-manifest", action="store_true")
     parser.add_argument("--skip-claim-check", action="store_true")
     parser.add_argument("--allow-missing-xclbin", action="store_true", help="Only useful with --dry-run.")
     parser.add_argument("--dry-run", action="store_true")
@@ -173,6 +191,7 @@ def main() -> int:
         not args.no_require_compare,
         args.skip_postrun,
         args.skip_matrix,
+        args.skip_artifact_manifest,
         args.skip_claim_check,
     )
     for command in commands:

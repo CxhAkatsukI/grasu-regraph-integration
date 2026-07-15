@@ -57,6 +57,9 @@ assert "--mode full" in postbuild[2]["command"]
 assert "gate claim check" in postbuild[0]["when"]
 assert "gate claim check" in postbuild[1]["when"]
 assert "full claim check" in postbuild[2]["when"]
+assert "artifact manifest" in postbuild[0]["when"]
+assert "artifact manifest" in postbuild[1]["when"]
+assert "artifact manifest" in postbuild[2]["when"]
 
 postbuild_wait = postbuild_wait_commands("after_pure", "after_baseline")
 assert [item["name"] for item in postbuild_wait] == [
@@ -74,6 +77,9 @@ assert "--mode full" in postbuild_wait[2]["command"]
 assert "claim check" in postbuild_wait[0]["when"]
 assert "claim check" in postbuild_wait[1]["when"]
 assert "claim check" in postbuild_wait[2]["when"]
+assert "artifact manifest" in postbuild_wait[0]["when"]
+assert "artifact manifest" in postbuild_wait[1]["when"]
+assert "artifact manifest" in postbuild_wait[2]["when"]
 
 with TemporaryDirectory() as tmp:
     repo = Path(tmp)
