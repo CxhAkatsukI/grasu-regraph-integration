@@ -39,6 +39,7 @@ assert "claim_report" in audit
 assert "source_fingerprint_sha256" in audit["claim_report"]
 assert "completion_claim" in audit["claim_report"]
 assert audit["source_proofs"]["postbuild_label_guard"]["ok"] is True
+assert audit["source_proofs"]["stage0_comparison_acceptance_gate"]["ok"] is True
 
 for target, state in audit["targets"].items():
     assert "claim_status" in state

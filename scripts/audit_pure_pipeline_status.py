@@ -961,6 +961,50 @@ def postbuild_label_guard(repo: Path) -> dict[str, Any]:
     }
 
 
+def stage0_comparison_acceptance_gate(repo: Path) -> dict[str, Any]:
+    postbuild_matrix = repo / "scripts/run_pure_stage0_postbuild_matrix.sh"
+    manifest = repo / "scripts/collect_pure_pipeline_artifact_manifest.py"
+    report = repo / "scripts/report_pure_pipeline_next_steps.py"
+    checker = repo / "scripts/check_pure_pipeline_acceptance_gates.py"
+    return {
+        "ok": source_contains(postbuild_matrix, [
+            'STAGE0_ACCEPTANCE_GATES="${COMPARE_OUT}/acceptance_gates_stage0_${MODE}.tsv"',
+            'STAGE0_ACCEPTANCE_CHECK="${COMPARE_OUT}/acceptance_check_stage0_${MODE}.tsv"',
+            "same_input_compare\\tyes",
+            "check_pure_pipeline_acceptance_gates.py",
+            "--mode postrun",
+            '--out-file "${STAGE0_ACCEPTANCE_CHECK}"',
+            'echo "DONE stage0_acceptance_gates=${STAGE0_ACCEPTANCE_GATES}"',
+            'echo "DONE stage0_acceptance_check=${STAGE0_ACCEPTANCE_CHECK}"',
+        ])
+        and source_contains(manifest, [
+            '"acceptance_gates_stage0_{mode}.tsv"',
+            '"acceptance_check_stage0_{mode}.tsv"',
+            '"stage0 comparison acceptance-gate specification"',
+            '"stage0 comparison acceptance-gate result"',
+        ])
+        and source_contains(report, [
+            '("stage0", "acceptance_gates")',
+            '("stage0", "acceptance_check")',
+            "def acceptance_check_issues",
+            "acceptance_check_failed",
+            'name == "acceptance_check"',
+        ])
+        and source_contains(checker, [
+            "COMPARISON_TIMING_FIELDS",
+            "def check_same_input_compare",
+            "missing_{field}",
+        ]),
+        "paths": [
+            display_path(repo, postbuild_matrix),
+            display_path(repo, manifest),
+            display_path(repo, report),
+            display_path(repo, checker),
+        ],
+        "contract": "postbuild stage0 matrix runs a same-input comparison acceptance gate, records the gate spec/result in the artifact manifest, and rejects non-PASS stage0 acceptance checks during claim reporting",
+    }
+
+
 def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     host = repo / "tools/pure_pipeline_host.cpp"
     adapter = repo / "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
@@ -1155,6 +1199,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
         "launch_packet_records_acceptance_gates": launch_packet_records_acceptance_gates(repo),
         "acceptance_gate_checker_covers_required_outputs": acceptance_gate_checker_covers_required_outputs(repo),
         "postbuild_label_guard": postbuild_label_guard(repo),
+        "stage0_comparison_acceptance_gate": stage0_comparison_acceptance_gate(repo),
     }
 
 

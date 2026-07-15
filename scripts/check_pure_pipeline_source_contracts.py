@@ -35,6 +35,7 @@ DEFAULT_REQUIRED_PROOFS = (
     "launch_packet_records_acceptance_gates",
     "acceptance_gate_checker_covers_required_outputs",
     "postbuild_label_guard",
+    "stage0_comparison_acceptance_gate",
 )
 
 
