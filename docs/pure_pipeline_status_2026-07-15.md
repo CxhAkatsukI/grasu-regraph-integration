@@ -20,9 +20,11 @@ Postbuild helper/report update:
 ```text
 helper commit: 782ce71b6e0568de4baf564366e3e582083c9ddb
 report command commit: 901b3ee6ccd22a1e0b06c5642d3827cfcebfdc4d
-source_fingerprint_sha256: 8fbfe2437c05e8a8c49f54368e0300e0d7152e2d5a9e9e2c32bdbf6c623a4446
+timing acceptance commit: 454840eac185d19ade146fbd426f462666f1eb54
+source_fingerprint_sha256: d17a09c8825f26c8b90bb6a2e234ca05a2a356871fea432a588ea77cd19e34b0
 new helper: scripts/wait_for_pure_pipeline_xclbin_then_accept.py
 report block: postbuild_wait
+timing gate: same-input comparison must contain pure_grasu_ms, pure_barrier_ms, pure_adapter_ms, pure_lksg_ms, pure_apply_ms, and pure_event_e2e_ms
 hw_emu/hw xclbins: still missing
 ```
 
@@ -191,7 +193,7 @@ The next required long command is the current `hw_emu` launch packet:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
-.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_901b3ee/launch_command.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_454840e/launch_command.sh
 ```
 
 The launch packet matches the current build-relevant source fingerprints. It
@@ -204,32 +206,32 @@ The packets were regenerated with:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/create_pure_pipeline_launch_packet.sh \
   --target hw_emu \
-  --flow-label after_901b3ee \
+  --flow-label after_454840e \
   --allow-active-builders
 ./scripts/create_pure_pipeline_launch_packet.sh \
   --target hw \
-  --flow-label after_901b3ee \
+  --flow-label after_454840e \
   --allow-active-builders
 ```
 
 Current launch-packet hashes:
 
 ```text
-hw_emu launch_command.sh:            cbfbf0b5fd29619695f904d1e7ecb84f3da32c557ec8c66660ad5c2713547865
+hw_emu launch_command.sh:            14e347e7b5e7b4dcaa9d086df1120163ed1f37b2d342733e079c6de76b062efb
 hw_emu source_contracts.tsv:         fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac
-hw_emu source_fingerprints.tsv:      f47cd43f01364950a945c13218aaf1b693d36064dd80ec539616360e9ee68809
-hw_emu readiness_hw_emu.txt:         2309831548e4307836ff382d22ac6ebba89147edb6be3ccebd401d5f57d0ae1e
-hw_emu acceptance_check_prelaunch:   8d7d7cc1f72060c00c73b5e3ab2d09c61dd4664af6f4a9f67c5ae675ee14b6f8
-hw_emu packet audit:                 0f53d1c4d07a910b481cab1eafef328e244f6bae1d937989f35422b529cbb2a6
-hw_emu packet evidence bundle:       0d98c2b50fb2d31d8f3e9da01bc9a899191002c0d656f33455681034413f35b7
+hw_emu source_fingerprints.tsv:      5b5e5728fe5d5263f0b660e111d9ccc35b53c4e8428a8b0eb4d5eeebfcb9ef94
+hw_emu readiness_hw_emu.txt:         f87fece6b131fe10213879726eb624219b2b69bcf1b1a857ce3dbd7c0461aac3
+hw_emu acceptance_check_prelaunch:   ab1eae433a7625819f112e19df4c7e848721352fff3ff910e33ebcace64c2e62
+hw_emu packet audit:                 8364efa4721fa1b6ee88936bc3cfec399b60a9b6412fb0bc5b504c89a1c3bbdf
+hw_emu packet evidence bundle:       fe90c0cd58e1bc849bb94bcf242bcccbce98ec6ddddfe2d9adf3bb1e748ebe5b
 
-hw launch_command.sh:                6cc880a6a9953a435700ba65e8c7d5f23ced0ecaa8298fb259ed5c1e580f5905
+hw launch_command.sh:                2e8273d097b259eeee23bac07b7cab8e536f2f07e6673dfdac67c695bd3eb5e5
 hw source_contracts.tsv:             fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac
-hw source_fingerprints.tsv:          f47cd43f01364950a945c13218aaf1b693d36064dd80ec539616360e9ee68809
-hw readiness_hw.txt:                 685249fce653bf381e159738b95d31c618813a118485547cf0ab71deb61802f1
-hw acceptance_check_prelaunch:       df8a8b071c797ae26a40a310d3e1d5273dd585fc6c0a08b96a7d44a14c34df27
-hw packet audit:                     29654778ec5f67621c00f1caf69bea2205adc2030d175acf8b4f28423b948edd
-hw packet evidence bundle:           aed5f7a10f52d24186dd6b25e7017519e6dffedcdc2a22ee244f5c0182b9ee39
+hw source_fingerprints.tsv:          5b5e5728fe5d5263f0b660e111d9ccc35b53c4e8428a8b0eb4d5eeebfcb9ef94
+hw readiness_hw.txt:                 f405e978f8849f23a78c3f27dba0e6499c4f5f5620c7190049b38185b5064e5d
+hw acceptance_check_prelaunch:       170641f8f1d93ab5de026a6a0e131d392d22a510020379ce04056361dd673d55
+hw packet audit:                     e50f7e8c2c64ec036787b49b556637f0dd7779fb2ddb01f2ae35a84b6aaa487b
+hw packet evidence bundle:           5afca93fbfd54683d471ea0ee609193a482be4b3d6a1225e8e2548a8f3608855
 ```
 
 Because external Vitis/Vivado builders are active, these packets were generated
@@ -243,7 +245,7 @@ skip-build postrun validation and then the same-input stage0 matrix:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_postbuild_acceptance.py \
   --target hw_emu \
-  --label after_901b3ee \
+  --label after_454840e \
   --baseline-label after_64ba9c3 \
   --mode gate
 ```
@@ -256,13 +258,13 @@ sequence. It does not launch Vitis:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py \
   --target hw_emu \
-  --label after_901b3ee \
+  --label after_454840e \
   --baseline-label after_64ba9c3 \
   --mode gate
 
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py \
   --target hw \
-  --label after_901b3ee \
+  --label after_454840e \
   --baseline-label after_64ba9c3 \
   --mode gate
 ```
@@ -273,14 +275,14 @@ Equivalent low-level postrun validation commands:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw_emu \
-  --label postrun_after_901b3ee \
+  --label postrun_after_454840e \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw \
-  --label postrun_after_901b3ee \
+  --label postrun_after_454840e \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 300
@@ -293,7 +295,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw_emu \
   --mode gate \
-  --label after_901b3ee \
+  --label after_454840e \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -305,7 +307,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw \
   --mode gate \
-  --label after_901b3ee \
+  --label after_454840e \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -317,7 +319,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw \
   --mode full \
-  --label after_901b3ee \
+  --label after_454840e \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -326,7 +328,9 @@ cd /home/chuxiao/grasu-regraph-integration
 
 The comparison-report path now has a regression test that covers missing
 pure-pipeline rows. This prevents an absent `hw_emu` or `hw` row from being
-reported as if it had real mismatches or `sw_emu` timing.
+reported as if it had real mismatches or `sw_emu` timing. The smoke-comparison
+path now also emits `pure_barrier_ms`, and the postrun acceptance checker
+requires all split pure-pipeline timing fields.
 
 Validation commands:
 
@@ -335,12 +339,16 @@ cd /home/chuxiao/grasu-regraph-integration
 python3 tests/test_wait_for_pure_pipeline_xclbin_then_accept.py
 python3 tests/test_run_pure_pipeline_postbuild_acceptance.py
 python3 tests/test_report_pure_pipeline_next_steps.py
+python3 tests/test_check_pure_pipeline_acceptance_gates.py
+python3 tests/test_summarize_pure_pipeline_smoke.py
 python3 tests/test_audit_pure_pipeline_status.py
 python3 tests/test_summarize_pure_stage0_comparison.py
 python3 tests/test_summarize_canonical_comparison.py
-python3 -m py_compile scripts/audit_pure_pipeline_status.py scripts/run_pure_pipeline_postbuild_acceptance.py scripts/wait_for_pure_pipeline_xclbin_then_accept.py scripts/report_pure_pipeline_next_steps.py scripts/summarize_pure_stage0_comparison.py
+python3 -m py_compile scripts/audit_pure_pipeline_status.py scripts/run_pure_pipeline_postbuild_acceptance.py scripts/wait_for_pure_pipeline_xclbin_then_accept.py scripts/report_pure_pipeline_next_steps.py scripts/summarize_pure_stage0_comparison.py scripts/check_pure_pipeline_acceptance_gates.py scripts/summarize_pure_pipeline_smoke.py
 ./scripts/report_pure_pipeline_next_steps.py --json > .tmp_build/report_next_steps_stage0_columns.json
 python3 -m json.tool .tmp_build/report_next_steps_stage0_columns.json >/dev/null
+python3 scripts/summarize_pure_pipeline_smoke.py --host-summary results/grasu_regraph_smoke_device_export_combined_hw_stage1/summary.tsv --pure-summary results/pure_pipeline_sw_emu_smoke_postrun_after_c29ee70/summary.tsv --pure-env results/pure_pipeline_sw_emu_smoke_postrun_after_c29ee70/run.env --spine-summary results/spine_edge_file_smoke_hw_stage2_split_xclbin/summary.tsv --out-dir .tmp_build/pure_pipeline_sw_emu_compare_postrun_after_c29ee70_timing_gate
+./scripts/check_pure_pipeline_acceptance_gates.py --acceptance-gates .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/acceptance_gates_target_flow_postrun_after_c29ee70.tsv --mode postrun --out-file .tmp_build/acceptance_check_swemu_new_timing_gate.tsv
 ./scripts/run_pure_pipeline_postbuild_acceptance.py --target hw_emu --dry-run --allow-missing-xclbin
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py --target hw_emu --dry-run
 git diff --check
@@ -352,11 +360,17 @@ Result:
 test_wait_for_pure_pipeline_xclbin_then_accept PASS
 test_run_pure_pipeline_postbuild_acceptance PASS
 test_report_pure_pipeline_next_steps PASS
+test_check_pure_pipeline_acceptance_gates PASS
+test_summarize_pure_pipeline_smoke PASS
 test_audit_pure_pipeline_status PASS
 test_summarize_pure_stage0_comparison PASS
 test_summarize_canonical_comparison PASS
 report_pure_pipeline_next_steps JSON validation PASS
+smoke comparison timing-gate regeneration PASS
+acceptance_check_swemu_new_timing_gate PASS=11, SKIP=2
 postbuild_acceptance hw_emu dry-run PASS
+wait_for_pure_pipeline_xclbin_then_accept hw_emu dry-run PASS
+git diff --check PASS
 ```
 
 ## Interpretation

@@ -240,7 +240,9 @@ smoke correctness, same-input comparison, requirement audit, evidence bundle
 export, and postrun acceptance gates on the existing xclbin. In a `--skip-build`
 postrun flow, the compile/link log gates are marked `required=no`; the run still
 requires the existing xclbin, xclbin metadata contract, smoke summaries,
-comparison table, audit, and evidence bundle to pass.
+comparison table, audit, and evidence bundle to pass. The comparison gate also
+requires split pure-pipeline timing fields for GraSU, barrier, adapter,
+ReGraph/LKSG, apply, and pipeline E2E.
 
 The `stage0_gate` and `stage0_full` columns summarize same-input matrix
 coverage for the target. `stage0_gate=pass` means the required chain,
