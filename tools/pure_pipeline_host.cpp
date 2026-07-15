@@ -36,6 +36,7 @@ constexpr uint32_t kActiveMask = 0x80000000u;
 constexpr uint32_t kPropMask = 0x7fffffffu;
 constexpr unsigned kPartitionSize = 65536;
 constexpr unsigned kLittleDstBufferSize = 65536;
+constexpr std::size_t kMinReGraphEdgeSlots = 32;
 
 template <typename T>
 class AlignedAllocator {
@@ -204,6 +205,13 @@ uint32_t sssp_value(uint32_t prop)
 bool is_active(uint32_t prop)
 {
     return (prop & kActiveMask) != 0;
+}
+
+std::size_t round_up_to_multiple(std::size_t value, std::size_t multiple)
+{
+    if (multiple == 0) return value;
+    const std::size_t rem = value % multiple;
+    return rem == 0 ? value : value + multiple - rem;
 }
 
 std::vector<uint32_t> run_unit_sssp_oracle(std::size_t vertices,
@@ -451,6 +459,9 @@ int main(int argc, char **argv)
             build_final_internal_edges(dataset.static_edges, dataset.update_edges);
         const std::vector<uint32_t> oracle =
             run_unit_sssp_oracle(dataset.node_size, final_edges, source_internal, supersteps);
+        const std::size_t compact_edge_slots =
+            std::max(kMinReGraphEdgeSlots,
+                     round_up_to_multiple(final_edges.size(), std::size_t{8}));
 
         PreparedGraSU prepared = prepare_grasu_inputs(graph, dataset.update_edges);
         std::cout << "PURE_PIPELINE_INPUT"
@@ -459,6 +470,7 @@ int main(int argc, char **argv)
                   << " update_edges=" << dataset.update_edges.size()
                   << " final_edges=" << final_edges.size()
                   << " pma_slots=" << prepared.pma_slot_count
+                  << " compact_edge_slots=" << compact_edge_slots
                   << " source_external=" << source_external
                   << " source_internal=" << source_internal
                   << " supersteps=" << supersteps
@@ -481,6 +493,7 @@ int main(int argc, char **argv)
                       << " update_edges=" << dataset.update_edges.size()
                       << " final_edges=" << final_edges.size()
                       << " pma_slots=" << prepared.pma_slot_count
+                      << " compact_edge_slots=" << compact_edge_slots
                       << " row_offset_words=" << prepared.row_offsets[0].size()
                       << " binary_segments=" << prepared.binary[0].size()
                       << " source_external=" << source_external
@@ -537,10 +550,13 @@ int main(int argc, char **argv)
         check_cl(err, "create process_ddr_2");
         cl::Kernel barrier(program, "pma_completion_barrier:{pma_completion_barrier_1}", &err);
         check_cl(err, "create pma_completion_barrier");
-        cl::Kernel adapter(program, "pma_to_regraph_adapter:{pma_to_regraph_adapter_1}", &err);
-        check_cl(err, "create pma_to_regraph_adapter");
-        cl::Kernel lksg(program, "lksg_stream:{lksg_stream_1}", &err);
-        check_cl(err, "create lksg_stream");
+        cl::Kernel compactor(program,
+                             "pma_to_regraph_edge_array:{pma_to_regraph_edge_array_1}",
+                             &err);
+        check_cl(err, "create pma_to_regraph_edge_array");
+        cl::Kernel lksg(program, "littleKernelScatterGather:{littleKernelScatterGather_1}",
+                        &err);
+        check_cl(err, "create littleKernelScatterGather");
         cl::Kernel apply(program, "kernelApply:{kernelApply_1}", &err);
         check_cl(err, "create kernelApply");
         cl::Kernel hbm(program, "kernelHBMWrapper:{kernelHBMWrapper_1}", &err);
@@ -592,11 +608,24 @@ int main(int argc, char **argv)
         prop_a[source_internal] = kActiveMask;
         apply_prop[source_internal] = kActiveMask;
 
+        const unsigned num_dense = 1;
+        const unsigned num_sparse = 0;
+        const unsigned compressed_group_count = 0;
+        const unsigned part_dst_offset = 0;
+        const unsigned reg = 0;
+        if (compact_edge_slots > std::numeric_limits<unsigned>::max()) {
+            fail("compact edge slot count exceeds 32-bit kernel argument range");
+        }
+        const unsigned part_edge_num = static_cast<unsigned>(compact_edge_slots);
+        AlignedVector<unsigned long> compact_edges_host(
+            std::max<std::size_t>(compact_edge_slots, 8), 0);
+
         cl_mem_ext_ptr_t prop_a0_ext = ext_ptr(1, prop_a.data());
         cl_mem_ext_ptr_t prop_a1_ext = ext_ptr(3, prop_a.data());
         cl_mem_ext_ptr_t prop_b0_ext = ext_ptr(1, prop_b.data());
         cl_mem_ext_ptr_t prop_b1_ext = ext_ptr(3, prop_b.data());
         cl_mem_ext_ptr_t apply_prop_ext = ext_ptr(30, apply_prop.data());
+        cl_mem_ext_ptr_t compact_edges_ext = ext_ptr(0, compact_edges_host.data());
 
         cl::Buffer prop_a0_dev = make_buffer(
             context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
@@ -613,6 +642,10 @@ int main(int argc, char **argv)
         cl::Buffer apply_prop_dev = make_buffer(
             context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
             apply_prop.size() * sizeof(uint32_t), &apply_prop_ext, "apply_prop");
+        cl::Buffer compact_edges_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            compact_edges_host.size() * sizeof(unsigned long), &compact_edges_ext,
+            "compact_edges");
 
         std::vector<cl::Memory> initial_mems;
         for (int i = 0; i < 4; ++i) {
@@ -657,24 +690,19 @@ int main(int argc, char **argv)
             check_cl(process_ddr_2.setArg(arg, pma_dev[3]), "set process_ddr_2 pma");
         }
 
-        check_cl(adapter.setArg(0, pma_dev[0]), "set adapter pma0");
-        check_cl(adapter.setArg(1, pma_dev[1]), "set adapter pma1");
-        check_cl(adapter.setArg(2, pma_dev[2]), "set adapter pma2");
-        check_cl(adapter.setArg(3, pma_dev[3]), "set adapter pma3");
-        check_cl(adapter.setArg(4, row_dev[0]), "set adapter row_offset");
-        check_cl(adapter.setArg(5, static_cast<unsigned>(dataset.node_size)),
-                 "set adapter node_count");
-        check_cl(adapter.setArg(6, static_cast<unsigned>(prepared.pma_slot_count)),
-                 "set adapter pma_slot_count");
-        check_cl(adapter.setArg(7, static_cast<unsigned>(MAX_CACHE_SEGMENT)),
-                 "set adapter max_cache_segment");
-
-        const unsigned num_dense = 1;
-        const unsigned num_sparse = 0;
-        const unsigned compressed_group_count = 0;
-        const unsigned part_dst_offset = 0;
-        const unsigned reg = 0;
-        const unsigned part_edge_num = static_cast<unsigned>(prepared.pma_slot_count);
+        check_cl(compactor.setArg(0, pma_dev[0]), "set compactor pma0");
+        check_cl(compactor.setArg(1, pma_dev[1]), "set compactor pma1");
+        check_cl(compactor.setArg(2, pma_dev[2]), "set compactor pma2");
+        check_cl(compactor.setArg(3, pma_dev[3]), "set compactor pma3");
+        check_cl(compactor.setArg(4, row_dev[0]), "set compactor row_offset");
+        check_cl(compactor.setArg(5, static_cast<unsigned>(dataset.node_size)),
+                 "set compactor node_count");
+        check_cl(compactor.setArg(6, static_cast<unsigned>(prepared.pma_slot_count)),
+                 "set compactor pma_slot_count");
+        check_cl(compactor.setArg(7, part_edge_num), "set compactor compact_edge_slots");
+        check_cl(compactor.setArg(8, static_cast<unsigned>(MAX_CACHE_SEGMENT)),
+                 "set compactor max_cache_segment");
+        check_cl(compactor.setArg(9, compact_edges_dev), "set compactor edge_array");
 
         std::array<cl::Buffer *, 2> read_props{&prop_a0_dev, &prop_a1_dev};
         std::array<cl::Buffer *, 2> write_props{&prop_b0_dev, &prop_b1_dev};
@@ -691,23 +719,33 @@ int main(int argc, char **argv)
         std::cout << "PURE_PIPELINE_HOST stage=launch_grasu" << std::endl;
         check_cl(grasu_queue.enqueueTask(process_cache_1, nullptr, &pc1_event),
                  "enqueue process_cache_1");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_process_cache_1" << std::endl;
         check_cl(grasu_queue.enqueueTask(process_cache_2, nullptr, &pc2_event),
                  "enqueue process_cache_2");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_process_cache_2" << std::endl;
         check_cl(grasu_queue.enqueueTask(process_ddr_1, nullptr, &pd1_event),
                  "enqueue process_ddr_1");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_process_ddr_1" << std::endl;
         check_cl(grasu_queue.enqueueTask(process_ddr_2, nullptr, &pd2_event),
                  "enqueue process_ddr_2");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_process_ddr_2" << std::endl;
         check_cl(grasu_queue.enqueueTask(dispatch, nullptr, &dispatch_event),
                  "enqueue dispatch");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_dispatch" << std::endl;
         check_cl(grasu_queue.enqueueTask(bin_search_1, nullptr, &bs1_event),
                  "enqueue bin_search_1");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_bin_search_1" << std::endl;
         check_cl(grasu_queue.enqueueTask(bin_search_2, nullptr, &bs2_event),
                  "enqueue bin_search_2");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_bin_search_2" << std::endl;
         check_cl(grasu_queue.enqueueTask(bin_search_3, nullptr, &bs3_event),
                  "enqueue bin_search_3");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_bin_search_3" << std::endl;
         check_cl(grasu_queue.enqueueTask(bin_search_4, nullptr, &bs4_event),
                  "enqueue bin_search_4");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_bin_search_4" << std::endl;
         grasu_queue.flush();
+        std::cout << "PURE_PIPELINE_HOST stage=flushed_grasu_producers" << std::endl;
         grasu_events = {pc1_event, pc2_event, pd1_event, pd2_event,
                         dispatch_event, bs1_event, bs2_event, bs3_event, bs4_event};
         all_events.insert(all_events.end(), grasu_events.begin(), grasu_events.end());
@@ -718,6 +756,17 @@ int main(int argc, char **argv)
                  "enqueue pma_completion_barrier");
         std::cout << "PURE_PIPELINE_HOST stage=enqueued_barrier" << std::endl;
         all_events.push_back(barrier_event);
+
+        cl::Event compactor_event;
+        std::vector<cl::Event> compactor_wait_events{barrier_event};
+        std::cout << "PURE_PIPELINE_HOST stage=enqueue_pma_compactor" << std::endl;
+        check_cl(pipeline_queue.enqueueTask(compactor, &compactor_wait_events, &compactor_event),
+                 "enqueue pma_to_regraph_edge_array");
+        std::cout << "PURE_PIPELINE_HOST stage=enqueued_pma_compactor" << std::endl;
+        all_events.push_back(compactor_event);
+        std::cout << "PURE_PIPELINE_HOST stage=wait_pma_compactor" << std::endl;
+        compactor_event.wait();
+        std::cout << "PURE_PIPELINE_HOST stage=pma_compactor_done" << std::endl;
 
         for (unsigned step = 0; step < supersteps; ++step) {
             check_cl(hbm.setArg(0, *read_props[0]), "set hbm src_prop_1");
@@ -732,6 +781,7 @@ int main(int argc, char **argv)
             check_cl(apply.setArg(2, num_sparse), "set apply num_sparse");
             check_cl(apply.setArg(3, reg), "set apply reg");
 
+            check_cl(lksg.setArg(0, compact_edges_dev), "set lksg part_edge_array");
             check_cl(lksg.setArg(1, part_edge_num), "set lksg part_edge_num");
             check_cl(lksg.setArg(2, compressed_group_count),
                      "set lksg compressed_group_count");
@@ -739,26 +789,15 @@ int main(int argc, char **argv)
             const bool reset_tmp_prop = (step == 0);
             check_cl(lksg.setArg(4, reset_tmp_prop), "set lksg reset_tmp_prop");
 
-            cl::Event hbm_event, apply_event, lksg_event, adapter_event;
+            cl::Event hbm_event, apply_event, lksg_event;
             std::cout << "PURE_PIPELINE_HOST stage=launch_step step=" << (step + 1)
                       << std::endl;
-            std::cout << "PURE_PIPELINE_HOST stage=enqueue_adapter step=" << (step + 1)
-                      << std::endl;
-            std::vector<cl::Event> adapter_wait_events;
-            const std::vector<cl::Event> *adapter_wait_list = nullptr;
+            std::vector<cl::Event> lksg_wait_events;
+            const std::vector<cl::Event> *lksg_wait_list = nullptr;
             if (step == 0) {
-                adapter_wait_events.push_back(barrier_event);
-                adapter_wait_list = &adapter_wait_events;
+                lksg_wait_events.push_back(compactor_event);
+                lksg_wait_list = &lksg_wait_events;
             }
-            check_cl(pipeline_queue.enqueueTask(adapter, adapter_wait_list, &adapter_event),
-                     "enqueue adapter");
-            std::cout << "PURE_PIPELINE_HOST stage=enqueued_adapter step=" << (step + 1)
-                      << std::endl;
-            std::cout << "PURE_PIPELINE_HOST stage=enqueue_lksg step=" << (step + 1)
-                      << std::endl;
-            check_cl(pipeline_queue.enqueueTask(lksg, nullptr, &lksg_event), "enqueue lksg");
-            std::cout << "PURE_PIPELINE_HOST stage=enqueued_lksg step=" << (step + 1)
-                      << std::endl;
             std::cout << "PURE_PIPELINE_HOST stage=enqueue_hbm step=" << (step + 1)
                       << std::endl;
             check_cl(pipeline_queue.enqueueTask(hbm, nullptr, &hbm_event), "enqueue hbm");
@@ -770,8 +809,14 @@ int main(int argc, char **argv)
                      "enqueue apply");
             std::cout << "PURE_PIPELINE_HOST stage=enqueued_apply step=" << (step + 1)
                       << std::endl;
+            std::cout << "PURE_PIPELINE_HOST stage=enqueue_lksg step=" << (step + 1)
+                      << std::endl;
+            check_cl(pipeline_queue.enqueueTask(lksg, lksg_wait_list, &lksg_event),
+                     "enqueue lksg");
+            std::cout << "PURE_PIPELINE_HOST stage=enqueued_lksg step=" << (step + 1)
+                      << std::endl;
 
-            std::vector<cl::Event> step_events{hbm_event, apply_event, lksg_event, adapter_event};
+            std::vector<cl::Event> step_events{hbm_event, apply_event, lksg_event};
             std::cout << "PURE_PIPELINE_HOST stage=wait_step step=" << (step + 1)
                       << std::endl;
             pipeline_queue.finish();
@@ -779,15 +824,13 @@ int main(int argc, char **argv)
             timing.hbm_ms += event_duration_ms(hbm_event);
             timing.apply_ms += event_duration_ms(apply_event);
             timing.lksg_ms += event_duration_ms(lksg_event);
-            timing.adapter_ms += event_duration_ms(adapter_event);
             all_events.insert(all_events.end(), step_events.begin(), step_events.end());
 
             std::swap(read_props, write_props);
             std::swap(read_host, write_host);
             std::cout << "PURE_PIPELINE_SUPERSTEP step=" << (step + 1)
-                      << " adapter_ms=" << std::fixed << std::setprecision(6)
-                      << event_duration_ms(adapter_event)
-                      << " lksg_ms=" << event_duration_ms(lksg_event)
+                      << " lksg_ms=" << std::fixed << std::setprecision(6)
+                      << event_duration_ms(lksg_event)
                       << " apply_ms=" << event_duration_ms(apply_event)
                       << " hbm_ms=" << event_duration_ms(hbm_event)
                       << std::endl;
@@ -802,6 +845,7 @@ int main(int argc, char **argv)
 
         timing.grasu_ms = event_union_ms(grasu_events);
         timing.barrier_ms = event_duration_ms(barrier_event);
+        timing.adapter_ms = event_duration_ms(compactor_event);
         timing.event_e2e_ms = event_union_ms(all_events);
         timing.wall_ms = std::chrono::duration<double, std::milli>(wall_end - wall_begin).count();
 
@@ -827,6 +871,7 @@ int main(int argc, char **argv)
                   << " grasu_ms=" << std::fixed << std::setprecision(6) << timing.grasu_ms
                   << " barrier_ms=" << timing.barrier_ms
                   << " adapter_ms=" << timing.adapter_ms
+                  << " pma_compact_ms=" << timing.adapter_ms
                   << " lksg_ms=" << timing.lksg_ms
                   << " apply_ms=" << timing.apply_ms
                   << " hbm_ms=" << timing.hbm_ms
@@ -840,6 +885,7 @@ int main(int argc, char **argv)
                   << " mismatches=" << mismatch_count
                   << " vertices=" << dataset.node_size
                   << " final_edges=" << final_edges.size()
+                  << " pma_scan_slots_once=" << prepared.pma_slot_count
                   << " processed_edge_slots_per_superstep=" << part_edge_num
                   << " source_external=" << source_external
                   << " source_internal=" << source_internal

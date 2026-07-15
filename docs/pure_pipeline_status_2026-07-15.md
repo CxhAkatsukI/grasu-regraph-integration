@@ -16,6 +16,138 @@ dirty: false
 Documentation-only commits do not change the build-relevant source fingerprint
 used by `report_pure_pipeline_next_steps.py`.
 
+## Current Correction After Min-32 Compaction Fix
+
+This section supersedes the older partial `hw_emu` runtime notes below.
+
+The current pure pipeline topology is:
+
+```text
+GraSU PMA writers -> completion barrier -> one-shot PMA compactor
+-> ReGraph littleKernelScatterGather edge array -> HBM wrapper/apply
+```
+
+Two bugs were addressed:
+
+```text
+1. Small graph ReGraph handoff:
+   compact_edge_slots is now max(32, round_up(final_edges, 8)).
+   This avoids the hw_emu tiny_chain case using only 16 edge slots.
+
+2. PMA scan boundary:
+   the adapter/compactor scans GraSU PMA once after the completion barrier.
+   ReGraph supersteps reuse the compact edge array instead of rescanning PMA.
+```
+
+The host now also prints and waits for `pma_compactor_done` before launching
+ReGraph supersteps. This made the prior `tiny_chain_v16` stall diagnosable:
+the compactor completes, and the remaining time is ReGraph service-kernel
+execution in `hw_emu`, not repeated PMA scanning.
+
+Current source/runtime commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+
+./scripts/build_pure_pipeline_host.sh \
+  --out-dir .tmp_build/pure_pipeline_host_stage0
+
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label min32_wait_compactor \
+  --out-file .tmp_build/source_contracts_min32_wait_compactor.tsv
+
+./scripts/run_pure_pipeline_smoke.sh \
+  --target sw_emu \
+  --manifest workloads/sssp_benchmark_pure_stage0/manifest.tsv \
+  --out-dir results/pure_pipeline_sw_emu_min32_wait_compactor_smoke \
+  --timeout 900 \
+  --case tiny_chain_v16,tiny_star_v16_u12
+
+./scripts/run_pure_pipeline_smoke.sh \
+  --target hw_emu \
+  --manifest workloads/sssp_benchmark_pure_stage0/manifest.tsv \
+  --out-dir results/pure_pipeline_hw_emu_min32_wait_compactor_smoke \
+  --timeout 2400 \
+  --case tiny_chain_v16,tiny_star_v16_u12
+```
+
+Evidence:
+
+```text
+host sha256:
+0189b94f16af5ea4e9a5803f963db6558229be76447187862737aadf5a9ad9cb
+  .tmp_build/pure_pipeline_host_stage0/pure_pipeline_host
+
+hw_emu xclbin sha256:
+d3bd88938fe47af2a869fa171627ea5dbdd048696de02aa0e07b9cc47123f7ff
+  .tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin
+
+source contracts:
+required_count=19
+failed_count=0
+PASS source contracts
+```
+
+`sw_emu` smoke:
+
+```text
+results/pure_pipeline_sw_emu_min32_wait_compactor_smoke/summary.tsv
+
+tiny_chain_v16:
+  status=PASS
+  mismatches=0
+  final_edges=15
+  pma_scan_slots_once=240
+  processed_edge_slots_per_superstep=32
+
+tiny_star_v16_u12:
+  status=PASS
+  mismatches=0
+  final_edges=28
+  pma_scan_slots_once=256
+  processed_edge_slots_per_superstep=32
+```
+
+`hw_emu` smoke:
+
+```text
+results/pure_pipeline_hw_emu_min32_wait_compactor_smoke/summary.tsv
+
+tiny_chain_v16:
+  status=PASS
+  mismatches=0
+  final_edges=15
+  supersteps=16
+  pma_scan_slots_once=240
+  processed_edge_slots_per_superstep=32
+  timing: grasu_ms=10001.314739, pma_compact_ms=6000.611016,
+          lksg_ms=954093.859624, event_e2e_ms=990121.221753
+
+tiny_star_v16_u12:
+  status=PASS
+  mismatches=0
+  final_edges=28
+  supersteps=2
+  pma_scan_slots_once=256
+  processed_edge_slots_per_superstep=32
+  timing: grasu_ms=11001.063061, pma_compact_ms=6000.514080,
+          lksg_ms=162012.468520, event_e2e_ms=182035.325322
+```
+
+Important correction: the older `hw` artifact at
+`.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin`
+is stale for the current topology. Its metadata still lists
+`pma_to_regraph_adapter`, `lksg_stream`, `bigKernelScatterGather`, and
+`kernelBigGSMerger`. It must not be used as evidence for the current one-shot
+compactor + little-only ReGraph pipeline. A fresh `hw` build is required.
+
+External symlinked-source patches needed to reproduce this state are stored in:
+
+```text
+patches/grasu_direct_process_cache_20260715.diff
+patches/regraph_little_only_hbm_wrapper_20260715.diff
+```
+
 Postbuild helper/report update:
 
 ```text
@@ -44,22 +176,22 @@ hardware claim rule: hw_emu/hw build/gate/full claims require a passing artifact
 requirement audit rule: audit.json embeds the current claim report and lists missing_artifact_manifest_claims
 postbuild label rule: real postbuild/wait runs fail early if --label does not match the target's current launch packet label; this is now a required source-contract proof
 timing gate: same-input comparison must contain pure_grasu_ms, pure_barrier_ms, pure_adapter_ms, pure_lksg_ms, pure_apply_ms, and pure_event_e2e_ms
-hw_emu xclbin: available through containerized 22.04 link
-hw xclbin: available from direct after_f1c6720 build
+hw_emu xclbin: current one-shot-compactor topology available and runtime smoke passed
+hw xclbin: the after_f1c6720 artifact is stale for the current topology; fresh hw build required
 ```
 
-This snapshot answers the narrow build-status question first: pure-pipeline
-`hw_emu` and `hw` xclbins now both exist. The `hw` artifact is a successful
-build/link artifact; real U55C runtime correctness and performance are still
-pending.
+This snapshot now distinguishes current and stale artifacts: the current
+one-shot-compactor `hw_emu` artifact exists and passes the two critical smoke
+cases; the old `hw` artifact exists but belongs to the previous adapter/stream
+topology and must be rebuilt before U55C runtime testing.
 
 ## Target State
 
 ```text
 target    xclbin  status
 sw_emu    yes     stage0 gate already passed
-hw_emu    yes     xclbin linked in Ubuntu 22.04 container; runtime started, gate not passed yet
-hw        yes     xclbin linked; U55C runtime gate pending
+hw_emu    yes     current xclbin linked in Ubuntu 22.04 container; chain/star smoke passed
+hw        stale   old xclbin linked for previous topology; current topology rebuild pending
 ```
 
 Current `sw_emu` artifact:
@@ -125,10 +257,12 @@ did not block `hw_emu` xclbin generation. This milestone proves link/build
 success only; `hw_emu` runtime correctness for chain, hot-source, spread, and
 hot-destination still needs to be run against the CPU oracle.
 
-## hw Build Milestone
+## Previous hw Build Milestone (Stale Topology)
 
-The direct `hw` build for the same pure pipeline completed successfully and
-created the real U55C xclbin.
+The direct `hw` build below completed successfully, but it belongs to the older
+adapter/stream topology. It is retained as historical evidence only; it is not
+valid evidence for the current one-shot-compactor + little-only ReGraph
+topology.
 
 Build command shape:
 
@@ -200,8 +334,8 @@ dispatch, process_cache, kernelLittleGSMerger, kernelBigGSMerger,
 bin_search, bigKernelScatterGather, process_ddr, pma_completion_barrier
 ```
 
-This milestone proves hardware build/link success. It does not prove U55C
-runtime correctness yet.
+This milestone proves historical hardware build/link success. It does not prove
+the current topology builds or runs on U55C.
 
 ## hw_emu Runtime Partial Evidence
 

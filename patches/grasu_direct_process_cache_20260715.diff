@@ -1,0 +1,41 @@
+diff --git a/GraSU/GraSU_kernels/src/kernel_process_cache.cpp b/GraSU/GraSU_kernels/src/kernel_process_cache.cpp
+index 34a6faf..e1b4718 100644
+--- a/GraSU/GraSU_kernels/src/kernel_process_cache.cpp
++++ b/GraSU/GraSU_kernels/src/kernel_process_cache.cpp
+@@ -85,12 +85,11 @@ void process_1(
+     }
+ }
+ 
+-#if defined(SW_EMU) && !defined(__SYNTHESIS__)
+-void process_cache_direct_swemu(
++void process_cache_direct(
+     ap_uint<512> *pma,
+     hls::stream<pipe_type_96> &update_stream) {
+ 
+-    GRASU_KDEBUG("process_cache.direct_swemu begin\n");
++    GRASU_KDEBUG("process_cache.direct begin\n");
+ 
+     while (true) {
+         ap_uint<96> info = update_stream.read().data;
+@@ -140,9 +139,8 @@ void process_cache_direct_swemu(
+         pma[index] = res_data;
+     }
+ 
+-    GRASU_KDEBUG("process_cache.direct_swemu done\n");
++    GRASU_KDEBUG("process_cache.direct done\n");
+ }
+-#endif
+ 
+ void process(
+     ap_uint<512> *pma,
+@@ -282,7 +280,9 @@ void process_cache(
+     hls::stream<ap_uint<96> > update_stream_cache[UPDATE_STREAM_CACHE_COUNT];
+ 
+ #if defined(SW_EMU) && !defined(__SYNTHESIS__)
+-    process_cache_direct_swemu(pma_cache, update_stream);
++    process_cache_direct(pma_cache, update_stream);
++#elif defined(GRASU_PURE_PIPELINE_DIRECT_CACHE)
++    process_cache_direct(pma_cache, update_stream);
+ #else
+ {
+ #ifdef SW_EMU

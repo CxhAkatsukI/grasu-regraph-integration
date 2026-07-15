@@ -643,8 +643,8 @@ def target_build_scripts_cover_pure_pipeline(repo: Path) -> dict[str, Any]:
                     "process_cache",
                     "process_ddr",
                     "pma_completion_barrier",
-                    "pma_to_regraph_adapter",
-                    "lksg_stream",
+                    "pma_to_regraph_edge_array",
+                    "littleKernelScatterGather",
                     "kernelApply",
                     "kernelHBMWrapper",
                     "GRASU_ENABLE_COMPLETION_TOKEN",
@@ -659,8 +659,8 @@ def target_build_scripts_cover_pure_pipeline(repo: Path) -> dict[str, Any]:
                     f"{build_root}/build/process_cache.{target}.xo",
                     f"{build_root}/build/process_ddr.{target}.xo",
                     f"{build_root}/build/pma_completion_barrier.{target}.xo",
-                    f"{build_root}/build/pma_to_regraph_adapter.{target}.xo",
-                    f"{build_root}/build/lksg_stream.{target}.xo",
+                    f"{build_root}/build/pma_to_regraph_edge_array.{target}.xo",
+                    f"{build_root}/build/littleKernelScatterGather.{target}.xo",
                 ],
             ),
             f"{target}:link_config": (
@@ -669,18 +669,19 @@ def target_build_scripts_cover_pure_pipeline(repo: Path) -> dict[str, Any]:
                     "nk=process_cache:2:process_cache_1.process_cache_2",
                     "nk=process_ddr:2:process_ddr_1.process_ddr_2",
                     "nk=pma_completion_barrier:1:pma_completion_barrier_1",
-                    "nk=pma_to_regraph_adapter:1:pma_to_regraph_adapter_1",
-                    "nk=lksg_stream:1:lksg_stream_1",
+                    "nk=pma_to_regraph_edge_array:1:pma_to_regraph_edge_array_1",
+                    "nk=littleKernelScatterGather:1",
                     "stream_connect=process_cache_1.completion_token:pma_completion_barrier_1.done0:16",
                     "stream_connect=process_ddr_1.completion_token:pma_completion_barrier_1.done1:16",
                     "stream_connect=process_cache_2.completion_token:pma_completion_barrier_1.done2:16",
                     "stream_connect=process_ddr_2.completion_token:pma_completion_barrier_1.done3:16",
-                    "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32",
-                    "sp=pma_to_regraph_adapter_1.pma0:HBM[0]",
-                    "sp=pma_to_regraph_adapter_1.pma1:HBM[1]",
-                    "sp=pma_to_regraph_adapter_1.pma2:HBM[2]",
-                    "sp=pma_to_regraph_adapter_1.pma3:HBM[3]",
-                    "sp=pma_to_regraph_adapter_1.row_offset:HBM[0]",
+                    "sp=pma_to_regraph_edge_array_1.pma0:HBM[0]",
+                    "sp=pma_to_regraph_edge_array_1.pma1:HBM[1]",
+                    "sp=pma_to_regraph_edge_array_1.pma2:HBM[2]",
+                    "sp=pma_to_regraph_edge_array_1.pma3:HBM[3]",
+                    "sp=pma_to_regraph_edge_array_1.row_offset:HBM[0]",
+                    "sp=pma_to_regraph_edge_array_1.edge_array:HBM[0]",
+                    "sp=littleKernelScatterGather_1.part_edge_array:HBM[0]",
                     "stream_connect=kernelApply_1.prop_write_burst_stm:kernelHBMWrapper_1.prop_write_burst_stm:16",
                 ],
             ),
@@ -692,7 +693,7 @@ def target_build_scripts_cover_pure_pipeline(repo: Path) -> dict[str, Any]:
     return {
         "ok": not missing,
         "paths": paths,
-        "contract": "generated hw_emu/hw manifest, compile, link, and connectivity config cover the pure GraSU->barrier->adapter->ReGraph pipeline",
+        "contract": "generated hw_emu/hw manifest, compile, link, and connectivity config cover the pure GraSU->barrier->one-shot PMA compactor->ReGraph pipeline",
         "missing": missing,
     }
 
@@ -717,20 +718,23 @@ def host_runtime_matches_generated_config(repo: Path) -> dict[str, Any]:
             'cl::Kernel process_ddr_1(program, "process_ddr:{process_ddr_1}"',
             'cl::Kernel process_ddr_2(program, "process_ddr:{process_ddr_2}"',
             'cl::Kernel barrier(program, "pma_completion_barrier:{pma_completion_barrier_1}"',
-            'cl::Kernel adapter(program, "pma_to_regraph_adapter:{pma_to_regraph_adapter_1}"',
-            'cl::Kernel lksg(program, "lksg_stream:{lksg_stream_1}"',
+            'cl::Kernel compactor(program',
+            '"pma_to_regraph_edge_array:{pma_to_regraph_edge_array_1}"',
+            'cl::Kernel lksg(program, "littleKernelScatterGather:{littleKernelScatterGather_1}"',
             'cl::Kernel apply(program, "kernelApply:{kernelApply_1}"',
             'cl::Kernel hbm(program, "kernelHBMWrapper:{kernelHBMWrapper_1}"',
         ],
         "host:actual_pma_adapter_args": [
-            "adapter.setArg(0, pma_dev[0])",
-            "adapter.setArg(1, pma_dev[1])",
-            "adapter.setArg(2, pma_dev[2])",
-            "adapter.setArg(3, pma_dev[3])",
-            "adapter.setArg(4, row_dev[0])",
-            "adapter.setArg(5, static_cast<unsigned>(dataset.node_size))",
-            "adapter.setArg(6, static_cast<unsigned>(prepared.pma_slot_count))",
-            "adapter.setArg(7, static_cast<unsigned>(MAX_CACHE_SEGMENT))",
+            "compactor.setArg(0, pma_dev[0])",
+            "compactor.setArg(1, pma_dev[1])",
+            "compactor.setArg(2, pma_dev[2])",
+            "compactor.setArg(3, pma_dev[3])",
+            "compactor.setArg(4, row_dev[0])",
+            "compactor.setArg(5, static_cast<unsigned>(dataset.node_size))",
+            "compactor.setArg(6, static_cast<unsigned>(prepared.pma_slot_count))",
+            "compactor.setArg(7, part_edge_num)",
+            "compactor.setArg(8, static_cast<unsigned>(MAX_CACHE_SEGMENT))",
+            "compactor.setArg(9, compact_edges_dev)",
         ],
         "host:grasu_writer_args": [
             "process_cache_1.setArg(0, pma_dev[0])",
@@ -744,14 +748,16 @@ def host_runtime_matches_generated_config(repo: Path) -> dict[str, Any]:
             "hbm.setArg(2, *write_props[0])",
             "hbm.setArg(3, *write_props[1])",
             "apply.setArg(0, apply_prop_dev)",
+            "lksg.setArg(0, compact_edges_dev)",
             "lksg.setArg(1, part_edge_num)",
             "lksg.setArg(4, reset_tmp_prop)",
         ],
         "host:barrier_and_pipeline_events": [
             "pipeline_queue.enqueueTask(barrier, nullptr, &barrier_event)",
-            "adapter_wait_events.push_back(barrier_event)",
-            "pipeline_queue.enqueueTask(adapter, adapter_wait_list, &adapter_event)",
-            "pipeline_queue.enqueueTask(lksg, nullptr, &lksg_event)",
+            "compactor_wait_events{barrier_event}",
+            "pipeline_queue.enqueueTask(compactor, &compactor_wait_events, &compactor_event)",
+            "lksg_wait_events.push_back(compactor_event)",
+            "pipeline_queue.enqueueTask(lksg, lksg_wait_list, &lksg_event)",
             "pipeline_queue.enqueueTask(hbm, nullptr, &hbm_event)",
             "pipeline_queue.enqueueTask(apply, nullptr, &apply_event)",
         ],
@@ -760,6 +766,7 @@ def host_runtime_matches_generated_config(repo: Path) -> dict[str, Any]:
             "grasu_ms=",
             "barrier_ms=",
             "adapter_ms=",
+            "pma_compact_ms=",
             "lksg_ms=",
             "apply_ms=",
             "event_e2e_ms=",
@@ -773,8 +780,8 @@ def host_runtime_matches_generated_config(repo: Path) -> dict[str, Any]:
             "nk=process_cache:2:process_cache_1.process_cache_2",
             "nk=process_ddr:2:process_ddr_1.process_ddr_2",
             "nk=pma_completion_barrier:1:pma_completion_barrier_1",
-            "nk=pma_to_regraph_adapter:1:pma_to_regraph_adapter_1",
-            "nk=lksg_stream:1:lksg_stream_1",
+            "nk=pma_to_regraph_edge_array:1:pma_to_regraph_edge_array_1",
+            "nk=littleKernelScatterGather:1",
             "nk=kernelApply:1",
             "nk=kernelHBMWrapper:1",
         ],
@@ -783,14 +790,15 @@ def host_runtime_matches_generated_config(repo: Path) -> dict[str, Any]:
             "stream_connect=process_ddr_1.completion_token:pma_completion_barrier_1.done1:16",
             "stream_connect=process_cache_2.completion_token:pma_completion_barrier_1.done2:16",
             "stream_connect=process_ddr_2.completion_token:pma_completion_barrier_1.done3:16",
-            "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32",
         ],
         "config:pma_and_regraph_hbm_ports": [
-            "sp=pma_to_regraph_adapter_1.pma0:HBM[0]",
-            "sp=pma_to_regraph_adapter_1.pma1:HBM[1]",
-            "sp=pma_to_regraph_adapter_1.pma2:HBM[2]",
-            "sp=pma_to_regraph_adapter_1.pma3:HBM[3]",
-            "sp=pma_to_regraph_adapter_1.row_offset:HBM[0]",
+            "sp=pma_to_regraph_edge_array_1.pma0:HBM[0]",
+            "sp=pma_to_regraph_edge_array_1.pma1:HBM[1]",
+            "sp=pma_to_regraph_edge_array_1.pma2:HBM[2]",
+            "sp=pma_to_regraph_edge_array_1.pma3:HBM[3]",
+            "sp=pma_to_regraph_edge_array_1.row_offset:HBM[0]",
+            "sp=pma_to_regraph_edge_array_1.edge_array:HBM[0]",
+            "sp=littleKernelScatterGather_1.part_edge_array:HBM[0]",
             "sp=kernelApply_1.vertex_prop:HBM[30]",
             "sp=kernelHBMWrapper_1.src_prop_1:HBM[1]",
             "sp=kernelHBMWrapper_1.src_prop_2:HBM[3]",
@@ -814,7 +822,7 @@ def host_runtime_matches_generated_config(repo: Path) -> dict[str, Any]:
     return {
         "ok": not missing,
         "paths": paths,
-        "contract": "host runtime opens the generated CU names and binds PMA, barrier, stream ReGraph, apply, HBM, and timing arguments consistently with hw_emu/hw link configs",
+        "contract": "host runtime opens the generated CU names and binds PMA, barrier, one-shot compactor, ReGraph littleGS, apply, HBM, and timing arguments consistently with hw_emu/hw link configs",
         "missing": missing,
     }
 
@@ -1007,9 +1015,9 @@ def stage0_comparison_acceptance_gate(repo: Path) -> dict[str, Any]:
 
 def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     host = repo / "tools/pure_pipeline_host.cpp"
-    adapter = repo / "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
+    compactor = repo / "kernels/pma_to_regraph_edge_array/pma_to_regraph_edge_array.cpp"
     barrier = repo / "kernels/pma_completion_barrier/pma_completion_barrier.cpp"
-    lksg_stream = repo / "kernels/regraph_stream_little_gs/little_gs_stream.cpp"
+    lksg = repo / "repos/ReGraph/acc_template/kernel_little_gs/kernel_scatter_gather.cpp"
     prepare = repo / "scripts/prepare_pure_hw_pipeline_build.sh"
     grasu_kernel_config = repo / "repos/GraSU/GraSU/GraSU_kernels/src/kernel_config.h"
     grasu_process_cache = repo / "repos/GraSU/GraSU/GraSU_kernels/src/kernel_process_cache.cpp"
@@ -1017,7 +1025,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     grasu_to_adapter_segment = source_segment(
         host,
         'std::cout << "PURE_PIPELINE_HOST stage=launch_grasu"',
-        'std::cout << "PURE_PIPELINE_HOST stage=enqueued_adapter step="',
+        'std::cout << "PURE_PIPELINE_HOST stage=enqueued_pma_compactor"',
     )
     forbidden_handoff_terms = [
         "enqueueMigrateMemObjects",
@@ -1034,7 +1042,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
                 "cl::Context context(device",
                 "cl::Program program(context",
                 "cl::Kernel barrier(program",
-                "cl::Kernel adapter(program",
+                "cl::Kernel compactor(program",
                 "cl::Kernel lksg(program",
                 "cl::Kernel apply(program",
             ]),
@@ -1042,11 +1050,11 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
         },
         "adapter_receives_actual_pma_buffers": {
             "ok": source_contains(host, [
-                "adapter.setArg(0, pma_dev[0])",
-                "adapter.setArg(1, pma_dev[1])",
-                "adapter.setArg(2, pma_dev[2])",
-                "adapter.setArg(3, pma_dev[3])",
-                "adapter.setArg(4, row_dev[0])",
+                "compactor.setArg(0, pma_dev[0])",
+                "compactor.setArg(1, pma_dev[1])",
+                "compactor.setArg(2, pma_dev[2])",
+                "compactor.setArg(3, pma_dev[3])",
+                "compactor.setArg(4, row_dev[0])",
             ]),
             "path": display_path(repo, host),
         },
@@ -1055,32 +1063,35 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
                 "(graph.row_offset[i] << 32)",
                 "graph.row_offset[i + 1]",
                 "prepared.row_offsets[copy][i] = packed",
-            ]) and source_contains(adapter, [
+            ]) and source_contains(compactor, [
                 "begin = packed.range(63, 32)",
                 "end = packed.range(31, 0)",
                 "unpack_row_bounds(row_offset[src], begin, end)",
                 "unpack_row_bounds(row_offset[node_count - 1], last_begin, total_slots)",
             ]),
-            "paths": [display_path(repo, host), display_path(repo, adapter)],
-            "contract": "host packs row_offset[src] as begin[63:32], end[31:0]; adapter decodes the same fields",
+            "paths": [display_path(repo, host), display_path(repo, compactor)],
+            "contract": "host packs row_offset[src] as begin[63:32], end[31:0]; one-shot compactor decodes the same fields",
         },
         "no_host_graph_handoff_between_grasu_and_regraph": {
             "ok": bool(grasu_to_adapter_segment)
             and not any(term in grasu_to_adapter_segment for term in forbidden_handoff_terms)
             and source_contains(host, [
                 "The result file is accepted for CLI compatibility; CPU SSSP oracle is built",
-                "adapter.setArg(0, pma_dev[0])",
-                "adapter.setArg(1, pma_dev[1])",
-                "adapter.setArg(2, pma_dev[2])",
-                "adapter.setArg(3, pma_dev[3])",
-                "adapter.setArg(4, row_dev[0])",
-                "pipeline_queue.enqueueTask(adapter, adapter_wait_list, &adapter_event)",
+                "compactor.setArg(0, pma_dev[0])",
+                "compactor.setArg(1, pma_dev[1])",
+                "compactor.setArg(2, pma_dev[2])",
+                "compactor.setArg(3, pma_dev[3])",
+                "compactor.setArg(4, row_dev[0])",
+                "pipeline_queue.enqueueTask(compactor, &compactor_wait_events, &compactor_event)",
+                "lksg.setArg(0, compact_edges_dev)",
             ])
             and source_contains(prepare, [
-                "pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in",
+                "pma_to_regraph_edge_array_1.edge_array:HBM[0]",
+                "write_regraph_little_only_connectivity",
+                "littleKernelScatterGather",
             ]),
             "paths": [display_path(repo, host), display_path(repo, prepare)],
-            "contract": "between GraSU launch and adapter enqueue the host does not migrate/read/convert graph data; adapter consumes PMA buffers and streams directly to ReGraph",
+            "contract": "between GraSU launch and ReGraph enqueue the host does not migrate/read/convert graph data; the compactor consumes actual PMA once and writes the ReGraph edge array on device",
         },
         "grasu_writers_emit_completion_tokens": {
             "ok": source_contains(grasu_kernel_config, [
@@ -1130,46 +1141,52 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
                 "(void)done2.read()",
                 "(void)done3.read()",
             ]) and source_contains(host, [
-                "adapter_wait_events.push_back(barrier_event)",
-                "pipeline_queue.enqueueTask(adapter, adapter_wait_list, &adapter_event)",
+                "std::vector<cl::Event> compactor_wait_events{barrier_event}",
+                "pipeline_queue.enqueueTask(compactor, &compactor_wait_events, &compactor_event)",
             ]),
             "paths": [display_path(repo, prepare), display_path(repo, barrier), display_path(repo, host)],
         },
         "adapter_to_regraph_stream": {
             "ok": source_contains(prepare, [
-                "pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in",
-            ]) and source_contains(adapter, [
-                "typedef ap_axiu<512, 0, 0, 0> edge_burst_pkt_t",
-                "lane < 8",
-                "#pragma HLS INTERFACE axis port=edge_burst_out",
+                "pma_to_regraph_edge_array_1.edge_array:HBM[0]",
+                "write_regraph_little_only_connectivity",
+                "littleKernelScatterGather",
+            ]) and source_contains(host, [
+                "pipeline_queue.enqueueTask(compactor, &compactor_wait_events, &compactor_event)",
+                "lksg_wait_events.push_back(compactor_event)",
+                "lksg.setArg(0, compact_edges_dev)",
+                "lksg.setArg(1, part_edge_num)",
+            ]) and source_contains(compactor, [
+                "#pragma HLS INTERFACE m_axi port=edge_array",
+                "edge_array[burst_idx] = burst",
             ]),
-            "paths": [display_path(repo, prepare), display_path(repo, adapter)],
+            "paths": [display_path(repo, prepare), display_path(repo, host), display_path(repo, compactor)],
+            "contract": "one-shot compactor materializes compact 512-bit ReGraph edge bursts in device memory and littleKernelScatterGather consumes that array after compactor_event",
         },
         "stream_burst_8_edge_contract": {
-            "ok": source_contains(adapter, [
-                "typedef ap_axiu<512, 0, 0, 0> edge_burst_pkt_t",
+            "ok": source_contains(compactor, [
+                "static constexpr unsigned kEdgesPerBurst = 8",
                 "const unsigned base = lane * 64",
-                "pkt.data.range(base + 31, base) = src",
-                "pkt.data.range(base + 63, base + 32) = dst",
-                "for (unsigned lane = 0; lane < 8; ++lane)",
-            ]) and source_contains(lksg_stream, [
-                "typedef ap_axiu<512, 0, 0, 0> edge_burst_pkt_t",
-                "for (int lane = 0; lane < NUM_EDGE_PER_BURST; lane++)",
-                "const int base = lane * 64",
-                "burst.edges[lane].src = pkt.data.range(base + 31, base)",
-                "burst.edges[lane].dst = pkt.data.range(base + 63, base + 32)",
+                "burst.range(base + 31, base) = out_src",
+                "burst.range(base + 63, base + 32) = out_dst",
+                "lane == kEdgesPerBurst",
+            ]) and source_contains(lksg, [
+                "edge_burst_dt one_edge_burst = part_edge_array[i]",
+                "for (int u = 0; u < NUM_EDGE_PER_BURST; u ++)",
                 "part_edge_num >> LOG2_NUM_EDGE_PER_BURST",
+            ]) and source_contains(host, [
+                "round_up_to_multiple(final_edges.size(), std::size_t{8})",
             ]),
-            "paths": [display_path(repo, adapter), display_path(repo, lksg_stream)],
-            "contract": "512-bit AXI packet, 64 bits per edge record, 8 edge lanes per burst",
+            "paths": [display_path(repo, compactor), display_path(repo, lksg), display_path(repo, host)],
+            "contract": "512-bit memory burst, 64 bits per edge record, 8 edge lanes per burst; part_edge_num is padded to a multiple of 8",
         },
         "unit_weight_sssp_packing": {
-            "ok": source_contains(adapter, [
+            "ok": source_contains(compactor, [
                 "kUnitWeight = 1u",
                 "kWeightShift = 19",
                 "pack_regraph_dst",
             ]),
-            "path": display_path(repo, adapter),
+            "path": display_path(repo, compactor),
         },
         "timing_fields": {
             "ok": source_contains(host, [
@@ -1372,33 +1389,33 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
                 proofs["grasu_writers_emit_completion_tokens"]["contract"],
                 "scripts/prepare_pure_hw_pipeline_build.sh stream_connect completion_token lines",
                 "kernels/pma_completion_barrier/pma_completion_barrier.cpp done0..done3 reads",
-                "tools/pure_pipeline_host.cpp adapter waits on barrier_event before step 0",
+                "tools/pure_pipeline_host.cpp compactor waits on barrier_event before ReGraph step 0",
             ],
             [] if hw_valid else ["barrier is source/sw_emu-proven; needs hw_emu/hw validation"],
         ),
         requirement(
             3,
-            "Adapter reads actual GraSU PMA, not expected edge files",
+            "One-shot compactor reads actual GraSU PMA, not expected edge files",
             status_if_hw_valid(hw_valid, source_actual_pma and source_row_bounds, sw_valid),
             [
                 proofs["adapter_receives_actual_pma_buffers"]["path"],
-                "adapter args 0..3 are pma_dev[0..3], arg 4 is row_dev[0]",
+                "compactor args 0..3 are pma_dev[0..3], arg 4 is row_dev[0]",
                 proofs["pma_row_offset_begin_end_contract"]["contract"],
             ],
             [] if hw_valid else ["needs pure hw_emu/hw smoke to prove the same path beyond sw_emu"],
         ),
         requirement(
             4,
-            "Adapter and ReGraph use AXI4-Stream at 8 edges/cycle steady width",
+            "Compactor and ReGraph use compact 512-bit edge bursts at 8 edges/burst",
             status_if_hw_valid(hw_valid, source_stream and source_stream_contract, sw_valid),
             [
-                "ap_axiu<512> edge_burst_pkt_t",
-                "8 lanes per burst in adapter lane loop",
-                "adapter edge_burst_out connects to lksg_stream edge_burst_in",
+                "ap_uint<512> edge_array bursts",
+                "8 lanes per burst in compactor lane loop",
+                "compactor edge_array feeds littleKernelScatterGather part_edge_array in device memory",
                 proofs["stream_burst_8_edge_contract"]["contract"],
                 targets["sw_emu"]["xclbin_contract"]["path"],
             ],
-            [] if hw_valid else ["needs linked hw_emu/hw xclbin evidence for the stream connection"],
+            [] if hw_valid else ["needs linked hw_emu/hw xclbin evidence for the compact edge-array handoff"],
         ),
         requirement(
             5,

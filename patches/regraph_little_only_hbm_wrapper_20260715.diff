@@ -1,0 +1,30 @@
+diff --git a/acc_template/kernel_hbm_wrapper/kernel_hbm_wrapper.cpp b/acc_template/kernel_hbm_wrapper/kernel_hbm_wrapper.cpp
+--- a/acc_template/kernel_hbm_wrapper/kernel_hbm_wrapper.cpp
++++ b/acc_template/kernel_hbm_wrapper/kernel_hbm_wrapper.cpp
+@@ -35,11 +35,13 @@ extern "C" {
+ 
+ 
+ 		        hls::stream<l_ppb_response_pkt>   &l_ppb_response_stm_1,
+ 
+ 
++	#if !defined(REGRAPH_PURE_LITTLE_ONLY)
+ 		        hls::stream<b_cacheline_request_pkt>    &b_cacheline_request_stm_1,
+ 
+ 
+ 		        hls::stream<b_cacheline_response_pkt>   &b_cacheline_response_stm_1,
++	#endif
+ 
+ 				hls::stream<write_burst_pkt>      		&prop_write_burst_stm
+ 
+@@ -81,7 +83,11 @@ extern "C" {
+ 
+ 			littleKernelReadMemory<0>(0, src_prop_1, num_dense_paritions, l_ppb_request_stm_1, l_ppb_response_stm_1);
+ 
++	#if !defined(REGRAPH_PURE_LITTLE_ONLY)
+ 			bigKernelReadMemory<0>(0, src_prop_2, num_sparse_paritions, b_cacheline_request_stm_1, b_cacheline_response_stm_1);
++	#else
++			(void)num_sparse_paritions;
++	#endif
+ 
+ 
+ 			write_out(

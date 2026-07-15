@@ -38,7 +38,7 @@ Options:
 
 Generated files:
   compile_commands.sh            Compile tokenized process_cache/process_ddr,
-                                 pma_to_regraph_adapter, and stream little-GS XOs.
+                                 one-shot PMA compactor, and ReGraph little-GS XOs.
   link_command.sh                Link the pure pipeline xclbin.
   config/pure_pipeline_<target>.cfg
   manifest.env
@@ -171,8 +171,9 @@ declare -a REGRAPH_COMMON_FLAGS=(
   "-DLOG2_SRC_BUFFER_SIZE=12"
   "-DVERTEX_REORDER_ENABLE=1"
   "-DENABLE_COMPRESSED_EDGE_INPUT=0"
-  "-DBIG_KERNEL_NUM=1"
+  "-DBIG_KERNEL_NUM=0"
   "-DLITTLE_KERNEL_NUM=1"
+  "-DREGRAPH_PURE_LITTLE_ONLY"
   "-I${HLS_INCLUDE_ETC}"
   "-I${REGRAPH_ROOT}/acc_udfs/sssp"
   "-I${REGRAPH_ROOT}"
@@ -210,23 +211,19 @@ copy_connectivity_body() {
   ' "${file}"
 }
 
-write_regraph_stream_connectivity() {
+write_regraph_little_only_connectivity() {
   local file="$1"
   awk '
     BEGIN { in_conn = 0 }
     /^\[connectivity\]/ { in_conn = 1; next }
     in_conn == 0 { next }
-    {
-      line = $0
-      gsub("littleKernelScatterGather_1", "lksg_stream_1", line)
-      if (line ~ /^nk=littleKernelScatterGather:1/) {
-        line = "nk=lksg_stream:1:lksg_stream_1"
-      }
-      if (line ~ /^sp=lksg_stream_1\.part_edge_array:/) {
-        next
-      }
-      print line
-    }
+    /bigKernelScatterGather/ { next }
+    /kernelBigGSMerger/ { next }
+    /b_cacheline/ { next }
+    /b_tmp_prop/ { next }
+    /b_write_burst/ { next }
+    /b_merged_prop/ { next }
+    { print }
   ' "${file}"
 }
 
@@ -237,11 +234,9 @@ write_compile_cfg process_ddr "${CFG_DIR}/process_ddr_token_compile.cfg"
 write_compile_cfg kernelApply "${CFG_DIR}/kernelApply_compile.cfg"
 write_compile_cfg kernelHBMWrapper "${CFG_DIR}/kernelHBMWrapper_compile.cfg"
 write_compile_cfg kernelLittleGSMerger "${CFG_DIR}/kernelLittleGSMerger_compile.cfg"
-write_compile_cfg bigKernelScatterGather "${CFG_DIR}/bigKernelScatterGather_compile.cfg"
-write_compile_cfg kernelBigGSMerger "${CFG_DIR}/kernelBigGSMerger_compile.cfg"
 write_compile_cfg pma_completion_barrier "${CFG_DIR}/pma_completion_barrier_compile.cfg"
-write_compile_cfg pma_to_regraph_adapter "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg"
-write_compile_cfg lksg_stream "${CFG_DIR}/little_gs_stream_compile.cfg"
+write_compile_cfg pma_to_regraph_edge_array "${CFG_DIR}/pma_to_regraph_edge_array_compile.cfg"
+write_compile_cfg littleKernelScatterGather "${CFG_DIR}/littleKernelScatterGather_compile.cfg"
 
 emit_regraph_compile_command() {
   local kernel_dir="$1"
@@ -295,28 +290,28 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
   echo "# GraSU internal update streams"
   copy_connectivity_body "${GRASU_STREAM_CFG}"
   echo
-  echo "# GraSU PMA completion barrier into adapter"
+  echo "# GraSU PMA completion barrier into one-shot compactor"
   echo "stream_connect=process_cache_1.completion_token:pma_completion_barrier_1.done0:16"
   echo "stream_connect=process_ddr_1.completion_token:pma_completion_barrier_1.done1:16"
   echo "stream_connect=process_cache_2.completion_token:pma_completion_barrier_1.done2:16"
   echo "stream_connect=process_ddr_2.completion_token:pma_completion_barrier_1.done3:16"
-  echo "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32"
   echo
   echo "# PMA completion barrier"
   echo "nk=pma_completion_barrier:1:pma_completion_barrier_1"
   echo "slr=pma_completion_barrier_1:SLR1"
   echo
-  echo "# PMA-to-ReGraph adapter"
-  echo "nk=pma_to_regraph_adapter:1:pma_to_regraph_adapter_1"
-  echo "sp=pma_to_regraph_adapter_1.pma0:HBM[0]"
-  echo "sp=pma_to_regraph_adapter_1.pma1:HBM[1]"
-  echo "sp=pma_to_regraph_adapter_1.pma2:HBM[2]"
-  echo "sp=pma_to_regraph_adapter_1.pma3:HBM[3]"
-  echo "sp=pma_to_regraph_adapter_1.row_offset:HBM[0]"
-  echo "slr=pma_to_regraph_adapter_1:SLR1"
+  echo "# One-shot PMA-to-ReGraph edge-array compactor"
+  echo "nk=pma_to_regraph_edge_array:1:pma_to_regraph_edge_array_1"
+  echo "sp=pma_to_regraph_edge_array_1.pma0:HBM[0]"
+  echo "sp=pma_to_regraph_edge_array_1.pma1:HBM[1]"
+  echo "sp=pma_to_regraph_edge_array_1.pma2:HBM[2]"
+  echo "sp=pma_to_regraph_edge_array_1.pma3:HBM[3]"
+  echo "sp=pma_to_regraph_edge_array_1.row_offset:HBM[0]"
+  echo "sp=pma_to_regraph_edge_array_1.edge_array:HBM[0]"
+  echo "slr=pma_to_regraph_edge_array_1:SLR1"
   echo
-  echo "# ReGraph SSSP connectivity with stream-input little GS"
-  write_regraph_stream_connectivity "${REGRAPH_CONNECTIVITY_CFG}"
+  echo "# ReGraph SSSP connectivity with compact edge-array little-only GS"
+  write_regraph_little_only_connectivity "${REGRAPH_CONNECTIVITY_CFG}"
 } > "${LINK_CFG}"
 
 declare -a EXISTING_XOS=()
@@ -327,13 +322,11 @@ declare -a GENERATED_XOS=(
   "${BUILD_DIR}/kernelApply.${TARGET}.${PLATFORM}.xo"
   "${BUILD_DIR}/kernelHBMWrapper.${TARGET}.${PLATFORM}.xo"
   "${BUILD_DIR}/kernelLittleGSMerger.${TARGET}.${PLATFORM}.xo"
-  "${BUILD_DIR}/bigKernelScatterGather.${TARGET}.${PLATFORM}.xo"
-  "${BUILD_DIR}/kernelBigGSMerger.${TARGET}.${PLATFORM}.xo"
   "${BUILD_DIR}/process_cache.${TARGET}.xo"
   "${BUILD_DIR}/process_ddr.${TARGET}.xo"
   "${BUILD_DIR}/pma_completion_barrier.${TARGET}.xo"
-  "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo"
-  "${BUILD_DIR}/lksg_stream.${TARGET}.xo"
+  "${BUILD_DIR}/pma_to_regraph_edge_array.${TARGET}.xo"
+  "${BUILD_DIR}/littleKernelScatterGather.${TARGET}.xo"
 )
 
 {
@@ -361,7 +354,8 @@ declare -a GENERATED_XOS=(
     "${CFG_DIR}/process_cache_token_compile.cfg" \
     "${BUILD_DIR}/process_cache.${TARGET}.xo" \
     "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_process_cache.cpp" \
-    "-DGRASU_ENABLE_COMPLETION_TOKEN"
+    "-DGRASU_ENABLE_COMPLETION_TOKEN" \
+    "-DGRASU_PURE_PIPELINE_DIRECT_CACHE"
   emit_grasu_compile_command \
     "${CFG_DIR}/process_ddr_token_compile.cfg" \
     "${BUILD_DIR}/process_ddr.${TARGET}.xo" \
@@ -382,34 +376,21 @@ declare -a GENERATED_XOS=(
     "${CFG_DIR}/kernelLittleGSMerger_compile.cfg" \
     "${BUILD_DIR}/kernelLittleGSMerger.${TARGET}.${PLATFORM}.xo" \
     "${REGRAPH_ROOT}/acc_template/kernel_little_gs_merger/kernel_little_gs_merger.cpp"
-  emit_regraph_compile_command \
-    "${REGRAPH_ROOT}/acc_template/kernel_big_gs" \
-    "${CFG_DIR}/bigKernelScatterGather_compile.cfg" \
-    "${BUILD_DIR}/bigKernelScatterGather.${TARGET}.${PLATFORM}.xo" \
-    "${REGRAPH_ROOT}/acc_template/kernel_big_gs/kernel_scatter_gather.cpp"
-  emit_regraph_compile_command \
-    "${REGRAPH_ROOT}/acc_template/kernel_big_gs_merger" \
-    "${CFG_DIR}/kernelBigGSMerger_compile.cfg" \
-    "${BUILD_DIR}/kernelBigGSMerger.${TARGET}.${PLATFORM}.xo" \
-    "${REGRAPH_ROOT}/acc_template/kernel_big_gs_merger/kernel_big_gs_merger.cpp"
   printf 'v++ --target %q --compile %s %s --config %q -I%q -o %q %q\n' \
     "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_completion_barrier_compile.cfg" \
     "${HLS_INCLUDE_ETC}" \
     "${BUILD_DIR}/pma_completion_barrier.${TARGET}.xo" \
     "${GRI_ROOT}/kernels/pma_completion_barrier/pma_completion_barrier.cpp"
   printf 'v++ --target %q --compile %s %s --config %q -I%q -o %q %q\n' \
-    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
+    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_edge_array_compile.cfg" \
     "${HLS_INCLUDE_ETC}" \
-    "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo" \
-    "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
-  printf 'v++ --target %q --compile %s %s -O3 --config %q -DHAVE_EDGE_PROP=1 -DHAVE_UNSIGNED_PROP=1 -DHAVE_APPLY_OUTDEG=0 -DHAVE_VERTEX_PROP=1 -DPARTITION_SIZE=65536 -DLITTLE_KERNEL_DST_BUFFER_SIZE=65536 -DBIG_KERNEL_DST_BUFFER_SIZE=524288 -DSRC_BUFFER_SIZE=4096 -DLOG2_SRC_BUFFER_SIZE=12 -DVERTEX_REORDER_ENABLE=1 -DENABLE_COMPRESSED_EDGE_INPUT=0 -DBIG_KERNEL_NUM=1 -DLITTLE_KERNEL_NUM=1 -I%q -I%q -I%q -I%q -I%q -I%q -I%q -o %q %q\n' \
-    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/little_gs_stream_compile.cfg" \
-    "${HLS_INCLUDE_ETC}" \
-    "${REGRAPH_ROOT}/acc_udfs/sssp" "${REGRAPH_ROOT}" "${REGRAPH_ROOT}/acc_template" \
-    "${REGRAPH_ROOT}/acc_template/common" "${REGRAPH_ROOT}/acc_udfs" \
+    "${BUILD_DIR}/pma_to_regraph_edge_array.${TARGET}.xo" \
+    "${GRI_ROOT}/kernels/pma_to_regraph_edge_array/pma_to_regraph_edge_array.cpp"
+  emit_regraph_compile_command \
     "${REGRAPH_ROOT}/acc_template/kernel_little_gs" \
-    "${BUILD_DIR}/lksg_stream.${TARGET}.xo" \
-    "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp"
+    "${CFG_DIR}/littleKernelScatterGather_compile.cfg" \
+    "${BUILD_DIR}/littleKernelScatterGather.${TARGET}.xo" \
+    "${REGRAPH_ROOT}/acc_template/kernel_little_gs/kernel_scatter_gather.cpp"
 } > "${COMPILE_COMMANDS}"
 chmod +x "${COMPILE_COMMANDS}"
 
