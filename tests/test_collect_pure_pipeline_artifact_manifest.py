@@ -43,10 +43,18 @@ with TemporaryDirectory() as tmp:
         f"readiness_out={launch_dir / 'readiness_hw_emu.txt'}",
         f"acceptance_gates={launch_dir / 'acceptance_gates.tsv'}",
         f"acceptance_check_prelaunch={launch_dir / 'acceptance_check_prelaunch.tsv'}",
+        f"postbuild_acceptance_gate={launch_dir / 'postbuild_acceptance_gate.sh'}",
+        f"wait_then_accept_gate={launch_dir / 'wait_then_accept_gate.sh'}",
+        f"postbuild_acceptance_full={launch_dir / 'postbuild_acceptance_full.sh'}",
+        f"wait_then_accept_full={launch_dir / 'wait_then_accept_full.sh'}",
         "",
     ]))
     for path in [
         launch_dir / "launch_command.sh",
+        launch_dir / "postbuild_acceptance_gate.sh",
+        launch_dir / "wait_then_accept_gate.sh",
+        launch_dir / "postbuild_acceptance_full.sh",
+        launch_dir / "wait_then_accept_full.sh",
         launch_dir / "source_contracts.tsv",
         launch_dir / "source_fingerprints.tsv",
         launch_dir / "readiness_hw_emu.txt",
@@ -94,6 +102,10 @@ with TemporaryDirectory() as tmp:
     assert xclbin_row["exists"] == "yes"
     assert xclbin_row["required"] == "yes"
     assert xclbin_row["sha256"]
+    helper_row = next(row for row in rows if row["name"] == "wait_then_accept_gate")
+    assert helper_row["category"] == "launch_packet"
+    assert helper_row["exists"] == "yes"
+    assert helper_row["required"] == "yes"
 
     out_file = repo / ".tmp_build" / "manifest.tsv"
     write_manifest(out_file, rows)

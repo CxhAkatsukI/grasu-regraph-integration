@@ -20,6 +20,12 @@ from typing import Any
 TARGETS = ("sw_emu", "hw_emu", "hw")
 HARDWARE_MANIFEST_TARGETS = ("hw_emu", "hw")
 TARGET_TIMEOUTS = {"sw_emu": 180, "hw_emu": 900, "hw": 300}
+PACKET_LOCAL_HELPERS = (
+    "postbuild_acceptance_gate",
+    "wait_then_accept_gate",
+    "postbuild_acceptance_full",
+    "wait_then_accept_full",
+)
 STAGE0_GATE_CASES = (
     "tiny_chain_v16",
     "tiny_star_v16_u12",
@@ -395,6 +401,11 @@ def launch_packets(
         source_fingerprints_match = fingerprints_match(source_fingerprints, current_fingerprints)
         launch_command_text = values.get("launch_command")
         launch_command = Path(launch_command_text) if launch_command_text else None
+        helpers = {
+            key: Path(values[key])
+            for key in PACKET_LOCAL_HELPERS
+            if values.get(key)
+        }
         packets.append({
             "packet_dir": env_file.parent,
             "launch_packet_env": env_file,
@@ -405,6 +416,8 @@ def launch_packets(
             "source_fingerprints_match_current": source_fingerprints_match,
             "launch_command": launch_command,
             "launch_command_exists": bool(launch_command and launch_command.is_file()),
+            "helpers": helpers,
+            "helper_exists": {key: path.is_file() for key, path in helpers.items()},
             "mtime": env_file.stat().st_mtime,
         })
     return sorted(packets, key=lambda item: item["mtime"], reverse=True)
@@ -567,6 +580,14 @@ def target_state(
     stage0_full = stage0_matrix_state(repo, target, "full")
     launch_packet = newest_current_launch_packet(repo, target, current_fingerprints)
     launch_packet_label = launch_packet["flow_label"] if launch_packet else None
+    launch_packet_helpers = {}
+    launch_packet_helper_exists = {}
+    if launch_packet:
+        launch_packet_helpers = {
+            key: rel(repo, path)
+            for key, path in launch_packet.get("helpers", {}).items()
+        }
+        launch_packet_helper_exists = launch_packet.get("helper_exists", {})
     artifact_manifests = artifact_manifest_states(repo, target, launch_packet_label)
     state = {
         "target": target,
@@ -597,6 +618,8 @@ def target_state(
         "current_launch_packet_integration_head": launch_packet["integration_head"] if launch_packet else None,
         "current_launch_packet_integration_tracked_dirty": launch_packet["integration_tracked_dirty"] if launch_packet else None,
         "current_launch_packet_command": rel(repo, launch_packet["launch_command"]) if launch_packet else None,
+        "current_launch_packet_helpers": launch_packet_helpers,
+        "current_launch_packet_helper_exists": launch_packet_helper_exists,
         "latest_acceptance_prelaunch": rel(repo, acceptance_prelaunch) if acceptance_prelaunch else None,
         "latest_acceptance_postrun": rel(repo, acceptance_postrun) if acceptance_postrun else None,
         "latest_acceptance_prelaunch_status": acceptance_prelaunch_summary["status"],
@@ -1123,6 +1146,19 @@ def print_text(report: dict[str, Any]) -> None:
     print("postbuild_wait")
     for item in report["postbuild_wait"]:
         print(f"{item['name']}\twhen={item['when']}\tcommand={item['command']}")
+    print()
+    print("packet_local_helpers")
+    for state in report["targets"]:
+        helpers = state.get("current_launch_packet_helpers") or {}
+        if not helpers:
+            continue
+        helper_exists = state.get("current_launch_packet_helper_exists") or {}
+        for name in PACKET_LOCAL_HELPERS:
+            path = helpers.get(name)
+            if not path:
+                continue
+            exists = "yes" if helper_exists.get(name) else "no"
+            print(f"{state['target']}\t{name}\texists={exists}\tpath={path}")
     print()
     print("postrun_followup")
     for item in report["postrun_followup"]:

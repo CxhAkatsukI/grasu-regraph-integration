@@ -21,6 +21,12 @@ from typing import Any
 TARGETS = ("sw_emu", "hw_emu", "hw")
 MODES = ("gate", "full")
 LEVELS = ("build", "gate", "full")
+PACKET_LOCAL_HELPERS = (
+    "postbuild_acceptance_gate",
+    "wait_then_accept_gate",
+    "postbuild_acceptance_full",
+    "wait_then_accept_full",
+)
 
 
 def repo_root_from_script() -> Path:
@@ -174,6 +180,16 @@ def build_manifest_rows(
     add_artifact(rows, repo, "launch_packet", "readiness", path_from_text(repo, launch_values.get("readiness_out")), True, "launch packet readiness report")
     add_artifact(rows, repo, "launch_packet", "acceptance_gates", path_from_text(repo, launch_values.get("acceptance_gates")), True, "launch packet acceptance-gate specification")
     add_artifact(rows, repo, "launch_packet", "acceptance_check_prelaunch", path_from_text(repo, launch_values.get("acceptance_check_prelaunch")), True, "prelaunch acceptance-gate result")
+    for helper in PACKET_LOCAL_HELPERS:
+        add_artifact(
+            rows,
+            repo,
+            "launch_packet",
+            helper,
+            path_from_text(repo, launch_values.get(helper)),
+            target in ("hw_emu", "hw"),
+            f"packet-local {helper.replace('_', '-')} helper",
+        )
     add_artifact(rows, repo, "launch_packet", "artifact_hashes", launch_packet_dir / "artifact_hashes.tsv" if launch_packet_dir else None, False, "launch-packet internal artifact hashes")
 
     add_artifact(rows, repo, "build_scripts", "manifest_env", build_root / "manifest.env", True, "generated target build manifest")

@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from report_pure_pipeline_next_steps import (  # noqa: E402
     artifact_manifest_state,
     completion_claim,
+    launch_packets,
     postbuild_acceptance_commands,
     postbuild_wait_commands,
     postrun_evidence_label,
@@ -81,6 +82,37 @@ assert "claim check" in postbuild_wait[2]["when"]
 assert "artifact manifest" in postbuild_wait[0]["when"]
 assert "artifact manifest" in postbuild_wait[1]["when"]
 assert "artifact manifest" in postbuild_wait[2]["when"]
+
+with TemporaryDirectory() as tmp:
+    repo = Path(tmp)
+    launch_dir = repo / ".tmp_build" / "pure_pipeline_launch_packet_launch_packet_hw_emu_after_unit"
+    launch_dir.mkdir(parents=True)
+    helper_names = (
+        "postbuild_acceptance_gate",
+        "wait_then_accept_gate",
+        "postbuild_acceptance_full",
+        "wait_then_accept_full",
+    )
+    for helper in helper_names:
+        (launch_dir / f"{helper}.sh").write_text("#!/usr/bin/env bash\n", encoding="ascii")
+    (launch_dir / "launch_command.sh").write_text("#!/usr/bin/env bash\n", encoding="ascii")
+    (launch_dir / "source_fingerprints.tsv").write_text("", encoding="ascii")
+    (launch_dir / "launch_packet.env").write_text(
+        "\n".join([
+            "target=hw_emu",
+            "flow_label=after_unit",
+            f"source_fingerprints_out={launch_dir / 'source_fingerprints.tsv'}",
+            f"launch_command={launch_dir / 'launch_command.sh'}",
+            *(f"{helper}={launch_dir / (helper + '.sh')}" for helper in helper_names),
+            "",
+        ]),
+        encoding="ascii",
+    )
+    packets = launch_packets(repo, "hw_emu", {})
+    assert len(packets) == 1
+    assert packets[0]["flow_label"] == "after_unit"
+    assert set(packets[0]["helpers"]) == set(helper_names)
+    assert all(packets[0]["helper_exists"].values())
 
 with TemporaryDirectory() as tmp:
     repo = Path(tmp)
