@@ -181,6 +181,12 @@ Stage-0 design and reproducibility notes:
 docs/pure_hw_pipeline_stage0_2026-07-14.md
 ```
 
+Current build-status snapshot:
+
+```text
+docs/pure_pipeline_status_2026-07-15.md
+```
+
 Collect the current start-state evidence:
 
 ```bash
