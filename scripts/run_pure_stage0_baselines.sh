@@ -10,6 +10,7 @@ PLAN_DIR=""
 HOST_OUT=""
 HOST_IDENTITY_DIR=""
 SPINE_OUT=""
+COMPARISON_OUT=""
 TIMEOUT_SECONDS=600
 SPINE_TIMEOUT_SECONDS=300
 GRASU_HOST=""
@@ -29,6 +30,7 @@ SKIP_PLAN=0
 SKIP_HOST=0
 SKIP_HOST_IDENTITY=0
 SKIP_SPINE=0
+SKIP_COMPARISON=0
 STATUS_ONLY=0
 DRY_RUN=0
 
@@ -58,6 +60,7 @@ Options:
   --host-out PATH             Host baseline dir. Default: results/grasu_regraph_sssp_pure_stage0_<label>
   --host-identity-dir PATH    Host identity audit dir. Default: results/grasu_regraph_sssp_pure_stage0_identity_<label>
   --spine-out PATH            Spine baseline dir. Default: results/spine_edge_file_pure_stage0_<label>
+  --comparison-out PATH       Stage0 comparison dir. Default: results/pure_stage0_comparison_<label>
   --timeout SECONDS           Host per-case timeout. Default: ${TIMEOUT_SECONDS}
   --spine-timeout SECONDS     Spine per-case timeout. Default: ${SPINE_TIMEOUT_SECONDS}
   --grasu-host PATH           Passed to run_grasu_regraph_sssp_sweep.sh.
@@ -80,6 +83,7 @@ Options:
   --skip-host                 Do not run host baseline.
   --skip-host-identity        Do not audit host baseline input identity.
   --skip-spine                Do not run Spine baseline.
+  --skip-comparison           Do not generate the stage0 comparison table.
   --status-only               Print current artifact status and exit.
   --dry-run                   Print commands; do not execute host/Spine runs.
                               Plan export still runs unless --skip-plan is set.
@@ -132,6 +136,7 @@ while [[ $# -gt 0 ]]; do
     --host-out) HOST_OUT="$(abs_path "$2")"; shift 2 ;;
     --host-identity-dir) HOST_IDENTITY_DIR="$(abs_path "$2")"; shift 2 ;;
     --spine-out) SPINE_OUT="$(abs_path "$2")"; shift 2 ;;
+    --comparison-out) COMPARISON_OUT="$(abs_path "$2")"; shift 2 ;;
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
     --spine-timeout) SPINE_TIMEOUT_SECONDS="$2"; shift 2 ;;
     --grasu-host) GRASU_HOST="$(abs_path "$2")"; shift 2 ;;
@@ -151,6 +156,7 @@ while [[ $# -gt 0 ]]; do
     --skip-host) SKIP_HOST=1; shift ;;
     --skip-host-identity) SKIP_HOST_IDENTITY=1; shift ;;
     --skip-spine) SKIP_SPINE=1; shift ;;
+    --skip-comparison) SKIP_COMPARISON=1; shift ;;
     --status-only) STATUS_ONLY=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -174,6 +180,9 @@ if [[ -z "${HOST_IDENTITY_DIR}" ]]; then
 fi
 if [[ -z "${SPINE_OUT}" ]]; then
   SPINE_OUT="${GRI_ROOT}/results/spine_edge_file_pure_stage0_${LABEL}"
+fi
+if [[ -z "${COMPARISON_OUT}" ]]; then
+  COMPARISON_OUT="${GRI_ROOT}/results/pure_stage0_comparison_${LABEL}"
 fi
 if [[ -z "${GRASU_HOST}" ]]; then
   GRASU_HOST="${DEFAULT_GRASU_HOST}"
@@ -199,6 +208,8 @@ COMPARISON_PLAN="${PLAN_DIR}/comparison_plan.tsv"
 HOST_SUMMARY="${HOST_OUT}/summary.tsv"
 HOST_IDENTITY_OUT="${HOST_IDENTITY_DIR}/input_identity_check.tsv"
 SPINE_SUMMARY="${SPINE_OUT}/summary.tsv"
+COMPARISON_TSV="${COMPARISON_OUT}/comparison.tsv"
+COMPARISON_MD="${COMPARISON_OUT}/comparison.md"
 RUN_ENV="${PLAN_DIR}/baseline_run.env"
 
 write_status() {
@@ -221,6 +232,9 @@ spine_partitioned_split=${SPINE_PARTITIONED_SPLIT_VALUE}
 setup_runtime_env=${SETUP_RUNTIME_ENV}
 vitis_settings=${VITIS_SETTINGS} sha256=$(sha_or_missing "${VITIS_SETTINGS}")
 spine_summary=$(exists_yes_no "${SPINE_SUMMARY}") sha256=$(sha_or_missing "${SPINE_SUMMARY}")
+comparison_out=${COMPARISON_OUT}
+comparison_tsv=$(exists_yes_no "${COMPARISON_TSV}") sha256=$(sha_or_missing "${COMPARISON_TSV}")
+comparison_md=$(exists_yes_no "${COMPARISON_MD}") sha256=$(sha_or_missing "${COMPARISON_MD}")
 STATUS
 }
 
@@ -245,6 +259,9 @@ mkdir -p "${PLAN_DIR}" "${HOST_IDENTITY_DIR}"
   printf 'host_identity_out=%s\n' "${HOST_IDENTITY_OUT}"
   printf 'spine_out=%s\n' "${SPINE_OUT}"
   printf 'spine_summary=%s\n' "${SPINE_SUMMARY}"
+  printf 'comparison_out=%s\n' "${COMPARISON_OUT}"
+  printf 'comparison_tsv=%s\n' "${COMPARISON_TSV}"
+  printf 'comparison_md=%s\n' "${COMPARISON_MD}"
   printf 'grasu_host=%s\n' "${GRASU_HOST}"
   printf 'grasu_host_sha256=%s\n' "$(sha_or_missing "${GRASU_HOST}")"
   printf 'grasu_xclbin=%s\n' "${GRASU_XCLBIN}"
@@ -269,6 +286,7 @@ mkdir -p "${PLAN_DIR}" "${HOST_IDENTITY_DIR}"
   printf 'skip_host=%s\n' "${SKIP_HOST}"
   printf 'skip_host_identity=%s\n' "${SKIP_HOST_IDENTITY}"
   printf 'skip_spine=%s\n' "${SKIP_SPINE}"
+  printf 'skip_comparison=%s\n' "${SKIP_COMPARISON}"
   printf 'dry_run=%s\n' "${DRY_RUN}"
   printf 'git_head=%s\n' "$(git -C "${GRI_ROOT}" rev-parse HEAD)"
 } > "${RUN_ENV}"
@@ -343,12 +361,34 @@ if [[ "${SKIP_SPINE}" == "0" ]]; then
   run_cmd env "SPINE_PARTITIONED_SPLIT_VALUE=${SPINE_PARTITIONED_SPLIT_VALUE}" "${spine_cmd[@]}"
 fi
 
+if [[ "${SKIP_COMPARISON}" == "0" ]]; then
+  if [[ "${DRY_RUN}" == "0" && ! -f "${HOST_SUMMARY}" ]]; then
+    echo "Skipping stage0 comparison: missing host summary ${HOST_SUMMARY}" >&2
+  else
+    comparison_cmd=(
+      "${SCRIPT_DIR}/summarize_pure_stage0_comparison.py"
+      --label "${LABEL}"
+      --manifest "${MANIFEST}"
+      --input-identity "${INPUT_IDENTITY}"
+      --host-summary "${HOST_SUMMARY}"
+      --host-identity "${HOST_IDENTITY_OUT}"
+      --out-dir "${COMPARISON_OUT}"
+    )
+    if [[ "${DRY_RUN}" == "1" || -f "${SPINE_SUMMARY}" ]]; then
+      comparison_cmd+=(--spine-summary "${SPINE_SUMMARY}")
+    fi
+    run_cmd "${comparison_cmd[@]}"
+  fi
+fi
+
 {
   printf 'comparison_plan_sha256=%s\n' "$(sha_or_missing "${COMPARISON_PLAN}")"
   printf 'input_identity_sha256=%s\n' "$(sha_or_missing "${INPUT_IDENTITY}")"
   printf 'host_summary_sha256=%s\n' "$(sha_or_missing "${HOST_SUMMARY}")"
   printf 'host_identity_out_sha256=%s\n' "$(sha_or_missing "${HOST_IDENTITY_OUT}")"
   printf 'spine_summary_sha256=%s\n' "$(sha_or_missing "${SPINE_SUMMARY}")"
+  printf 'comparison_tsv_sha256=%s\n' "$(sha_or_missing "${COMPARISON_TSV}")"
+  printf 'comparison_md_sha256=%s\n' "$(sha_or_missing "${COMPARISON_MD}")"
 } >> "${RUN_ENV}"
 
 write_status

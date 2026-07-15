@@ -459,6 +459,8 @@ def stage0_baseline_state(repo: Path, label: str) -> dict[str, Any]:
     run_env = plan_dir / "run.env"
     host_summary = repo / "results" / f"grasu_regraph_sssp_pure_stage0_{label}" / "summary.tsv"
     spine_summary = repo / "results" / f"spine_edge_file_pure_stage0_{label}" / "summary.tsv"
+    comparison_tsv = repo / "results" / f"pure_stage0_comparison_{label}" / "comparison.tsv"
+    comparison_md = repo / "results" / f"pure_stage0_comparison_{label}" / "comparison.md"
     return {
         "label": label,
         "plan_dir": rel(repo, plan_dir),
@@ -480,6 +482,12 @@ def stage0_baseline_state(repo: Path, label: str) -> dict[str, Any]:
         "spine_summary": rel(repo, spine_summary),
         "spine_summary_exists": spine_summary.is_file(),
         "spine_summary_sha256": sha256(spine_summary),
+        "comparison_tsv": rel(repo, comparison_tsv),
+        "comparison_tsv_exists": comparison_tsv.is_file(),
+        "comparison_tsv_sha256": sha256(comparison_tsv),
+        "comparison_md": rel(repo, comparison_md),
+        "comparison_md_exists": comparison_md.is_file(),
+        "comparison_md_sha256": sha256(comparison_md),
         "plan_command": (
             f"./scripts/export_pure_stage0_comparison_plan.py --label {label} "
             f"--out-dir results/pure_stage0_comparison_plan_{label}"
@@ -667,7 +675,8 @@ def print_text(report: dict[str, Any]) -> None:
         f"label_source={report['stage0_followup']['label_source']}\t"
         f"plan={'yes' if baseline['plan_exists'] else 'no'}\t"
         f"host_summary={'yes' if baseline['host_summary_exists'] else 'no'}\t"
-        f"spine_summary={'yes' if baseline['spine_summary_exists'] else 'no'}"
+        f"spine_summary={'yes' if baseline['spine_summary_exists'] else 'no'}\t"
+        f"comparison={'yes' if baseline['comparison_tsv_exists'] else 'no'}"
     )
     print(f"baseline_plan\t{baseline['plan_command']}")
     print(f"baseline_status\t{baseline['baseline_status_command']}")
@@ -680,6 +689,10 @@ def print_text(report: dict[str, Any]) -> None:
     )
     print(f"host_summary\t{baseline['host_summary']}")
     print(f"spine_summary\t{baseline['spine_summary']}")
+    print(
+        f"stage0_comparison\t{baseline['comparison_tsv']}\t"
+        f"sha256={baseline['comparison_tsv_sha256'] or 'MISSING'}"
+    )
     for item in report["stage0_followup"]["commands"]:
         print(f"{item['name']}\twhen={item['when']}\tcommand={item['command']}")
 
