@@ -209,9 +209,10 @@ xclbins, active Vitis/Vivado builders, and the next target-flow command:
 ./scripts/report_pure_pipeline_next_steps.py
 ```
 
-The report prints five command blocks:
+The report prints a `claim_status` block and five command blocks:
 
 ```text
+claim_status       Whether each target can be claimed as build/gate/full proven.
 next_commands       What should run next right now.
 postbuild_acceptance
                     Guarded post-build wrapper commands once a target xclbin appears.
@@ -248,7 +249,11 @@ The `stage0_gate` and `stage0_full` columns summarize same-input matrix
 coverage for the target. `stage0_gate=pass` means the required chain,
 hot-source, spread, and hot-destination smoke families have matched the CPU
 oracle and baseline inputs. `stage0_full=pass` is reserved for the full tracked
-stage-0 matrix.
+stage-0 matrix. The `claim_status` block turns those fields into a direct
+answer for reports: a target is not build-claimable until its current xclbin and
+postrun acceptance are present; it is not gate-claimable until the same-input
+gate and input-identity checks pass; the final completion claim additionally
+requires the real `hw` full stage-0 matrix.
 
 Current reproducible target flow:
 
