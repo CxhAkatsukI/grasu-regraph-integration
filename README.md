@@ -342,7 +342,9 @@ wait_then_accept_full.sh
 
 Those helpers pin the packet's pure-pipeline label and baseline label, then
 delegate to the guarded post-build acceptance wrapper or wait wrapper. They do
-not start Vitis.
+not start Vitis. The next-step report prints them under `packet_local_helpers`,
+and post-build artifact manifests record them as hashed launch-packet evidence
+for `hw_emu` and `hw`.
 
 The post-build wrapper and wait helper also guard the result label. For real
 runs, `--label` must match the target's current launch packet label because the

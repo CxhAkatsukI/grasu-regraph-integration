@@ -216,7 +216,7 @@ The next required long command is the current `hw_emu` launch packet:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
-.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_091b5a4/launch_command.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_f461c07/launch_command.sh
 ```
 
 The launch packet matches the current build-relevant source fingerprints. It
@@ -230,46 +230,46 @@ The packets were regenerated with:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/create_pure_pipeline_launch_packet.sh \
   --target hw_emu \
-  --flow-label after_091b5a4 \
+  --flow-label after_f461c07 \
   --allow-active-builders
 ./scripts/create_pure_pipeline_launch_packet.sh \
   --target hw \
-  --flow-label after_091b5a4 \
+  --flow-label after_f461c07 \
   --allow-active-builders
 ```
 
 Current build-relevant source fingerprint:
 
 ```text
-dc827c6ed62dc318a3263fa8c81f143713872fa0ae93df92cbf90f9726cc4def
+86d6692740c28cece89ddcb6b80a206b435f51cf8e4398ff2ae668bae63ee9a2
 ```
 
 Current launch-packet hashes:
 
 ```text
-hw_emu launch_command.sh:            1d15270f7ea3485141b5fe2e95756cacb55e2de6aedd0f88849c9f41894aee6e
-hw_emu postbuild_acceptance_gate.sh: 2b401c77e8e259048429c3e4910df877a133e65c3c289c2503931a7089334bd2
-hw_emu wait_then_accept_gate.sh:     17d0912cb210100352a765684bd6de57209f4aed23fbb8ff8ce8659e99312d03
-hw_emu postbuild_acceptance_full.sh: 3db5b52055bf1a065f22c6c9f5740a3ad36274321a5266874b22ee718457a90b
-hw_emu wait_then_accept_full.sh:     08886af447694f636b9bd991198de1715ebef962c892221c62e1801546f77f4c
+hw_emu launch_command.sh:            29e3624f5b5d7b9ecbbbd8ea4c0ffa9cc38a1567e8a2a04950129ae6b1cddda2
+hw_emu postbuild_acceptance_gate.sh: a7817edd4a8da57b06185ea2f302dd8dcc3b3c907a390b208f8119fac88c0355
+hw_emu wait_then_accept_gate.sh:     072c036f2c50765b5df6af9cef025b0d641a2b309a72e12e3cdf1d131aafa6ca
+hw_emu postbuild_acceptance_full.sh: cdf25a8eb43ac28024a3cc145b814a8913283ee0f3798d233a1925f304c68834
+hw_emu wait_then_accept_full.sh:     c2e1f1e30f4d1276dcebcb61355a42a0c6bdf007030457708f0527f1aaf154d1
 hw_emu source_contracts.tsv:         9629063f87f440dcaebc8f17f5d38009b0673c742bcf356b03c3ad89181a7c73
-hw_emu source_fingerprints.tsv:      9ca2a3fcfd1119d9cd8175f9a5a755add09ef8a8f24ff483f30ae197d738209f
-hw_emu readiness_hw_emu.txt:         93d65e2c730d40be1360c061b9bf781e31d3d2b25272cb40d95c5090794576a0
-hw_emu acceptance_check_prelaunch:   41f8c1cdfa091644abcdce63efc4169bae28cc6eea61839cbc423ff4c958e606
-hw_emu packet audit:                 7d35c204ad552021c7f8f9ccce1afe73e0dc2fe763bdd1d199f33cfa7b0d507e
-hw_emu packet evidence bundle:       abcd4caa9dea5c978ef68af54ffcaa526ecab80361b3e88291bab6ee1f8c1b70
+hw_emu source_fingerprints.tsv:      658a9d71d84898b27a01c29b279a7f3da6c2bb4abb8f8e58320157c91ceaa108
+hw_emu readiness_hw_emu.txt:         d43aabadb27efc149c24d27504ee531f80f947a87391615ef8d2f45b87114887
+hw_emu acceptance_check_prelaunch:   87d4bb858742fccae2ad0a72252b2d515126cf3a88e351f0dcb9652d6c24023a
+hw_emu packet audit:                 d19bdc01fb1a1f8f82454abdd1300a47497d21c25e2740ea67b6edbe64c312c4
+hw_emu packet evidence bundle:       de1552c93f91143af1ca7a4a72534ee8b9ce1c8755fecb544062e859a01c099d
 
-hw launch_command.sh:                f6483171062a36bf4c2452b9562e09b4137f409ebbae9853786d613737099bcf
-hw postbuild_acceptance_gate.sh:     1ec392a4a3f0f42e538067ee2de6b114b607d0be8d5460344b54963fe82ae211
-hw wait_then_accept_gate.sh:         8590eaf68eb23b69a4f8462a2b5ecc37412f610482a57899dececaeda583c44b
-hw postbuild_acceptance_full.sh:     f7f932fdecc00978ee3d1008bb5867c60c32913ab2ad6f9585a38cadf6eca29c
-hw wait_then_accept_full.sh:         aa7686bc643d70d7073b059a74ba4e67c9226859e1bb3e46613f68a2818bccb3
+hw launch_command.sh:                083f4a8af2d2235473b2392f67dfa19ab491d80e27dad2d49425bd70a209fe62
+hw postbuild_acceptance_gate.sh:     e59569df86cf2881a50850fa37050dd4b021ca36ff5ad5c953311c847af931c0
+hw wait_then_accept_gate.sh:         a2c98d55ea6cf6b94dea7d0127c996eedefacdcecd7c197d61e70e19bfeb3e5b
+hw postbuild_acceptance_full.sh:     aa51c9ad5ac08608b91a300662626a2fc1fb2d9140a2b2bd01aa2a466ae0cd0f
+hw wait_then_accept_full.sh:         6c908e90ae405b09a0acdd5715e323b44aaf9be822096748703da135cdd5021b
 hw source_contracts.tsv:             9629063f87f440dcaebc8f17f5d38009b0673c742bcf356b03c3ad89181a7c73
-hw source_fingerprints.tsv:          9ca2a3fcfd1119d9cd8175f9a5a755add09ef8a8f24ff483f30ae197d738209f
-hw readiness_hw.txt:                 49fecc42fd5704a5fefcc0dea36cd13d912df0463433a89e8f3d55c8f595f5b0
-hw acceptance_check_prelaunch:       3d0e1fe9fa8f4b2eaff60ce566e213150f39c50499afbc12a6330f415b333e5a
-hw packet audit:                     484a18595c3a1c0f32b7a1fe4c7414f10fcba4de5f9c699f535f812216acd72e
-hw packet evidence bundle:           19504e5fd3c3f461e9dea0800e392bec6eddaee2ea33cd2da9f3da80de58d3a3
+hw source_fingerprints.tsv:          658a9d71d84898b27a01c29b279a7f3da6c2bb4abb8f8e58320157c91ceaa108
+hw readiness_hw.txt:                 31b295c30697d397c709d35cdb10190d4519c59d99dc7aca87045e1176cbc2df
+hw acceptance_check_prelaunch:       af39e18faf98775b66c61af692853973aeeaffdd14d0ad25bea9d67ee875fb15
+hw packet audit:                     cadf7af9404ba5be29c78542d31ec647a4f3b8c945f0e997ddcea89a913c5728
+hw packet evidence bundle:           7aae28a829383caa8657dbd891fe3d8fb27e98a7df4fa5573ed002d5f2bcfe83
 ```
 
 Because external Vitis/Vivado builders are active, these packets were generated
@@ -284,7 +284,7 @@ artifact manifest, then final claim validation for the requested proof level:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_postbuild_acceptance.py \
   --target hw_emu \
-  --label after_091b5a4 \
+  --label after_f461c07 \
   --baseline-label after_64ba9c3 \
   --mode gate
 ```
@@ -297,13 +297,13 @@ sequence. It does not launch Vitis:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py \
   --target hw_emu \
-  --label after_091b5a4 \
+  --label after_f461c07 \
   --baseline-label after_64ba9c3 \
   --mode gate
 
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py \
   --target hw \
-  --label after_091b5a4 \
+  --label after_f461c07 \
   --baseline-label after_64ba9c3 \
   --mode gate
 ```
@@ -312,9 +312,9 @@ Equivalent packet-local helper scripts:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
-.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_091b5a4/wait_then_accept_gate.sh
-.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_091b5a4/wait_then_accept_gate.sh
-.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_091b5a4/wait_then_accept_full.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_f461c07/wait_then_accept_gate.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_f461c07/wait_then_accept_gate.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_f461c07/wait_then_accept_full.sh
 ```
 
 Equivalent low-level postrun validation commands:
@@ -323,14 +323,14 @@ Equivalent low-level postrun validation commands:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw_emu \
-  --label postrun_after_091b5a4 \
+  --label postrun_after_f461c07 \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw \
-  --label postrun_after_091b5a4 \
+  --label postrun_after_f461c07 \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 300
@@ -343,7 +343,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw_emu \
   --mode gate \
-  --label after_091b5a4 \
+  --label after_f461c07 \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -355,7 +355,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw \
   --mode gate \
-  --label after_091b5a4 \
+  --label after_f461c07 \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -367,7 +367,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw \
   --mode full \
-  --label after_091b5a4 \
+  --label after_f461c07 \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -416,6 +416,11 @@ The `091b5a4` update adds packet-local post-build helper scripts to each fresh
 `postbuild_acceptance_full.sh`, and `wait_then_accept_full.sh`; it also records
 the pinned `baseline_label` and helper paths in `launch_packet.env`.
 
+The `f461c07` update makes those helper scripts first-class evidence:
+`report_pure_pipeline_next_steps.py` prints a `packet_local_helpers` section,
+and `collect_pure_pipeline_artifact_manifest.py` records all four helper
+scripts as required hashed launch-packet artifacts for `hw_emu` and `hw`.
+
 Validation commands:
 
 ```bash
@@ -451,11 +456,11 @@ python3 scripts/summarize_pure_pipeline_smoke.py --host-summary results/grasu_re
 ./scripts/audit_pure_pipeline_status.py --label audit_manifest_claim_$(git rev-parse --short HEAD) --out-dir .tmp_build/audit_manifest_claim_$(git rev-parse --short HEAD)
 ./scripts/check_pure_pipeline_source_contracts.py --label contract_label_guard_$(git rev-parse --short HEAD) --out-file .tmp_build/source_contracts_label_guard.tsv
 ./scripts/check_pure_pipeline_source_contracts.py --label packet_helpers_verify --out-file .tmp_build/source_contracts_packet_helpers_verify.tsv
-./scripts/collect_pure_pipeline_artifact_manifest.py --target hw_emu --label after_091b5a4 --baseline-label after_64ba9c3 --mode gate --level gate --out-file .tmp_build/artifact_manifest_hwemu_after_091b5a4_allow_missing.tsv --allow-missing-required
-./scripts/create_pure_pipeline_launch_packet.sh --target hw_emu --flow-label after_091b5a4 --allow-active-builders
-./scripts/create_pure_pipeline_launch_packet.sh --target hw --flow-label after_091b5a4 --allow-active-builders
-bash -n .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_091b5a4/postbuild_acceptance_gate.sh .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_091b5a4/wait_then_accept_gate.sh
-./scripts/wait_for_pure_pipeline_xclbin_then_accept.py --target hw_emu --label after_091b5a4 --baseline-label after_64ba9c3 --mode gate --dry-run
+./scripts/collect_pure_pipeline_artifact_manifest.py --target hw_emu --label after_f461c07 --baseline-label after_64ba9c3 --mode gate --level gate --out-file .tmp_build/artifact_manifest_hwemu_after_f461c07_allow_missing.tsv --allow-missing-required
+./scripts/create_pure_pipeline_launch_packet.sh --target hw_emu --flow-label after_f461c07 --allow-active-builders
+./scripts/create_pure_pipeline_launch_packet.sh --target hw --flow-label after_f461c07 --allow-active-builders
+bash -n .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_f461c07/postbuild_acceptance_gate.sh .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_f461c07/wait_then_accept_gate.sh
+./scripts/wait_for_pure_pipeline_xclbin_then_accept.py --target hw_emu --label after_f461c07 --baseline-label after_64ba9c3 --mode gate --dry-run
 set +e
 ./scripts/run_pure_pipeline_postbuild_acceptance.py --target hw_emu --label wrong_label --allow-missing-xclbin
 echo label_mismatch_rc=$?
@@ -489,8 +494,10 @@ requirement audit manifest regression PASS; completion_summary.missing_artifact_
 postbuild label guard PASS; wrong label exits rc=2 before xclbin/postbuild work
 source-contract label guard PASS; required_count=18 and postbuild_label_guard ok=yes
 source-contract packet helper proof PASS; launch_packet_records_acceptance_gates still ok=yes after helper addition
-launch packet helper generation PASS; hw_emu/hw packets for after_091b5a4 include postbuild/wait gate and full helpers, all hashed in artifact_hashes.tsv
-packet helper dry-run PASS; current source_fingerprint_sha256=dc827c6ed62dc318a3263fa8c81f143713872fa0ae93df92cbf90f9726cc4def
+launch packet helper generation PASS; hw_emu/hw packets for after_f461c07 include postbuild/wait gate and full helpers, all hashed in artifact_hashes.tsv
+next-step report helper visibility PASS; packet_local_helpers lists four helpers for hw_emu and four helpers for hw
+artifact manifest helper evidence PASS; hw_emu allow-missing manifest records all four packet-local helper scripts as required PASS artifacts
+packet helper dry-run PASS; current source_fingerprint_sha256=86d6692740c28cece89ddcb6b80a206b435f51cf8e4398ff2ae668bae63ee9a2
 dry-run logs include source_fingerprint_sha256, launch_command, and claim-status gaps
 git diff --check PASS
 ```
