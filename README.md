@@ -255,6 +255,12 @@ postrun acceptance are present; it is not gate-claimable until the same-input
 gate and input-identity checks pass; the final completion claim additionally
 requires the real `hw` full stage-0 matrix.
 
+For `hw_emu` and `hw`, the claim checker also requires an artifact manifest.
+A gate or full manifest is accepted as build-level proof because it includes the
+build artifacts plus stronger postbuild evidence. A target cannot be claimed
+gate- or full-validated unless the corresponding manifest binds the xclbin,
+launch packet, postrun logs, stage0 results, and baseline inputs with hashes.
+
 Use the claim checker when a script needs an exit code instead of a status
 table:
 
