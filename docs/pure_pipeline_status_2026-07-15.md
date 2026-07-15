@@ -7,7 +7,7 @@ Status command input tree, before this documentation-only update:
 ```text
 /home/chuxiao/grasu-regraph-integration
 branch: codex/pure-hw-pipeline
-head: b5c60ca58ec61717291f77bbbb0bfad286795950
+head: d37fe7858b5a90047ae2451c38499374dc2437b6
 source_fingerprint_sha256: 91ba6a6633efd954b6c1eca9b40cc50909c67aa1bc9dc5acdbfcbe9aec55f415
 dirty: false
 ```
@@ -33,6 +33,40 @@ Current `sw_emu` artifact:
 ```text
 .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
 sha256: b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+```
+
+Current `sw_emu` postrun evidence was refreshed without rebuilding the xclbin:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target sw_emu \
+  --label postrun_after_b5c60ca \
+  --skip-build \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 180
+```
+
+The postrun acceptance check passed with `PASS=11, SKIP=2`. The four smoke
+families all matched the CPU oracle:
+
+```text
+tiny_chain_v16        chain       PASS mismatches=0
+tiny_star_v16_u12     hot-source  PASS mismatches=0
+tiny_spread_v16_u8    spread      PASS mismatches=0
+tiny_hotdst_v64_u32   hot-dest    PASS mismatches=0
+```
+
+Refreshed `sw_emu` evidence hashes:
+
+```text
+gate summary:          7be55be9ac19f13fe8ab180f8ad95b03f058188a68dcfbc81a42c8cb123190c3
+full summary:          8baaff4969490b20bc6b1f9eb8dee5baeb969950ffe479dbdbd13756a2ef3fe9
+same-input comparison: eabf1d160160e21220fe267e894b2a11fdd817aef1daf9cf94d58b2e276b908f
+requirement audit:     3a19c9611c60a3f3f3095a556fa2be00e5e0ec3c68f273e1e6eba14609ef9857
+evidence bundle:       0c230da94647e656e00bb578dab154d5fb14b8865acaaf858ced740eacd7e6a3
+postrun acceptance:    68f2fe3d437c9618e94cd4cf93926b1d5a6a638a9418ce8ce6a2fa4862a2386c
+xclbin contract:       1cc3d8e5ad44862262cbb1294a3b0b6b0a685bf49aefb132325dad28060adcd3
 ```
 
 Missing artifacts:
@@ -64,7 +98,7 @@ stage0_followup     same-input stage0 matrix commands after postrun acceptance p
 Observed result for this snapshot:
 
 ```text
-sw_emu: xclbin=yes, postrun=pass:PASS=11,SKIP=2
+sw_emu: xclbin=yes, flow_current=yes, postrun=pass:PASS=11,SKIP=2
 hw_emu: xclbin=no, packet_current=yes, postrun=waiting_xclbin
 hw:     xclbin=no, packet_current=yes, postrun=waiting_xclbin
 active_builders=related:0 external:10
