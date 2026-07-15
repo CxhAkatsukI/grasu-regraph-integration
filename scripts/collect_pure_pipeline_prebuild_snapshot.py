@@ -118,6 +118,18 @@ def claim_rows(report: dict[str, Any], target: str) -> list[dict[str, str]]:
     return rows
 
 
+def target_next_command(report: dict[str, Any], target: str) -> str:
+    state = target_state(report, target)
+    command = state.get("current_launch_packet_command")
+    if command:
+        return str(command)
+    if report.get("next_target") == target:
+        next_commands = report.get("next_commands") or []
+        if next_commands:
+            return str(next_commands[0])
+    return ""
+
+
 def write_claims(path: Path, rows: list[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     columns = (
@@ -233,7 +245,7 @@ def readme_text(
         for row in claims
         if row["scope"] == "target"
     }
-    next_commands = "\n".join(report.get("next_commands") or [])
+    next_command = target_next_command(report, target)
     return "\n".join([
         "# Pure Pipeline Prebuild Snapshot",
         "",
@@ -259,7 +271,7 @@ def readme_text(
         "## Next Command",
         "",
         "```bash",
-        next_commands,
+        next_command,
         "```",
         "",
         "## Snapshot Files",
@@ -364,7 +376,7 @@ def main() -> int:
     print(f"xclbin_exists={'yes' if state.get('xclbin_exists') else 'no'}")
     print(f"snapshot_required_missing_count={len(missing_snapshot)}")
     print(f"manifest_required_missing_count={len(missing_manifest)}")
-    print(f"next_command={(report.get('next_commands') or [''])[0]}")
+    print(f"next_command={target_next_command(report, args.target)}")
     print(f"DONE next_steps_json={display_path(repo, next_steps_json)}")
     print(f"DONE next_steps_txt={display_path(repo, next_steps_txt)}")
     print(f"DONE claim_status={display_path(repo, claims_tsv)}")

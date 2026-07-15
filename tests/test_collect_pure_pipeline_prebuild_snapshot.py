@@ -13,6 +13,7 @@ from collect_pure_pipeline_prebuild_snapshot import (  # noqa: E402
     default_baseline_label,
     default_label,
     snapshot_artifact_rows,
+    target_next_command,
 )
 
 
@@ -63,6 +64,7 @@ sample_report = {
 
 assert default_label(sample_report, "hw_emu") == "after_unit"
 assert default_baseline_label(sample_report) == "after_base"
+assert target_next_command(sample_report, "hw_emu").endswith("launch_command.sh")
 
 rows = claim_rows(sample_report, "hw_emu")
 assert [row["level"] for row in rows] == ["completion", "build", "gate", "full"]
