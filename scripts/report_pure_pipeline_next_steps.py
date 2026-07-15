@@ -411,6 +411,38 @@ def postrun_label(summary: dict[str, Any]) -> str:
     return summary["status"]
 
 
+def target_claim_status(state: dict[str, Any]) -> dict[str, Any]:
+    build_missing = []
+    if not state.get("xclbin_exists"):
+        build_missing.append("target_xclbin")
+    if state.get("latest_acceptance_postrun_status") != "pass":
+        build_missing.append("postrun_acceptance")
+
+    gate_missing = list(build_missing)
+    gate = state.get("stage0_gate", {})
+    if gate.get("summary_status") != "pass":
+        gate_missing.append("stage0_gate_summary")
+    if gate.get("identity_status") != "pass":
+        gate_missing.append("stage0_gate_input_identity")
+
+    full_missing = list(gate_missing)
+    full = state.get("stage0_full", {})
+    if full.get("summary_status") != "pass":
+        full_missing.append("stage0_full_summary")
+    if full.get("identity_status") != "pass":
+        full_missing.append("stage0_full_input_identity")
+
+    return {
+        "target": state.get("target", ""),
+        "build_claimable": not build_missing,
+        "build_missing": build_missing,
+        "gate_claimable": not gate_missing,
+        "gate_missing": gate_missing,
+        "full_claimable": not full_missing,
+        "full_missing": full_missing,
+    }
+
+
 def target_state(
     repo: Path,
     target: str,
@@ -446,7 +478,7 @@ def target_state(
     stage0_gate = stage0_matrix_state(repo, target, "gate")
     stage0_full = stage0_matrix_state(repo, target, "full")
     launch_packet = newest_current_launch_packet(repo, target, current_fingerprints)
-    return {
+    state = {
         "target": target,
         "build_root": rel(repo, build_root),
         "xclbin": rel(repo, xclbin),
@@ -491,6 +523,8 @@ def target_state(
         "stage0_gate": stage0_gate,
         "stage0_full": stage0_full,
     }
+    state["claim_status"] = target_claim_status(state)
+    return state
 
 
 def ps_rows() -> list[dict[str, str]]:
@@ -555,6 +589,32 @@ def first_incomplete_action(states: list[dict[str, Any]]) -> tuple[str | None, s
     if by_target["hw"]["latest_acceptance_postrun_status"] != "pass":
         return "hw", "postrun"
     return None, None
+
+
+def completion_claim(states: list[dict[str, Any]]) -> dict[str, Any]:
+    by_target = {state["target"]: state for state in states}
+    sw_gate = by_target["sw_emu"]["claim_status"]["gate_claimable"]
+    hwemu_gate = by_target["hw_emu"]["claim_status"]["gate_claimable"]
+    hw_gate = by_target["hw"]["claim_status"]["gate_claimable"]
+    hw_full = by_target["hw"]["claim_status"]["full_claimable"]
+    missing = []
+    if not sw_gate:
+        missing.append("sw_emu_gate")
+    if not hwemu_gate:
+        missing.append("hw_emu_gate")
+    if not hw_gate:
+        missing.append("hw_gate")
+    if not hw_full:
+        missing.append("hw_full")
+    return {
+        "claimable": not missing,
+        "missing": missing,
+        "interpretation": (
+            "all sw_emu/hw_emu/hw gate evidence and hw full matrix evidence are present"
+            if not missing
+            else "not ready to claim final pure hardware pipeline completion"
+        ),
+    }
 
 
 def target_flow_command(target: str, git_short: str) -> str:
@@ -841,6 +901,7 @@ def make_report(repo: Path) -> dict[str, Any]:
         "next_target": next_target,
         "next_action": next_action,
         "next_launch_packet_command": next_launch_packet_command,
+        "completion_claim": completion_claim(states),
         "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
         "postbuild_acceptance": postbuild_acceptance_commands(stage0_label, stage0_baseline_label),
@@ -889,6 +950,28 @@ def print_text(report: dict[str, Any]) -> None:
                 state["stage0_gate"]["label"],
                 state["stage0_full"]["label"],
                 state["latest_readiness"] or "",
+            ])
+        )
+    print()
+    print("claim_status")
+    completion = report["completion_claim"]
+    print(
+        "completion\t"
+        f"claimable={'yes' if completion['claimable'] else 'no'}\t"
+        f"missing={','.join(completion['missing']) or 'none'}\t"
+        f"interpretation={completion['interpretation']}"
+    )
+    for state in report["targets"]:
+        claim = state["claim_status"]
+        print(
+            "\t".join([
+                state["target"],
+                f"build_claimable={'yes' if claim['build_claimable'] else 'no'}",
+                f"build_missing={','.join(claim['build_missing']) or 'none'}",
+                f"gate_claimable={'yes' if claim['gate_claimable'] else 'no'}",
+                f"gate_missing={','.join(claim['gate_missing']) or 'none'}",
+                f"full_claimable={'yes' if claim['full_claimable'] else 'no'}",
+                f"full_missing={','.join(claim['full_missing']) or 'none'}",
             ])
         )
     print()

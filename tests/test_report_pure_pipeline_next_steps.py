@@ -9,12 +9,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from report_pure_pipeline_next_steps import (  # noqa: E402
+    completion_claim,
     postbuild_acceptance_commands,
     postbuild_wait_commands,
     postrun_evidence_label,
     postrun_followup_commands,
     stage0_matrix_state,
     stage0_followup_commands,
+    target_claim_status,
 )
 
 
@@ -104,5 +106,39 @@ with TemporaryDirectory() as tmp:
 
     full_state = stage0_matrix_state(repo, "sw_emu", "full")
     assert full_state["label"] == "missing"
+
+base_state = {
+    "target": "hw",
+    "xclbin_exists": True,
+    "latest_acceptance_postrun_status": "pass",
+    "stage0_gate": {"summary_status": "pass", "identity_status": "pass"},
+    "stage0_full": {"summary_status": "missing", "identity_status": "missing"},
+}
+claim = target_claim_status(base_state)
+assert claim["build_claimable"] is True
+assert claim["gate_claimable"] is True
+assert claim["full_claimable"] is False
+assert claim["full_missing"] == ["stage0_full_summary", "stage0_full_input_identity"]
+
+missing_xclbin_state = {
+    "target": "hw_emu",
+    "xclbin_exists": False,
+    "latest_acceptance_postrun_status": "missing",
+    "stage0_gate": {"summary_status": "missing", "identity_status": "missing"},
+    "stage0_full": {"summary_status": "missing", "identity_status": "missing"},
+}
+claim = target_claim_status(missing_xclbin_state)
+assert claim["build_claimable"] is False
+assert claim["build_missing"] == ["target_xclbin", "postrun_acceptance"]
+assert "stage0_gate_summary" in claim["gate_missing"]
+
+states = [
+    {"target": "sw_emu", "claim_status": {"gate_claimable": True}},
+    {"target": "hw_emu", "claim_status": {"gate_claimable": False}},
+    {"target": "hw", "claim_status": {"gate_claimable": False, "full_claimable": False}},
+]
+completion = completion_claim(states)
+assert completion["claimable"] is False
+assert completion["missing"] == ["hw_emu_gate", "hw_gate", "hw_full"]
 
 print("test_report_pure_pipeline_next_steps PASS")
