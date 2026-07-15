@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from run_pure_pipeline_postbuild_acceptance import build_commands  # noqa: E402
+
+
+commands = build_commands(
+    target="hw_emu",
+    label="after_abc1234",
+    baseline_label="after_base",
+    mode="gate",
+    gate_case="tiny_star_v16_u12",
+    gate_timeout=900,
+    require_compare=True,
+    skip_postrun=False,
+    skip_matrix=False,
+)
+
+assert commands[0] == [
+    "./scripts/run_pure_pipeline_target_flow.sh",
+    "--target",
+    "hw_emu",
+    "--label",
+    "postrun_after_abc1234",
+    "--skip-build",
+    "--gate-case",
+    "tiny_star_v16_u12",
+    "--gate-timeout",
+    "900",
+]
+assert commands[1] == [
+    "./scripts/run_pure_stage0_postbuild_matrix.sh",
+    "--target",
+    "hw_emu",
+    "--mode",
+    "gate",
+    "--label",
+    "after_abc1234",
+    "--baseline-label",
+    "after_base",
+    "--require-compare",
+]
+
+commands = build_commands(
+    target="hw",
+    label="manual_label",
+    baseline_label="after_base",
+    mode="full",
+    gate_case="tiny_star_v16_u12",
+    gate_timeout=300,
+    require_compare=False,
+    skip_postrun=True,
+    skip_matrix=False,
+)
+assert len(commands) == 1
+assert commands[0][0] == "./scripts/run_pure_stage0_postbuild_matrix.sh"
+assert "--require-compare" not in commands[0]
+assert "--mode" in commands[0]
+assert "full" in commands[0]
+
+print("test_run_pure_pipeline_postbuild_acceptance PASS")

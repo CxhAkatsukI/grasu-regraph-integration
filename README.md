@@ -270,6 +270,23 @@ stage0 matrix. That `--skip-build` flow reuses the existing xclbin and reruns
 smoke correctness, same-input comparison, requirement audit, evidence-bundle
 export, and postrun acceptance gates.
 
+The same post-build sequence can be launched through a guarded wrapper. It
+fails before running anything if the target xclbin is still missing:
+
+```bash
+./scripts/run_pure_pipeline_postbuild_acceptance.py --target hw_emu
+./scripts/run_pure_pipeline_postbuild_acceptance.py --target hw --mode gate
+```
+
+Preview the exact postrun and matrix commands before the xclbin exists:
+
+```bash
+./scripts/run_pure_pipeline_postbuild_acceptance.py \
+  --target hw_emu \
+  --dry-run \
+  --allow-missing-xclbin
+```
+
 The launch packet regenerates target compile/link/config scripts before its
 preflight checks by default, so its source-contract and readiness evidence match
 the scripts the target flow will launch. Use `--no-prepare` only when inspecting
