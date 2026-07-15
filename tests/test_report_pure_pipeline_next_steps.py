@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from report_pure_pipeline_next_steps import (  # noqa: E402
     postbuild_acceptance_commands,
+    postbuild_wait_commands,
     postrun_evidence_label,
     postrun_followup_commands,
     stage0_matrix_state,
@@ -51,6 +52,20 @@ assert "--baseline-label after_baseline" in postbuild[0]["command"]
 assert "--mode gate" in postbuild[0]["command"]
 assert "--target hw" in postbuild[2]["command"]
 assert "--mode full" in postbuild[2]["command"]
+
+postbuild_wait = postbuild_wait_commands("after_pure", "after_baseline")
+assert [item["name"] for item in postbuild_wait] == [
+    "hw_emu_wait_then_accept",
+    "hw_wait_then_accept_gate",
+    "hw_wait_then_accept_full",
+]
+assert "wait_for_pure_pipeline_xclbin_then_accept.py" in postbuild_wait[0]["command"]
+assert "--target hw_emu" in postbuild_wait[0]["command"]
+assert "--label after_pure" in postbuild_wait[0]["command"]
+assert "--baseline-label after_baseline" in postbuild_wait[0]["command"]
+assert "--mode gate" in postbuild_wait[0]["command"]
+assert "--target hw" in postbuild_wait[2]["command"]
+assert "--mode full" in postbuild_wait[2]["command"]
 
 with TemporaryDirectory() as tmp:
     repo = Path(tmp)

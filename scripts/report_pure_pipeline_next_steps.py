@@ -746,6 +746,33 @@ def postbuild_acceptance_commands(label: str, baseline_label: str) -> list[dict[
     ]
 
 
+def postbuild_wait_command(target: str, mode: str, label: str, baseline_label: str) -> str:
+    return (
+        f"./scripts/wait_for_pure_pipeline_xclbin_then_accept.py --target {target} "
+        f"--label {label} --baseline-label {baseline_label} --mode {mode}"
+    )
+
+
+def postbuild_wait_commands(label: str, baseline_label: str) -> list[dict[str, str]]:
+    return [
+        {
+            "name": "hw_emu_wait_then_accept",
+            "when": "while a hw_emu launch packet is running; waits for xclbin, then runs postbuild acceptance",
+            "command": postbuild_wait_command("hw_emu", "gate", label, baseline_label),
+        },
+        {
+            "name": "hw_wait_then_accept_gate",
+            "when": "while a hw launch packet is running; waits for xclbin, then runs gate acceptance",
+            "command": postbuild_wait_command("hw", "gate", label, baseline_label),
+        },
+        {
+            "name": "hw_wait_then_accept_full",
+            "when": "after hw gate is trusted or when running a full acceptance watch; waits for xclbin, then runs full acceptance",
+            "command": postbuild_wait_command("hw", "full", label, baseline_label),
+        },
+    ]
+
+
 def stage0_label_from_packets(
     states: list[dict[str, Any]],
     git_short: str,
@@ -817,6 +844,7 @@ def make_report(repo: Path) -> dict[str, Any]:
         "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
         "postbuild_acceptance": postbuild_acceptance_commands(stage0_label, stage0_baseline_label),
+        "postbuild_wait": postbuild_wait_commands(stage0_label, stage0_baseline_label),
         "postrun_followup": postrun_followup,
         "stage0_followup": {
             "pure_label": stage0_label,
@@ -904,6 +932,10 @@ def print_text(report: dict[str, Any]) -> None:
     print()
     print("postbuild_acceptance")
     for item in report["postbuild_acceptance"]:
+        print(f"{item['name']}\twhen={item['when']}\tcommand={item['command']}")
+    print()
+    print("postbuild_wait")
+    for item in report["postbuild_wait"]:
         print(f"{item['name']}\twhen={item['when']}\tcommand={item['command']}")
     print()
     print("postrun_followup")
