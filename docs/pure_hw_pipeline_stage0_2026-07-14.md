@@ -9448,11 +9448,80 @@ pure_pipeline hw_emu xclbin: MISSING
 pure_pipeline hw xclbin:     MISSING
 ```
 
-The host and Spine same-input baselines for `after_c029ac9` are prepared but not
-yet executed:
+At packet-refresh time, the host and Spine same-input baselines for
+`after_c029ac9` were prepared with:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_baselines.sh --label after_c029ac9 --status-only
 ./scripts/run_pure_stage0_baselines.sh --label after_c029ac9
 ```
+
+The executed results are recorded in the next section.
+
+## Stage0 Same-Input Baseline Results
+
+The accepted `GraSU -> host -> ReGraph` baseline and the split-Spine edge-file
+baseline were executed for the full 12-case `pure_stage0` manifest:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_baselines.sh --label after_c029ac9
+python3 scripts/compare_spine_chain_summaries.py \
+  --chain-summary results/grasu_regraph_sssp_pure_stage0_after_c029ac9/summary.tsv \
+  --spine-summary results/spine_edge_file_pure_stage0_after_c029ac9/summary.tsv \
+  --out-dir results/spine_vs_grasu_regraph_pure_stage0_after_c029ac9
+```
+
+Status:
+
+```text
+host baseline rows:  12, statuses=PASS, mismatch_count sum=0
+input identity:      checks=240, failures=0
+Spine rows:          12, statuses=PASS, errors sum=0
+```
+
+Artifact hashes:
+
+```text
+630693e5becc6a11b5189515036f8d1c214cd8d63ae1cb4e47b6da613c635157  results/grasu_regraph_sssp_pure_stage0_after_c029ac9/summary.tsv
+cd0f00fa994a097c0b33826914ed011058637652525e4f7e4c2b15a66a71c44d  results/grasu_regraph_sssp_pure_stage0_after_c029ac9/manifest.env
+ccf73930171daf0f50d2837f3c7b86000d1e5c675c8e3531887f849b218287e6  results/grasu_regraph_sssp_pure_stage0_identity_after_c029ac9/input_identity_check.tsv
+0249b95c11784c5d80e70b1d3e7e0481867a0c797689aae393c51d9110f94056  results/spine_edge_file_pure_stage0_after_c029ac9/summary.tsv
+7a21dca03abe666bd5cc671087e794064562750fafa857b85b9bd7f9126f63a9  results/spine_edge_file_pure_stage0_after_c029ac9/manifest.env
+a7daabe6062054b3b1f7983083478c5d3e5c0fe2c8b56bec46f33470507cb2c3  results/spine_vs_grasu_regraph_pure_stage0_after_c029ac9/comparison.tsv
+df0ab4c3d93f6a19524162a7514722a51a6ebd65f1baaba21592074fe3ca5aeb  results/spine_vs_grasu_regraph_pure_stage0_after_c029ac9/comparison.md
+4c050fee8dd3bffcf0ebafd0adf3cf542ddaa963ab3117534cf0eb6e2fb4d572  results/pure_stage0_comparison_plan_after_c029ac9/baseline_run.env
+```
+
+The comparison table uses the accepted zero-cost handoff rule:
+`zero_cost_ms = grasu_ms + regraph_e2e_ms`. It intentionally does not include
+host graph D2H/conversion/H2D time.
+
+```text
+case                            V      edges  zero_ms   spine_ms  zero/spine
+boundary_hotdst_v65536_u4096    65536  69631  21.8269   990.72    0.0220314
+large_chain_v4096               4096   4095   1184.19   62.6918   18.889
+medium_spread_v65536_u16384     65536  81920  14.9539   1022.78   0.0146208
+medium_star_v65536_u8192        65536  73728  9.92738   997.223   0.00995502
+small_chain_v64                 64     63     17.7774   2.30212   7.72218
+small_hotdst_v4096_u1024        4096   5119   9.75397   65.0276   0.149997
+small_spread_v4096_u1024        4096   5120   5.83564   65.2664   0.0894126
+small_star_v4096_u1024          4096   5120   3.2105    64.7883   0.0495538
+tiny_chain_v16                  16     15     5.92139   1.70981   3.46319
+tiny_hotdst_v64_u32             64     95     5.92038   2.32942   2.54157
+tiny_spread_v16_u8              16     24     6.2533    1.60475   3.89675
+tiny_star_v16_u12               16     28     2.37261   1.70165   1.3943
+```
+
+Initial reading:
+
+- Chain-style workloads remain the weak case for `GraSU -> ReGraph`: the
+  ReGraph SSSP superstep count dominates (`large_chain_v4096` is 18.9x slower
+  than Spine under the zero-cost rule).
+- Wide hot-source, spread, and hot-destination cases favor `GraSU -> ReGraph`
+  strongly in this baseline table; the 65k-vertex non-chain cases are roughly
+  45x to 100x faster than Spine's split edge-file run.
+- This is still a baseline result, not pure-pipeline timing. The current
+  pure-pipeline blocker is unchanged: `hw_emu` and `hw` xclbins are still
+  missing.
