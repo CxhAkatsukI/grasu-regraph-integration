@@ -18,6 +18,7 @@ from typing import Any
 
 
 TARGETS = ("sw_emu", "hw_emu", "hw")
+HARDWARE_MANIFEST_TARGETS = ("hw_emu", "hw")
 TARGET_TIMEOUTS = {"sw_emu": 180, "hw_emu": 900, "hw": 300}
 STAGE0_GATE_CASES = (
     "tiny_chain_v16",
@@ -285,6 +286,87 @@ def stage0_matrix_state(repo: Path, target: str, mode: str) -> dict[str, Any]:
     }
 
 
+def artifact_manifest_path(repo: Path, target: str, level: str, label: str | None) -> Path | None:
+    if not label:
+        return None
+    return repo / ".tmp_build" / "pure_pipeline_artifact_manifests" / (
+        f"artifact_manifest_{target}_{level}_{label}.tsv"
+    )
+
+
+def artifact_manifest_state(
+    repo: Path,
+    target: str,
+    level: str,
+    label: str | None,
+) -> dict[str, Any]:
+    path = artifact_manifest_path(repo, target, level, label)
+    if path is None:
+        return {
+            "level": level,
+            "label": label,
+            "status": "missing",
+            "path": None,
+            "sha256": None,
+            "row_count": 0,
+            "required_count": 0,
+            "missing_required_count": 0,
+            "missing_required": [],
+        }
+    if not path.is_file():
+        return {
+            "level": level,
+            "label": label,
+            "status": "missing",
+            "path": rel(repo, path),
+            "sha256": None,
+            "row_count": 0,
+            "required_count": 0,
+            "missing_required_count": 0,
+            "missing_required": [],
+        }
+    rows = read_tsv_rows(path)
+    required = [row for row in rows if row.get("required") == "yes"]
+    missing_required = [
+        row.get("name", "unknown")
+        for row in required
+        if row.get("exists") != "yes" or row.get("status") not in {"PASS", "pass"}
+    ]
+    return {
+        "level": level,
+        "label": label,
+        "status": "pass" if rows and not missing_required else "fail",
+        "path": rel(repo, path),
+        "sha256": sha256(path),
+        "row_count": len(rows),
+        "required_count": len(required),
+        "missing_required_count": len(missing_required),
+        "missing_required": missing_required,
+    }
+
+
+def artifact_manifest_states(repo: Path, target: str, label: str | None) -> dict[str, dict[str, Any]]:
+    return {
+        level: artifact_manifest_state(repo, target, level, label)
+        for level in ("build", "gate", "full")
+    }
+
+
+def artifact_manifest_ok(state: dict[str, Any], level: str) -> bool:
+    if state.get("target") not in HARDWARE_MANIFEST_TARGETS:
+        return True
+    manifests = state.get("artifact_manifests", {})
+    acceptable_levels = {
+        "build": ("build", "gate", "full"),
+        "gate": ("gate", "full"),
+        "full": ("full",),
+    }[level]
+    return any(
+        manifests.get(candidate, {}).get("status") == "pass"
+        for candidate in acceptable_levels
+    )
+
+
 def newest_readiness(run_logs: Path, allow_active: bool | None = None) -> Path | None:
     candidates = list(run_logs.glob("readiness*.txt"))
     if allow_active is not None:
@@ -417,6 +499,8 @@ def target_claim_status(state: dict[str, Any]) -> dict[str, Any]:
         build_missing.append("target_xclbin")
     if state.get("latest_acceptance_postrun_status") != "pass":
         build_missing.append("postrun_acceptance")
+    if not artifact_manifest_ok(state, "build"):
+        build_missing.append("artifact_manifest_build")
 
     gate_missing = list(build_missing)
     gate = state.get("stage0_gate", {})
@@ -424,6 +508,8 @@ def target_claim_status(state: dict[str, Any]) -> dict[str, Any]:
         gate_missing.append("stage0_gate_summary")
     if gate.get("identity_status") != "pass":
         gate_missing.append("stage0_gate_input_identity")
+    if not artifact_manifest_ok(state, "gate"):
+        gate_missing.append("artifact_manifest_gate")
 
     full_missing = list(gate_missing)
     full = state.get("stage0_full", {})
@@ -431,6 +517,8 @@ def target_claim_status(state: dict[str, Any]) -> dict[str, Any]:
         full_missing.append("stage0_full_summary")
     if full.get("identity_status") != "pass":
         full_missing.append("stage0_full_input_identity")
+    if not artifact_manifest_ok(state, "full"):
+        full_missing.append("artifact_manifest_full")
 
     return {
         "target": state.get("target", ""),
@@ -478,6 +566,8 @@ def target_state(
     stage0_gate = stage0_matrix_state(repo, target, "gate")
     stage0_full = stage0_matrix_state(repo, target, "full")
     launch_packet = newest_current_launch_packet(repo, target, current_fingerprints)
+    launch_packet_label = launch_packet["flow_label"] if launch_packet else None
+    artifact_manifests = artifact_manifest_states(repo, target, launch_packet_label)
     state = {
         "target": target,
         "build_root": rel(repo, build_root),
@@ -503,7 +593,7 @@ def target_state(
         "latest_source_fingerprints_match_current": source_fingerprints_match,
         "latest_flow_matches_current": flow_matches_current,
         "current_launch_packet": rel(repo, launch_packet["packet_dir"]) if launch_packet else None,
-        "current_launch_packet_flow_label": launch_packet["flow_label"] if launch_packet else None,
+        "current_launch_packet_flow_label": launch_packet_label,
         "current_launch_packet_integration_head": launch_packet["integration_head"] if launch_packet else None,
         "current_launch_packet_integration_tracked_dirty": launch_packet["integration_tracked_dirty"] if launch_packet else None,
         "current_launch_packet_command": rel(repo, launch_packet["launch_command"]) if launch_packet else None,
@@ -522,6 +612,7 @@ def target_state(
         ),
         "stage0_gate": stage0_gate,
         "stage0_full": stage0_full,
+        "artifact_manifests": artifact_manifests,
     }
     state["claim_status"] = target_claim_status(state)
     return state
@@ -615,6 +706,16 @@ def completion_claim(states: list[dict[str, Any]]) -> dict[str, Any]:
             else "not ready to claim final pure hardware pipeline completion"
         ),
     }
+
+
+def artifact_manifest_label(state: dict[str, Any]) -> str:
+    if state.get("target") not in HARDWARE_MANIFEST_TARGETS:
+        return ""
+    manifests = state.get("artifact_manifests", {})
+    return ",".join(
+        f"{level}:{manifests.get(level, {}).get('status', 'missing')}"
+        for level in ("build", "gate", "full")
+    )
 
 
 def target_flow_command(target: str, git_short: str) -> str:
@@ -928,7 +1029,8 @@ def print_text(report: dict[str, Any]) -> None:
     print("targets")
     print(
         "target\txclbin\tsha256\treadiness_ready\tstrict_ready\tstrict_blockers\t"
-        "flow_current\tpacket_current\tpostrun\tstage0_gate\tstage0_full\tlatest_readiness"
+        "flow_current\tpacket_current\tpostrun\tstage0_gate\tstage0_full\t"
+        "artifact_manifests\tlatest_readiness"
     )
     for state in report["targets"]:
         if state["latest_flow_matches_current"] is None:
@@ -949,6 +1051,7 @@ def print_text(report: dict[str, Any]) -> None:
                 state["latest_acceptance_postrun_label"],
                 state["stage0_gate"]["label"],
                 state["stage0_full"]["label"],
+                artifact_manifest_label(state),
                 state["latest_readiness"] or "",
             ])
         )

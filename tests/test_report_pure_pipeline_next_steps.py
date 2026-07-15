@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from report_pure_pipeline_next_steps import (  # noqa: E402
+    artifact_manifest_state,
     completion_claim,
     postbuild_acceptance_commands,
     postbuild_wait_commands,
@@ -83,6 +84,40 @@ assert "artifact manifest" in postbuild_wait[2]["when"]
 
 with TemporaryDirectory() as tmp:
     repo = Path(tmp)
+    manifest = (
+        repo
+        / ".tmp_build"
+        / "pure_pipeline_artifact_manifests"
+        / "artifact_manifest_hw_emu_gate_after_unit.tsv"
+    )
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        "\n".join([
+            "category\tname\tpath\texists\tsha256\tsize_bytes\trequired\tstatus\tdetail",
+            "target\txclbin\tx.xclbin\tyes\tabc\t1\tyes\tPASS\tunit",
+            "build_logs\tlink_log\tlink.log\tno\t\t\tno\tPASS\toptional",
+            "",
+        ]),
+        encoding="ascii",
+    )
+    manifest_state = artifact_manifest_state(repo, "hw_emu", "gate", "after_unit")
+    assert manifest_state["status"] == "pass"
+    assert manifest_state["row_count"] == 2
+    assert manifest_state["required_count"] == 1
+    assert manifest_state["missing_required"] == []
+
+    manifest.write_text(
+        "\n".join([
+            "category\tname\tpath\texists\tsha256\tsize_bytes\trequired\tstatus\tdetail",
+            "target\txclbin\tx.xclbin\tno\t\t\tyes\tMISSING\tunit",
+            "",
+        ]),
+        encoding="ascii",
+    )
+    manifest_state = artifact_manifest_state(repo, "hw_emu", "gate", "after_unit")
+    assert manifest_state["status"] == "fail"
+    assert manifest_state["missing_required"] == ["xclbin"]
+
     summary_dir = repo / "results" / "pure_pipeline_sw_emu_pure_stage0_gate_after_unit"
     identity_dir = repo / "results" / "pure_pipeline_sw_emu_pure_stage0_identity_gate_after_unit"
     summary_dir.mkdir(parents=True)
@@ -125,12 +160,32 @@ base_state = {
     "latest_acceptance_postrun_status": "pass",
     "stage0_gate": {"summary_status": "pass", "identity_status": "pass"},
     "stage0_full": {"summary_status": "missing", "identity_status": "missing"},
+    "artifact_manifests": {
+        "build": {"status": "missing"},
+        "gate": {"status": "pass"},
+        "full": {"status": "missing"},
+    },
 }
 claim = target_claim_status(base_state)
 assert claim["build_claimable"] is True
 assert claim["gate_claimable"] is True
 assert claim["full_claimable"] is False
-assert claim["full_missing"] == ["stage0_full_summary", "stage0_full_input_identity"]
+assert claim["full_missing"] == [
+    "stage0_full_summary",
+    "stage0_full_input_identity",
+    "artifact_manifest_full",
+]
+
+missing_manifest_state = dict(base_state)
+missing_manifest_state["artifact_manifests"] = {
+    "build": {"status": "missing"},
+    "gate": {"status": "missing"},
+    "full": {"status": "missing"},
+}
+claim = target_claim_status(missing_manifest_state)
+assert claim["build_claimable"] is False
+assert claim["build_missing"] == ["artifact_manifest_build"]
+assert claim["gate_missing"] == ["artifact_manifest_build", "artifact_manifest_gate"]
 
 missing_xclbin_state = {
     "target": "hw_emu",
@@ -138,10 +193,19 @@ missing_xclbin_state = {
     "latest_acceptance_postrun_status": "missing",
     "stage0_gate": {"summary_status": "missing", "identity_status": "missing"},
     "stage0_full": {"summary_status": "missing", "identity_status": "missing"},
+    "artifact_manifests": {
+        "build": {"status": "missing"},
+        "gate": {"status": "missing"},
+        "full": {"status": "missing"},
+    },
 }
 claim = target_claim_status(missing_xclbin_state)
 assert claim["build_claimable"] is False
-assert claim["build_missing"] == ["target_xclbin", "postrun_acceptance"]
+assert claim["build_missing"] == [
+    "target_xclbin",
+    "postrun_acceptance",
+    "artifact_manifest_build",
+]
 assert "stage0_gate_summary" in claim["gate_missing"]
 
 states = [
