@@ -9772,3 +9772,61 @@ pure_label_source=git_head
 This prevents the daily next-step report from suggesting a postbuild comparison
 against missing `results/grasu_regraph_sssp_pure_stage0_<current>/` and
 `results/spine_edge_file_pure_stage0_<current>/` directories.
+
+## Current Packet After Audit Guard
+
+After committing the audit/report baseline guard, the current source commit is:
+
+```text
+e13621d2caaca16d1bb665788e4101e45bec03e7
+```
+
+The `hw_emu` and `hw` launch packets were refreshed without starting a long
+Vitis build:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/create_pure_pipeline_launch_packet.sh --target hw_emu --allow-active-builders
+./scripts/create_pure_pipeline_launch_packet.sh --target hw --allow-active-builders
+```
+
+Both packet prelaunch checks reported:
+
+```text
+source contracts: PASS, required_count=17, failed_count=0
+acceptance prelaunch: PASS=4, PENDING=9
+```
+
+Packet hashes:
+
+```text
+45c8044e5d69ca5c6717b63e0f4ef853340cfd9bbbf9abf836e7cdc0c765eb46  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_e13621d/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_e13621d/source_contracts.tsv
+2bc374cdd473fb14657434e999f01e2dd91d026ca45fa6b1bfda7e87cd521f6d  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_e13621d/source_fingerprints.tsv
+cca188eef848681a6d2a0af3ff5d91f0e13a565b9f1c939b8c8656f4c2e48712  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_e13621d/readiness_hw_emu.txt
+0e498f13044f4aee117149242b6bcf62916dea92caea4854f7de23aa6611aaea  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_e13621d/acceptance_check_prelaunch.tsv
+
+00adb8266da9a1168b1e86401bb4fa6a71c3d197467da44fc0b0abd7efad1b7b  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_e13621d/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_e13621d/source_contracts.tsv
+2bc374cdd473fb14657434e999f01e2dd91d026ca45fa6b1bfda7e87cd521f6d  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_e13621d/source_fingerprints.tsv
+ccc7f860a3707e4c44b11062dadb3fa653911fe18aa9e8f62c06b042b8a2db64  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_e13621d/readiness_hw.txt
+8ad921a7f33254796a4272f9e54f96d6b31afb2dd4403a2611cf515541f2a8a6  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_e13621d/acceptance_check_prelaunch.tsv
+```
+
+The current next-step report says:
+
+```text
+packet_current=yes for hw_emu and hw
+next_command=.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_e13621d/launch_command.sh
+stage0 baseline label=after_64ba9c3
+pure result label=after_e13621d
+```
+
+The immediate build command is therefore:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_e13621d/launch_command.sh
+```
+
+The pure `hw_emu` and `hw` xclbins are still missing as of this packet refresh.
