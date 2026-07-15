@@ -295,11 +295,13 @@ target-flow command still keeps the wait-idle guard before launching Vitis.
 If a long build was run manually and produced the expected xclbin, use the
 `postbuild_acceptance` command from `report_pure_pipeline_next_steps.py`. That
 guarded wrapper first runs the `--skip-build` postrun flow, then launches the
-same-input stage0 matrix. The low-level `postrun_followup` and
-`stage0_followup` blocks remain available when the two phases need to be run or
+same-input stage0 matrix, then runs `check_pure_pipeline_claim.py` for the
+requested build/gate/full proof level. The low-level `postrun_followup` and
+`stage0_followup` blocks remain available when the phases need to be run or
 debugged separately. The wrapper prints the selected source fingerprint, launch
 packet, and current claim-status gaps before running, so the acceptance log can
-be tied back to a specific build-relevant source tree.
+be tied back to a specific build-relevant source tree and ends with a
+machine-checkable claim result.
 
 The same post-build sequence can be launched through a guarded wrapper. It
 fails before running anything if the target xclbin is still missing:
@@ -320,7 +322,8 @@ launch the same guarded acceptance sequence automatically:
 The wait helper prints the same source fingerprint, launch packet, and
 claim-status context before waiting.
 
-Preview the exact postrun and matrix commands before the xclbin exists:
+Preview the exact postrun, matrix, and final claim-check commands before the
+xclbin exists:
 
 ```bash
 ./scripts/run_pure_pipeline_postbuild_acceptance.py \
