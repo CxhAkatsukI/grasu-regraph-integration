@@ -20,6 +20,14 @@ EXPECTED_CASES = {
     "tiny_hotdst_v64_u32",
 }
 TIMING_KEYS = ("grasu_ms", "barrier_ms", "adapter_ms", "lksg_ms", "apply_ms", "event_e2e_ms")
+COMPARISON_TIMING_FIELDS = (
+    "pure_grasu_ms",
+    "pure_barrier_ms",
+    "pure_adapter_ms",
+    "pure_lksg_ms",
+    "pure_apply_ms",
+    "pure_event_e2e_ms",
+)
 PRELAUNCH_GATES = {"source_fingerprints", "source_contracts", "readiness", "launch_command"}
 BUNDLE_FILES = (
     "summary.md",
@@ -216,7 +224,7 @@ def check_same_input_compare(path: Path) -> tuple[bool, str]:
         for field in ("host_status", "spine_status", "pure_status"):
             if row.get(field) != "PASS":
                 bad.append(f"{case}:{field}={row.get(field, '')}")
-        for field in ("host_zero_cost_ms", "pure_event_e2e_ms"):
+        for field in ("host_zero_cost_ms", *COMPARISON_TIMING_FIELDS):
             if not row.get(field):
                 bad.append(f"{case}:missing_{field}")
     if missing:
