@@ -8,8 +8,8 @@ claim checker:
 ```text
 /home/chuxiao/grasu-regraph-integration
 branch: codex/pure-hw-pipeline
-head: df02afa5d79b4116fe1a22468c148f8a460b6d46
-source_fingerprint_sha256: b1b2c03179ccdf363b5e6da1bc1980b4c2d84dec7dd9fa3c2b229c3739ee0358
+head: 2f461025969a679ffaa9310a81d73216966efecb
+source_fingerprint_sha256: 16fe38051bc208c4bf8362cbbecfe86475f81e426f10c26a9a882f7b26f0dfe4
 dirty: false
 ```
 
@@ -29,7 +29,8 @@ postbuild-claim-chain commit: a8d976460110fbb9e1e1c6555a82b047141c51f6
 next-step-claim-wording commit: 79d2063d527529d363836e6bb8caa8a7f2525d13
 artifact-manifest commit: c2be2b74fb64d3fe767bfb4ee7e9d65d1705c624
 artifact-manifest claim-enforcement commit: df02afa5d79b4116fe1a22468c148f8a460b6d46
-source_fingerprint_sha256: b1b2c03179ccdf363b5e6da1bc1980b4c2d84dec7dd9fa3c2b229c3739ee0358
+artifact-manifest audit commit: 2f461025969a679ffaa9310a81d73216966efecb
+source_fingerprint_sha256: 16fe38051bc208c4bf8362cbbecfe86475f81e426f10c26a9a882f7b26f0dfe4
 new helper: scripts/wait_for_pure_pipeline_xclbin_then_accept.py
 new helper: scripts/check_pure_pipeline_claim.py
 new helper: scripts/collect_pure_pipeline_artifact_manifest.py
@@ -38,6 +39,7 @@ report block: claim_status
 claim checker: exits 0 only when selected build/gate/full/completion claim is proven
 postbuild wrappers: print source fingerprint, launch packet, and claim-status gaps before acceptance, then write an artifact manifest and run final claim validation
 hardware claim rule: hw_emu/hw build/gate/full claims require a passing artifact manifest at the selected or stronger proof level
+requirement audit rule: audit.json embeds the current claim report and lists missing_artifact_manifest_claims
 timing gate: same-input comparison must contain pure_grasu_ms, pure_barrier_ms, pure_adapter_ms, pure_lksg_ms, pure_apply_ms, and pure_event_e2e_ms
 hw_emu/hw xclbins: still missing
 ```
@@ -211,7 +213,7 @@ The next required long command is the current `hw_emu` launch packet:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
-.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_df02afa/launch_command.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_2f46102/launch_command.sh
 ```
 
 The launch packet matches the current build-relevant source fingerprints. It
@@ -224,32 +226,32 @@ The packets were regenerated with:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/create_pure_pipeline_launch_packet.sh \
   --target hw_emu \
-  --flow-label after_df02afa \
+  --flow-label after_2f46102 \
   --allow-active-builders
 ./scripts/create_pure_pipeline_launch_packet.sh \
   --target hw \
-  --flow-label after_df02afa \
+  --flow-label after_2f46102 \
   --allow-active-builders
 ```
 
 Current launch-packet hashes:
 
 ```text
-hw_emu launch_command.sh:            e50f6aa8dd70fc717775e6fdb84ba014c8234c58ec412a90e64f3d2ce68a1d70
+hw_emu launch_command.sh:            1d120ac8d798498a2f0ace689fd0e7a74375857e9b013b401001fa04aa30f9e4
 hw_emu source_contracts.tsv:         fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac
-hw_emu source_fingerprints.tsv:      bba4e575eaddaa2b65aed6578b8561ac21923ec9c090069ecde2583cef4a0867
-hw_emu readiness_hw_emu.txt:         70db71e916b0ad2eb0449a4818f8e234cd74c21c66171446c87334ee23a2131f
-hw_emu acceptance_check_prelaunch:   7ef2b9fb82bbdd51c6d4e5a5e3aa38dd2c655c0fa81d5112505e00045a52044d
-hw_emu packet audit:                 331266e13ac2ccd3b47bddf542dfe7afda562c1facfd5b1c799c0585242b7e21
-hw_emu packet evidence bundle:       e9035b353d608d04d38f08e1554ccbe3c7e611f33117a8a214377c3d89a113f6
+hw_emu source_fingerprints.tsv:      175bbdd28489862721951b8d147503c4ed69dda5c433f904812df711e09a5b80
+hw_emu readiness_hw_emu.txt:         2e5f1a9697d45d8614c541f6cf11b2808abbb2a02ae1404a1d39a56195b9c129
+hw_emu acceptance_check_prelaunch:   772291e40d4ab06bf0e12af050c2c995d2863bbe43f413298650d1a7e71c9e40
+hw_emu packet audit:                 756100fa45f469080b0d5039d86a812860f6b587cec13a6666b73a1b70dde8cc
+hw_emu packet evidence bundle:       8ee755064f5a7218fa763f42201f4252de6742c790062b6e626aa7032a558d17
 
-hw launch_command.sh:                6840cfdabf0f05a6466322aa1bf12dc18b5272f6bf0320b1a6364cfac41a80e8
+hw launch_command.sh:                ba24f83ba161ebc6ff996f908efabd37ddd36d4789889ea67552268f8f492e45
 hw source_contracts.tsv:             fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac
-hw source_fingerprints.tsv:          bba4e575eaddaa2b65aed6578b8561ac21923ec9c090069ecde2583cef4a0867
-hw readiness_hw.txt:                 52827902446c8dc14beee55d21e50ed5db577d64f6fa0b7d6cecef1d571e8158
-hw acceptance_check_prelaunch:       d118564f0dd07ccc948d93a23bf8f3212e1f7f929dc09ebeaf033fdd2a8c58a4
-hw packet audit:                     7a2daebdb807338563f5537c05417f356e64a4d3354b20101991131ca2f20e23
-hw packet evidence bundle:           cd7e682035bc095e119b5e6405878fbc8fd19362e61d7ba9695b6f0a950b23ad
+hw source_fingerprints.tsv:          175bbdd28489862721951b8d147503c4ed69dda5c433f904812df711e09a5b80
+hw readiness_hw.txt:                 522ca2ae6900d8f8dc4a2cf54376b00e10c87622f05959405b7c918e6815a078
+hw acceptance_check_prelaunch:       56abbca4eb475209e6307e3af40e5926cd63f8e1c832706de07e27bcfd21b1ac
+hw packet audit:                     6b154deccbec06ba216b7954d46524536d99ee39eea5748b0de89192d802b088
+hw packet evidence bundle:           13de79fd0a895cf3e562eb5b7c827931c18a44938824e146962ec91efc7ade73
 ```
 
 Because external Vitis/Vivado builders are active, these packets were generated
@@ -264,7 +266,7 @@ artifact manifest, then final claim validation for the requested proof level:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_postbuild_acceptance.py \
   --target hw_emu \
-  --label after_df02afa \
+  --label after_2f46102 \
   --baseline-label after_64ba9c3 \
   --mode gate
 ```
@@ -277,13 +279,13 @@ sequence. It does not launch Vitis:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py \
   --target hw_emu \
-  --label after_df02afa \
+  --label after_2f46102 \
   --baseline-label after_64ba9c3 \
   --mode gate
 
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py \
   --target hw \
-  --label after_df02afa \
+  --label after_2f46102 \
   --baseline-label after_64ba9c3 \
   --mode gate
 ```
@@ -294,14 +296,14 @@ Equivalent low-level postrun validation commands:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw_emu \
-  --label postrun_after_df02afa \
+  --label postrun_after_2f46102 \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw \
-  --label postrun_after_df02afa \
+  --label postrun_after_2f46102 \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 300
@@ -314,7 +316,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw_emu \
   --mode gate \
-  --label after_df02afa \
+  --label after_2f46102 \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -326,7 +328,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw \
   --mode gate \
-  --label after_df02afa \
+  --label after_2f46102 \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -338,7 +340,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw \
   --mode full \
-  --label after_df02afa \
+  --label after_2f46102 \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -366,6 +368,11 @@ passing artifact manifest. `hw_emu` and `hw` now report
 `artifact_manifest_build`, `artifact_manifest_gate`, or
 `artifact_manifest_full` as missing evidence until postbuild acceptance writes
 a complete manifest for the selected proof level.
+
+The `2f46102` update makes the requirement audit consume the same next-step
+claim report, so `audit.json`, the evidence bundle, and the human-readable audit
+all show the same missing hardware artifact-manifest claims as
+`check_pure_pipeline_claim.py`.
 
 Validation commands:
 
@@ -398,7 +405,8 @@ python3 scripts/summarize_pure_pipeline_smoke.py --host-summary results/grasu_re
 ./scripts/check_pure_pipeline_acceptance_gates.py --acceptance-gates .tmp_build/pure_pipeline_sw_emu_stage0/run_logs/acceptance_gates_target_flow_postrun_after_c29ee70.tsv --mode postrun --out-file .tmp_build/acceptance_check_swemu_new_timing_gate.tsv
 ./scripts/run_pure_pipeline_postbuild_acceptance.py --target hw_emu --dry-run --allow-missing-xclbin
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py --target hw_emu --dry-run
-./scripts/collect_pure_pipeline_artifact_manifest.py --target hw_emu --label after_df02afa --baseline-label after_64ba9c3 --mode gate --level gate --out-file .tmp_build/artifact_manifest_hwemu_after_df02afa_allow_missing.tsv --allow-missing-required
+./scripts/audit_pure_pipeline_status.py --label audit_manifest_claim_$(git rev-parse --short HEAD) --out-dir .tmp_build/audit_manifest_claim_$(git rev-parse --short HEAD)
+./scripts/collect_pure_pipeline_artifact_manifest.py --target hw_emu --label after_2f46102 --baseline-label after_64ba9c3 --mode gate --level gate --out-file .tmp_build/artifact_manifest_hwemu_after_2f46102_allow_missing.tsv --allow-missing-required
 git diff --check
 ```
 
@@ -410,9 +418,9 @@ test_run_pure_pipeline_postbuild_acceptance PASS
 test_collect_pure_pipeline_artifact_manifest PASS
 test_check_pure_pipeline_claim PASS
 test_report_pure_pipeline_next_steps PASS
+test_audit_pure_pipeline_status PASS
 test_check_pure_pipeline_acceptance_gates PASS
 test_summarize_pure_pipeline_smoke PASS
-test_audit_pure_pipeline_status PASS
 test_summarize_pure_stage0_comparison PASS
 test_summarize_canonical_comparison PASS
 report_pure_pipeline_next_steps JSON validation PASS
@@ -424,6 +432,7 @@ postbuild_acceptance hw_emu dry-run PASS; command sequence includes collect_pure
 wait_for_pure_pipeline_xclbin_then_accept hw_emu dry-run PASS
 artifact manifest hw_emu allow-missing sample PASS with required_missing_count=18 before hw_emu xclbin exists
 claim-status manifest regression PASS; hw_emu/hw missing evidence now includes artifact_manifest_build/gate/full until a passing manifest is present
+requirement audit manifest regression PASS; completion_summary.missing_artifact_manifest_claims=hw_emu:build,hw_emu:gate,hw_emu:full,hw:build,hw:gate,hw:full
 dry-run logs include source_fingerprint_sha256, launch_command, and claim-status gaps
 git diff --check PASS
 ```
