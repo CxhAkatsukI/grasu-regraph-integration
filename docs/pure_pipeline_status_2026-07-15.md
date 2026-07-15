@@ -2,13 +2,13 @@
 
 Date: 2026-07-15 Asia/Shanghai
 
-Status command input tree, before this documentation-only commit:
+Status command input tree, before this documentation-only update:
 
 ```text
 /home/chuxiao/grasu-regraph-integration
 branch: codex/pure-hw-pipeline
-head: 05519f9a7317a3cdf6bd66a1519070e4f408d7bc
-source_fingerprint_sha256: 5b4dcccd0a75691ece1fdb67bffe31dd21d591fc6d5f9e562c006445dbecc0d6
+head: b5c60ca58ec61717291f77bbbb0bfad286795950
+source_fingerprint_sha256: 91ba6a6633efd954b6c1eca9b40cc50909c67aa1bc9dc5acdbfcbe9aec55f415
 dirty: false
 ```
 
@@ -79,27 +79,41 @@ The next required long command is the current `hw_emu` launch packet:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
-.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_05519f9/launch_command.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_b5c60ca/launch_command.sh
 ```
 
 The launch packet matches the current build-relevant source fingerprints. It
 records source contracts, source fingerprints, prelaunch acceptance gates,
 artifact hashes, and the exact target-flow command it will execute.
 
+The packets were regenerated with:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw_emu \
+  --flow-label after_b5c60ca \
+  --allow-active-builders
+./scripts/create_pure_pipeline_launch_packet.sh \
+  --target hw \
+  --flow-label after_b5c60ca \
+  --allow-active-builders
+```
+
 Current launch-packet hashes:
 
 ```text
-hw_emu launch_command.sh:            8e39ea97e0f520720c84096c2c8595fe38358888b4dbb63541517d859f5d8f09
+hw_emu launch_command.sh:            7523ed83a0a8b245bec8a99e677f93b86401572044157ce8c61aa7e4b1da08ca
 hw_emu source_contracts.tsv:         fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac
-hw_emu source_fingerprints.tsv:      91deeba5857ff31236f787dac22b5f50c2836970ac1e2121aecf884cc0c142bc
-hw_emu readiness_hw_emu.txt:         a8835b791033b731128fe689e92a0bb45e5478ad9fc323bf918a9d43b72c007e
-hw_emu acceptance_check_prelaunch:   b47441a5f1a3eaf40740f41e8e62153117870101103cd70ae8fd6a52e70423f4
+hw_emu source_fingerprints.tsv:      95ca5df3443e656d4e111a7d3d239b58952f4598be70298d7fc7818e80d0bdaa
+hw_emu readiness_hw_emu.txt:         0761b70598875494f84f6f10b0ed17154e1af06c897c748dc012e83ec589d557
+hw_emu acceptance_check_prelaunch:   cda252d0cb287737dd73e2bc903a1cb6da90b07c932b24c5bdaf5bf27d25ae66
 
-hw launch_command.sh:                bee42e7e5d5d5e1d0ba4fd667e6d34b62a5fd2ce6e9691a844fca4b05acfc02a
+hw launch_command.sh:                3c8dd8d11f47e3cf70329c2707e500cc3b1585dc9840b75c635a5f8e55ea7669
 hw source_contracts.tsv:             fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac
-hw source_fingerprints.tsv:          91deeba5857ff31236f787dac22b5f50c2836970ac1e2121aecf884cc0c142bc
-hw readiness_hw.txt:                 3436412d3f3305d483585ebdfb57ad3446797a42e591cd2e1646ec3714038d35
-hw acceptance_check_prelaunch:       389fb5b44567412ef8aa8912baec557b89654ed7750e3ed10ea7925d474fe3a5
+hw source_fingerprints.tsv:          95ca5df3443e656d4e111a7d3d239b58952f4598be70298d7fc7818e80d0bdaa
+hw readiness_hw.txt:                 0ff728190a548f66f31547d668f732d04ee9e7ae58ef5dc60697b7ec6f5e3fe9
+hw acceptance_check_prelaunch:       898d5ef9b27df267090ff200e4eb3c03323a2a7ae8b49495c5584d17cb79d5d7
 ```
 
 Because external Vitis/Vivado builders are active, these packets were generated
@@ -113,7 +127,7 @@ skip-build postrun validation and then the same-input stage0 matrix:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_postbuild_acceptance.py \
   --target hw_emu \
-  --label after_05519f9 \
+  --label after_b5c60ca \
   --baseline-label after_64ba9c3 \
   --mode gate
 ```
@@ -124,14 +138,14 @@ Equivalent low-level postrun validation commands:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw_emu \
-  --label postrun_after_05519f9 \
+  --label postrun_after_b5c60ca \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw \
-  --label postrun_after_05519f9 \
+  --label postrun_after_b5c60ca \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 300
@@ -144,7 +158,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw_emu \
   --mode gate \
-  --label after_05519f9 \
+  --label after_b5c60ca \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -156,7 +170,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw \
   --mode gate \
-  --label after_05519f9 \
+  --label after_b5c60ca \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -168,7 +182,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw \
   --mode full \
-  --label after_05519f9 \
+  --label after_b5c60ca \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
