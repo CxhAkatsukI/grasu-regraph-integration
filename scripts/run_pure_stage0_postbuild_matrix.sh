@@ -16,6 +16,7 @@ IDENTITY_DIR=""
 COMPARE_OUT=""
 HOST_SUMMARY=""
 SPINE_SUMMARY=""
+HOST_IDENTITY=""
 BASELINE_LABEL=""
 TIMEOUT_SECONDS=600
 CASE_FILTER=""
@@ -56,6 +57,7 @@ Options:
   --compare-out PATH          Comparison dir. Default: results/pure_pipeline_<target>_pure_stage0_compare_<label>
   --host-summary PATH         Host baseline summary for comparison. Default inferred from --baseline-label.
   --spine-summary PATH        Spine summary for comparison. Default inferred from --baseline-label.
+  --host-identity PATH        Host baseline input-identity audit. Default inferred from --baseline-label.
   --baseline-label NAME       Baseline result suffix. Default: --label.
   --timeout SECONDS           Per-case timeout. Default: ${TIMEOUT_SECONDS}
   --case LIST                 Run only comma-separated case names. Can be repeated.
@@ -123,6 +125,7 @@ while [[ $# -gt 0 ]]; do
     --compare-out) COMPARE_OUT="$(abs_path "$2")"; shift 2 ;;
     --host-summary) HOST_SUMMARY="$(abs_path "$2")"; shift 2 ;;
     --spine-summary) SPINE_SUMMARY="$(abs_path "$2")"; shift 2 ;;
+    --host-identity) HOST_IDENTITY="$(abs_path "$2")"; shift 2 ;;
     --baseline-label) BASELINE_LABEL="$2"; shift 2 ;;
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
     --case) CASE_FILTER="$(append_csv "${CASE_FILTER}" "$2")"; shift 2 ;;
@@ -167,6 +170,9 @@ if [[ -z "${HOST_SUMMARY}" ]]; then
 fi
 if [[ -z "${SPINE_SUMMARY}" ]]; then
   SPINE_SUMMARY="${GRI_ROOT}/results/spine_edge_file_pure_stage0_${BASELINE_LABEL}/summary.tsv"
+fi
+if [[ -z "${HOST_IDENTITY}" ]]; then
+  HOST_IDENTITY="${GRI_ROOT}/results/grasu_regraph_sssp_pure_stage0_identity_${BASELINE_LABEL}/input_identity_check.tsv"
 fi
 if [[ -z "${PLAN_DIR}" ]]; then
   PLAN_DIR="${GRI_ROOT}/results/pure_stage0_comparison_plan_${LABEL}"
@@ -213,6 +219,8 @@ mkdir -p "${OUT_DIR}" "${IDENTITY_DIR}"
   printf 'compare_out=%s\n' "${COMPARE_OUT}"
   printf 'host_summary=%s\n' "${HOST_SUMMARY}"
   printf 'host_summary_sha256=%s\n' "$(sha_or_missing "${HOST_SUMMARY}")"
+  printf 'host_identity=%s\n' "${HOST_IDENTITY}"
+  printf 'host_identity_sha256=%s\n' "$(sha_or_missing "${HOST_IDENTITY}")"
   printf 'spine_summary=%s\n' "${SPINE_SUMMARY}"
   printf 'spine_summary_sha256=%s\n' "$(sha_or_missing "${SPINE_SUMMARY}")"
   printf 'baseline_label=%s\n' "${BASELINE_LABEL}"
@@ -281,6 +289,12 @@ if [[ "${SKIP_COMPARE}" == "0" ]]; then
       missing_compare_inputs=1
     fi
   fi
+  if [[ ! -f "${HOST_IDENTITY}" ]]; then
+    echo "Missing host identity audit: ${HOST_IDENTITY}" >&2
+    if [[ "${REQUIRE_COMPARE}" == "1" ]]; then
+      missing_compare_inputs=1
+    fi
+  fi
   if [[ "${REQUIRE_COMPARE}" == "1" && "${missing_compare_inputs}" != "0" ]]; then
     echo "Comparison is required. Generate the same-input baseline with:" >&2
     echo "  ${SCRIPT_DIR}/export_pure_stage0_comparison_plan.py --label ${BASELINE_LABEL}" >&2
@@ -291,17 +305,25 @@ if [[ "${SKIP_COMPARE}" == "0" ]]; then
     echo "Skipping comparison: host baseline summary is missing." >&2
   else
     compare_cmd=(
-      python3 "${SCRIPT_DIR}/summarize_pure_pipeline_smoke.py"
+      python3 "${SCRIPT_DIR}/summarize_pure_stage0_comparison.py"
+      --manifest "${MANIFEST}"
+      --input-identity "${INPUT_IDENTITY}"
       --host-summary "${HOST_SUMMARY}"
       --pure-summary "${SUMMARY}"
       --pure-env "${RUN_ENV}"
       --pure-target "${TARGET}"
+      --label "${LABEL}"
       --out-dir "${COMPARE_OUT}"
     )
     if [[ -n "${SPINE_SUMMARY}" && -f "${SPINE_SUMMARY}" ]]; then
       compare_cmd+=(--spine-summary "${SPINE_SUMMARY}")
     else
       echo "Comparison will omit Spine columns because the Spine summary is missing." >&2
+    fi
+    if [[ -n "${HOST_IDENTITY}" && -f "${HOST_IDENTITY}" ]]; then
+      compare_cmd+=(--host-identity "${HOST_IDENTITY}")
+    else
+      echo "Comparison will omit host identity counts because the host identity audit is missing." >&2
     fi
     run_cmd "${compare_cmd[@]}"
   fi

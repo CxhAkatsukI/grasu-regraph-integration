@@ -9864,9 +9864,18 @@ b625742abc4d465d8431261eb5d3965d21559f8df02075e1c139ba3fb124d8a9  results/pure_p
 67efb3da4e6814871c13e89b2bc5ead0b4e4ea25d691bff80966f981675b35ab  results/pure_pipeline_sw_emu_pure_stage0_gate_after_e13621d/run.env
 35f3490d4d670788ccc45100b551345f00f6a350618278b60990165edec55d3d  results/pure_pipeline_sw_emu_pure_stage0_gate_after_e13621d/postbuild_matrix.env
 2dfdd7f0d701c065397e24818145f80c9d750c10361e3015e16a148cd7ba042b  results/pure_pipeline_sw_emu_pure_stage0_identity_gate_after_e13621d/input_identity_check.tsv
-1fd893d49d01a6a256461fb48613b4bb063b64da732c3d56984f5d251d459672  results/pure_pipeline_sw_emu_pure_stage0_compare_after_e13621d/comparison.tsv
-44ffb76c6467785e331ed6da593d4c6fb5c8706305e483662c55c19149496140  results/pure_pipeline_sw_emu_pure_stage0_compare_after_e13621d/comparison.md
+1076c45ce6b9ca52eff78cd5dc4427ccf338e4cf2837815bfcf86155846b991b  results/pure_pipeline_sw_emu_pure_stage0_compare_after_e13621d/comparison.tsv
+09b4c2a713f20f191608c3a56a3402772c9d9960759b4d275e2b15e1fa954ff0  results/pure_pipeline_sw_emu_pure_stage0_compare_after_e13621d/comparison.md
+4cdba7a7143084586e1191f4105d7fd934b4b3537b0125fb618478f42959f51a  results/pure_pipeline_sw_emu_pure_stage0_compare_after_e13621d/run.env
 ```
+
+`scripts/run_pure_stage0_postbuild_matrix.sh` now generates this comparison via
+`scripts/summarize_pure_stage0_comparison.py`, not the older smoke-only
+summarizer. The resulting table has the same schema as the host/Spine baseline
+comparison and includes `pure_barrier_ms`, `pure_mismatches`, manifest tiers,
+and host identity audit metadata. For this gate run, the four gate cases are
+`PASS`; the eight unrun review/boundary rows are marked only as
+`missing pure pipeline`.
 
 Gate timing rows:
 

@@ -197,12 +197,13 @@ def joined_rows(
         if pure_rows:
             if not pure:
                 notes.append("missing pure pipeline")
-            elif pure.get("status") != "PASS":
-                notes.append("pure pipeline not PASS")
-            if pure_result.get("mismatches") not in ("", "0", "0.0"):
-                notes.append("pure mismatches")
-            if pure_target != "hw":
-                notes.append(f"pure timing is {pure_target}, not hw")
+            else:
+                if pure.get("status") != "PASS":
+                    notes.append("pure pipeline not PASS")
+                if pure_result.get("mismatches") not in ("", "0", "0.0"):
+                    notes.append("pure mismatches")
+                if pure_target != "hw":
+                    notes.append(f"pure timing is {pure_target}, not hw")
 
         out.append(
             {
