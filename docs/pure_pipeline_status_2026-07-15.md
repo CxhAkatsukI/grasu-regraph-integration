@@ -69,6 +69,65 @@ postrun acceptance:    68f2fe3d437c9618e94cd4cf93926b1d5a6a638a9418ce8ce6a2fa486
 xclbin contract:       1cc3d8e5ad44862262cbb1294a3b0b6b0a685bf49aefb132325dad28060adcd3
 ```
 
+Current `sw_emu` pure_stage0 gate evidence was also refreshed against the
+`after_64ba9c3` host/Spine baseline inputs:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target sw_emu \
+  --mode gate \
+  --label after_b5c60ca \
+  --baseline-label after_64ba9c3 \
+  --require-compare \
+  --timeout 600
+```
+
+The gate covers the four required families and passed the input-identity audit
+with `checks=80 failures=0`:
+
+```text
+tiny_chain_v16        chain       PASS mismatches=0
+tiny_star_v16_u12     hot-source  PASS mismatches=0
+tiny_spread_v16_u8    spread      PASS mismatches=0
+tiny_hotdst_v64_u32   hot-dest    PASS mismatches=0
+```
+
+Refreshed `sw_emu` stage0 gate hashes:
+
+```text
+comparison plan:       62792c78244b339c4798dab18ddba79a6b8ad5eaa16a555c24ab19982b9d963e
+input identity plan:   fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b
+gate summary:          c332380e540a36e62b418f0bfc6d4311640c52ca0be4f5b74b2bc59068144fc8
+identity audit:        b7399e4086f14e4670d3b6dd429c8c12587c77b769a7215d4c0ca76b785c28d0
+same-input comparison: f08bdd3d98aaad2821a543d7d543e12d6e100d238c0f8e2ae51511164dedb68d
+postbuild env:         52d323b1b883c129bbcce4b6b109135545719f57edb376662ec9368688bf1be4
+```
+
+The current requirement audit and evidence bundle were refreshed at commit
+`6c26605a07097bd7f0d152b0d78d17463e46e6cf`:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/audit_pure_pipeline_status.py \
+  --label after_6c26605 \
+  --out-dir results/pure_pipeline_requirement_audit_after_6c26605
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_after_6c26605/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_after_6c26605
+```
+
+The first bundle attempt was started in parallel with the audit and failed
+because `audit.json` did not exist yet; the sequential command above passed.
+
+```text
+requirement audit json: e4a3fe5d4ae31144d66b520c25b3318547ee817ad8f662627cfd6da99570f695
+requirement audit md:   fa227290730e08e673d1df679f9b25fad93b231a715f8d4f205681573d7f3de9
+evidence manifest:      a6fc63d0e5087a3c51a1be05fe41f4664ba0f0e5d0a20a065c8b88d6ce1edbb0
+evidence summary:       f6500a5959c35f97aa0710bafabc155e157d027a54f1df0811375c9ff3e1b799
+status counts:          blocked_by_missing_artifact=1, partial=8, proven=1
+```
+
 Missing artifacts:
 
 ```text
@@ -98,7 +157,7 @@ stage0_followup     same-input stage0 matrix commands after postrun acceptance p
 Observed result for this snapshot:
 
 ```text
-sw_emu: xclbin=yes, flow_current=yes, postrun=pass:PASS=11,SKIP=2
+sw_emu: xclbin=yes, flow_current=yes, postrun=pass:PASS=11,SKIP=2, stage0_gate=yes
 hw_emu: xclbin=no, packet_current=yes, postrun=waiting_xclbin
 hw:     xclbin=no, packet_current=yes, postrun=waiting_xclbin
 active_builders=related:0 external:10
