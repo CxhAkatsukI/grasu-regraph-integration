@@ -209,6 +209,14 @@ xclbins, active Vitis/Vivado builders, and the next target-flow command:
 ./scripts/report_pure_pipeline_next_steps.py
 ```
 
+The report prints three command blocks:
+
+```text
+next_commands       What should run next right now.
+postrun_followup    What to run if a manually built xclbin appears.
+stage0_followup     Same-input matrix commands after postrun acceptance passes.
+```
+
 The `flow_current` column shows whether the latest target-flow evidence for a
 target matches the current build-relevant source fingerprints. Documentation-only
 commits do not invalidate it; `no` means the next target-flow invocation should
@@ -251,6 +259,16 @@ Current reproducible target flow:
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 ```
+
+If unrelated Vitis/Vivado builders are active and you only need to prepare a
+launch packet, add `--allow-active-builders` to the packet command. The generated
+target-flow command still keeps the wait-idle guard before launching Vitis.
+
+If a long build was run manually and produced the expected xclbin, use the
+`postrun_followup` command from `report_pure_pipeline_next_steps.py` before the
+stage0 matrix. That `--skip-build` flow reuses the existing xclbin and reruns
+smoke correctness, same-input comparison, requirement audit, evidence-bundle
+export, and postrun acceptance gates.
 
 The launch packet regenerates target compile/link/config scripts before its
 preflight checks by default, so its source-contract and readiness evidence match
