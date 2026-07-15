@@ -443,25 +443,34 @@ def target_flow_command(target: str, git_short: str) -> str:
     )
 
 
-def postrun_command(target: str, git_short: str) -> str:
+def postrun_evidence_label(source_label: str) -> str:
+    if source_label.startswith("postrun_"):
+        return source_label
+    if source_label.startswith("after_"):
+        return f"postrun_{source_label}"
+    return f"postrun_after_{source_label}"
+
+
+def postrun_command(target: str, label: str) -> str:
     return (
         f"./scripts/run_pure_pipeline_target_flow.sh --target {target} "
-        f"--label postrun_after_{git_short} --skip-build "
+        f"--label {label} --skip-build "
         f"--gate-case tiny_star_v16_u12 --gate-timeout {TARGET_TIMEOUTS[target]}"
     )
 
 
-def postrun_followup_commands(git_short: str) -> list[dict[str, str]]:
+def postrun_followup_commands(source_label: str) -> list[dict[str, str]]:
+    label = postrun_evidence_label(source_label)
     return [
         {
             "name": "hw_emu_postrun",
             "when": "after a hw_emu xclbin exists but before stage0 matrix comparison",
-            "command": postrun_command("hw_emu", git_short),
+            "command": postrun_command("hw_emu", label),
         },
         {
             "name": "hw_postrun",
             "when": "after a hw xclbin exists but before stage0 matrix comparison",
-            "command": postrun_command("hw", git_short),
+            "command": postrun_command("hw", label),
         },
     ]
 
@@ -607,6 +616,8 @@ def make_report(repo: Path) -> dict[str, Any]:
     states = [target_state(repo, target, current_head, current_fingerprints) for target in TARGETS]
     builders = classify_builders(repo, ps_rows())
     next_target, next_action = first_incomplete_action(states)
+    stage0_label, stage0_label_source = stage0_label_from_packets(states, git_short)
+    postrun_followup = postrun_followup_commands(stage0_label)
     stale_targets = [
         state["target"]
         for state in states
@@ -623,7 +634,11 @@ def make_report(repo: Path) -> dict[str, Any]:
             f"./scripts/export_pure_pipeline_evidence_bundle.py --out-dir results/pure_pipeline_evidence_bundle_after_{git_short}",
         ]
     elif next_action == "postrun":
-        next_commands = [postrun_command(next_target, git_short)]
+        next_commands = [
+            item["command"]
+            for item in postrun_followup
+            if item["name"] == f"{next_target}_postrun"
+        ]
     elif next_launch_packet_command:
         next_commands = [next_launch_packet_command]
     else:
@@ -631,7 +646,6 @@ def make_report(repo: Path) -> dict[str, Any]:
             f"./scripts/check_pure_pipeline_build_readiness.sh --target {next_target} --label after_{git_short}",
             target_flow_command(next_target, git_short),
         ]
-    stage0_label, stage0_label_source = stage0_label_from_packets(states, git_short)
     stage0_baseline_label, stage0_baseline_label_source = choose_stage0_baseline_label(repo, stage0_label)
     stage0_baseline = stage0_baseline_state(repo, stage0_baseline_label)
     return {
@@ -652,7 +666,7 @@ def make_report(repo: Path) -> dict[str, Any]:
         "next_launch_packet_command": next_launch_packet_command,
         "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
-        "postrun_followup": postrun_followup_commands(git_short),
+        "postrun_followup": postrun_followup,
         "stage0_followup": {
             "pure_label": stage0_label,
             "pure_label_source": stage0_label_source,
