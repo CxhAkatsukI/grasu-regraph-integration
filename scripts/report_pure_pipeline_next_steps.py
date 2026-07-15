@@ -19,6 +19,12 @@ from typing import Any
 
 TARGETS = ("sw_emu", "hw_emu", "hw")
 TARGET_TIMEOUTS = {"sw_emu": 180, "hw_emu": 900, "hw": 300}
+STAGE0_GATE_CASES = (
+    "tiny_chain_v16",
+    "tiny_star_v16_u12",
+    "tiny_spread_v16_u8",
+    "tiny_hotdst_v64_u32",
+)
 SOURCE_ROLES = (
     ("integration_scripts", ("scripts",), (".sh", ".py")),
     ("integration_kernels", ("kernels",), (".cpp", ".h", ".hpp")),
@@ -164,6 +170,119 @@ def target_xclbin(repo: Path, target: str) -> Path:
     return repo / ".tmp_build" / f"pure_pipeline_{target}_stage0" / "build" / (
         f"grasu_regraph_pure_pipeline.{target}.xclbin"
     )
+
+
+def stage0_summary_path(repo: Path, target: str, mode: str) -> Path | None:
+    return newest(list(repo.glob(f"results/pure_pipeline_{target}_pure_stage0_{mode}_*/summary.tsv")))
+
+
+def stage0_identity_path(repo: Path, target: str, mode: str, summary_path: Path | None) -> Path | None:
+    prefix = f"pure_pipeline_{target}_pure_stage0_{mode}_"
+    if summary_path is not None and summary_path.parent.name.startswith(prefix):
+        label = summary_path.parent.name[len(prefix):]
+        candidate = (
+            repo
+            / "results"
+            / f"pure_pipeline_{target}_pure_stage0_identity_{mode}_{label}"
+            / "input_identity_check.tsv"
+        )
+        if candidate.is_file():
+            return candidate
+    return newest(list(repo.glob(f"results/pure_pipeline_{target}_pure_stage0_identity_{mode}_*/input_identity_check.tsv")))
+
+
+def summarize_stage0_summary(path: Path | None, expected_cases: tuple[str, ...] | None) -> dict[str, Any]:
+    if path is None or not path.is_file():
+        return {
+            "status": "missing",
+            "path": None,
+            "sha256": None,
+            "row_count": 0,
+            "pass_count": 0,
+            "missing_cases": [],
+            "max_vertices_seen": 0,
+        }
+    rows = read_tsv_rows(path)
+    pass_rows = [row for row in rows if row.get("status") == "PASS" and row.get("exit_code") == "0"]
+    row_by_case = {row.get("case", ""): row for row in rows}
+    missing_cases = [
+        case
+        for case in (expected_cases or ())
+        if not (
+            row_by_case.get(case, {}).get("status") == "PASS"
+            and row_by_case.get(case, {}).get("exit_code") == "0"
+        )
+    ]
+    all_rows_pass = bool(rows) and len(pass_rows) == len(rows)
+    expected_pass = not missing_cases if expected_cases else all_rows_pass
+    max_vertices = 0
+    for row in rows:
+        try:
+            max_vertices = max(max_vertices, int(row.get("vertices", "0") or "0"))
+        except ValueError:
+            pass
+    status = "pass" if expected_pass and all_rows_pass else "fail"
+    return {
+        "status": status,
+        "path": path,
+        "sha256": sha256(path),
+        "row_count": len(rows),
+        "pass_count": len(pass_rows),
+        "missing_cases": missing_cases,
+        "max_vertices_seen": max_vertices,
+    }
+
+
+def summarize_stage0_identity(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.is_file():
+        return {
+            "status": "missing",
+            "path": None,
+            "sha256": None,
+            "check_count": 0,
+            "fail_count": 0,
+        }
+    rows = read_tsv_rows(path)
+    failures = [row for row in rows if row.get("ok") != "yes"]
+    return {
+        "status": "pass" if rows and not failures else "fail",
+        "path": path,
+        "sha256": sha256(path),
+        "check_count": len(rows),
+        "fail_count": len(failures),
+    }
+
+
+def stage0_matrix_state(repo: Path, target: str, mode: str) -> dict[str, Any]:
+    summary_path = stage0_summary_path(repo, target, mode)
+    identity_path = stage0_identity_path(repo, target, mode, summary_path)
+    expected_cases = STAGE0_GATE_CASES if mode == "gate" else None
+    summary = summarize_stage0_summary(summary_path, expected_cases)
+    identity = summarize_stage0_identity(identity_path)
+    if summary["status"] == "missing":
+        label = "missing"
+    elif summary["status"] == "pass" and identity["status"] == "pass":
+        label = f"pass:maxV={summary['max_vertices_seen']}" if mode == "full" else "pass"
+    elif identity["status"] != "pass":
+        label = f"identity_{identity['status']}"
+    else:
+        label = summary["status"]
+    return {
+        "mode": mode,
+        "label": label,
+        "summary_status": summary["status"],
+        "identity_status": identity["status"],
+        "summary": rel(repo, summary["path"]) if summary["path"] else None,
+        "summary_sha256": summary["sha256"],
+        "summary_row_count": summary["row_count"],
+        "summary_pass_count": summary["pass_count"],
+        "summary_missing_cases": summary["missing_cases"],
+        "max_vertices_seen": summary["max_vertices_seen"],
+        "identity": rel(repo, identity["path"]) if identity["path"] else None,
+        "identity_sha256": identity["sha256"],
+        "identity_check_count": identity["check_count"],
+        "identity_fail_count": identity["fail_count"],
+    }
 
 
 def newest_readiness(run_logs: Path, allow_active: bool | None = None) -> Path | None:
@@ -324,6 +443,8 @@ def target_state(
     acceptance_postrun = newest(list(run_logs.glob("acceptance_check_postrun*.tsv")))
     acceptance_prelaunch_summary = summarize_acceptance(acceptance_prelaunch)
     acceptance_postrun_summary = summarize_acceptance(acceptance_postrun)
+    stage0_gate = stage0_matrix_state(repo, target, "gate")
+    stage0_full = stage0_matrix_state(repo, target, "full")
     launch_packet = newest_current_launch_packet(repo, target, current_fingerprints)
     return {
         "target": target,
@@ -367,6 +488,8 @@ def target_state(
             if xclbin.is_file()
             else "waiting_xclbin"
         ),
+        "stage0_gate": stage0_gate,
+        "stage0_full": stage0_full,
     }
 
 
@@ -714,7 +837,10 @@ def print_text(report: dict[str, Any]) -> None:
     print(f"dirty={str(report['dirty']).lower()}")
     print()
     print("targets")
-    print("target\txclbin\tsha256\treadiness_ready\tstrict_ready\tstrict_blockers\tflow_current\tpacket_current\tpostrun\tlatest_readiness")
+    print(
+        "target\txclbin\tsha256\treadiness_ready\tstrict_ready\tstrict_blockers\t"
+        "flow_current\tpacket_current\tpostrun\tstage0_gate\tstage0_full\tlatest_readiness"
+    )
     for state in report["targets"]:
         if state["latest_flow_matches_current"] is None:
             flow_current = ""
@@ -732,6 +858,8 @@ def print_text(report: dict[str, Any]) -> None:
                 flow_current,
                 packet_current,
                 state["latest_acceptance_postrun_label"],
+                state["stage0_gate"]["label"],
+                state["stage0_full"]["label"],
                 state["latest_readiness"] or "",
             ])
         )
