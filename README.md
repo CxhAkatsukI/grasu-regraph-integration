@@ -241,6 +241,12 @@ postrun flow, the compile/link log gates are marked `required=no`; the run still
 requires the existing xclbin, xclbin metadata contract, smoke summaries,
 comparison table, audit, and evidence bundle to pass.
 
+The `stage0_gate` and `stage0_full` columns summarize same-input matrix
+coverage for the target. `stage0_gate=pass` means the required chain,
+hot-source, spread, and hot-destination smoke families have matched the CPU
+oracle and baseline inputs. `stage0_full=pass` is reserved for the full tracked
+stage-0 matrix.
+
 Current reproducible target flow:
 
 ```bash
