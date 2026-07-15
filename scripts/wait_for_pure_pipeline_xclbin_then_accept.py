@@ -155,6 +155,7 @@ def main() -> int:
     xclbin = target_xclbin(repo, args.target)
     state = target_state(report, args.target) or {}
     launch_command = state.get("current_launch_packet_command")
+    claim = state.get("claim_status", {})
 
     command = build_acceptance_command(
         args.target,
@@ -175,8 +176,14 @@ def main() -> int:
     print(f"label={label}")
     print(f"baseline_label={baseline_label}")
     print(f"mode={args.mode}")
+    print(f"source_fingerprint_sha256={report.get('source_fingerprint_sha256', '')}")
     if launch_command:
         print(f"launch_command={launch_command}")
+    if claim:
+        print(f"build_claimable={'yes' if claim.get('build_claimable') else 'no'}")
+        print(f"build_missing={','.join(claim.get('build_missing') or []) or 'none'}")
+        print(f"gate_claimable={'yes' if claim.get('gate_claimable') else 'no'}")
+        print(f"gate_missing={','.join(claim.get('gate_missing') or []) or 'none'}")
 
     if args.dry_run:
         print("dry_run=yes")

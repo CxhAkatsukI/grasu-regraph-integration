@@ -8,6 +8,23 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from run_pure_pipeline_postbuild_acceptance import build_commands  # noqa: E402
+from run_pure_pipeline_postbuild_acceptance import labels_from_report, target_state  # noqa: E402
+
+
+sample_report = {
+    "stage0_followup": {
+        "pure_label": "after_packet",
+        "baseline": {"label": "after_baseline"},
+    },
+    "targets": [
+        {"target": "sw_emu", "current_launch_packet_command": ""},
+        {"target": "hw_emu", "current_launch_packet_command": "packet_hwemu.sh"},
+    ],
+}
+
+assert labels_from_report(sample_report) == ("after_packet", "after_baseline")
+assert target_state(sample_report, "hw_emu")["current_launch_packet_command"] == "packet_hwemu.sh"
+assert target_state(sample_report, "hw") is None
 
 
 commands = build_commands(

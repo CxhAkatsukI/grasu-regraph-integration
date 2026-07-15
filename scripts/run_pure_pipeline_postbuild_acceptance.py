@@ -16,6 +16,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 from report_pure_pipeline_next_steps import (  # noqa: E402
     TARGET_TIMEOUTS,
@@ -30,12 +31,20 @@ def quote_cmd(command: list[str]) -> str:
     return " ".join(shlex.quote(part) for part in command)
 
 
+def target_state(report: dict[str, Any], target: str) -> dict[str, Any] | None:
+    for state in report.get("targets", []):
+        if state.get("target") == target:
+            return state
+    return None
+
+
+def labels_from_report(report: dict[str, Any]) -> tuple[str, str]:
+    followup = report["stage0_followup"]
+    return followup["pure_label"], followup["baseline"]["label"]
+
+
 def default_labels(repo: Path) -> tuple[str, str]:
-    report = make_report(repo)
-    return (
-        report["stage0_followup"]["pure_label"],
-        report["stage0_followup"]["baseline"]["label"],
-    )
+    return labels_from_report(make_report(repo))
 
 
 def build_commands(
@@ -108,11 +117,14 @@ def main() -> int:
         print("nothing to do: both --skip-postrun and --skip-matrix were set", file=sys.stderr)
         return 2
 
-    report_label, report_baseline_label = default_labels(repo)
+    report = make_report(repo)
+    report_label, report_baseline_label = labels_from_report(report)
     label = args.label or report_label
     baseline_label = args.baseline_label or report_baseline_label
     gate_timeout = args.gate_timeout or TARGET_TIMEOUTS[args.target]
     xclbin = target_xclbin(repo, args.target)
+    state = target_state(report, args.target) or {}
+    claim = state.get("claim_status", {})
 
     print(f"repo={repo}")
     print(f"target={args.target}")
@@ -120,6 +132,14 @@ def main() -> int:
     print(f"label={label}")
     print(f"baseline_label={baseline_label}")
     print(f"mode={args.mode}")
+    print(f"source_fingerprint_sha256={report.get('source_fingerprint_sha256', '')}")
+    if state.get("current_launch_packet_command"):
+        print(f"launch_command={state['current_launch_packet_command']}")
+    if claim:
+        print(f"build_claimable={'yes' if claim.get('build_claimable') else 'no'}")
+        print(f"build_missing={','.join(claim.get('build_missing') or []) or 'none'}")
+        print(f"gate_claimable={'yes' if claim.get('gate_claimable') else 'no'}")
+        print(f"gate_missing={','.join(claim.get('gate_missing') or []) or 'none'}")
 
     if not xclbin.is_file() and not (args.dry_run and args.allow_missing_xclbin):
         print(f"missing xclbin: {xclbin}", file=sys.stderr)
