@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from run_pure_pipeline_postbuild_acceptance import build_commands, claim_level_for  # noqa: E402
+from run_pure_pipeline_postbuild_acceptance import label_mismatch_detail  # noqa: E402
 from run_pure_pipeline_postbuild_acceptance import labels_from_report, target_state  # noqa: E402
 
 
@@ -18,13 +19,23 @@ sample_report = {
     },
     "targets": [
         {"target": "sw_emu", "current_launch_packet_command": ""},
-        {"target": "hw_emu", "current_launch_packet_command": "packet_hwemu.sh"},
+        {
+            "target": "hw_emu",
+            "current_launch_packet_command": "packet_hwemu.sh",
+            "current_launch_packet_flow_label": "after_packet",
+        },
     ],
 }
 
 assert labels_from_report(sample_report) == ("after_packet", "after_baseline")
 assert target_state(sample_report, "hw_emu")["current_launch_packet_command"] == "packet_hwemu.sh"
 assert target_state(sample_report, "hw") is None
+assert label_mismatch_detail("hw_emu", "after_packet", target_state(sample_report, "hw_emu")) == ""
+assert "requested_label=wrong" in label_mismatch_detail(
+    "hw_emu",
+    "wrong",
+    target_state(sample_report, "hw_emu"),
+)
 assert claim_level_for("gate", skip_matrix=False) == "gate"
 assert claim_level_for("full", skip_matrix=False) == "full"
 assert claim_level_for("gate", skip_matrix=True) == "build"

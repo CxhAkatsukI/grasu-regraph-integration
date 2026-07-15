@@ -26,6 +26,7 @@ command = build_acceptance_command(
     skip_matrix=False,
     skip_artifact_manifest=False,
     skip_claim_check=False,
+    allow_label_mismatch=False,
 )
 
 assert command == [
@@ -45,6 +46,7 @@ assert command == [
 ]
 assert "--skip-claim-check" not in command
 assert "--skip-artifact-manifest" not in command
+assert "--allow-label-mismatch" not in command
 
 command = build_acceptance_command(
     target="hw_emu",
@@ -58,6 +60,7 @@ command = build_acceptance_command(
     skip_matrix=False,
     skip_artifact_manifest=True,
     skip_claim_check=True,
+    allow_label_mismatch=True,
 )
 
 assert "--no-require-compare" in command
@@ -65,6 +68,7 @@ assert "--skip-postrun" in command
 assert "--skip-matrix" not in command
 assert "--skip-artifact-manifest" in command
 assert "--skip-claim-check" in command
+assert "--allow-label-mismatch" in command
 
 with tempfile.TemporaryDirectory() as tmp:
     missing = Path(tmp) / "missing.xclbin"

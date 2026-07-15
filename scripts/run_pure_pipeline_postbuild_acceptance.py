@@ -40,6 +40,16 @@ def target_state(report: dict[str, Any], target: str) -> dict[str, Any] | None:
     return None
 
 
+def label_mismatch_detail(target: str, label: str, state: dict[str, Any]) -> str:
+    current_label = state.get("current_launch_packet_flow_label") or ""
+    if current_label == label:
+        return ""
+    return (
+        f"target={target} requested_label={label} "
+        f"current_launch_packet_flow_label={current_label or 'none'}"
+    )
+
+
 def labels_from_report(report: dict[str, Any]) -> tuple[str, str]:
     followup = report["stage0_followup"]
     return followup["pure_label"], followup["baseline"]["label"]
@@ -143,6 +153,7 @@ def main() -> int:
     parser.add_argument("--skip-matrix", action="store_true")
     parser.add_argument("--skip-artifact-manifest", action="store_true")
     parser.add_argument("--skip-claim-check", action="store_true")
+    parser.add_argument("--allow-label-mismatch", action="store_true", help="Debug only: continue when --label does not match the target launch packet label.")
     parser.add_argument("--allow-missing-xclbin", action="store_true", help="Only useful with --dry-run.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -170,11 +181,31 @@ def main() -> int:
     print(f"source_fingerprint_sha256={report.get('source_fingerprint_sha256', '')}")
     if state.get("current_launch_packet_command"):
         print(f"launch_command={state['current_launch_packet_command']}")
+    if state.get("current_launch_packet_flow_label"):
+        print(f"current_launch_packet_flow_label={state['current_launch_packet_flow_label']}")
     if claim:
         print(f"build_claimable={'yes' if claim.get('build_claimable') else 'no'}")
         print(f"build_missing={','.join(claim.get('build_missing') or []) or 'none'}")
         print(f"gate_claimable={'yes' if claim.get('gate_claimable') else 'no'}")
         print(f"gate_missing={','.join(claim.get('gate_missing') or []) or 'none'}")
+
+    mismatch = label_mismatch_detail(args.target, label, state)
+    if mismatch:
+        print(f"label_mismatch={mismatch}")
+        if args.dry_run:
+            print("label_mismatch_action=warning_dry_run")
+        elif not args.allow_label_mismatch:
+            print(
+                "label mismatch: postbuild manifest and claim checks are keyed by the current launch packet label",
+                file=sys.stderr,
+            )
+            print(
+                "Regenerate the launch packet, use the report's label, or pass --allow-label-mismatch for debugging only.",
+                file=sys.stderr,
+            )
+            return 2
+        else:
+            print("label_mismatch_action=allowed_debug")
 
     if not xclbin.is_file() and not (args.dry_run and args.allow_missing_xclbin):
         print(f"missing xclbin: {xclbin}", file=sys.stderr)

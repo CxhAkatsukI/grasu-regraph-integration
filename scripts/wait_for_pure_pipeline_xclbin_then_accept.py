@@ -25,6 +25,7 @@ from report_pure_pipeline_next_steps import (  # noqa: E402
     repo_root_from_script,
     target_xclbin,
 )
+from run_pure_pipeline_postbuild_acceptance import label_mismatch_detail  # noqa: E402
 
 
 def quote_cmd(command: list[str]) -> str:
@@ -55,6 +56,7 @@ def build_acceptance_command(
     skip_matrix: bool,
     skip_artifact_manifest: bool,
     skip_claim_check: bool,
+    allow_label_mismatch: bool,
 ) -> list[str]:
     command = [
         "./scripts/run_pure_pipeline_postbuild_acceptance.py",
@@ -81,6 +83,8 @@ def build_acceptance_command(
         command.append("--skip-artifact-manifest")
     if skip_claim_check:
         command.append("--skip-claim-check")
+    if allow_label_mismatch:
+        command.append("--allow-label-mismatch")
     return command
 
 
@@ -142,6 +146,7 @@ def main() -> int:
     parser.add_argument("--skip-matrix", action="store_true")
     parser.add_argument("--skip-artifact-manifest", action="store_true")
     parser.add_argument("--skip-claim-check", action="store_true")
+    parser.add_argument("--allow-label-mismatch", action="store_true", help="Debug only: continue when --label does not match the target launch packet label.")
     parser.add_argument("--dry-run", action="store_true", help="Print the wait target and acceptance command without waiting.")
     args = parser.parse_args()
 
@@ -178,6 +183,7 @@ def main() -> int:
         args.skip_matrix,
         args.skip_artifact_manifest,
         args.skip_claim_check,
+        args.allow_label_mismatch,
     )
 
     print(f"repo={repo}")
@@ -190,11 +196,31 @@ def main() -> int:
     print(f"source_fingerprint_sha256={report.get('source_fingerprint_sha256', '')}")
     if launch_command:
         print(f"launch_command={launch_command}")
+    if state.get("current_launch_packet_flow_label"):
+        print(f"current_launch_packet_flow_label={state['current_launch_packet_flow_label']}")
     if claim:
         print(f"build_claimable={'yes' if claim.get('build_claimable') else 'no'}")
         print(f"build_missing={','.join(claim.get('build_missing') or []) or 'none'}")
         print(f"gate_claimable={'yes' if claim.get('gate_claimable') else 'no'}")
         print(f"gate_missing={','.join(claim.get('gate_missing') or []) or 'none'}")
+
+    mismatch = label_mismatch_detail(args.target, label, state)
+    if mismatch:
+        print(f"label_mismatch={mismatch}")
+        if args.dry_run:
+            print("label_mismatch_action=warning_dry_run")
+        elif not args.allow_label_mismatch:
+            print(
+                "label mismatch: postbuild manifest and claim checks are keyed by the current launch packet label",
+                file=sys.stderr,
+            )
+            print(
+                "Regenerate the launch packet, use the report's label, or pass --allow-label-mismatch for debugging only.",
+                file=sys.stderr,
+            )
+            return 2
+        else:
+            print("label_mismatch_action=allowed_debug")
 
     if args.dry_run:
         print("dry_run=yes")
