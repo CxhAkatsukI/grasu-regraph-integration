@@ -853,11 +853,91 @@ dry-run logs include source_fingerprint_sha256, launch_command, and claim-status
 git diff --check PASS
 ```
 
+## hw Retest Against Previous Conclusion Graphs
+
+After the `hw` xclbin became available, the previous conclusion graph set was
+retested with the new pure-pipeline hardware artifact.
+
+The full previous matrix cannot be reproduced one-to-one yet because this
+stage-0 pure pipeline supports `V <= 65536`; the older million-vertex and
+262K-vertex cases are outside the current contract. The tracked pure-stage0
+manifest covers 12 comparable cases up to 65,536 vertices.
+
+Command shape:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+XCL_DEVICE_INDEX=1 ./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode full \
+  --label hw_after_f1c6720_direct_chain_only \
+  --baseline-label after_64ba9c3 \
+  --xclbin /home/chuxiao/grasu-regraph-integration/.tmp_build/pure_pipeline_hw_stage0/build/grasu_regraph_pure_pipeline.hw.xclbin \
+  --require-compare \
+  --timeout 900 \
+  --case tiny_chain_v16,small_chain_v64,large_chain_v4096
+```
+
+No-update chain cases passed on real U55C hardware:
+
+```text
+case               status  mismatches  supersteps  grasu_ms  event_e2e_ms  wall_ms
+tiny_chain_v16     PASS    0           16          1.694     7.723         7.811
+small_chain_v64    PASS    0           64          1.753     25.402        25.496
+large_chain_v4096  PASS    0           4096        1.762     8540.718      8540.802
+```
+
+The subset comparison was generated successfully. The final acceptance-gate
+checker returned failure only because the run intentionally omitted non-chain
+families; those rows are reported as `missing pure pipeline`, not as
+correctness mismatches.
+
+The first update-bearing case was also attempted in the full previous-conclusion
+run:
+
+```text
+case: tiny_star_v16_u12
+target: hw
+device: XCL_DEVICE_INDEX=0
+updates: 12
+last observed line: PURE_PIPELINE_HOST stage=launch_grasu
+```
+
+The host did not reach `enqueue_barrier`, `enqueue_adapter`, or ReGraph. This
+matches the earlier `hw_emu` symptom for update-heavy cases, so the current
+evidence points to the GraSU update/PMA-writer launch path in the integrated
+pure pipeline. No update-family hardware correctness claim is made yet.
+
+Evidence paths:
+
+```text
+results/pure_pipeline_hw_pure_stage0_full_hw_after_f1c6720_direct_chain_only/summary.tsv
+results/pure_pipeline_hw_pure_stage0_identity_full_hw_after_f1c6720_direct_chain_only/input_identity_check.tsv
+results/pure_pipeline_hw_pure_stage0_compare_hw_after_f1c6720_direct_chain_only/comparison.tsv
+results/pure_pipeline_hw_pure_stage0_compare_hw_after_f1c6720_direct_chain_only/acceptance_check_stage0_full.tsv
+results/pure_pipeline_hw_pure_stage0_full_hw_after_f1c6720_direct_prev_conclusions/tiny_star_v16_u12.log
+results/pure_pipeline_hw_pure_stage0_full_hw_after_f1c6720_direct_prev_conclusions/tiny_star_v16_u12/case.env
+```
+
+Important evidence hashes:
+
+```text
+807affa3854033719d916b558b2c4be85e69d4a9920839bc5fd141fa2132bf77  chain summary.tsv
+78510ccb7be15dfdb0954037888ef30c7fd8f2a390afc096030309e5e4de8b35  chain comparison.tsv
+a724bd1c59ceb82c5725164d6cbe46b78d096874d27ca4a53bc9785c5e054067  chain input_identity_check.tsv
+a7f5f3a3cb090e63ab2862b8df7c756c50cd0a6769ebb346975a316c56eebcf4  tiny_star_v16_u12.log
+45d7dca7c8f1dda61673941ad68219643aa549b6721f9b17f54f169474b4793d  tiny_star_v16_u12/case.env
+```
+
 ## Interpretation
 
-The repository still has a proven `sw_emu` stage-0 correctness artifact, but
-that artifact predates the latest report/claim-script source fingerprint and is
-kept as historical control-flow evidence. The current build-relevant source has
-fresh launch packets for `hw_emu` and `hw`. It does not yet have evidence for a
-successful pure-pipeline `hw_emu` or real U55C `hw` build. Therefore the
-hardware pipeline goal remains active and incomplete.
+The repository now has successful `sw_emu`, `hw_emu` build, and real U55C `hw`
+build artifacts. The new real `hw` xclbin also proves the no-update chain path
+end-to-end on three chain scales, including `large_chain_v4096`.
+
+The remaining blocker is the integrated update path: the first update-bearing
+case (`tiny_star_v16_u12`) stalls before the completion barrier and before
+Adapter/ReGraph. The next debugging step should instrument the GraSU launch
+sequence around the four PMA writers, `dispatch`, and `bin_search` enqueue
+calls, then isolate which CU or stream prevents update batches from completing
+in `hw`/`hw_emu`.
