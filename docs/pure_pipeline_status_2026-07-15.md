@@ -7,8 +7,8 @@ Status command input tree, before this documentation-only update:
 ```text
 /home/chuxiao/grasu-regraph-integration
 branch: codex/pure-hw-pipeline
-head: a8d976460110fbb9e1e1c6555a82b047141c51f6
-source_fingerprint_sha256: 920c94b98b8ac1f3aa2b45b1b3ed8b52e0ea8cbf9d0dcacc12aa636cc1e1be56
+head: 79d2063d527529d363836e6bb8caa8a7f2525d13
+source_fingerprint_sha256: 27183414da3124c97cb184cd35fa51bf2b440ccd2eaaa7773b64d98a239cd5f9
 dirty: false
 ```
 
@@ -25,7 +25,8 @@ claim-status report commit: ff4ea014dc2447814ff071a4ad0fc5eef5852b0a
 postbuild-context commit: d5302c466db75c9b38c3ee77f5b8c830840c8ecd
 claim-checker commit: 349c191640a84992d92fa36f63ad785021f4bf31
 postbuild-claim-chain commit: a8d976460110fbb9e1e1c6555a82b047141c51f6
-source_fingerprint_sha256: 920c94b98b8ac1f3aa2b45b1b3ed8b52e0ea8cbf9d0dcacc12aa636cc1e1be56
+next-step-claim-wording commit: 79d2063d527529d363836e6bb8caa8a7f2525d13
+source_fingerprint_sha256: 27183414da3124c97cb184cd35fa51bf2b440ccd2eaaa7773b64d98a239cd5f9
 new helper: scripts/wait_for_pure_pipeline_xclbin_then_accept.py
 new helper: scripts/check_pure_pipeline_claim.py
 report block: postbuild_wait
@@ -205,7 +206,7 @@ The next required long command is the current `hw_emu` launch packet:
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
-.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_a8d9764/launch_command.sh
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_79d2063/launch_command.sh
 ```
 
 The launch packet matches the current build-relevant source fingerprints. It
@@ -218,32 +219,32 @@ The packets were regenerated with:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/create_pure_pipeline_launch_packet.sh \
   --target hw_emu \
-  --flow-label after_a8d9764 \
+  --flow-label after_79d2063 \
   --allow-active-builders
 ./scripts/create_pure_pipeline_launch_packet.sh \
   --target hw \
-  --flow-label after_a8d9764 \
+  --flow-label after_79d2063 \
   --allow-active-builders
 ```
 
 Current launch-packet hashes:
 
 ```text
-hw_emu launch_command.sh:            809efff7eafcf7f1e17172bbe5d78fa46e9e8be6998c7b9f05b7b89fe4702ac1
+hw_emu launch_command.sh:            fa8a742d1cfa423216607f761f25e3fcaf27b32d9774aabd715e59915206d46e
 hw_emu source_contracts.tsv:         fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac
-hw_emu source_fingerprints.tsv:      11d8c49bab09e97abba9aef4b5ebad120274379ff36a775c728c48616b7f7246
-hw_emu readiness_hw_emu.txt:         46ca5774588ed02600afa462d6e3181648dd747de0eb91db80a91681d0e9f1b8
-hw_emu acceptance_check_prelaunch:   672174f188d3264998a8bef835808290d0cd023b195fa30eb426ed6e45f521b6
-hw_emu packet audit:                 16a3d8c442888e22fcc2d160278a6259fd0bb57238f3fc2f9487172ac22abbd5
-hw_emu packet evidence bundle:       372018176eb3d859ce2a01c6aa1085b5f6f06493d51c861d0adf5810ad6af2ee
+hw_emu source_fingerprints.tsv:      6f6b2151594bd1389f605a84e1401562a10558498d53f40690152f3285f14a7f
+hw_emu readiness_hw_emu.txt:         ee676aad8c1c79b1e72646ef78c32dfcdf0e533e21b5e676ff4f4d7f2e4453e5
+hw_emu acceptance_check_prelaunch:   db3579fccf8b24e9b3da8cfc94d5f30bc37b1bb114e0636a0d5ca5a10ed803be
+hw_emu packet audit:                 96f1dab6f82435ea04d11ae32547f9b9262b77a6045ae81a92633c60bd18e5a0
+hw_emu packet evidence bundle:       5fb104e51bada84df8a43fd881fe1dcee5702bc5546069e24b5c13e84b37104c
 
-hw launch_command.sh:                c5c3e713b83fb0e856ab04eec540f3065d401064d1aa24b9322fd5c20dec4d52
+hw launch_command.sh:                afc310fd97faa4918c74ddc379465e1aa8d04bcba386bed1edc7bf9dfccfeab9
 hw source_contracts.tsv:             fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac
-hw source_fingerprints.tsv:          11d8c49bab09e97abba9aef4b5ebad120274379ff36a775c728c48616b7f7246
-hw readiness_hw.txt:                 21e392eabbe78fd0597f6475a27a2a14d47c7ed4b7cea407dbeb0d005f45955a
-hw acceptance_check_prelaunch:       66fe254fa2a0abe740c448a3ae9ca1b7a398269183c033fc6939a3209a4e0b9e
-hw packet audit:                     d662a9c6dfe4aa78d3d238b21023ec0cbaf6ca9a4e82a9d37aacba6760078532
-hw packet evidence bundle:           4421af3d26bc7215229b1f7b9480997b840bd0d932b9cfbbfb638e8b555bc86e
+hw source_fingerprints.tsv:          6f6b2151594bd1389f605a84e1401562a10558498d53f40690152f3285f14a7f
+hw readiness_hw.txt:                 542bbe44ad8f236afe1b044432d23849df84ecd9884ebe26735c8932c8c8b8e8
+hw acceptance_check_prelaunch:       b878a6fc4ff2570963b2a2439dca0b0eb251b70dfeb137de43e997765c680e70
+hw packet audit:                     ebcea19cc1952e9996b59bd1b3319f4701e6676b8559443d1fd2a5651ce449eb
+hw packet evidence bundle:           53648b67e9d042ded030a6fd18a21944cd438a035901c2db4049687cdb97181e
 ```
 
 Because external Vitis/Vivado builders are active, these packets were generated
@@ -258,7 +259,7 @@ claim validation for the requested proof level:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_postbuild_acceptance.py \
   --target hw_emu \
-  --label after_a8d9764 \
+  --label after_79d2063 \
   --baseline-label after_64ba9c3 \
   --mode gate
 ```
@@ -271,13 +272,13 @@ sequence. It does not launch Vitis:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py \
   --target hw_emu \
-  --label after_a8d9764 \
+  --label after_79d2063 \
   --baseline-label after_64ba9c3 \
   --mode gate
 
 ./scripts/wait_for_pure_pipeline_xclbin_then_accept.py \
   --target hw \
-  --label after_a8d9764 \
+  --label after_79d2063 \
   --baseline-label after_64ba9c3 \
   --mode gate
 ```
@@ -288,14 +289,14 @@ Equivalent low-level postrun validation commands:
 cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw_emu \
-  --label postrun_after_a8d9764 \
+  --label postrun_after_79d2063 \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 900
 
 ./scripts/run_pure_pipeline_target_flow.sh \
   --target hw \
-  --label postrun_after_a8d9764 \
+  --label postrun_after_79d2063 \
   --skip-build \
   --gate-case tiny_star_v16_u12 \
   --gate-timeout 300
@@ -308,7 +309,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw_emu \
   --mode gate \
-  --label after_a8d9764 \
+  --label after_79d2063 \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -320,7 +321,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw \
   --mode gate \
-  --label after_a8d9764 \
+  --label after_79d2063 \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
@@ -332,7 +333,7 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/run_pure_stage0_postbuild_matrix.sh \
   --target hw \
   --mode full \
-  --label after_a8d9764 \
+  --label after_79d2063 \
   --baseline-label after_64ba9c3 \
   --require-compare
 ```
