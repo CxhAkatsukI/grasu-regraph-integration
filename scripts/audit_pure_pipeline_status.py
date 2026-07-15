@@ -1458,6 +1458,35 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             targets[target]["stage0_full_identity_artifact"],
         ])
 
+    counts = status_counts(requirements)
+    completion_summary = {
+        "all_requirements_proven": bool(requirements)
+        and all(req["status"] == "proven" for req in requirements),
+        "requirement_count": len(requirements),
+        "status_counts": counts,
+        "missing_xclbin_targets": [
+            target
+            for target in TARGETS
+            if not targets[target]["xclbin"]["exists"]
+        ],
+        "missing_stage0_gate_targets": [
+            target
+            for target in TARGETS
+            if not (
+                targets[target]["stage0_gate_summary"]["all_expected_pass"]
+                and targets[target]["stage0_gate_identity"]["all_checks_pass"]
+            )
+        ],
+        "missing_stage0_full_targets": [
+            target
+            for target in TARGETS
+            if not (
+                targets[target]["stage0_full_summary"]["all_expected_pass"]
+                and targets[target]["stage0_full_identity"]["all_checks_pass"]
+            )
+        ],
+    }
+
     return {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "label": label,
@@ -1468,6 +1497,8 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             "short_head": git_short,
             "dirty": dirty,
         },
+        "status_counts": counts,
+        "completion_summary": completion_summary,
         "targets": targets,
         "source_proofs": proofs,
         "baselines": {
