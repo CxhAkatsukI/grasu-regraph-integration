@@ -51,10 +51,12 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/report_pure_pipeline_next_steps.py
 ```
 
-The report has three command sections:
+The report has four command sections:
 
 ```text
 next_commands       immediate build or postrun action
+postbuild_acceptance
+                    guarded wrapper commands to run after a target xclbin exists
 postrun_followup    skip-build validation to run after a manually produced xclbin exists
 stage0_followup     same-input stage0 matrix commands after postrun acceptance passes
 ```

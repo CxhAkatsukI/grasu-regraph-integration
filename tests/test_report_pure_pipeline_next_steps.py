@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from report_pure_pipeline_next_steps import (  # noqa: E402
+    postbuild_acceptance_commands,
     postrun_evidence_label,
     postrun_followup_commands,
     stage0_followup_commands,
@@ -34,5 +35,19 @@ assert "--mode gate" in stage0[0]["command"]
 assert "--baseline-label after_baseline" in stage0[0]["command"]
 assert "--target hw" in stage0[2]["command"]
 assert "--mode full" in stage0[2]["command"]
+
+postbuild = postbuild_acceptance_commands("after_pure", "after_baseline")
+assert [item["name"] for item in postbuild] == [
+    "hw_emu_postbuild_acceptance",
+    "hw_postbuild_acceptance_gate",
+    "hw_postbuild_acceptance_full",
+]
+assert "run_pure_pipeline_postbuild_acceptance.py" in postbuild[0]["command"]
+assert "--target hw_emu" in postbuild[0]["command"]
+assert "--label after_pure" in postbuild[0]["command"]
+assert "--baseline-label after_baseline" in postbuild[0]["command"]
+assert "--mode gate" in postbuild[0]["command"]
+assert "--target hw" in postbuild[2]["command"]
+assert "--mode full" in postbuild[2]["command"]
 
 print("test_report_pure_pipeline_next_steps PASS")

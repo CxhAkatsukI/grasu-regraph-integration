@@ -209,10 +209,12 @@ xclbins, active Vitis/Vivado builders, and the next target-flow command:
 ./scripts/report_pure_pipeline_next_steps.py
 ```
 
-The report prints three command blocks:
+The report prints four command blocks:
 
 ```text
 next_commands       What should run next right now.
+postbuild_acceptance
+                    Guarded post-build wrapper commands once a target xclbin appears.
 postrun_followup    What to run if a manually built xclbin appears.
 stage0_followup     Same-input matrix commands after postrun acceptance passes.
 ```
@@ -265,10 +267,11 @@ launch packet, add `--allow-active-builders` to the packet command. The generate
 target-flow command still keeps the wait-idle guard before launching Vitis.
 
 If a long build was run manually and produced the expected xclbin, use the
-`postrun_followup` command from `report_pure_pipeline_next_steps.py` before the
-stage0 matrix. That `--skip-build` flow reuses the existing xclbin and reruns
-smoke correctness, same-input comparison, requirement audit, evidence-bundle
-export, and postrun acceptance gates.
+`postbuild_acceptance` command from `report_pure_pipeline_next_steps.py`. That
+guarded wrapper first runs the `--skip-build` postrun flow, then launches the
+same-input stage0 matrix. The low-level `postrun_followup` and
+`stage0_followup` blocks remain available when the two phases need to be run or
+debugged separately.
 
 The same post-build sequence can be launched through a guarded wrapper. It
 fails before running anything if the target xclbin is still missing:

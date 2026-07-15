@@ -596,6 +596,33 @@ def stage0_followup_commands(label: str, baseline_label: str) -> list[dict[str, 
     ]
 
 
+def postbuild_acceptance_command(target: str, mode: str, label: str, baseline_label: str) -> str:
+    return (
+        f"./scripts/run_pure_pipeline_postbuild_acceptance.py --target {target} "
+        f"--label {label} --baseline-label {baseline_label} --mode {mode}"
+    )
+
+
+def postbuild_acceptance_commands(label: str, baseline_label: str) -> list[dict[str, str]]:
+    return [
+        {
+            "name": "hw_emu_postbuild_acceptance",
+            "when": "after hw_emu xclbin exists; runs skip-build postrun validation then gate matrix",
+            "command": postbuild_acceptance_command("hw_emu", "gate", label, baseline_label),
+        },
+        {
+            "name": "hw_postbuild_acceptance_gate",
+            "when": "after hw xclbin exists; runs skip-build postrun validation then gate matrix",
+            "command": postbuild_acceptance_command("hw", "gate", label, baseline_label),
+        },
+        {
+            "name": "hw_postbuild_acceptance_full",
+            "when": "after hw gate passes; runs skip-build postrun validation then full matrix",
+            "command": postbuild_acceptance_command("hw", "full", label, baseline_label),
+        },
+    ]
+
+
 def stage0_label_from_packets(
     states: list[dict[str, Any]],
     git_short: str,
@@ -666,6 +693,7 @@ def make_report(repo: Path) -> dict[str, Any]:
         "next_launch_packet_command": next_launch_packet_command,
         "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
+        "postbuild_acceptance": postbuild_acceptance_commands(stage0_label, stage0_baseline_label),
         "postrun_followup": postrun_followup,
         "stage0_followup": {
             "pure_label": stage0_label,
@@ -745,6 +773,10 @@ def print_text(report: dict[str, Any]) -> None:
     print("next_commands")
     for command in report["next_commands"]:
         print(command)
+    print()
+    print("postbuild_acceptance")
+    for item in report["postbuild_acceptance"]:
+        print(f"{item['name']}\twhen={item['when']}\tcommand={item['command']}")
     print()
     print("postrun_followup")
     for item in report["postrun_followup"]:
