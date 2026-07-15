@@ -13,6 +13,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from report_pure_pipeline_next_steps import make_report as make_next_step_report
+
 
 EXPECTED_CASES = {
     "tiny_chain_v16": "chain",
@@ -1192,6 +1194,17 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     dirty = bool(run_git(repo, ["status", "--short"]))
 
     targets = {target: target_state(repo, target) for target in TARGETS}
+    next_step_report = make_next_step_report(repo)
+    next_step_targets = {
+        state["target"]: state
+        for state in next_step_report.get("targets", [])
+    }
+    for target in TARGETS:
+        report_target = next_step_targets.get(target, {})
+        targets[target]["claim_status"] = report_target.get("claim_status", {})
+        targets[target]["artifact_manifests"] = report_target.get("artifact_manifests", {})
+        targets[target]["current_launch_packet"] = report_target.get("current_launch_packet")
+        targets[target]["current_launch_packet_flow_label"] = report_target.get("current_launch_packet_flow_label")
     proofs = source_proofs(repo)
 
     host_path = repo / "results/grasu_regraph_smoke_device_export_combined_hw_stage1/summary.tsv"
@@ -1245,6 +1258,15 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     source_timing = proofs["timing_fields"]["ok"]
     source_target_flow_bundle = proofs["target_flow_exports_evidence_bundle"]["ok"]
     source_target_flow_acceptance = proofs["target_flow_runs_acceptance_gates"]["ok"]
+
+    missing_manifest_claims = []
+    for target in ("hw_emu", "hw"):
+        claim = targets[target].get("claim_status", {})
+        for level in ("build", "gate", "full"):
+            missing_key = f"artifact_manifest_{level}"
+            if missing_key in claim.get(f"{level}_missing", []):
+                missing_manifest_claims.append(f"{target}:{level}")
+    hardware_manifest_claims_complete = not missing_manifest_claims
 
     baseline_ok = stage0_baseline["all_expected_pass"]
     max_vertices_seen = max(
@@ -1382,7 +1404,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         requirement(
             10,
             "Build commands, source hash, xclbin hash, logs, and results are reproducible",
-            "proven" if all_targets_valid and source_target_flow_bundle and source_target_flow_acceptance else "partial",
+            "proven" if all_targets_valid and source_target_flow_bundle and source_target_flow_acceptance and hardware_manifest_claims_complete else "partial",
             [
                 f"git_head={git_head}",
                 targets["hw_emu"]["compile_commands"]["path"],
@@ -1391,15 +1413,17 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
                 targets["hw"]["link_command"]["path"],
                 proofs["target_flow_exports_evidence_bundle"]["contract"],
                 proofs["target_flow_runs_acceptance_gates"]["contract"],
+                "missing_artifact_manifest_claims=" + ",".join(missing_manifest_claims),
                 "scripts/run_pure_stage0_postbuild_matrix.sh",
             ],
             (
                 []
-                if all_targets_valid and source_target_flow_bundle and source_target_flow_acceptance else
+                if all_targets_valid and source_target_flow_bundle and source_target_flow_acceptance and hardware_manifest_claims_complete else
                 [
                     gap for gap in [
                         None if source_target_flow_bundle else "target-flow evidence bundle export proof is missing",
                         None if source_target_flow_acceptance else "target-flow acceptance gate proof is missing",
+                        None if hardware_manifest_claims_complete else "hardware artifact manifests missing for " + ",".join(missing_manifest_claims),
                         None if all_targets_valid else "hw_emu/hw xclbin hashes, full build logs, and final smoke results are missing",
                     ]
                     if gap is not None
@@ -1445,6 +1469,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         artifact(repo, "latest_hw_finalize_evidence", newest_glob(repo, ".tmp_build/pure_pipeline_hw_stage0/run_logs/finalize_*_evidence.tsv")),
     ]
     for target in TARGETS:
+        artifact_manifests = targets[target].get("artifact_manifests", {})
         artifacts.extend([
             targets[target]["xclbin"],
             targets[target]["manifest"],
@@ -1457,6 +1482,11 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             targets[target]["stage0_full_summary_artifact"],
             targets[target]["stage0_full_identity_artifact"],
         ])
+        for level in ("build", "gate", "full"):
+            manifest = artifact_manifests.get(level, {})
+            manifest_path = manifest.get("path")
+            path = repo / manifest_path if manifest_path and manifest_path != "MISSING" else None
+            artifacts.append(artifact(repo, f"pure_{target}_artifact_manifest_{level}", path))
 
     counts = status_counts(requirements)
     completion_summary = {
@@ -1485,6 +1515,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
                 and targets[target]["stage0_full_identity"]["all_checks_pass"]
             )
         ],
+        "missing_artifact_manifest_claims": missing_manifest_claims,
     }
 
     return {
@@ -1499,6 +1530,13 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         },
         "status_counts": counts,
         "completion_summary": completion_summary,
+        "claim_report": {
+            "head": next_step_report.get("head"),
+            "source_fingerprint_sha256": next_step_report.get("source_fingerprint_sha256"),
+            "dirty": next_step_report.get("dirty"),
+            "completion_claim": next_step_report.get("completion_claim"),
+            "next_launch_packet_command": next_step_report.get("next_launch_packet_command"),
+        },
         "targets": targets,
         "source_proofs": proofs,
         "baselines": {
@@ -1566,10 +1604,18 @@ def write_markdown(repo: Path, path: Path, audit: dict[str, Any]) -> None:
         summary = state["smoke_summary"]
         stage0_gate = state["stage0_gate_summary"]
         stage0_full = state["stage0_full_summary"]
+        claim = state.get("claim_status", {})
+        manifest_label = ",".join(
+            f"{level}:{state.get('artifact_manifests', {}).get(level, {}).get('status', 'missing')}"
+            for level in ("build", "gate", "full")
+        )
         target_rows.append([
             target,
             "yes" if state["xclbin"]["exists"] else "no",
             state["xclbin"]["sha256"] or "",
+            "yes" if claim.get("gate_claimable") else "no",
+            "yes" if claim.get("full_claimable") else "no",
+            manifest_label,
             "yes" if summary["all_expected_pass"] else "no",
             summary["path"],
             "yes" if stage0_gate["all_expected_pass"] else "no",
@@ -1639,6 +1685,9 @@ def write_markdown(repo: Path, path: Path, audit: dict[str, Any]) -> None:
                 "target",
                 "xclbin_exists",
                 "xclbin_sha256",
+                "gate_claim",
+                "full_claim",
+                "artifact_manifests",
                 "smoke_pass",
                 "smoke_summary",
                 "stage0_gate_pass",
