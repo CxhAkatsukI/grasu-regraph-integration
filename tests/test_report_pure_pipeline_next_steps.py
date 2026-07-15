@@ -54,6 +54,9 @@ assert "--baseline-label after_baseline" in postbuild[0]["command"]
 assert "--mode gate" in postbuild[0]["command"]
 assert "--target hw" in postbuild[2]["command"]
 assert "--mode full" in postbuild[2]["command"]
+assert "gate claim check" in postbuild[0]["when"]
+assert "gate claim check" in postbuild[1]["when"]
+assert "full claim check" in postbuild[2]["when"]
 
 postbuild_wait = postbuild_wait_commands("after_pure", "after_baseline")
 assert [item["name"] for item in postbuild_wait] == [
@@ -68,6 +71,9 @@ assert "--baseline-label after_baseline" in postbuild_wait[0]["command"]
 assert "--mode gate" in postbuild_wait[0]["command"]
 assert "--target hw" in postbuild_wait[2]["command"]
 assert "--mode full" in postbuild_wait[2]["command"]
+assert "claim check" in postbuild_wait[0]["when"]
+assert "claim check" in postbuild_wait[1]["when"]
+assert "claim check" in postbuild_wait[2]["when"]
 
 with TemporaryDirectory() as tmp:
     repo = Path(tmp)
