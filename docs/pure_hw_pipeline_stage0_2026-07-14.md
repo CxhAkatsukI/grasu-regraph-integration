@@ -9830,3 +9830,83 @@ cd /home/chuxiao/grasu-regraph-integration
 ```
 
 The pure `hw_emu` and `hw` xclbins are still missing as of this packet refresh.
+
+## SW_EMU Stage0 Gate Evidence
+
+The existing `sw_emu` xclbin was used to run the four required `pure_stage0`
+gate families with the same-input baseline fixed to `after_64ba9c3`:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target sw_emu \
+  --mode gate \
+  --label after_e13621d \
+  --baseline-label after_64ba9c3 \
+  --require-compare
+```
+
+Result:
+
+```text
+pure sw_emu gate rows: 4, statuses=PASS, mismatches=0
+identity audit:        checks=80, failures=0
+comparison:            generated against after_64ba9c3 host/Spine baseline
+```
+
+Artifact hashes:
+
+```text
+fd4a690c32bf7fc6d5f0c1264c575b79157f63ddfe21d65abe063749e5a0940b  results/pure_stage0_comparison_plan_after_e13621d/input_identity.tsv
+a7992b7ca77f8bfe753a873da19eca347a6abf1c61c117680b752bcdc5dfa724  results/pure_stage0_comparison_plan_after_e13621d/comparison_plan.tsv
+e92daff60e189539af520bf673f2a7fb74da5824da3a825818c00b7b340eb613  results/pure_stage0_comparison_plan_after_e13621d/run.env
+b625742abc4d465d8431261eb5d3965d21559f8df02075e1c139ba3fb124d8a9  results/pure_pipeline_sw_emu_pure_stage0_gate_after_e13621d/summary.tsv
+67efb3da4e6814871c13e89b2bc5ead0b4e4ea25d691bff80966f981675b35ab  results/pure_pipeline_sw_emu_pure_stage0_gate_after_e13621d/run.env
+35f3490d4d670788ccc45100b551345f00f6a350618278b60990165edec55d3d  results/pure_pipeline_sw_emu_pure_stage0_gate_after_e13621d/postbuild_matrix.env
+2dfdd7f0d701c065397e24818145f80c9d750c10361e3015e16a148cd7ba042b  results/pure_pipeline_sw_emu_pure_stage0_identity_gate_after_e13621d/input_identity_check.tsv
+1fd893d49d01a6a256461fb48613b4bb063b64da732c3d56984f5d251d459672  results/pure_pipeline_sw_emu_pure_stage0_compare_after_e13621d/comparison.tsv
+44ffb76c6467785e331ed6da593d4c6fb5c8706305e483662c55c19149496140  results/pure_pipeline_sw_emu_pure_stage0_compare_after_e13621d/comparison.md
+```
+
+Gate timing rows:
+
+```text
+case                    family           V   edges  supersteps  event_e2e_ms  grasu_ms  barrier_ms  adapter_ms  lksg_ms   apply_ms
+tiny_chain_v16          chain            16  15     16          5975.828253   3.460622  0.227686    60.532314   3706.904  5918.815
+tiny_star_v16_u12       hot-source       16  28     2           831.583868    2.465402  0.278639    3.320487    538.526   827.566
+tiny_spread_v16_u8      spread           16  24     16          6441.314974   4.609556  0.374951    51.456309   4164.803  6400.012
+tiny_hotdst_v64_u32     hot-destination  64  95     16          6133.674798   3.451302  0.222067    133.476062  3879.306  6082.944
+```
+
+Requirement audit and bundle after this gate:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/audit_pure_pipeline_status.py \
+  --label after_e13621d_swemu_gate \
+  --out-dir results/pure_pipeline_requirement_audit_after_e13621d_swemu_gate
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_after_e13621d_swemu_gate/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_after_e13621d_swemu_gate
+```
+
+Hashes:
+
+```text
+764aedb4a8ff0ff6adee51a9c3a1222cf7430ddde73c6d3a9639c9cc0dca740c  results/pure_pipeline_requirement_audit_after_e13621d_swemu_gate/audit.json
+00addb72903662c2191dc4e8980c2a613c3e0176a6c2935781830c323c8d32b4  results/pure_pipeline_requirement_audit_after_e13621d_swemu_gate/audit.md
+78dfc2fdbeb7f2f5027ca491bac289653e53ed049ba49b37761aeba13c960d3a  results/pure_pipeline_evidence_bundle_after_e13621d_swemu_gate/summary.md
+de4bc3a085d5aa3c20b8860b4c90cac11e1d6b50a4d957084b52bef4df1ea67f  results/pure_pipeline_evidence_bundle_after_e13621d_swemu_gate/bundle_manifest.json
+```
+
+The refreshed bundle now records:
+
+```text
+sw_emu: xclbin=yes, smoke_pass=yes, stage0_gate_pass=yes, stage0_gate_identity_pass=yes
+hw_emu: xclbin=no
+hw:     xclbin=no
+requirement status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+```
+
+This strengthens the `sw_emu` correctness evidence only. It is not hardware
+performance evidence, and the `hw_emu` / `hw` xclbin gap remains open.
