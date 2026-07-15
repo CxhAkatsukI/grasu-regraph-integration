@@ -34,6 +34,7 @@ DEFAULT_REQUIRED_PROOFS = (
     "target_flow_runs_acceptance_gates",
     "launch_packet_records_acceptance_gates",
     "acceptance_gate_checker_covers_required_outputs",
+    "postbuild_label_guard",
 )
 
 

@@ -931,6 +931,31 @@ def acceptance_gate_checker_covers_required_outputs(repo: Path) -> dict[str, Any
     }
 
 
+def postbuild_label_guard(repo: Path) -> dict[str, Any]:
+    postbuild = repo / "scripts/run_pure_pipeline_postbuild_acceptance.py"
+    wait_helper = repo / "scripts/wait_for_pure_pipeline_xclbin_then_accept.py"
+    return {
+        "ok": source_contains(postbuild, [
+            "def label_mismatch_detail",
+            "current_launch_packet_flow_label",
+            "--allow-label-mismatch",
+            "label mismatch: postbuild manifest and claim checks are keyed by the current launch packet label",
+            "label_mismatch_action=warning_dry_run",
+            "label_mismatch_action=allowed_debug",
+            "return 2",
+        ]) and source_contains(wait_helper, [
+            "from run_pure_pipeline_postbuild_acceptance import label_mismatch_detail",
+            "--allow-label-mismatch",
+            "label mismatch: postbuild manifest and claim checks are keyed by the current launch packet label",
+            "label_mismatch_action=warning_dry_run",
+            "label_mismatch_action=allowed_debug",
+            "return 2",
+        ]),
+        "paths": [display_path(repo, postbuild), display_path(repo, wait_helper)],
+        "contract": "postbuild acceptance and wait helpers fail real runs when --label does not match the target's current launch packet label; dry-run only warns",
+    }
+
+
 def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
     host = repo / "tools/pure_pipeline_host.cpp"
     adapter = repo / "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
@@ -1124,6 +1149,7 @@ def source_proofs(repo: Path) -> dict[str, dict[str, Any]]:
         "target_flow_runs_acceptance_gates": target_flow_runs_acceptance_gates(repo),
         "launch_packet_records_acceptance_gates": launch_packet_records_acceptance_gates(repo),
         "acceptance_gate_checker_covers_required_outputs": acceptance_gate_checker_covers_required_outputs(repo),
+        "postbuild_label_guard": postbuild_label_guard(repo),
     }
 
 
