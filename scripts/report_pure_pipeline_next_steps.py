@@ -300,6 +300,137 @@ def artifact_manifest_path(repo: Path, target: str, level: str, label: str | Non
     )
 
 
+def path_from_manifest(repo: Path, text: str | None) -> Path | None:
+    if not text or text == "MISSING":
+        return None
+    path = Path(text)
+    return path if path.is_absolute() else repo / path
+
+
+def required_manifest_keys(level: str) -> set[tuple[str, str]]:
+    build_keys = {
+        ("target", "xclbin"),
+        ("target", "xclbin_info"),
+        ("launch_packet", "launch_packet_env"),
+        ("launch_packet", "launch_command"),
+        ("launch_packet", "source_contracts"),
+        ("launch_packet", "source_fingerprints"),
+        ("launch_packet", "readiness"),
+        ("launch_packet", "acceptance_gates"),
+        ("launch_packet", "acceptance_check_prelaunch"),
+        ("launch_packet", "postbuild_acceptance_gate"),
+        ("launch_packet", "wait_then_accept_gate"),
+        ("launch_packet", "postbuild_acceptance_full"),
+        ("launch_packet", "wait_then_accept_full"),
+        ("build_scripts", "manifest_env"),
+        ("build_scripts", "compile_commands"),
+        ("build_scripts", "link_command"),
+        ("postrun", "target_flow_env"),
+        ("postrun", "source_contracts"),
+        ("postrun", "source_fingerprints"),
+        ("postrun", "readiness"),
+        ("postrun", "xclbin_contract"),
+        ("postrun", "finalize_env"),
+        ("postrun", "finalize_evidence"),
+        ("postrun", "acceptance_check_postrun"),
+        ("postrun", "smoke_summary"),
+        ("postrun", "same_input_comparison"),
+        ("postrun", "requirement_audit"),
+        ("postrun", "evidence_bundle_manifest"),
+    }
+    stage0_keys = {
+        ("baseline", "comparison_plan"),
+        ("baseline", "input_identity_plan"),
+        ("baseline", "host_summary"),
+        ("baseline", "host_identity"),
+        ("baseline", "spine_summary"),
+        ("stage0", "postbuild_env"),
+        ("stage0", "summary"),
+        ("stage0", "input_identity"),
+        ("stage0", "comparison"),
+    }
+    return build_keys | (stage0_keys if level in {"gate", "full"} else set())
+
+
+def artifact_manifest_integrity_issues(
+    repo: Path,
+    target: str,
+    level: str,
+    label: str | None,
+    rows: list[dict[str, str]],
+) -> list[str]:
+    issues: list[str] = []
+    row_keys = {(row.get("category", ""), row.get("name", "")) for row in rows}
+    for category, name in sorted(required_manifest_keys(level) - row_keys):
+        issues.append(f"manifest_missing_row:{category}:{name}")
+
+    for row in rows:
+        category = row.get("category", "")
+        name = row.get("name", "")
+        row_id = f"{category}:{name}"
+        path = path_from_manifest(repo, row.get("path"))
+        row_exists = row.get("exists")
+        if row_exists == "yes":
+            if path is None or not path.is_file():
+                issues.append(f"presence_mismatch:{row_id}")
+                continue
+            recorded_sha = row.get("sha256", "")
+            if not recorded_sha:
+                issues.append(f"missing_sha256:{row_id}")
+            elif sha256(path) != recorded_sha:
+                issues.append(f"sha256_mismatch:{row_id}")
+            recorded_size = row.get("size_bytes", "")
+            if recorded_size:
+                try:
+                    if path.stat().st_size != int(recorded_size):
+                        issues.append(f"size_mismatch:{row_id}")
+                except ValueError:
+                    issues.append(f"bad_size:{row_id}")
+
+    xclbin_row = next(
+        (row for row in rows if row.get("category") == "target" and row.get("name") == "xclbin"),
+        None,
+    )
+    if xclbin_row:
+        manifest_xclbin = path_from_manifest(repo, xclbin_row.get("path"))
+        expected_xclbin = target_xclbin(repo, target)
+        if manifest_xclbin is None or manifest_xclbin.resolve() != expected_xclbin.resolve():
+            issues.append("xclbin_path_mismatch")
+
+    launch_env_row = next(
+        (
+            row
+            for row in rows
+            if row.get("category") == "launch_packet" and row.get("name") == "launch_packet_env"
+        ),
+        None,
+    )
+    launch_env = path_from_manifest(repo, launch_env_row.get("path") if launch_env_row else None)
+    launch_values = parse_kv_file(launch_env)
+    if launch_values:
+        if launch_values.get("target") != target:
+            issues.append("launch_packet_target_mismatch")
+        if label and launch_values.get("flow_label") != label:
+            issues.append("launch_packet_label_mismatch")
+
+    source_fp_row = next(
+        (
+            row
+            for row in rows
+            if row.get("category") == "launch_packet" and row.get("name") == "source_fingerprints"
+        ),
+        None,
+    )
+    source_fp_path = path_from_manifest(repo, source_fp_row.get("path") if source_fp_row else None)
+    recorded_fingerprints = read_source_fingerprints(source_fp_path)
+    if recorded_fingerprints:
+        current_fingerprints = current_source_fingerprints(repo)
+        if fingerprints_match(recorded_fingerprints, current_fingerprints) is not True:
+            issues.append("source_fingerprints_stale")
+
+    return issues
+
+
 def artifact_manifest_state(
     repo: Path,
     target: str,
@@ -318,6 +449,8 @@ def artifact_manifest_state(
             "required_count": 0,
             "missing_required_count": 0,
             "missing_required": [],
+            "integrity_issue_count": 0,
+            "integrity_issues": [],
         }
     if not path.is_file():
         return {
@@ -330,6 +463,8 @@ def artifact_manifest_state(
             "required_count": 0,
             "missing_required_count": 0,
             "missing_required": [],
+            "integrity_issue_count": 0,
+            "integrity_issues": [],
         }
     rows = read_tsv_rows(path)
     required = [row for row in rows if row.get("required") == "yes"]
@@ -338,16 +473,19 @@ def artifact_manifest_state(
         for row in required
         if row.get("exists") != "yes" or row.get("status") not in {"PASS", "pass"}
     ]
+    integrity_issues = artifact_manifest_integrity_issues(repo, target, level, label, rows)
     return {
         "level": level,
         "label": label,
-        "status": "pass" if rows and not missing_required else "fail",
+        "status": "pass" if rows and not missing_required and not integrity_issues else "fail",
         "path": rel(repo, path),
         "sha256": sha256(path),
         "row_count": len(rows),
         "required_count": len(required),
         "missing_required_count": len(missing_required),
         "missing_required": missing_required,
+        "integrity_issue_count": len(integrity_issues),
+        "integrity_issues": integrity_issues,
     }
 
 

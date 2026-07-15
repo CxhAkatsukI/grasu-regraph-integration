@@ -8,6 +8,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from collect_pure_pipeline_artifact_manifest import (  # noqa: E402
+    build_manifest_rows,
+    write_manifest,
+)
 from report_pure_pipeline_next_steps import (  # noqa: E402
     artifact_manifest_state,
     completion_claim,
@@ -20,6 +24,66 @@ from report_pure_pipeline_next_steps import (  # noqa: E402
     stage0_followup_commands,
     target_claim_status,
 )
+
+
+def touch(path: Path, content: str = "x\n") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="ascii")
+
+
+def repo_path(repo: Path, text: str) -> Path:
+    path = Path(text)
+    return path if path.is_absolute() else repo / path
+
+
+def write_complete_manifest(
+    repo: Path,
+    target: str,
+    label: str,
+    baseline_label: str,
+    mode: str,
+    level: str,
+) -> Path:
+    launch_dir = repo / ".tmp_build" / f"pure_pipeline_launch_packet_launch_packet_{target}_{label}"
+    helper_names = (
+        "postbuild_acceptance_gate",
+        "wait_then_accept_gate",
+        "postbuild_acceptance_full",
+        "wait_then_accept_full",
+    )
+    touch(
+        launch_dir / "launch_packet.env",
+        "\n".join([
+            f"target={target}",
+            f"flow_label={label}",
+            f"launch_command={launch_dir / 'launch_command.sh'}",
+            f"source_contract_out={launch_dir / 'source_contracts.tsv'}",
+            f"source_fingerprints_out={launch_dir / 'source_fingerprints.tsv'}",
+            f"readiness_out={launch_dir / 'readiness_hw_emu.txt'}",
+            f"acceptance_gates={launch_dir / 'acceptance_gates.tsv'}",
+            f"acceptance_check_prelaunch={launch_dir / 'acceptance_check_prelaunch.tsv'}",
+            *(f"{helper}={launch_dir / (helper + '.sh')}" for helper in helper_names),
+            "",
+        ]),
+    )
+    rows = build_manifest_rows(repo, target, label, baseline_label, mode, level)
+    for row in rows:
+        if row["required"] != "yes":
+            continue
+        if row["category"] == "launch_packet" and row["name"] == "launch_packet_env":
+            continue
+        if row["path"] == "MISSING":
+            continue
+        touch(repo_path(repo, row["path"]), f"{row['category']}:{row['name']}\n")
+    rows = build_manifest_rows(repo, target, label, baseline_label, mode, level)
+    out_file = (
+        repo
+        / ".tmp_build"
+        / "pure_pipeline_artifact_manifests"
+        / f"artifact_manifest_{target}_{level}_{label}.tsv"
+    )
+    write_manifest(out_file, rows)
+    return out_file
 
 
 assert postrun_evidence_label("abc1234") == "postrun_after_abc1234"
@@ -116,39 +180,47 @@ with TemporaryDirectory() as tmp:
 
 with TemporaryDirectory() as tmp:
     repo = Path(tmp)
+    target = "hw_emu"
+    label = "after_unit"
+    baseline_label = "after_base"
     manifest = (
         repo
         / ".tmp_build"
         / "pure_pipeline_artifact_manifests"
-        / "artifact_manifest_hw_emu_gate_after_unit.tsv"
+        / f"artifact_manifest_{target}_gate_{label}.tsv"
     )
-    manifest.parent.mkdir(parents=True)
-    manifest.write_text(
-        "\n".join([
-            "category\tname\tpath\texists\tsha256\tsize_bytes\trequired\tstatus\tdetail",
-            "target\txclbin\tx.xclbin\tyes\tabc\t1\tyes\tPASS\tunit",
-            "build_logs\tlink_log\tlink.log\tno\t\t\tno\tPASS\toptional",
-            "",
-        ]),
-        encoding="ascii",
-    )
-    manifest_state = artifact_manifest_state(repo, "hw_emu", "gate", "after_unit")
+    write_complete_manifest(repo, target, label, baseline_label, "gate", "gate")
+    manifest_state = artifact_manifest_state(repo, target, "gate", label)
     assert manifest_state["status"] == "pass"
-    assert manifest_state["row_count"] == 2
-    assert manifest_state["required_count"] == 1
+    assert manifest_state["row_count"] > 20
+    assert manifest_state["required_count"] > 20
     assert manifest_state["missing_required"] == []
+    assert manifest_state["integrity_issues"] == []
+
+    xclbin = (
+        repo
+        / ".tmp_build"
+        / f"pure_pipeline_{target}_stage0"
+        / "build"
+        / f"grasu_regraph_pure_pipeline.{target}.xclbin"
+    )
+    xclbin.write_text("changed\n", encoding="ascii")
+    manifest_state = artifact_manifest_state(repo, target, "gate", label)
+    assert manifest_state["status"] == "fail"
+    assert "sha256_mismatch:target:xclbin" in manifest_state["integrity_issues"]
 
     manifest.write_text(
         "\n".join([
             "category\tname\tpath\texists\tsha256\tsize_bytes\trequired\tstatus\tdetail",
-            "target\txclbin\tx.xclbin\tno\t\t\tyes\tMISSING\tunit",
+            "target\txclbin\t.tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin\tno\t\t\tyes\tMISSING\tunit",
             "",
         ]),
         encoding="ascii",
     )
-    manifest_state = artifact_manifest_state(repo, "hw_emu", "gate", "after_unit")
+    manifest_state = artifact_manifest_state(repo, target, "gate", label)
     assert manifest_state["status"] == "fail"
     assert manifest_state["missing_required"] == ["xclbin"]
+    assert any(issue.startswith("manifest_missing_row:") for issue in manifest_state["integrity_issues"])
 
     summary_dir = repo / "results" / "pure_pipeline_sw_emu_pure_stage0_gate_after_unit"
     identity_dir = repo / "results" / "pure_pipeline_sw_emu_pure_stage0_identity_gate_after_unit"
