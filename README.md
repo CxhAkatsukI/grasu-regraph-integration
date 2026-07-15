@@ -329,6 +329,21 @@ launch the same guarded acceptance sequence automatically:
 The wait helper prints the same source fingerprint, launch packet, and
 claim-status context before waiting.
 
+Fresh `hw_emu` and `hw` launch packets also include packet-local post-build
+helpers, so the operator can stay inside the packet directory after a long
+manual build:
+
+```text
+postbuild_acceptance_gate.sh
+wait_then_accept_gate.sh
+postbuild_acceptance_full.sh
+wait_then_accept_full.sh
+```
+
+Those helpers pin the packet's pure-pipeline label and baseline label, then
+delegate to the guarded post-build acceptance wrapper or wait wrapper. They do
+not start Vitis.
+
 The post-build wrapper and wait helper also guard the result label. For real
 runs, `--label` must match the target's current launch packet label because the
 artifact manifest and claim checker are keyed by that label. Use
