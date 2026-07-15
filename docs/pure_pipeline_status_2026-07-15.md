@@ -235,6 +235,27 @@ This strengthens `sw_emu` large-case correctness evidence only. It does not
 change the final completion status: `hw_emu_gate`, `hw_gate`, and `hw_full`
 are still missing.
 
+Follow-up tooling change: `scripts/run_pure_pipeline_smoke.sh` and
+`scripts/run_pure_stage0_postbuild_matrix.sh` now support per-case timeouts
+with repeated `--case-timeout CASE=SECONDS`. Use this to retry only slow
+deep-propagation workloads without inflating every shallow case timeout. For
+example, a `sw_emu` full retry that gives the deep chain more room is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+LABEL="after_$(git rev-parse --short HEAD)_longchain"
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target sw_emu \
+  --mode full \
+  --label "${LABEL}" \
+  --baseline-label after_64ba9c3 \
+  --require-compare \
+  --case-timeout large_chain_v4096=7200
+```
+
+The timeout overrides are recorded in `postbuild_matrix.env` and per-case
+`case.env` files, so a long-chain retry remains reproducible.
+
 The current requirement audit and evidence bundle were refreshed by the
 `sw_emu` postrun command above at commit
 `c29ee70c5aa3cffd1d5e4701434dcf5a919b8534`:

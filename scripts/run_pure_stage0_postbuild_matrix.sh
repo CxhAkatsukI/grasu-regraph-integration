@@ -19,6 +19,7 @@ SPINE_SUMMARY=""
 HOST_IDENTITY=""
 BASELINE_LABEL=""
 TIMEOUT_SECONDS=600
+CASE_TIMEOUTS=""
 CASE_FILTER=""
 FAMILY_FILTER=""
 MAX_CASES=0
@@ -60,6 +61,7 @@ Options:
   --host-identity PATH        Host baseline input-identity audit. Default inferred from --baseline-label.
   --baseline-label NAME       Baseline result suffix. Default: --label.
   --timeout SECONDS           Per-case timeout. Default: ${TIMEOUT_SECONDS}
+  --case-timeout CASE=SECONDS Override timeout for one case. Can be repeated.
   --case LIST                 Run only comma-separated case names. Can be repeated.
   --family LIST               Run only comma-separated families. Can be repeated.
   --max-cases N               Stop after N selected cases. Default: all selected cases.
@@ -102,6 +104,34 @@ run_cmd() {
   fi
 }
 
+validate_timeout_value() {
+  local label="$1"
+  local value="$2"
+  if ! [[ "${value}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Invalid ${label}: ${value}" >&2
+    exit 2
+  fi
+}
+
+validate_case_timeouts() {
+  local entry case_name timeout_value
+  local IFS=,
+  for entry in ${CASE_TIMEOUTS}; do
+    [[ -z "${entry}" ]] && continue
+    if [[ "${entry}" != *=* ]]; then
+      echo "Invalid --case-timeout entry, expected CASE=SECONDS: ${entry}" >&2
+      exit 2
+    fi
+    case_name="${entry%%=*}"
+    timeout_value="${entry#*=}"
+    if [[ -z "${case_name}" || -z "${timeout_value}" ]]; then
+      echo "Invalid --case-timeout entry, expected CASE=SECONDS: ${entry}" >&2
+      exit 2
+    fi
+    validate_timeout_value "--case-timeout ${case_name}" "${timeout_value}"
+  done
+}
+
 sha_or_missing() {
   local path="$1"
   if [[ -f "${path}" ]]; then
@@ -128,6 +158,7 @@ while [[ $# -gt 0 ]]; do
     --host-identity) HOST_IDENTITY="$(abs_path "$2")"; shift 2 ;;
     --baseline-label) BASELINE_LABEL="$2"; shift 2 ;;
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
+    --case-timeout) CASE_TIMEOUTS="$(append_csv "${CASE_TIMEOUTS}" "$2")"; shift 2 ;;
     --case) CASE_FILTER="$(append_csv "${CASE_FILTER}" "$2")"; shift 2 ;;
     --family) FAMILY_FILTER="$(append_csv "${FAMILY_FILTER}" "$2")"; shift 2 ;;
     --max-cases) MAX_CASES="$2"; shift 2 ;;
@@ -153,6 +184,8 @@ if ! [[ "${MAX_CASES}" =~ ^[0-9]+$ ]]; then
   echo "Invalid --max-cases: ${MAX_CASES}" >&2
   exit 2
 fi
+validate_timeout_value "--timeout" "${TIMEOUT_SECONDS}"
+validate_case_timeouts
 
 cd "${GRI_ROOT}"
 
@@ -225,6 +258,7 @@ mkdir -p "${OUT_DIR}" "${IDENTITY_DIR}"
   printf 'spine_summary_sha256=%s\n' "$(sha_or_missing "${SPINE_SUMMARY}")"
   printf 'baseline_label=%s\n' "${BASELINE_LABEL}"
   printf 'timeout_seconds=%s\n' "${TIMEOUT_SECONDS}"
+  printf 'case_timeout_overrides=%s\n' "${CASE_TIMEOUTS}"
   printf 'case_filter=%s\n' "${CASE_FILTER}"
   printf 'family_filter=%s\n' "${FAMILY_FILTER}"
   printf 'max_cases=%s\n' "${MAX_CASES}"
@@ -251,6 +285,12 @@ if [[ "${SKIP_RUN}" == "0" ]]; then
     --out-dir "${OUT_DIR}"
     --timeout "${TIMEOUT_SECONDS}"
   )
+  if [[ -n "${CASE_TIMEOUTS}" ]]; then
+    IFS=',' read -r -a case_timeout_args <<< "${CASE_TIMEOUTS}"
+    for case_timeout in "${case_timeout_args[@]}"; do
+      smoke_cmd+=(--case-timeout "${case_timeout}")
+    done
+  fi
   if [[ -n "${CASE_FILTER}" ]]; then
     smoke_cmd+=(--case "${CASE_FILTER}")
   fi

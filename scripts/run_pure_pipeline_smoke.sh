@@ -10,6 +10,7 @@ XCLBIN=""
 OUT_DIR=""
 MANIFEST="${GRI_ROOT}/workloads/sssp_benchmark_smoke/manifest.tsv"
 TIMEOUT_SECONDS=600
+CASE_TIMEOUTS=""
 VITIS_SETTINGS="/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh"
 PLATFORM_XPFM="/opt/xilinx/platforms/xilinx_u55c_gen3x16_xdma_3_202210_1/xilinx_u55c_gen3x16_xdma_3_202210_1.xpfm"
 EMCONFIG_PATH=""
@@ -30,6 +31,7 @@ Options:
   --manifest PATH             Smoke manifest TSV. Default: ${MANIFEST}
   --out-dir PATH              Output directory. Default: results/pure_pipeline_<target>_smoke_<timestamp>
   --timeout SECONDS           Per-case timeout. Default: ${TIMEOUT_SECONDS}
+  --case-timeout CASE=SECONDS Override timeout for one case. Can be repeated.
   --case LIST                 Run only comma-separated case names. Can be repeated.
   --family LIST               Run only comma-separated families. Can be repeated.
   --max-cases N               Stop after N selected cases. Default: all selected cases.
@@ -63,6 +65,50 @@ csv_contains_or_empty() {
   [[ -z "${list}" || ",${list}," == *",${value},"* ]]
 }
 
+validate_timeout_value() {
+  local label="$1"
+  local value="$2"
+  if ! [[ "${value}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Invalid ${label}: ${value}" >&2
+    exit 2
+  fi
+}
+
+validate_case_timeouts() {
+  local entry case_name timeout_value
+  local IFS=,
+  for entry in ${CASE_TIMEOUTS}; do
+    [[ -z "${entry}" ]] && continue
+    if [[ "${entry}" != *=* ]]; then
+      echo "Invalid --case-timeout entry, expected CASE=SECONDS: ${entry}" >&2
+      exit 2
+    fi
+    case_name="${entry%%=*}"
+    timeout_value="${entry#*=}"
+    if [[ -z "${case_name}" || -z "${timeout_value}" ]]; then
+      echo "Invalid --case-timeout entry, expected CASE=SECONDS: ${entry}" >&2
+      exit 2
+    fi
+    validate_timeout_value "--case-timeout ${case_name}" "${timeout_value}"
+  done
+}
+
+timeout_for_case() {
+  local requested_case="$1"
+  local resolved="${TIMEOUT_SECONDS}"
+  local entry case_name timeout_value
+  local IFS=,
+  for entry in ${CASE_TIMEOUTS}; do
+    [[ -z "${entry}" ]] && continue
+    case_name="${entry%%=*}"
+    timeout_value="${entry#*=}"
+    if [[ "${case_name}" == "${requested_case}" ]]; then
+      resolved="${timeout_value}"
+    fi
+  done
+  printf '%s\n' "${resolved}"
+}
+
 sha_or_missing() {
   local path="$1"
   if [[ -f "${path}" ]]; then
@@ -80,6 +126,7 @@ while [[ $# -gt 0 ]]; do
     --manifest) MANIFEST="$(abs_path "$2")"; shift 2 ;;
     --out-dir) OUT_DIR="$(abs_path "$2")"; shift 2 ;;
     --timeout) TIMEOUT_SECONDS="$2"; shift 2 ;;
+    --case-timeout) CASE_TIMEOUTS="$(append_csv "${CASE_TIMEOUTS}" "$2")"; shift 2 ;;
     --case) CASE_FILTER="$(append_csv "${CASE_FILTER}" "$2")"; shift 2 ;;
     --family) FAMILY_FILTER="$(append_csv "${FAMILY_FILTER}" "$2")"; shift 2 ;;
     --max-cases) MAX_CASES="$2"; shift 2 ;;
@@ -136,6 +183,8 @@ if ! [[ "${MAX_CASES}" =~ ^[0-9]+$ ]]; then
   echo "Invalid --max-cases: ${MAX_CASES}" >&2
   exit 2
 fi
+validate_timeout_value "--timeout" "${TIMEOUT_SECONDS}"
+validate_case_timeouts
 
 mkdir -p "${OUT_DIR}"
 SUMMARY="${OUT_DIR}/summary.tsv"
@@ -168,6 +217,7 @@ fi
   printf 'manifest=%s\n' "${MANIFEST}"
   printf 'out_dir=%s\n' "${OUT_DIR}"
   printf 'timeout_seconds=%s\n' "${TIMEOUT_SECONDS}"
+  printf 'case_timeout_overrides=%s\n' "${CASE_TIMEOUTS}"
   printf 'case_filter=%s\n' "${CASE_FILTER}"
   printf 'family_filter=%s\n' "${FAMILY_FILTER}"
   printf 'max_cases=%s\n' "${MAX_CASES}"
@@ -205,6 +255,7 @@ while IFS=$'\t' read -r case family vertices static_edges updates final_edges so
   case_dir="${OUT_DIR}/${case}"
   mkdir -p "${case_dir}"
   log="${OUT_DIR}/${case}.log"
+  case_timeout="$(timeout_for_case "${case}")"
   {
     printf 'case=%s\n' "${case}"
     printf 'family=%s\n' "${family}"
@@ -228,6 +279,9 @@ while IFS=$'\t' read -r case family vertices static_edges updates final_edges so
     printf 'metadata=%s\n' "${metadata}"
     printf 'metadata_sha256=%s\n' "$(sha_or_missing "${metadata}")"
     printf 'target=%s\n' "${TARGET}"
+    printf 'timeout_seconds=%s\n' "${case_timeout}"
+    printf 'default_timeout_seconds=%s\n' "${TIMEOUT_SECONDS}"
+    printf 'case_timeout_overrides=%s\n' "${CASE_TIMEOUTS}"
     printf 'host=%s\n' "${HOST}"
     printf 'host_sha256=%s\n' "$(sha_or_missing "${HOST}")"
     printf 'xclbin=%s\n' "${XCLBIN}"
@@ -235,9 +289,9 @@ while IFS=$'\t' read -r case family vertices static_edges updates final_edges so
     printf 'log=%s\n' "${log}"
   } > "${case_dir}/case.env"
 
-  echo "running ${case} (${family}) source=${source} supersteps=${supersteps}"
+  echo "running ${case} (${family}) source=${source} supersteps=${supersteps} timeout=${case_timeout}s"
   set +e
-  timeout "${TIMEOUT_SECONDS}s" "${HOST}" "${XCLBIN}" "${graph}" "${result}" "${source}" "${supersteps}" \
+  timeout "${case_timeout}s" "${HOST}" "${XCLBIN}" "${graph}" "${result}" "${source}" "${supersteps}" \
     2>&1 | tee "${log}"
   rc=${PIPESTATUS[0]}
   set -e
