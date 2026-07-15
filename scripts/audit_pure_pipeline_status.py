@@ -471,6 +471,82 @@ def input_identity_summary(repo: Path, path: Path | None) -> dict[str, Any]:
     }
 
 
+def label_from_result_parent(path: Path | None, prefix: str) -> str:
+    if path is None:
+        return ""
+    name = path.parent.name
+    return name[len(prefix):] if name.startswith(prefix) else ""
+
+
+def latest_stage0_baseline(repo: Path) -> dict[str, Any]:
+    prefix = "pure_stage0_comparison_"
+    comparison_path = newest_glob(repo, f"results/{prefix}*/comparison.tsv")
+    label = label_from_result_parent(comparison_path, prefix)
+
+    host_path = (
+        repo / "results" / f"grasu_regraph_sssp_pure_stage0_{label}" / "summary.tsv"
+        if label else None
+    )
+    host_identity_path = (
+        repo / "results" / f"grasu_regraph_sssp_pure_stage0_identity_{label}" / "input_identity_check.tsv"
+        if label else None
+    )
+    spine_path = (
+        repo / "results" / f"spine_edge_file_pure_stage0_{label}" / "summary.tsv"
+        if label else None
+    )
+    plan_identity_path = (
+        repo / "results" / f"pure_stage0_comparison_plan_{label}" / "input_identity.tsv"
+        if label else None
+    )
+
+    rows = read_tsv(comparison_path) if comparison_path is not None else []
+    by_case = {row.get("case", ""): row for row in rows}
+    expected_cases = pure_stage0_cases(repo)
+    missing_cases = [case for case in expected_cases if case not in by_case]
+    host_failed_cases = [
+        case
+        for case in expected_cases
+        if by_case.get(case, {}).get("host_status") != "PASS"
+        or by_case.get(case, {}).get("host_mismatch_count") not in ("0", "0.0")
+    ]
+    spine_failed_cases = [
+        case
+        for case in expected_cases
+        if by_case.get(case, {}).get("spine_status") != "PASS"
+        or by_case.get(case, {}).get("spine_errors") not in ("0", "0.0")
+    ]
+
+    identity_rows = read_tsv(host_identity_path) if host_identity_path is not None else []
+    identity_failed = [
+        f"{row.get('case', '')}:{row.get('check', '')}"
+        for row in identity_rows
+        if row.get("ok") != "yes"
+    ]
+
+    return {
+        "label": label,
+        "comparison": artifact(repo, "stage0_comparison_tsv", comparison_path),
+        "host_summary": artifact(repo, "stage0_host_summary", host_path),
+        "host_identity": artifact(repo, "stage0_host_identity", host_identity_path),
+        "spine_summary": artifact(repo, "stage0_spine_summary", spine_path),
+        "plan_input_identity": artifact(repo, "stage0_plan_input_identity", plan_identity_path),
+        "row_count": len(rows),
+        "expected_case_count": len(expected_cases),
+        "missing_cases": missing_cases,
+        "host_failed_cases": host_failed_cases,
+        "spine_failed_cases": spine_failed_cases,
+        "identity_check_count": len(identity_rows),
+        "identity_failed_checks": identity_failed,
+        "all_expected_pass": bool(rows)
+        and not missing_cases
+        and not host_failed_cases
+        and not spine_failed_cases
+        and bool(identity_rows)
+        and not identity_failed,
+    }
+
+
 def zero_vs_spine_summary(repo: Path, path: Path) -> dict[str, Any]:
     rows = read_tsv(path)
     by_case = {row.get("label", "") or row.get("chain_case", ""): row for row in rows}
@@ -1126,6 +1202,8 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     same_input_path = newest_glob(repo, "results/smoke_input_identity_*/identity.tsv")
     boundary_prepare_path = newest_glob(repo, "results/pure_pipeline_prepare_boundary_*/summary.tsv")
     boundary_prepare_env = boundary_prepare_path.parent / "run.env" if boundary_prepare_path is not None else None
+    stage0_baseline = latest_stage0_baseline(repo)
+    stage0_baseline_label = stage0_baseline["label"] or f"after_{git_short}"
 
     host = host_summary(repo, host_path)
     spine = spine_summary(repo, spine_path)
@@ -1168,13 +1246,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
     source_target_flow_bundle = proofs["target_flow_exports_evidence_bundle"]["ok"]
     source_target_flow_acceptance = proofs["target_flow_runs_acceptance_gates"]["ok"]
 
-    baseline_ok = (
-        host["all_expected_pass"]
-        and spine["all_expected_pass"]
-        and three_way_path.exists()
-        and zero_vs_spine["all_expected_pass"]
-        and same_input["all_expected_pass"]
-    )
+    baseline_ok = stage0_baseline["all_expected_pass"]
     max_vertices_seen = max(
         [targets[target]["smoke_summary"]["max_vertices_seen"] for target in TARGETS]
         + [boundary_prepare["max_vertices_seen"]]
@@ -1299,13 +1371,13 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             "Retain host baseline and zero-cost handoff baseline on identical inputs",
             "proven" if baseline_ok else "partial",
             [
-                host["path"],
-                spine["path"],
-                same_input["path"],
-                display_path(repo, three_way_path),
-                display_path(repo, zero_vs_spine_path),
+                stage0_baseline["host_summary"]["path"],
+                stage0_baseline["spine_summary"]["path"],
+                stage0_baseline["host_identity"]["path"],
+                stage0_baseline["comparison"]["path"],
+                "baseline_label=" + stage0_baseline_label,
             ],
-            [] if baseline_ok else ["same-input, zero-cost, or input-identity evidence is incomplete"],
+            [] if baseline_ok else ["stage0 same-input, zero-cost, or input-identity evidence is incomplete"],
         ),
         requirement(
             10,
@@ -1345,6 +1417,11 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
         artifact(repo, "latest_smoke_input_identity", same_input_path),
         artifact(repo, "boundary_prepare_summary", boundary_prepare_path),
         artifact(repo, "boundary_prepare_run_env", boundary_prepare_env),
+        stage0_baseline["comparison"],
+        stage0_baseline["host_summary"],
+        stage0_baseline["host_identity"],
+        stage0_baseline["spine_summary"],
+        stage0_baseline["plan_input_identity"],
         artifact(repo, "latest_source_contracts", newest_glob(repo, ".tmp_build/pure_pipeline_source_contracts/source_contracts_*.tsv")),
         artifact(repo, "latest_launch_packet_source_fingerprints", newest_launch_packet_source_fingerprints(repo)),
         artifact(repo, "latest_target_flow_source_fingerprints", newest_target_flow_source_fingerprints(repo)),
@@ -1398,6 +1475,7 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             "spine": spine,
             "zero_vs_spine": zero_vs_spine,
             "same_input": same_input,
+            "stage0": stage0_baseline,
             "boundary_prepare": boundary_prepare,
             "three_way_comparison": artifact(repo, "three_way_comparison_tsv", three_way_path),
             "zero_vs_spine_comparison": artifact(repo, "zero_vs_spine_comparison_tsv", zero_vs_spine_path),
@@ -1409,13 +1487,15 @@ def build_audit(repo: Path, label: str) -> dict[str, Any]:
             "./scripts/check_pure_pipeline_source_contracts.py --label after_" + git_short,
             "./scripts/check_pure_pipeline_xclbin_contract.py --target sw_emu --label after_" + git_short,
             "./scripts/check_smoke_input_identity.py --label after_" + git_short,
-            "./scripts/refresh_pure_pipeline_readiness_bundle.sh --label refresh_after_" + git_short,
+            "./scripts/refresh_pure_pipeline_readiness_bundle.sh --label refresh_after_" + git_short + " --allow-active-builders",
             "./scripts/run_pure_pipeline_prepare_check.sh --preset boundary --out-dir results/pure_pipeline_prepare_boundary_after_" + git_short,
             "./scripts/check_pure_pipeline_build_readiness.sh --target hw_emu --label after_" + git_short,
             "./scripts/run_pure_pipeline_target_flow.sh --target hw_emu --label after_" + git_short + " --prepare --wait-idle 7200 --idle-poll 60 --idle-settle 120 --clean-build-artifacts --gate-case tiny_star_v16_u12 --gate-timeout 900",
+            "./scripts/run_pure_stage0_postbuild_matrix.sh --target hw_emu --mode gate --label after_" + git_short + " --baseline-label " + stage0_baseline_label + " --require-compare",
             "./scripts/check_pure_pipeline_build_readiness.sh --target hw --label after_" + git_short,
             "./scripts/run_pure_pipeline_target_flow.sh --target hw --label after_" + git_short + " --prepare --wait-idle 7200 --idle-poll 60 --idle-settle 120 --clean-build-artifacts --gate-case tiny_star_v16_u12 --gate-timeout 300",
-            "./scripts/run_pure_stage0_postbuild_matrix.sh --target hw --mode full --label after_" + git_short,
+            "./scripts/run_pure_stage0_postbuild_matrix.sh --target hw --mode gate --label after_" + git_short + " --baseline-label " + stage0_baseline_label + " --require-compare",
+            "./scripts/run_pure_stage0_postbuild_matrix.sh --target hw --mode full --label after_" + git_short + " --baseline-label " + stage0_baseline_label + " --require-compare",
             "./scripts/export_pure_pipeline_evidence_bundle.py --out-dir results/pure_pipeline_evidence_bundle_after_" + git_short,
         ],
     }

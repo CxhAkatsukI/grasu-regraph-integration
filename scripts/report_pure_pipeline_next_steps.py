@@ -498,6 +498,52 @@ def stage0_baseline_state(repo: Path, label: str) -> dict[str, Any]:
     }
 
 
+def stage0_label_from_comparison_path(path: Path | None) -> str:
+    if path is None:
+        return ""
+    prefix = "pure_stage0_comparison_"
+    name = path.parent.name
+    return name[len(prefix):] if name.startswith(prefix) else ""
+
+
+def latest_stage0_baseline_label(repo: Path) -> str:
+    candidates = sorted(
+        repo.glob("results/pure_stage0_comparison_*/comparison.tsv"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for candidate in candidates:
+        label = stage0_label_from_comparison_path(candidate)
+        if not label:
+            continue
+        state = stage0_baseline_state(repo, label)
+        if (
+            state["host_summary_exists"]
+            and state["spine_summary_exists"]
+            and state["input_identity_exists"]
+            and state["comparison_tsv_exists"]
+        ):
+            return label
+    return ""
+
+
+def choose_stage0_baseline_label(repo: Path, preferred_label: str) -> tuple[str, str]:
+    preferred_state = stage0_baseline_state(repo, preferred_label)
+    if (
+        preferred_state["host_summary_exists"]
+        and preferred_state["spine_summary_exists"]
+        and preferred_state["input_identity_exists"]
+        and preferred_state["comparison_tsv_exists"]
+    ):
+        return preferred_label, "preferred_label"
+
+    latest_label = latest_stage0_baseline_label(repo)
+    if latest_label:
+        return latest_label, "latest_existing_stage0_comparison"
+
+    return preferred_label, "missing_preferred_label"
+
+
 def postbuild_matrix_command(target: str, mode: str, label: str, baseline_label: str) -> str:
     return (
         f"./scripts/run_pure_stage0_postbuild_matrix.sh --target {target} "
@@ -571,7 +617,8 @@ def make_report(repo: Path) -> dict[str, Any]:
             target_flow_command(next_target, git_short),
         ]
     stage0_label, stage0_label_source = stage0_label_from_packets(states, git_short)
-    stage0_baseline = stage0_baseline_state(repo, stage0_label)
+    stage0_baseline_label, stage0_baseline_label_source = choose_stage0_baseline_label(repo, stage0_label)
+    stage0_baseline = stage0_baseline_state(repo, stage0_baseline_label)
     return {
         "repo": str(repo),
         "branch": run_git(repo, ["branch", "--show-current"]),
@@ -591,9 +638,11 @@ def make_report(repo: Path) -> dict[str, Any]:
         "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
         "stage0_followup": {
-            "label_source": stage0_label_source,
+            "pure_label": stage0_label,
+            "pure_label_source": stage0_label_source,
+            "baseline_label_source": stage0_baseline_label_source,
             "baseline": stage0_baseline,
-            "commands": stage0_followup_commands(stage0_label, stage0_label),
+            "commands": stage0_followup_commands(stage0_label, stage0_baseline_label),
         },
     }
 
@@ -672,7 +721,9 @@ def print_text(report: dict[str, Any]) -> None:
     print(
         "baseline\t"
         f"label={baseline['label']}\t"
-        f"label_source={report['stage0_followup']['label_source']}\t"
+        f"label_source={report['stage0_followup']['baseline_label_source']}\t"
+        f"pure_label={report['stage0_followup']['pure_label']}\t"
+        f"pure_label_source={report['stage0_followup']['pure_label_source']}\t"
         f"plan={'yes' if baseline['plan_exists'] else 'no'}\t"
         f"host_summary={'yes' if baseline['host_summary_exists'] else 'no'}\t"
         f"spine_summary={'yes' if baseline['spine_summary_exists'] else 'no'}\t"

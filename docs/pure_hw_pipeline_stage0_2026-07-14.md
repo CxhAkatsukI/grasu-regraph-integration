@@ -9687,3 +9687,88 @@ As of this note, the answer to "is there a successfully built pure-pipeline
 `hw` version?" is still no. The source and launch packet are ready, `sw_emu`
 is built, the accepted baselines are reproducible, but the `hw_emu` and `hw`
 pure-pipeline xclbins have not been produced.
+
+## Requirement Audit Same-Input Guard
+
+After `c77944a`, `scripts/audit_pure_pipeline_status.py` was tightened so its
+generated next commands use the latest passing `pure_stage0` baseline label
+instead of assuming the pure-run label also has matching host/Spine baselines.
+On this machine the detected stage0 baseline is:
+
+```text
+baseline_label=after_64ba9c3
+comparison=results/pure_stage0_comparison_after_64ba9c3/comparison.tsv
+host_summary=results/grasu_regraph_sssp_pure_stage0_after_64ba9c3/summary.tsv
+spine_summary=results/spine_edge_file_pure_stage0_after_64ba9c3/summary.tsv
+host_identity=results/grasu_regraph_sssp_pure_stage0_identity_after_64ba9c3/input_identity_check.tsv
+```
+
+Validated commands:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+python3 -m py_compile \
+  scripts/audit_pure_pipeline_status.py \
+  scripts/export_pure_pipeline_evidence_bundle.py \
+  scripts/check_pure_pipeline_source_contracts.py
+./scripts/check_pure_pipeline_source_contracts.py \
+  --label after_c77944a_audit_nextcmd \
+  --out-file .tmp_build/pure_pipeline_source_contracts/source_contracts_after_c77944a_audit_nextcmd.tsv
+./scripts/audit_pure_pipeline_status.py \
+  --label after_c77944a_audit_nextcmd \
+  --out-dir results/pure_pipeline_requirement_audit_after_c77944a_audit_nextcmd
+./scripts/export_pure_pipeline_evidence_bundle.py \
+  --audit results/pure_pipeline_requirement_audit_after_c77944a_audit_nextcmd/audit.json \
+  --out-dir results/pure_pipeline_evidence_bundle_after_c77944a_audit_nextcmd
+```
+
+Result:
+
+```text
+source contracts: PASS, required_count=17, failed_count=0
+requirement audit status_counts={"blocked_by_missing_artifact": 1, "partial": 8, "proven": 1}
+requirement 9: proven by after_64ba9c3 stage0 host/Spine/identity/comparison artifacts
+```
+
+The generated postbuild commands now force same-input comparison:
+
+```bash
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw_emu \
+  --mode gate \
+  --label after_c77944a \
+  --baseline-label after_64ba9c3 \
+  --require-compare
+
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode gate \
+  --label after_c77944a \
+  --baseline-label after_64ba9c3 \
+  --require-compare
+
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode full \
+  --label after_c77944a \
+  --baseline-label after_64ba9c3 \
+  --require-compare
+```
+
+This is a reproducibility guard only. It does not create a new xclbin, and the
+pure `hw_emu` / `hw` build artifact gap is still open.
+
+The same guard is also applied to `scripts/report_pure_pipeline_next_steps.py`.
+When the current pure-run label has no matching baseline artifacts yet, the
+report now keeps the pure result label separate from the latest valid baseline:
+
+```text
+baseline label=after_64ba9c3
+baseline label_source=latest_existing_stage0_comparison
+pure_label=after_4d60de3
+pure_label_source=git_head
+```
+
+This prevents the daily next-step report from suggesting a postbuild comparison
+against missing `results/grasu_regraph_sssp_pure_stage0_<current>/` and
+`results/spine_edge_file_pure_stage0_<current>/` directories.
