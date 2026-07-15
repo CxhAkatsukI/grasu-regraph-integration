@@ -451,6 +451,21 @@ def postrun_command(target: str, git_short: str) -> str:
     )
 
 
+def postrun_followup_commands(git_short: str) -> list[dict[str, str]]:
+    return [
+        {
+            "name": "hw_emu_postrun",
+            "when": "after a hw_emu xclbin exists but before stage0 matrix comparison",
+            "command": postrun_command("hw_emu", git_short),
+        },
+        {
+            "name": "hw_postrun",
+            "when": "after a hw xclbin exists but before stage0 matrix comparison",
+            "command": postrun_command("hw", git_short),
+        },
+    ]
+
+
 def stage0_baseline_state(repo: Path, label: str) -> dict[str, Any]:
     plan_dir = repo / "results" / f"pure_stage0_comparison_plan_{label}"
     plan_tsv = plan_dir / "comparison_plan.tsv"
@@ -637,6 +652,7 @@ def make_report(repo: Path) -> dict[str, Any]:
         "next_launch_packet_command": next_launch_packet_command,
         "stale_target_flow_targets": stale_targets,
         "next_commands": next_commands,
+        "postrun_followup": postrun_followup_commands(git_short),
         "stage0_followup": {
             "pure_label": stage0_label,
             "pure_label_source": stage0_label_source,
@@ -715,6 +731,10 @@ def print_text(report: dict[str, Any]) -> None:
     print("next_commands")
     for command in report["next_commands"]:
         print(command)
+    print()
+    print("postrun_followup")
+    for item in report["postrun_followup"]:
+        print(f"{item['name']}\twhen={item['when']}\tcommand={item['command']}")
     print()
     print("stage0_followup")
     baseline = report["stage0_followup"]["baseline"]
