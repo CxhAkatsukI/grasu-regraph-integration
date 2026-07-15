@@ -1,6 +1,7 @@
 # Local run outputs
 results/*
 !results/.gitkeep
+target/
 
 # Generated workloads can be large. Promote selected cases manually if needed.
 workloads/generated/

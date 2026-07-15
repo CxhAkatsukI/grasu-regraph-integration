@@ -44,19 +44,20 @@ hardware claim rule: hw_emu/hw build/gate/full claims require a passing artifact
 requirement audit rule: audit.json embeds the current claim report and lists missing_artifact_manifest_claims
 postbuild label rule: real postbuild/wait runs fail early if --label does not match the target's current launch packet label; this is now a required source-contract proof
 timing gate: same-input comparison must contain pure_grasu_ms, pure_barrier_ms, pure_adapter_ms, pure_lksg_ms, pure_apply_ms, and pure_event_e2e_ms
-hw_emu/hw xclbins: still missing
+hw_emu xclbin: available through containerized 22.04 link
+hw xclbin: still missing/running externally
 ```
 
 This snapshot answers the narrow build-status question first: there is not yet a
-successful pure-pipeline `hw` xclbin. The only current pure-pipeline xclbin is
-the `sw_emu` stage-0 artifact.
+successful pure-pipeline `hw` xclbin. A pure-pipeline `hw_emu` xclbin is now
+available from the containerized link milestone below.
 
 ## Target State
 
 ```text
 target    xclbin  status
 sw_emu    yes     stage0 gate already passed
-hw_emu    no      waiting_xclbin
+hw_emu    yes     xclbin linked in Ubuntu 22.04 container; runtime gate pending
 hw        no      waiting_xclbin
 ```
 
@@ -66,6 +67,62 @@ Current `sw_emu` artifact:
 .tmp_build/pure_pipeline_sw_emu_stage0/build/grasu_regraph_pure_pipeline.sw_emu.xclbin
 sha256: b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
 ```
+
+## hw_emu Container Link Milestone
+
+The direct host `hw_emu` link failed at `config_hw_emu.elaborate` while xsim
+linked `libdpi.so`: Vivado 2024.1's bundled binutils 2.37 could not read the
+host Debian glibc 2.42 `libm.so.6` / `libmvec.so.1` `.relr.dyn` sections.
+The prior ReGraph report's `vivado-runner:22.04-feiyang` image avoids this
+because it uses Ubuntu glibc 2.35 and its `libm.so.6` has no `.relr.dyn`.
+
+Successful command:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_hwemu_container22.sh \
+  --label container22_after_038c87a
+```
+
+The wrapper preserved the existing 12 `hw_emu` `.xo` files, removed only the
+old `hw_emu` link temp/log/report directories, and then ran
+`scripts/run_pure_pipeline_build.sh --target hw_emu --skip-compile` inside
+`vivado-runner:22.04-feiyang` with UID/GID `2009:2010`, host-network,
+udev/sysfs/machine-id mounts, the original `/data/yxx/tools/xilinx` path, and
+a WebTalk settings bind mount.
+
+Successful output:
+
+```text
+xclbin: .tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin
+sha256: 1ff806f1e74c89c53466831f59bd9e18a0dd4b7399eb3807ba7d798c93527762
+size:   119382259 bytes
+elapsed: 0h 10m 57s
+```
+
+Key proof lines:
+
+```text
+vivado.log: Done linking: "libdpi.so"
+link log:   Run vpl: Step config_hw_emu.elaborate: Completed
+link log:   Run Status: config_hw_emu.elaborate Complete!
+link log:   Created .../grasu_regraph_pure_pipeline.hw_emu.xclbin
+```
+
+Evidence paths:
+
+```text
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_container22_after_038c87a.env
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/build_container22_after_038c87a_evidence.tsv
+.tmp_build/pure_pipeline_hw_emu_stage0/run_logs/link_container22_after_038c87a.log
+.tmp_build/pure_pipeline_hw_emu_stage0/build/grasu_regraph_pure_pipeline.hw_emu.xclbin.link_summary
+target/container_logs/hw_emu_container22_after_038c87a.outer.log
+```
+
+The warnings that remain are platform/IP-lock and SLR locality warnings. They
+did not block `hw_emu` xclbin generation. This milestone proves link/build
+success only; `hw_emu` runtime correctness for chain, hot-source, spread, and
+hot-destination still needs to be run against the CPU oracle.
 
 Current `sw_emu` postrun evidence was refreshed without rebuilding the xclbin:
 
