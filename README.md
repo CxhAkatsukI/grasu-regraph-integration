@@ -329,6 +329,11 @@ launch the same guarded acceptance sequence automatically:
 The wait helper prints the same source fingerprint, launch packet, and
 claim-status context before waiting.
 
+The post-build wrapper and wait helper also guard the result label. For real
+runs, `--label` must match the target's current launch packet label because the
+artifact manifest and claim checker are keyed by that label. Use
+`--allow-label-mismatch` only for debugging incomplete evidence by hand.
+
 Preview the exact postrun, matrix, artifact-manifest, and final claim-check
 commands before the xclbin exists:
 
