@@ -9525,3 +9525,165 @@ Initial reading:
 - This is still a baseline result, not pure-pipeline timing. The current
   pure-pipeline blocker is unchanged: `hw_emu` and `hw` xclbins are still
   missing.
+
+## Current Status After Comparison Summary Integration
+
+Commit `64ba9c3966bf5306721c9a85aa7611fe8cf502d4` adds a reproducible
+comparison summary path on top of the accepted stage0 baselines. The important
+new source-side behavior is:
+
+- `scripts/summarize_pure_stage0_comparison.py` joins the tracked
+  `pure_stage0` manifest with the accepted `GraSU -> host -> ReGraph`
+  baseline, the zero-cost handoff timing, the split-Spine baseline, and an
+  optional pure-pipeline run.
+- `scripts/run_pure_stage0_baselines.sh` now generates that comparison
+  automatically unless `--skip-comparison` is passed.
+- `scripts/report_pure_pipeline_next_steps.py` now reports the comparison
+  path and hash together with the next build packet.
+
+Validation commands for this source state:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+bash -n scripts/run_pure_stage0_baselines.sh
+python3 -m py_compile \
+  scripts/report_pure_pipeline_next_steps.py \
+  scripts/summarize_pure_stage0_comparison.py
+git diff --check
+./scripts/run_pure_stage0_baselines.sh --label after_64ba9c3
+```
+
+The `after_64ba9c3` same-input baseline run completed with:
+
+```text
+host baseline rows:  12, statuses=PASS, mismatch_count sum=0
+input identity:      checks=240, failures=0
+Spine rows:          12, statuses=PASS, errors sum=0
+pure pipeline:       MISSING for hw_emu/hw, because no pure-pipeline hw xclbin exists yet
+```
+
+Latest baseline and comparison evidence:
+
+```text
+3b954c9ef9209ce4b5f4f962d9e9dff1d3b6694f8c5bb86c9b57c7258ae2d62f  results/grasu_regraph_sssp_pure_stage0_after_64ba9c3/summary.tsv
+98a2b31d33ee57e0004e383721133e26e4075a022c6c73bd80fd760b9d71459c  results/grasu_regraph_sssp_pure_stage0_identity_after_64ba9c3/input_identity_check.tsv
+e3e613cee825aefd2eb0786b48ab84b4ca3a926f9085dc2f87d5f0f19331c5ec  results/spine_edge_file_pure_stage0_after_64ba9c3/summary.tsv
+60e5e41bff31e38a44463b0e0c97584641a62864c8ca9d35da97aff2fda3be9b  results/pure_stage0_comparison_after_64ba9c3/comparison.tsv
+f7470cf2fc20fb533bb6e85883bad04cac86937dc395b19ba1ff6b3348644e53  results/pure_stage0_comparison_after_64ba9c3/comparison.md
+06971a82bc4ac331111c2f390e2f7b05bcbeab54309dd11c89447ecb461b2f47  results/pure_stage0_comparison_after_64ba9c3/run.env
+```
+
+Key `after_64ba9c3` zero-cost-vs-Spine reference points:
+
+```text
+case                            V      edges  zero_ms   spine_ms  zero/spine
+large_chain_v4096               4096   4095   1194.51   62.4846   19.1169
+medium_star_v65536_u8192        65536  73728  9.96153   997.031   0.0099912
+medium_spread_v65536_u16384     65536  81920  15.0995   1022.89   0.0147616
+boundary_hotdst_v65536_u4096    65536  69631  22.5591   991       0.022764
+```
+
+Interpretation remains the same as the earlier baseline table:
+
+- Chain workloads are the clearest weak case for `GraSU -> ReGraph`, because
+  the ReGraph SSSP superstep count dominates the zero-cost handoff time.
+- Wide hot-source, spread, and hot-destination workloads strongly favor the
+  `GraSU -> ReGraph` baseline against the current split-Spine edge-file run.
+- These numbers are still baseline numbers. They do not prove the pure hardware
+  pipeline timing until a `hw_emu` or `hw` pure-pipeline xclbin exists and the
+  postbuild matrix passes.
+
+The current pure-pipeline xclbin state is:
+
+```text
+sw_emu xclbin:  exists
+  sha256=b85d8ca553b6c5aea58ec2d6acd024b73d694455dae16c190c8614767be86862
+
+hw_emu xclbin: missing
+hw xclbin:     missing
+```
+
+The current launch packets match the tracked source fingerprint for
+`64ba9c3`. They are ready to run when the machine is available:
+
+```text
+943e5526fd1cb40ce525ade9eff7aa9589c9969967c907e849aec3f1086ae2ae  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_64ba9c3/launch_command.sh
+98870bd672c8cfc54327008ccb2e2f2375c909a549aa54153facfcea31bdd375  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_64ba9c3/launch_command.sh
+fe95c3869c02a9af5182c3ed601dc95a04ac5aafc8b32f0ad6748c4b4fc254ac  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_64ba9c3/source_contracts.tsv
+1f16442269925e824294b34b4151a8875f8c6b738147893c217960be7bd52e78  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_64ba9c3/source_fingerprints.tsv
+8481649c424fba613f8597eebfba44cad19630adf6b5ab5e23a057fa42e86af0  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_64ba9c3/readiness_hw_emu.txt
+436a19749e3aee6ca128d5490120d8230950e5b3cbbc58ae3a4708dbb2920496  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_64ba9c3/acceptance_check_prelaunch.tsv
+6d0d5ba7f6ccca81a63805a9134be8b9706ae48ccef4aeaa8115cce3ede23d29  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_64ba9c3/readiness_hw.txt
+aeca51752a8cd05fb8a6e44f664e9b1691121422fc375bc6636a778f722d58f2  .tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_64ba9c3/acceptance_check_prelaunch.tsv
+```
+
+Immediate next command for `hw_emu`:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_emu_after_64ba9c3/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw_emu \
+  --label after_64ba9c3 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 900
+```
+
+Prepared later command for real `hw`:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+.tmp_build/pure_pipeline_launch_packet_launch_packet_hw_after_64ba9c3/launch_command.sh
+```
+
+Expanded:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_pipeline_target_flow.sh \
+  --target hw \
+  --label after_64ba9c3 \
+  --prepare \
+  --wait-idle 7200 \
+  --idle-poll 60 \
+  --idle-settle 120 \
+  --clean-build-artifacts \
+  --gate-case tiny_star_v16_u12 \
+  --gate-timeout 300
+```
+
+After either xclbin exists and the target-flow postrun acceptance is `PASS`,
+the next correctness/performance gate is:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw_emu \
+  --mode gate \
+  --label after_64ba9c3 \
+  --baseline-label after_64ba9c3 \
+  --require-compare
+
+./scripts/run_pure_stage0_postbuild_matrix.sh \
+  --target hw \
+  --mode gate \
+  --label after_64ba9c3 \
+  --baseline-label after_64ba9c3 \
+  --require-compare
+```
+
+As of this note, the answer to "is there a successfully built pure-pipeline
+`hw` version?" is still no. The source and launch packet are ready, `sw_emu`
+is built, the accepted baselines are reproducible, but the `hw_emu` and `hw`
+pure-pipeline xclbins have not been produced.
