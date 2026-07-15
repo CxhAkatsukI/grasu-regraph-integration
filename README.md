@@ -209,12 +209,13 @@ xclbins, active Vitis/Vivado builders, and the next target-flow command:
 ./scripts/report_pure_pipeline_next_steps.py
 ```
 
-The report prints four command blocks:
+The report prints five command blocks:
 
 ```text
 next_commands       What should run next right now.
 postbuild_acceptance
                     Guarded post-build wrapper commands once a target xclbin appears.
+postbuild_wait      Wait-for-xclbin wrappers that launch guarded acceptance automatically.
 postrun_followup    What to run if a manually built xclbin appears.
 stage0_followup     Same-input matrix commands after postrun acceptance passes.
 ```
