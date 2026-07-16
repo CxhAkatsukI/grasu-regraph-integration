@@ -213,3 +213,6 @@ fixed handoff cost on small graphs.
 Next recommended test step: rerun the prior baseline comparison matrix with the
 same inputs, then separate the conclusion into update time, one-shot PMA
 compaction time, ReGraph SSSP time, and full pipeline E2E time.
+
+Update: the extended fixed-step comparison was run and documented in
+`docs/pure_pipeline_extended_comparison_2026-07-16.md`.
