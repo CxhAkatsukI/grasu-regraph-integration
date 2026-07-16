@@ -2,6 +2,10 @@
 
 Date: 2026-07-15 Asia/Shanghai
 
+Update on 2026-07-16: the stale-`hw` warning in this snapshot has been
+superseded by a fresh real-U55C `hw` build and smoke validation. See
+`docs/pure_pipeline_hw_validation_2026-07-16.md`.
+
 Status command input tree, after enforcing hardware artifact manifests in the
 claim checker:
 
