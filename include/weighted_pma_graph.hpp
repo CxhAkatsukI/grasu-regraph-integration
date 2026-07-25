@@ -130,11 +130,9 @@ inline WeightedPmaGraph build_weighted_pma_graph(
             {edge.destination, edge.weight});
     }
 
-    std::vector<std::uint32_t> logical_update_count(vertices, 0);
     std::vector<WeightedEdgeRecord> physical_external;
     for (const auto &update : updates) {
         detail::validate_record(update, vertices);
-        ++logical_update_count.at(update.source);
         const detail::EdgeKey key{update.source, update.destination};
         const auto found = state.find(key);
         if (update.delete_op) {
@@ -161,7 +159,15 @@ inline WeightedPmaGraph build_weighted_pma_graph(
             });
             physical_external.push_back(update);
             found->second = update.weight;
+        } else {
+            throw std::invalid_argument(
+                "weighted PMA insert target already exists with same weight");
         }
+    }
+
+    std::vector<std::uint32_t> physical_update_count(vertices, 0);
+    for (const auto &update : physical_external) {
+        ++physical_update_count.at(update.source);
     }
 
     std::vector<std::pair<std::uint32_t, double>> reorder;
@@ -172,13 +178,16 @@ inline WeightedPmaGraph build_weighted_pma_graph(
         const double density =
             segments == 0
                 ? -1.0
-                : static_cast<double>(logical_update_count[vertex]) /
+                : static_cast<double>(physical_update_count[vertex]) /
                       static_cast<double>(segments);
         reorder.emplace_back(vertex, density);
     }
     std::sort(reorder.begin(), reorder.end(),
               [](const auto &left, const auto &right) {
-                  return left.second > right.second;
+                  if (left.second != right.second) {
+                      return left.second > right.second;
+                  }
+                  return left.first < right.first;
               });
 
     WeightedPmaGraph result;
@@ -209,8 +218,14 @@ inline WeightedPmaGraph build_weighted_pma_graph(
     std::size_t total_slots = 0;
     for (std::uint32_t source = 0; source < vertices; ++source) {
         const std::size_t begin = total_slots;
-        total_slots += detail::round_up_segments(reserved_words[source].size()) *
-                       kWeightedPmaSegmentSlots;
+        std::size_t source_segments =
+            detail::round_up_segments(reserved_words[source].size());
+        // ReGraph's stream consumer performs at least one blocking read. Keep a
+        // protocol-visible dummy segment even when the entire graph is empty.
+        if (source == 0 && total_slots == 0 && source_segments == 0) {
+            source_segments = 1;
+        }
+        total_slots += source_segments * kWeightedPmaSegmentSlots;
         if (total_slots > std::numeric_limits<std::uint32_t>::max()) {
             throw std::overflow_error("weighted PMA row offsets exceed 32 bits");
         }

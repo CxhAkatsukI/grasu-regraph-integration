@@ -111,6 +111,16 @@ system gaps, are documented in:
 docs/weighted_pma_native_hls_2026-07-26.md
 ```
 
+Run the short weighted host/preprocessing gate without building an xclbin:
+
+```bash
+./scripts/check_weighted_pma_native_host.sh
+```
+
+This gate is CPU/oracle evidence only. The document keeps the conversion-free
+candidate separate from the existing compactor-based native HLS baseline and
+records the `sw_emu`, `hw_emu`, and `hw` gates still required.
+
 Build ReGraph SSSP from a clean fixed-source scratch:
 
 ```bash

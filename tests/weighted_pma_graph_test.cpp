@@ -142,6 +142,20 @@ void check_graph(const std::vector<WeightedEdgeRecord> &initial,
 
 int main()
 {
+    const WeightedPmaGraph empty = build_weighted_pma_graph(8, {}, {});
+    check_graph({}, {}, empty);
+    assert(empty.initial_pma_words.size() == kWeightedPmaSegmentSlots);
+    assert(empty.binary_heads.size() == 1);
+    assert((empty.row_bounds.at(0) >> 32) == 0);
+    assert(static_cast<std::uint32_t>(empty.row_bounds.at(0)) ==
+           kWeightedPmaSegmentSlots);
+    for (std::size_t source = 1; source <= empty.vertices; ++source) {
+        assert((empty.row_bounds.at(source) >> 32) ==
+               kWeightedPmaSegmentSlots);
+        assert(static_cast<std::uint32_t>(empty.row_bounds.at(source)) ==
+               kWeightedPmaSegmentSlots);
+    }
+
     const std::vector<WeightedEdgeRecord> initial = {
         {.source = 0, .destination = 1, .weight = 8},
         {.source = 0, .destination = 2, .weight = 2},
@@ -197,6 +211,20 @@ int main()
     assert(static_cast<std::uint32_t>(boundary_row) - (boundary_row >> 32) ==
            2 * kWeightedPmaSegmentSlots);
 
+    const std::vector<WeightedEdgeRecord> density_initial = {
+        {.source = 5, .destination = 6, .weight = 8},
+    };
+    const std::vector<WeightedEdgeRecord> density_updates = {
+        {.source = 5, .destination = 6, .weight = 3},
+        {.source = 0, .destination = 1, .weight = 1},
+    };
+    const WeightedPmaGraph physical_density =
+        build_weighted_pma_graph(8, density_initial, density_updates);
+    check_graph(density_initial, density_updates, physical_density);
+    assert(physical_density.physical_updates.size() == 3);
+    assert(physical_density.external_to_internal.at(5) == 0);
+    assert(physical_density.external_to_internal.at(0) == 1);
+
     bool rejected = false;
     try {
         (void)build_weighted_pma_graph(
@@ -205,6 +233,16 @@ int main()
               .destination = 3,
               .weight = 7,
               .delete_op = true}});
+    } catch (const std::invalid_argument &) {
+        rejected = true;
+    }
+    assert(rejected);
+
+    rejected = false;
+    try {
+        (void)build_weighted_pma_graph(
+            8, initial,
+            {{.source = 0, .destination = 1, .weight = 8}});
     } catch (const std::invalid_argument &) {
         rejected = true;
     }

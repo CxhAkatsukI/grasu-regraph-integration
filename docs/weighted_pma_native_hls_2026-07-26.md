@@ -50,7 +50,8 @@ the currently accepted compactor xclbin is not rebuilt or relabeled.
 preprocessor for the existing GraSU PMA ABI. It:
 
 - validates the one-partition `dst19 + weight12` range;
-- performs the same update-density vertex reorder used by the GraSU host;
+- performs GraSU's update-density vertex reorder using physical PMA operations
+  as the work count, with vertex ID as a deterministic tie-break;
 - maps vertex IDs before packing destination and weight;
 - reserves every packed `(destination, weight)` variant that a batch may
   insert, then emits 16-word PMA segments, packed row bounds, and full 64-bit
@@ -67,9 +68,16 @@ destination-keyed replacement kernel is an optimization point, not part of the
 native baseline.
 
 GraSU's four `bin_search` CUs consume update indices `i mod 4`, while `dispatch`
-reads those streams in the same round-robin order. The lowered pair therefore
-reaches the single process stream selected for its PMA segment in delete-then-
-insert order; there is no same-segment concurrent write in this topology.
+reads those streams in the same round-robin order. When a lowered delete/insert
+pair targets the same segment, both operations therefore reach the same process
+stream in order. If the two packed weight variants fall in different segments,
+they may execute independently; that is safe because they update distinct PMA
+slots and the completion barrier holds compute until all four process CUs have
+finished.
+
+The builder reserves one all-dummy 16-slot segment for a completely empty graph.
+This is not a graph edge or hidden conversion: ReGraph's stream GS kernel uses
+blocking reads and needs at least one 8-edge burst to complete its protocol.
 
 ## Executable Test Evidence
 
@@ -81,7 +89,10 @@ The check script compiles and runs the same test twice, once per ABI mode.
 full-word binary-search/update behavior and compares the resulting graph with an
 independent external-ID weighted-edge oracle. It covers delete, insert, weight
 decrease, weight increase, malformed delete rejection, vertex reorder, and a
-row spanning the 16/17-entry segment boundary.
+row spanning the 16/17-entry segment boundary. It also checks empty-graph stream
+termination and that weight changes count as two operations for cache-density
+reordering. Duplicate insertion of an already-present `(src, dst, weight)` is
+rejected rather than silently charged as zero work or duplicated in PMA.
 
 ```bash
 cd /home/chuxiao/grasu-regraph-integration
@@ -102,8 +113,8 @@ adapter test are:
 ```text
 d3193f17ed6d444dd66dcacb1ca019540fac5ae2034c575679bb46733a5d1edb  pma_to_regraph_adapter.cpp
 d9eba56b839a09c3a75b216a96e39f7c9db84948b1f5a4cd237aacb1d29165f1  pma_to_regraph_adapter_tb.cpp
-e3423844d0b3cb5007e3f47729faaa87e8db2429c900dfeec69b26c70c9d63d1  weighted_pma_graph.hpp
-7726393924b3fe92970cd5ef72544606f818de8d98acb1f2a8e8d219cfe516d9  weighted_pma_graph_test.cpp
+1f9939c047251b19c1cfb9d67c682d6305793ba1a12c3ffd35f02685ffc2a409  weighted_pma_graph.hpp
+42832c966f6019f6f640e5658d9f74df0dc7da9eb4c23e15e930bec1d90745d7  weighted_pma_graph_test.cpp
 ```
 
 ## Whole-System Build Generator
@@ -150,16 +161,54 @@ python3 tests/test_prepare_weighted_pma_native_build.py
 3d37d04175d403eb4c52ac0e5042266e04d77b652a1959bb12410d08f3cc624a  test_prepare_weighted_pma_native_build.py
 ```
 
-## Remaining Before Full Xclbin Compile
+## Weighted Host And CPU Oracle Gate
 
-1. The weighted dataset parser and `WeightedPmaGraph` output must be wired into
-   the OpenCL host buffers and GraSU's four-HBM replicated/interleaved layout.
-2. The host must launch the adapter on every SSSP round, preserve the update
-   completion barrier, and validate weighted distances against an independent
-   CPU oracle.
-3. `sw_emu` is the first whole-system gate. Only after it passes should the
+`tools/weighted_pma_native_host.cpp` is the matching OpenCL host. It parses
+weighted initial edges and updates, independently replays the final graph in
+external vertex IDs, builds the weighted PMA, distributes physical updates over
+the four GraSU inputs, lays even/odd cache and DDR segments into the same four
+HBM buffers consumed by the adapter, and maps the source and result properties
+through the vertex reorder.
+
+For each requested superstep it launches the PMA adapter and ReGraph stream GS,
+HBM wrapper, and apply kernels. The first adapter waits for the four-CU GraSU
+completion barrier. Hardware mode compares every returned property word with a
+synchronous weighted SSSP oracle and writes `external_vertex distance` rows.
+
+The short gate builds the host with an embedded XRT `RUNPATH`, then checks:
+
+- the tracked insert/delete/increase/decrease workload (`5` logical updates,
+  `8` physical PMA operations, maximum distance `14`);
+- an empty graph with the required 16 dummy slots;
+- rejection of a delete with the wrong current weight; and
+- rejection of zero, which is outside the positive `weight12` ABI;
+- rejection of duplicate same-weight insertion; and
+- rejection of a CLI integer outside the 32-bit kernel ABI.
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+./scripts/check_weighted_pma_native_host.sh
+```
+
+The current evidence class is intentionally
+`host_preprocessing_and_cpu_oracle_only`, with `HARDWARE_EXECUTED=0`. The latest
+source hashes are:
+
+```text
+bba058ed9ca0785f2abf35e8e6436ceaec1467ded52488128a0633ee8b855085  weighted_pma_native_host.cpp
+f37837193cba969dd670131735f68dcc72524b33f56a7dfd912bb041e69c213f  build_weighted_pma_native_host.sh
+8d6b2e22ea095ecc626fe8141edbabdd2d2e302342a618804ae917447b0a5816  check_weighted_pma_native_host.sh
+adb3c32417e73a172ae6cb6eaced7d93618942e53260e9dea2a5c9bd6634a959  weighted_pma_native_tiny.graph
+```
+
+## Remaining Whole-System Gates
+
+1. Generate and compile the complete `weighted-axis` `sw_emu` xclbin.
+2. Run the tracked workload through that xclbin and require zero property-word
+   mismatches against the independent weighted SSSP oracle.
+3. Only after `sw_emu` passes should the
    long `hw_emu` and `hw` commands be launched.
 
-The complete weighted kernel graph now has generated compile/link commands, but
-the matching host is not complete. Building this xclbin can check synthesis and
-link connectivity; it cannot yet establish end-to-end weighted correctness.
+The generator and matching host are complete at source/CPU-test level. The
+candidate is still not hardware evidence because no matching weighted xclbin
+has yet passed an execution gate.
