@@ -285,9 +285,13 @@ emit_regraph_compile_command() {
   local cfg="$2"
   local out="$3"
   local src="$4"
+  shift 4
   printf 'v++ --target %q --compile' "${TARGET}"
   for flag in "${REGRAPH_COMMON_FLAGS[@]}"; do
     printf ' %q' "${flag}"
+  done
+  for include_dir in "$@"; do
+    printf ' -I%q' "${include_dir}"
   done
   printf ' --config %q -I%q -o %q %q\n' \
     "${cfg}" "${kernel_dir}" "${out}" "${src}"
@@ -480,7 +484,8 @@ fi
       "${GRI_ROOT}/kernels/regraph_stream_little_gs" \
       "${CFG_DIR}/little_gs_stream_compile.cfg" \
       "${BUILD_DIR}/lksg_stream.${TARGET}.xo" \
-      "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp"
+      "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp" \
+      "${REGRAPH_ROOT}/acc_template/kernel_little_gs"
   fi
 } > "${COMPILE_COMMANDS}"
 chmod +x "${COMPILE_COMMANDS}"

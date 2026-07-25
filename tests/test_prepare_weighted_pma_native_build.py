@@ -136,6 +136,11 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert "-DGRASU_REGRAPH_WEIGHTED_PMA=1" in weighted_compile
     assert "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp" in weighted_compile
     assert "kernels/regraph_stream_little_gs/little_gs_stream.cpp" in weighted_compile
+    lksg_command = next(
+        line for line in weighted_compile.splitlines()
+        if "lksg_stream.sw_emu.xo" in line
+    )
+    assert f"-I{regraph}/acc_template/kernel_little_gs" in lksg_command
     assert "pma_to_regraph_edge_array.cpp" not in weighted_compile
     assert "pma_to_regraph_adapter.sw_emu.xo" in weighted_link
     assert "lksg_stream.sw_emu.xo" in weighted_link
