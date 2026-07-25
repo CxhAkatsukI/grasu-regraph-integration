@@ -141,6 +141,39 @@ result_line="$(rg '^WEIGHTED_PMA_NATIVE_RESULT ' "${RUN_LOG}" | tail -n 1 || tru
 timing_line="$(rg '^WEIGHTED_PMA_NATIVE_TIMING ' "${RUN_LOG}" | tail -n 1 || true)"
 bitsize_warnings="$(rg -c 'Bitsize mismatch|Bitsize mismach' "${RUN_LOG}" || true)"
 
+build_root="$(dirname "$(dirname "${XCLBIN}")")"
+BUILD_METADATA_DIR="${OUT_DIR}/build_metadata"
+mkdir -p "${BUILD_METADATA_DIR}"
+BUILD_METADATA_INDEX="${BUILD_METADATA_DIR}/files.tsv"
+printf 'role\tsha256\tbytes\toriginal_path\tcopy\n' >"${BUILD_METADATA_INDEX}"
+
+copy_build_metadata() {
+  local role="$1"
+  local source_path="$2"
+  local copy_name="$3"
+  if [[ ! -f "${source_path}" ]]; then
+    return
+  fi
+  cp "${source_path}" "${BUILD_METADATA_DIR}/${copy_name}"
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "${role}" \
+    "$(sha256sum "${source_path}" | awk '{print $1}')" \
+    "$(stat --printf '%s' "${source_path}")" \
+    "${source_path}" \
+    "build_metadata/${copy_name}" >>"${BUILD_METADATA_INDEX}"
+}
+
+for build_input in manifest.env inputs.tsv compile_commands.sh link_command.sh; do
+  copy_build_metadata build_input "${build_root}/${build_input}" "${build_input}"
+done
+if [[ -d "${build_root}/logs" ]]; then
+  while IFS= read -r -d '' steps_log; do
+    parent="$(basename "$(dirname "${steps_log}")")"
+    copy_build_metadata build_steps "${steps_log}" \
+      "${parent}_$(basename "${steps_log}")"
+  done < <(find "${build_root}/logs" -type f -name '*.steps.log' -print0 | sort -z)
+fi
+
 status="FAIL"
 if [[ "${host_exit}" == 0 && "${result_count}" == 1 &&
       "${result_line}" == *"status=PASS"* &&
@@ -171,7 +204,6 @@ fi
   printf 'XCLBIN_SHA256=%s\n' "$(sha256sum "${XCLBIN}" | awk '{print $1}')"
   printf 'GRAPH_SHA256=%s\n' "$(sha256sum "${GRAPH}" | awk '{print $1}')"
   printf 'RUN_LOG_SHA256=%s\n' "$(sha256sum "${RUN_LOG}" | awk '{print $1}')"
-  build_root="$(dirname "$(dirname "${XCLBIN}")")"
   for build_input in manifest.env inputs.tsv compile_commands.sh link_command.sh; do
     if [[ -f "${build_root}/${build_input}" ]]; then
       key="$(printf '%s' "${build_input}" | tr '[:lower:].' '[:upper:]_')"
@@ -192,11 +224,11 @@ printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
   "${TARGET}" "${status}" "${host_exit}" "${result_count}" \
   "${bitsize_warnings}" "${result_line}" "${timing_line}" >>"${SUMMARY}"
 
-evidence_files=("${RUN_ENV}" "${SUMMARY}" "${RUN_LOG}")
-if [[ -f "${RESULT_FILE}" ]]; then
-  evidence_files+=("${RESULT_FILE}")
-fi
-sha256sum "${evidence_files[@]}" >"${OUT_DIR}/evidence.sha256"
+(
+  cd "${OUT_DIR}"
+  find . -type f ! -name evidence.sha256 -print0 | sort -z |
+    xargs -0 sha256sum
+) >"${OUT_DIR}/evidence.sha256"
 
 printf 'WEIGHTED_PMA_NATIVE_SMOKE status=%s target=%s evidence=%s\n' \
   "${status}" "${TARGET}" "${OUT_DIR}"
