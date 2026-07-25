@@ -150,6 +150,8 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert "little_gs_stream.cpp" in weighted_inputs
     assert "GRI_GIT_HEAD" in weighted_manifest
     assert "GRASU_GIT_HEAD" in weighted_manifest
+    assert "GRI_GIT_TRACKED_DIRTY" in weighted_manifest
+    assert "GRASU_GIT_UNTRACKED_COUNT" in weighted_manifest
 
     invalid = subprocess.run(
         [str(PREPARE), "--pipeline-mode", "invalid"],

@@ -314,14 +314,24 @@ git_head_or_unavailable() {
   git -C "${repo}" rev-parse HEAD 2>/dev/null || printf 'not_available\n'
 }
 
-git_dirty_or_unavailable() {
+git_tracked_dirty_or_unavailable() {
   local repo="$1"
   if ! git -C "${repo}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     printf 'not_available\n'
-  elif [[ -n "$(git -C "${repo}" status --short)" ]]; then
+  elif ! git -C "${repo}" diff --quiet ||
+       ! git -C "${repo}" diff --cached --quiet; then
     printf '1\n'
   else
     printf '0\n'
+  fi
+}
+
+git_untracked_count_or_unavailable() {
+  local repo="$1"
+  if ! git -C "${repo}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    printf 'not_available\n'
+  else
+    git -C "${repo}" ls-files --others --exclude-standard | wc -l
   fi
 }
 
@@ -560,11 +570,14 @@ chmod +x "${LINK_COMMAND}"
   echo "GRASU_ROOT=${GRASU_ROOT}"
   echo "REGRAPH_ROOT=${REGRAPH_ROOT}"
   echo "GRI_GIT_HEAD=$(git_head_or_unavailable "${GRI_ROOT}")"
-  echo "GRI_GIT_DIRTY=$(git_dirty_or_unavailable "${GRI_ROOT}")"
+  echo "GRI_GIT_TRACKED_DIRTY=$(git_tracked_dirty_or_unavailable "${GRI_ROOT}")"
+  echo "GRI_GIT_UNTRACKED_COUNT=$(git_untracked_count_or_unavailable "${GRI_ROOT}")"
   echo "GRASU_GIT_HEAD=$(git_head_or_unavailable "${GRASU_ROOT}")"
-  echo "GRASU_GIT_DIRTY=$(git_dirty_or_unavailable "${GRASU_ROOT}")"
+  echo "GRASU_GIT_TRACKED_DIRTY=$(git_tracked_dirty_or_unavailable "${GRASU_ROOT}")"
+  echo "GRASU_GIT_UNTRACKED_COUNT=$(git_untracked_count_or_unavailable "${GRASU_ROOT}")"
   echo "REGRAPH_GIT_HEAD=$(git_head_or_unavailable "${REGRAPH_ROOT}")"
-  echo "REGRAPH_GIT_DIRTY=$(git_dirty_or_unavailable "${REGRAPH_ROOT}")"
+  echo "REGRAPH_GIT_TRACKED_DIRTY=$(git_tracked_dirty_or_unavailable "${REGRAPH_ROOT}")"
+  echo "REGRAPH_GIT_UNTRACKED_COUNT=$(git_untracked_count_or_unavailable "${REGRAPH_ROOT}")"
   echo "TARGET=${TARGET}"
   echo "PIPELINE_MODE=${PIPELINE_MODE}"
   echo "PIPELINE_STEM=${PIPELINE_STEM}"
