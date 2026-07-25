@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/env.sh"
 
 TARGET="sw_emu"
+PIPELINE_MODE="compactor"
 PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
 PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
 KERNEL_FREQ=200
@@ -20,27 +21,28 @@ usage() {
   cat <<USAGE
 Usage: $0 [options]
 
-Prepare reproducible Vitis compile/link commands for the first pure hardware
-GraSU -> ReGraph pipeline. This script is generate-only; it does not run v++.
+Prepare reproducible Vitis compile/link commands for a GraSU -> ReGraph
+pipeline. This script is generate-only; it does not run v++.
 
 Options:
   --target sw_emu|hw_emu|hw      Build target. Default: ${TARGET}
+  --pipeline-mode MODE           compactor or weighted-axis. Default: ${PIPELINE_MODE}
   --platform NAME                Platform name. Default: ${PLATFORM}
   --platform-xpfm PATH           Platform xpfm. Default: ${PLATFORM_XPFM}
   --kernel-frequency MHz         Link frequency. Default: ${KERNEL_FREQ}
   --max-cache-segment N          GraSU max cache segment. Default: ${MAX_CACHE_SEGMENT}
   --hls-include PATH             Vitis HLS include directory. Default: ${HLS_INCLUDE}
   --hls-include-etc PATH         Vitis HLS include/etc directory. Default: ${HLS_INCLUDE_ETC}
-  --build-root PATH              Output root. Default: .tmp_build/pure_pipeline_<target>_<timestamp>
+  --build-root PATH              Output root. Default depends on pipeline mode.
   --grasu-build-root PATH        Existing GraSU build root for bin_search/dispatch XOs.
   --regraph-xclbin-dir PATH      Existing ReGraph SSSP XO directory for non-little-GS XOs.
   -h, --help                     Show this help.
 
 Generated files:
-  compile_commands.sh            Compile tokenized process_cache/process_ddr,
-                                 one-shot PMA compactor, and ReGraph little-GS XOs.
+  compile_commands.sh            Compile tokenized GraSU, selected handoff, and
+                                 ReGraph little-GS XOs.
   link_command.sh                Link the pure pipeline xclbin.
-  config/pure_pipeline_<target>.cfg
+  config/<pipeline>_<target>.cfg
   manifest.env
   inputs.tsv
 USAGE
@@ -56,6 +58,7 @@ abs_path() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
+    --pipeline-mode) PIPELINE_MODE="$2"; shift 2 ;;
     --platform) PLATFORM="$2"; PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"; shift 2 ;;
     --platform-xpfm) PLATFORM_XPFM="$(abs_path "$2")"; shift 2 ;;
     --kernel-frequency) KERNEL_FREQ="$2"; shift 2 ;;
@@ -74,9 +77,17 @@ case "${TARGET}" in
   sw_emu|hw_emu|hw) ;;
   *) echo "Invalid --target: ${TARGET}" >&2; exit 2 ;;
 esac
+case "${PIPELINE_MODE}" in
+  compactor|weighted-axis) ;;
+  *) echo "Invalid --pipeline-mode: ${PIPELINE_MODE}" >&2; exit 2 ;;
+esac
 
 if [[ -z "${BUILD_ROOT}" ]]; then
-  BUILD_ROOT="${GRI_ROOT}/.tmp_build/pure_pipeline_${TARGET}_$(date +%Y%m%d_%H%M%S)"
+  if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
+    BUILD_ROOT="${GRI_ROOT}/.tmp_build/pure_pipeline_${TARGET}_$(date +%Y%m%d_%H%M%S)"
+  else
+    BUILD_ROOT="${GRI_ROOT}/.tmp_build/weighted_pma_native_${TARGET}_$(date +%Y%m%d_%H%M%S)"
+  fi
 fi
 
 if [[ -z "${GRASU_BUILD_ROOT}" ]]; then
@@ -227,6 +238,32 @@ write_regraph_little_only_connectivity() {
   ' "${file}"
 }
 
+write_regraph_stream_little_only_connectivity() {
+  local file="$1"
+  awk '
+    BEGIN { in_conn = 0 }
+    /^\[connectivity\]/ { in_conn = 1; next }
+    in_conn == 0 { next }
+    /bigKernelScatterGather/ { next }
+    /kernelBigGSMerger/ { next }
+    /b_cacheline/ { next }
+    /b_tmp_prop/ { next }
+    /b_write_burst/ { next }
+    /b_merged_prop/ { next }
+    {
+      line = $0
+      gsub("littleKernelScatterGather_1", "lksg_stream_1", line)
+      if (line ~ /^nk=littleKernelScatterGather:1/) {
+        line = "nk=lksg_stream:1:lksg_stream_1"
+      }
+      if (line ~ /^sp=lksg_stream_1\.part_edge_array:/) {
+        next
+      }
+      print line
+    }
+  ' "${file}"
+}
+
 write_compile_cfg bin_search "${CFG_DIR}/bin_search_compile.cfg"
 write_compile_cfg dispatch "${CFG_DIR}/dispatch_compile.cfg"
 write_compile_cfg process_cache "${CFG_DIR}/process_cache_token_compile.cfg"
@@ -235,8 +272,13 @@ write_compile_cfg kernelApply "${CFG_DIR}/kernelApply_compile.cfg"
 write_compile_cfg kernelHBMWrapper "${CFG_DIR}/kernelHBMWrapper_compile.cfg"
 write_compile_cfg kernelLittleGSMerger "${CFG_DIR}/kernelLittleGSMerger_compile.cfg"
 write_compile_cfg pma_completion_barrier "${CFG_DIR}/pma_completion_barrier_compile.cfg"
-write_compile_cfg pma_to_regraph_edge_array "${CFG_DIR}/pma_to_regraph_edge_array_compile.cfg"
-write_compile_cfg littleKernelScatterGather "${CFG_DIR}/littleKernelScatterGather_compile.cfg"
+if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
+  write_compile_cfg pma_to_regraph_edge_array "${CFG_DIR}/pma_to_regraph_edge_array_compile.cfg"
+  write_compile_cfg littleKernelScatterGather "${CFG_DIR}/littleKernelScatterGather_compile.cfg"
+else
+  write_compile_cfg pma_to_regraph_adapter "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg"
+  write_compile_cfg lksg_stream "${CFG_DIR}/little_gs_stream_compile.cfg"
+fi
 
 emit_regraph_compile_command() {
   local kernel_dir="$1"
@@ -263,8 +305,19 @@ emit_grasu_compile_command() {
   printf ' --config %q -o %q %q\n' "${cfg}" "${out}" "${src}"
 }
 
-LINK_CFG="${CFG_DIR}/pure_pipeline_${TARGET}.cfg"
-OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_pure_pipeline.${TARGET}.xclbin"
+if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
+  PIPELINE_STEM="pure_pipeline"
+  CLAIM_CLASS="native_hls_aligned_with_conversion"
+  HANDOFF="capacity_wide_compactor_to_edge_array"
+  CONVERSION_COST="included"
+else
+  PIPELINE_STEM="weighted_pma_native"
+  CLAIM_CLASS="candidate_hls_not_yet_built"
+  HANDOFF="weighted_pma_to_axis_stream"
+  CONVERSION_COST="absent"
+fi
+LINK_CFG="${CFG_DIR}/${PIPELINE_STEM}_${TARGET}.cfg"
+OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${PIPELINE_STEM}.${TARGET}.xclbin"
 COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
 LINK_COMMAND="${BUILD_ROOT}/link_command.sh"
 MANIFEST="${BUILD_ROOT}/manifest.env"
@@ -273,7 +326,7 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
 {
   echo "platform=${PLATFORM_XPFM}"
   echo "save-temps=1"
-  echo "messageDb=${BUILD_DIR}/grasu_regraph_pure_pipeline.mdb"
+  echo "messageDb=${BUILD_DIR}/grasu_regraph_${PIPELINE_STEM}.mdb"
   echo "temp_dir=${BUILD_DIR}/link"
   echo "report_dir=${REPORT_DIR}/link"
   echo "log_dir=${LOG_DIR}/link"
@@ -290,7 +343,7 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
   echo "# GraSU internal update streams"
   copy_connectivity_body "${GRASU_STREAM_CFG}"
   echo
-  echo "# GraSU PMA completion barrier into one-shot compactor"
+  echo "# GraSU PMA completion barrier into selected handoff"
   echo "stream_connect=process_cache_1.completion_token:pma_completion_barrier_1.done0:16"
   echo "stream_connect=process_ddr_1.completion_token:pma_completion_barrier_1.done1:16"
   echo "stream_connect=process_cache_2.completion_token:pma_completion_barrier_1.done2:16"
@@ -299,19 +352,35 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
   echo "# PMA completion barrier"
   echo "nk=pma_completion_barrier:1:pma_completion_barrier_1"
   echo "slr=pma_completion_barrier_1:SLR1"
-  echo
-  echo "# One-shot PMA-to-ReGraph edge-array compactor"
-  echo "nk=pma_to_regraph_edge_array:1:pma_to_regraph_edge_array_1"
-  echo "sp=pma_to_regraph_edge_array_1.pma0:HBM[0]"
-  echo "sp=pma_to_regraph_edge_array_1.pma1:HBM[1]"
-  echo "sp=pma_to_regraph_edge_array_1.pma2:HBM[2]"
-  echo "sp=pma_to_regraph_edge_array_1.pma3:HBM[3]"
-  echo "sp=pma_to_regraph_edge_array_1.row_offset:HBM[0]"
-  echo "sp=pma_to_regraph_edge_array_1.edge_array:HBM[0]"
-  echo "slr=pma_to_regraph_edge_array_1:SLR1"
-  echo
-  echo "# ReGraph SSSP connectivity with compact edge-array little-only GS"
-  write_regraph_little_only_connectivity "${REGRAPH_CONNECTIVITY_CFG}"
+  if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
+    echo
+    echo "# One-shot PMA-to-ReGraph edge-array compactor"
+    echo "nk=pma_to_regraph_edge_array:1:pma_to_regraph_edge_array_1"
+    echo "sp=pma_to_regraph_edge_array_1.pma0:HBM[0]"
+    echo "sp=pma_to_regraph_edge_array_1.pma1:HBM[1]"
+    echo "sp=pma_to_regraph_edge_array_1.pma2:HBM[2]"
+    echo "sp=pma_to_regraph_edge_array_1.pma3:HBM[3]"
+    echo "sp=pma_to_regraph_edge_array_1.row_offset:HBM[0]"
+    echo "sp=pma_to_regraph_edge_array_1.edge_array:HBM[0]"
+    echo "slr=pma_to_regraph_edge_array_1:SLR1"
+    echo
+    echo "# ReGraph SSSP connectivity with compact edge-array little-only GS"
+    write_regraph_little_only_connectivity "${REGRAPH_CONNECTIVITY_CFG}"
+  else
+    echo "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32"
+    echo
+    echo "# Weighted PMA-to-ReGraph direct AXIS adapter"
+    echo "nk=pma_to_regraph_adapter:1:pma_to_regraph_adapter_1"
+    echo "sp=pma_to_regraph_adapter_1.pma0:HBM[0]"
+    echo "sp=pma_to_regraph_adapter_1.pma1:HBM[1]"
+    echo "sp=pma_to_regraph_adapter_1.pma2:HBM[2]"
+    echo "sp=pma_to_regraph_adapter_1.pma3:HBM[3]"
+    echo "sp=pma_to_regraph_adapter_1.row_offset:HBM[0]"
+    echo "slr=pma_to_regraph_adapter_1:SLR1"
+    echo
+    echo "# ReGraph weighted SSSP connectivity with stream-input little-only GS"
+    write_regraph_stream_little_only_connectivity "${REGRAPH_CONNECTIVITY_CFG}"
+  fi
 } > "${LINK_CFG}"
 
 declare -a EXISTING_XOS=()
@@ -325,9 +394,18 @@ declare -a GENERATED_XOS=(
   "${BUILD_DIR}/process_cache.${TARGET}.xo"
   "${BUILD_DIR}/process_ddr.${TARGET}.xo"
   "${BUILD_DIR}/pma_completion_barrier.${TARGET}.xo"
-  "${BUILD_DIR}/pma_to_regraph_edge_array.${TARGET}.xo"
-  "${BUILD_DIR}/littleKernelScatterGather.${TARGET}.xo"
 )
+if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
+  GENERATED_XOS+=(
+    "${BUILD_DIR}/pma_to_regraph_edge_array.${TARGET}.xo"
+    "${BUILD_DIR}/littleKernelScatterGather.${TARGET}.xo"
+  )
+else
+  GENERATED_XOS+=(
+    "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo"
+    "${BUILD_DIR}/lksg_stream.${TARGET}.xo"
+  )
+fi
 
 {
   echo "#!/usr/bin/env bash"
@@ -381,16 +459,29 @@ declare -a GENERATED_XOS=(
     "${HLS_INCLUDE_ETC}" \
     "${BUILD_DIR}/pma_completion_barrier.${TARGET}.xo" \
     "${GRI_ROOT}/kernels/pma_completion_barrier/pma_completion_barrier.cpp"
-  printf 'v++ --target %q --compile %s %s --config %q -I%q -o %q %q\n' \
-    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_edge_array_compile.cfg" \
-    "${HLS_INCLUDE_ETC}" \
-    "${BUILD_DIR}/pma_to_regraph_edge_array.${TARGET}.xo" \
-    "${GRI_ROOT}/kernels/pma_to_regraph_edge_array/pma_to_regraph_edge_array.cpp"
-  emit_regraph_compile_command \
-    "${REGRAPH_ROOT}/acc_template/kernel_little_gs" \
-    "${CFG_DIR}/littleKernelScatterGather_compile.cfg" \
-    "${BUILD_DIR}/littleKernelScatterGather.${TARGET}.xo" \
-    "${REGRAPH_ROOT}/acc_template/kernel_little_gs/kernel_scatter_gather.cpp"
+  if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
+    printf 'v++ --target %q --compile %s %s --config %q -I%q -o %q %q\n' \
+      "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_edge_array_compile.cfg" \
+      "${HLS_INCLUDE_ETC}" \
+      "${BUILD_DIR}/pma_to_regraph_edge_array.${TARGET}.xo" \
+      "${GRI_ROOT}/kernels/pma_to_regraph_edge_array/pma_to_regraph_edge_array.cpp"
+    emit_regraph_compile_command \
+      "${REGRAPH_ROOT}/acc_template/kernel_little_gs" \
+      "${CFG_DIR}/littleKernelScatterGather_compile.cfg" \
+      "${BUILD_DIR}/littleKernelScatterGather.${TARGET}.xo" \
+      "${REGRAPH_ROOT}/acc_template/kernel_little_gs/kernel_scatter_gather.cpp"
+  else
+    printf 'v++ --target %q --compile %s %s -DGRASU_REGRAPH_WEIGHTED_PMA=1 --config %q -I%q -o %q %q\n' \
+      "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
+      "${HLS_INCLUDE_ETC}" \
+      "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo" \
+      "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
+    emit_regraph_compile_command \
+      "${GRI_ROOT}/kernels/regraph_stream_little_gs" \
+      "${CFG_DIR}/little_gs_stream_compile.cfg" \
+      "${BUILD_DIR}/lksg_stream.${TARGET}.xo" \
+      "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp"
+  fi
 } > "${COMPILE_COMMANDS}"
 chmod +x "${COMPILE_COMMANDS}"
 
@@ -436,6 +527,11 @@ chmod +x "${LINK_COMMAND}"
   echo "GRASU_ROOT=${GRASU_ROOT}"
   echo "REGRAPH_ROOT=${REGRAPH_ROOT}"
   echo "TARGET=${TARGET}"
+  echo "PIPELINE_MODE=${PIPELINE_MODE}"
+  echo "PIPELINE_STEM=${PIPELINE_STEM}"
+  echo "CLAIM_CLASS=${CLAIM_CLASS}"
+  echo "HANDOFF=${HANDOFF}"
+  echo "CONVERSION_COST=${CONVERSION_COST}"
   echo "PLATFORM=${PLATFORM}"
   echo "PLATFORM_XPFM=${PLATFORM_XPFM}"
   echo "KERNEL_FREQ=${KERNEL_FREQ}"
@@ -487,7 +583,7 @@ chmod +x "${LINK_COMMAND}"
   done
 } > "${INPUTS}"
 
-echo "Prepared pure pipeline build commands:"
+echo "Prepared ${PIPELINE_MODE} pipeline build commands:"
 echo "  ${BUILD_ROOT}"
 echo
 echo "Compile new/modified XOs:"

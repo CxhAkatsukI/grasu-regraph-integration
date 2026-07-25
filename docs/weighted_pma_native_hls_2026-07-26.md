@@ -96,7 +96,7 @@ cd /home/chuxiao/grasu-regraph-integration
   --out-dir .tmp_build/regraph_stream_little_gs_weighted_candidate_20260726
 ```
 
-Both commands pass with Vitis HLS 2024.1 headers. Source hashes from the
+All three commands pass with Vitis HLS 2024.1 headers. Source hashes from the
 adapter test are:
 
 ```text
@@ -106,18 +106,60 @@ e3423844d0b3cb5007e3f47729faaa87e8db2429c900dfeec69b26c70c9d63d1  weighted_pma_g
 7726393924b3fe92970cd5ef72544606f818de8d98acb1f2a8e8d219cfe516d9  weighted_pma_graph_test.cpp
 ```
 
+## Whole-System Build Generator
+
+`prepare_pure_hw_pipeline_build.sh` preserves the accepted compactor pipeline
+as its default and adds an explicit weighted candidate mode:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+
+GRASU_ROOT=/home/chuxiao/GraSU \
+REGRAPH_ROOT=/home/chuxiao/ReGraph \
+./scripts/prepare_pure_hw_pipeline_build.sh \
+  --target sw_emu \
+  --pipeline-mode weighted-axis \
+  --build-root .tmp_build/weighted_pma_native_sw_emu_20260726
+```
+
+The generated config contains the four GraSU update CUs, completion barrier,
+weighted PMA adapter, `lksg_stream`, little-GS merger, HBM wrapper, and apply
+kernel. It has no compactor, edge-array buffer, or `part_edge_array` HBM port.
+The adapter compile command includes `GRASU_REGRAPH_WEIGHTED_PMA=1`.
+
+The generated manifest deliberately records:
+
+```text
+PIPELINE_MODE=weighted-axis
+CLAIM_CLASS=candidate_hls_not_yet_built
+HANDOFF=weighted_pma_to_axis_stream
+CONVERSION_COST=absent
+```
+
+`tests/test_prepare_weighted_pma_native_build.py` generates both modes in an
+isolated fixture, checks both command scripts with `bash -n`, verifies the
+selected kernels/ports/macros, and ensures the default compactor contract is
+unchanged. Reproduce it with:
+
+```bash
+python3 tests/test_prepare_weighted_pma_native_build.py
+```
+
+```text
+9c476569ad91adf7b43a2c2d464433a1aa911192d2ab4506536ef95473b08bc1  prepare_pure_hw_pipeline_build.sh
+3d37d04175d403eb4c52ac0e5042266e04d77b652a1959bb12410d08f3cc624a  test_prepare_weighted_pma_native_build.py
+```
+
 ## Remaining Before Full Xclbin Compile
 
 1. The weighted dataset parser and `WeightedPmaGraph` output must be wired into
    the OpenCL host buffers and GraSU's four-HBM replicated/interleaved layout.
-2. The build generator must restore the proven adapter-to-`lksg_stream` AXIS
-   topology and compile the adapter with the weighted definition.
-3. The host must launch the adapter on every SSSP round, preserve the update
+2. The host must launch the adapter on every SSSP round, preserve the update
    completion barrier, and validate weighted distances against an independent
    CPU oracle.
-4. `sw_emu` is the first whole-system gate. Only after it passes should the
+3. `sw_emu` is the first whole-system gate. Only after it passes should the
    long `hw_emu` and `hw` commands be launched.
 
-The adapter alone is ready for XO synthesis, but the whole weighted system is
-not yet ready for a long build. Issuing a full build now would only prove the
-front-end ABI and would not satisfy end-to-end correctness.
+The complete weighted kernel graph now has generated compile/link commands, but
+the matching host is not complete. Building this xclbin can check synthesis and
+link connectivity; it cannot yet establish end-to-end weighted correctness.
