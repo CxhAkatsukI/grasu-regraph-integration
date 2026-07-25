@@ -100,12 +100,11 @@ proof gate are recorded in:
 docs/regraph_weighted_sssp_status_2026-07-12.md
 ```
 
-The `codex/weighted-pma-native-hls` candidate adds an opt-in weighted PMA ABI
+The `codex/weighted-pma-native-hls` branch adds an opt-in weighted PMA ABI
 to the direct PMA-to-ReGraph AXIS adapter while preserving the legacy unit-
 weight default. Its integration-owned host preprocessor lowers weight changes
 to ordered full-word delete/insert operations for the unmodified GraSU kernels;
-executable PMA/oracle and HLS C++ lane/dummy tests, plus the remaining whole-
-system gaps, are documented in:
+the short CPU/HLS C++ gates and the complete `sw_emu` proof are documented in:
 
 ```text
 docs/weighted_pma_native_hls_2026-07-26.md
@@ -117,9 +116,11 @@ Run the short weighted host/preprocessing gate without building an xclbin:
 ./scripts/check_weighted_pma_native_host.sh
 ```
 
-This gate is CPU/oracle evidence only. The document keeps the conversion-free
-candidate separate from the existing compactor-based native HLS baseline and
-records the `sw_emu`, `hw_emu`, and `hw` gates still required.
+This short gate is CPU/oracle evidence only. The complete weighted-axis xclbin
+has separately passed a conversion-free whole-system `sw_emu` run with zero
+property mismatches. Its self-contained evidence is under
+`evidence/weighted_pma_native_sw_emu_ff13a67/`. Emulation timing is not hardware
+performance evidence; `hw_emu` and real `hw` remain open gates.
 
 Build ReGraph SSSP from a clean fixed-source scratch:
 

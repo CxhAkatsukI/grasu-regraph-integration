@@ -1,0 +1,353 @@
+WEIGHTED_PMA_NATIVE_INPUT vertices=8 static_edges=5 logical_updates=5 physical_updates=8 final_edges=5 pma_slots=64 source_external=0 source_internal=0 supersteps=4
+Using XCL_DEVICE_INDEX=0
+WEIGHTED_PMA_NATIVE_HOST stage=launch_grasu
+Kernel Name: lksg_stream_1, CU Number: 0, Thread creation status: success
+Kernel Name: process_ddr_1, CU Number: 1, Thread creation status: success
+Kernel Name: process_ddr_2, CU Number: 2, Thread creation status: success
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, Thread creation status: success
+Kernel Name: process_cache_1, CU Number: 4, Thread creation status: success
+Kernel Name: process_cache_2, CU Number: 5, Thread creation status: success
+Kernel Name: kernelLittleGSMerger_1, CU Number: 6, Thread creation status: success
+Kernel Name: kernelLittleGSMerger_1, CU Number: 6, State: Start
+Kernel Name: kernelLittleGSMerger_1, CU Number: 6, State: Running
+Kernel Name: bin_search_1, CU Number: 7, Thread creation status: success
+Kernel Name: bin_search_2, CU Number: 8, Thread creation status: success
+Kernel Name: bin_search_3, CU Number: 9, Thread creation status: success
+Kernel Name: bin_search_4, CU Number: 10, Thread creation status: success
+Kernel Name: pma_completion_barrier_1, CU Number: 11, Thread creation status: success
+Kernel Name: dispatch_1, CU Number: 12, Thread creation status: success
+Kernel Name: kernelApply_1, CU Number: 13, Thread creation status: success
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, Thread creation status: success
+Kernel Name: process_cache_1, CU Number: 4, State: Start
+Kernel Name: process_cache_1, CU Number: 4, State: Running
+[KDEBUG] process_cache kernel begin
+[KDEBUG] process_cache.direct begin
+Kernel Name: process_cache_2, CU Number: 5, State: Start
+Kernel Name: process_cache_2, CU Number: 5, State: Running
+[KDEBUG] process_cache kernel begin
+[KDEBUG] process_cache.direct begin
+Kernel Name: process_ddr_1, CU Number: 1, State: Start
+Kernel Name: process_ddr_1, CU Number: 1, State: Running
+[KDEBUG] process_ddr kernel begin
+[KDEBUG] process_ddr.dispatch_update begin
+Kernel Name: process_ddr_2, CU Number: 2, State: Start
+Kernel Name: process_ddr_2, CU Number: 2, State: Running
+[KDEBUG] process_ddr kernel begin
+[KDEBUG] process_ddr.dispatch_update begin
+Kernel Name: dispatch_1, CU Number: 12, State: Start
+Kernel Name: dispatch_1, CU Number: 12, State: Running
+[KDEBUG] dispatch begin size=8
+Kernel Name: bin_search_1, CU Number: 7, State: Start
+Kernel Name: bin_search_1, CU Number: 7, State: Running
+[KDEBUG] bin_search kernel begin edge_size=2
+[KDEBUG] bin_search.direct begin edge_size=2
+[KDEBUG] bin_search.direct done edge_size=2
+[KDEBUG] bin_search kernel done edge_size=2
+Kernel Name: bin_search_1, CU Number: 7, State: Idle
+Kernel Name: bin_search_2, CU Number: 8, State: Start
+Kernel Name: bin_search_2, CU Number: 8, State: Running
+[KDEBUG] bin_search kernel begin edge_size=2
+[KDEBUG] bin_search.direct begin edge_size=2
+[KDEBUG] bin_search.direct done edge_size=2
+[KDEBUG] bin_search kernel done edge_size=2
+WARNING: Bitsize mismatch for ap_[u]int|=ap_[u]int.
+Warning! Bitsize mismach for ap_[u]int |= ap_[u]int.
+Kernel Name: bin_search_2, CU Number: 8, State: Idle
+Kernel Name: bin_search_3, CU Number: 9, State: Start
+Kernel Name: bin_search_3, CU Number: 9, State: Running
+[KDEBUG] bin_search kernel begin edge_size=2
+[KDEBUG] bin_search.direct begin edge_size=2
+[KDEBUG] bin_search.direct done edge_size=2
+[KDEBUG] bin_search kernel done edge_size=2
+Kernel Name: bin_search_3, CU Number: 9, State: Idle
+Kernel Name: bin_search_4, CU Number: 10, State: Start
+Kernel Name: bin_search_4, CU Number: 10, State: Running
+[KDEBUG] bin_search kernel begin edge_size=2
+[KDEBUG] bin_search.direct begin edge_size=2
+[KDEBUG] bin_search.direct done edge_size=2
+[KDEBUG] bin_search kernel done edge_size=2
+WARNING: Bitsize mismatch for ap_[u]int|=ap_[u]int.Kernel Name: bin_search_4, CU Number: 10, State: Idle
+[KDEBUG] dispatch finish size=8
+
+Warning! Bitsize mismach for ap_[u]int |= ap_[u]int.
+Kernel Name: dispatch_1, CU Number: 12, State: Idle
+[KDEBUG] process_ddr.dispatch_update done
+[KDEBUG] process_ddr.process begin
+[KDEBUG] process_cache.direct done
+[KDEBUG] process_ddr.dispatch_update done
+[KDEBUG] process_cache kernel done
+[KDEBUG] process_ddr.process begin
+[KDEBUG] process_ddr.process done
+[KDEBUG] process_ddr.process begin
+Kernel Name: process_cache_1, CU Number: 4, State: Idle
+[KDEBUG] process_ddr.process done
+[KDEBUG] process_ddr.process done
+[KDEBUG] process_ddr.process begin
+[KDEBUG] process_ddr kernel done
+[KDEBUG] process_ddr.process done
+WARNING: Bitsize mismatch for ap_[u]int|=ap_[u]int.[KDEBUG] process_ddr kernel done
+
+Warning! Bitsize mismach for ap_[u]int |= ap_[u]int.
+WARNING: Bitsize mismatch for ap_[u]int|=ap_[u]int.
+Warning! Bitsize mismach for ap_[u]int |= ap_[u]int.
+Kernel Name: process_ddr_1, CU Number: 1, State: Idle
+Kernel Name: process_ddr_2, CU Number: 2, State: Idle
+[KDEBUG] process_cache.direct done
+[KDEBUG] process_cache kernel done
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_barrier
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_barrier
+WEIGHTED_PMA_NATIVE_HOST stage=launch_step step=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_adapter step=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_adapter step=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_lksg step=1
+Kernel Name: process_cache_2, CU Number: 5, State: Idle
+Kernel Name: pma_completion_barrier_1, CU Number: 11, State: Start
+Kernel Name: pma_completion_barrier_1, CU Number: 11, State: Running
+[KDEBUG] pma_completion_barrier: waiting done0
+[KDEBUG] pma_completion_barrier: got done0
+[KDEBUG] pma_completion_barrier: waiting done1
+[KDEBUG] pma_completion_barrier: got done1
+[KDEBUG] pma_completion_barrier: waiting done2
+[KDEBUG] pma_completion_barrier: got done2
+[KDEBUG] pma_completion_barrier: waiting done3
+[KDEBUG] pma_completion_barrier: got done3
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_lksg step=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_hbm step=1
+Kernel Name: pma_completion_barrier_1, CU Number: 11, State: Idle
+Kernel Name: lksg_stream_1, CU Number: 0, State: Start
+Kernel Name: lksg_stream_1, CU Number: 0, State: Running
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Start
+[KDEBUG] lksg_stream: read_stream_edges begin part_edge_num=64
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Running
+[KDEBUG] adapter: begin nodes=8 pma_slots=64
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_hbm step=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_apply step=1
+[KDEBUG] adapter: total_slots=64
+[KDEBUG] adapter: emitted burst=1 slots=8 last=0
+[KDEBUG] lksg_stream: read burst=1 last=0
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Start
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Running
+[KDEBUG] adapter: emitted burst=2 slots=16 last=0
+[KDEBUG] hbm.littleReadMemory[0]: begin, partitions=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_apply step=1
+WEIGHTED_PMA_NATIVE_HOST stage=wait_step step=1
+[KDEBUG] lksg_stream: read burst=2 last=0
+[KDEBUG] adapter: emitted burst=3 slots=24 last=0
+[KDEBUG] lksg_stream: read burst=3 last=0
+[KDEBUG] adapter: emitted burst=4 slots=32 last=0
+[KDEBUG] lksg_stream: read burst=4 last=0
+Kernel Name: kernelApply_1, CU Number: 13, State: Start
+Kernel Name: kernelApply_1, CU Number: 13, State: Running
+[KDEBUG] apply.merge: begin, dense=1 sparse=0 total=4096
+[KDEBUG] adapter: done bursts=8 slots=64
+[KDEBUG] lksg_stream: read_stream_edges done
+[KDEBUG] lksg_stream: accScatterDirectAxi begin
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Idle
+[KDEBUG] hbm.littleReadMemory[0]: end request, processed=1/1
+[KDEBUG] hbm.littleReadMemory[0]: exit
+[KDEBUG] hbm.write_out: begin
+[KDEBUG] lksg_stream: accScatterDirectAxi done
+[KDEBUG] lksg_stream: accGather begin
+[KDEBUG] lksg_stream: accGather done
+[KDEBUG] lksg_stream: mergeWriteResults begin
+[KDEBUG] lksg_stream: mergeWriteResults done
+[KDEBUG] apply.merge: consumed 4096/4096, remaining=0
+[KDEBUG] apply.Apply: begin
+Kernel Name: lksg_stream_1, CU Number: 0, State: Idle
+[KDEBUG] apply.Apply: processed 4096 bursts, last write_idx=4095
+[KDEBUG] apply.Apply: end after 4096 bursts
+[KDEBUG] apply.write_out: begin
+[KDEBUG] hbm.write_out: wrote 4096 bursts, last write_idx=4095
+[KDEBUG] hbm.write_out: end after 4096 bursts
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Idle
+[KDEBUG] apply.write_out: wrote 4096 bursts, last write_idx=4095
+[KDEBUG] apply.write_out: end after 4096 bursts
+WEIGHTED_PMA_NATIVE_SUPERSTEP step=1 adapter_ms=0.992128 lksg_ms=257.796045 apply_ms=394.688990 hbm_ms=393.766404
+WEIGHTED_PMA_NATIVE_HOST stage=launch_step step=2
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_adapter step=2
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_adapter step=2
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_lksg step=2
+Kernel Name: kernelApply_1, CU Number: 13, State: Idle
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Start
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Running
+[KDEBUG] adapter: begin nodes=8 pma_slots=64
+[KDEBUG] adapter: total_slots=64
+[KDEBUG] adapter: emitted burst=1 slots=8 last=0
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_lksg step=2
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_hbm step=2
+[KDEBUG] adapter: emitted burst=2 slots=16 last=0
+[KDEBUG] adapter: emitted burst=3 slots=24 last=0
+[KDEBUG] adapter: emitted burst=4 slots=32 last=0
+Kernel Name: lksg_stream_1, CU Number: 0, State: Start
+Kernel Name: lksg_stream_1, CU Number: 0, State: Running
+[KDEBUG] lksg_stream: read_stream_edges begin part_edge_num=64
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_hbm step=2
+[KDEBUG] lksg_stream: read burst=1 last=0
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_apply step=2
+[KDEBUG] lksg_stream: read burst=2 last=0
+[KDEBUG] lksg_stream: read burst=3 last=0
+[KDEBUG] lksg_stream: read burst=4 last=0
+[KDEBUG] adapter: done bursts=8 slots=64
+[KDEBUG] lksg_stream: read_stream_edges done
+[KDEBUG] lksg_stream: accScatterDirectAxi begin
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Idle
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Start
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Running
+[KDEBUG] hbm.littleReadMemory[0]: begin, partitions=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_apply step=2
+WEIGHTED_PMA_NATIVE_HOST stage=wait_step step=2
+Kernel Name: kernelApply_1, CU Number: 13, State: Start
+Kernel Name: kernelApply_1, CU Number: 13, State: Running
+[KDEBUG] apply.merge: begin, dense=1 sparse=0 total=4096
+[KDEBUG] hbm.littleReadMemory[0]: end request, processed=1/1
+[KDEBUG] hbm.littleReadMemory[0]: exit
+[KDEBUG] hbm.write_out: begin
+[KDEBUG] lksg_stream: accScatterDirectAxi done
+[KDEBUG] lksg_stream: accGather begin
+[KDEBUG] lksg_stream: accGather done
+[KDEBUG] lksg_stream: mergeWriteResults begin
+[KDEBUG] lksg_stream: mergeWriteResults done
+[KDEBUG] apply.merge: consumed 4096/4096, remaining=0
+[KDEBUG] apply.Apply: begin
+Kernel Name: lksg_stream_1, CU Number: 0, State: Idle
+[KDEBUG] apply.Apply: processed 4096 bursts, last write_idx=4095
+[KDEBUG] apply.Apply: end after 4096 bursts
+[KDEBUG] apply.write_out: begin
+[KDEBUG] hbm.write_out: wrote 4096 bursts, last write_idx=4095
+[KDEBUG] hbm.write_out: end after 4096 bursts
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Idle
+[KDEBUG] apply.write_out: wrote 4096 bursts, last write_idx=4095
+[KDEBUG] apply.write_out: end after 4096 bursts
+WEIGHTED_PMA_NATIVE_SUPERSTEP step=2 adapter_ms=1.293537 lksg_ms=224.287816 apply_ms=360.818271 hbm_ms=359.930165
+WEIGHTED_PMA_NATIVE_HOST stage=launch_step step=3
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_adapter step=3
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_adapter step=3
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_lksg step=3
+Kernel Name: kernelApply_1, CU Number: 13, State: Idle
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Start
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Running
+[KDEBUG] adapter: begin nodes=8 pma_slots=64
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_lksg step=3
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_hbm step=3
+[KDEBUG] adapter: total_slots=64
+[KDEBUG] adapter: emitted burst=1 slots=8 last=0
+[KDEBUG] adapter: emitted burst=2 slots=16 last=0
+Kernel Name: lksg_stream_1, CU Number: 0, State: Start
+Kernel Name: lksg_stream_1, CU Number: 0, State: Running
+[KDEBUG] adapter: emitted burst=3 slots=24 last=0
+[KDEBUG] lksg_stream: read_stream_edges begin part_edge_num=64
+[KDEBUG] lksg_stream: read burst=1 last=0
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_hbm step=3
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_apply step=3
+[KDEBUG] lksg_stream: read burst=2 last=0
+[KDEBUG] adapter: emitted burst=4 slots=32 last=0
+[KDEBUG] lksg_stream: read burst=3 last=0
+[KDEBUG] lksg_stream: read burst=4 last=0
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Start
+[KDEBUG] adapter: done bursts=8 slots=64
+[KDEBUG] lksg_stream: read_stream_edges done
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Running
+[KDEBUG] lksg_stream: accScatterDirectAxi begin
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Idle
+[KDEBUG] hbm.littleReadMemory[0]: begin, partitions=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_apply step=3
+WEIGHTED_PMA_NATIVE_HOST stage=wait_step step=3
+Kernel Name: kernelApply_1, CU Number: 13, State: Start
+Kernel Name: kernelApply_1, CU Number: 13, State: Running
+[KDEBUG] apply.merge: begin, dense=1 sparse=0 total=4096
+[KDEBUG] hbm.littleReadMemory[0]: end request, processed=1/1
+[KDEBUG] hbm.littleReadMemory[0]: exit
+[KDEBUG] hbm.write_out: begin
+[KDEBUG] lksg_stream: accScatterDirectAxi done
+[KDEBUG] lksg_stream: accGather begin
+[KDEBUG] lksg_stream: accGather done
+[KDEBUG] lksg_stream: mergeWriteResults begin
+[KDEBUG] lksg_stream: mergeWriteResults done
+[KDEBUG] apply.merge: consumed 4096/4096, remaining=0
+[KDEBUG] apply.Apply: begin
+Kernel Name: lksg_stream_1, CU Number: 0, State: Idle
+[KDEBUG] apply.Apply: processed 4096 bursts, last write_idx=4095
+[KDEBUG] apply.Apply: end after 4096 bursts
+[KDEBUG] apply.write_out: begin
+[KDEBUG] hbm.write_out: wrote 4096 bursts, last write_idx=4095
+[KDEBUG] hbm.write_out: end after 4096 bursts
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Idle
+[KDEBUG] apply.write_out: wrote 4096 bursts, last write_idx=4095
+[KDEBUG] apply.write_out: end after 4096 bursts
+WEIGHTED_PMA_NATIVE_SUPERSTEP step=3 adapter_ms=1.148123 lksg_ms=224.158442 apply_ms=359.925535 hbm_ms=359.024630
+WEIGHTED_PMA_NATIVE_HOST stage=launch_step step=4
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_adapter step=4
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_adapter step=4
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_lksg step=4
+Kernel Name: kernelApply_1, CU Number: 13, State: Idle
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Start
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Running
+[KDEBUG] adapter: begin nodes=8 pma_slots=64
+[KDEBUG] adapter: total_slots=64
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_lksg step=4
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_hbm step=4
+[KDEBUG] adapter: emitted burst=1 slots=8 last=0
+[KDEBUG] adapter: emitted burst=2 slots=16 last=0
+[KDEBUG] adapter: emitted burst=3 slots=24 last=0
+Kernel Name: lksg_stream_1, CU Number: 0, State: Start
+Kernel Name: lksg_stream_1, CU Number: 0, State: Running
+[KDEBUG] adapter: emitted burst=4 slots=32 last=0
+[KDEBUG] lksg_stream: read_stream_edges begin part_edge_num=64
+[KDEBUG] lksg_stream: read burst=1 last=0
+[KDEBUG] lksg_stream: read burst=2 last=0
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_hbm step=4
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_apply step=4
+[KDEBUG] lksg_stream: read burst=3 last=0
+[KDEBUG] lksg_stream: read burst=4 last=0
+[KDEBUG] adapter: done bursts=8 slots=64
+[KDEBUG] lksg_stream: read_stream_edges done
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, State: Idle
+[KDEBUG] lksg_stream: accScatterDirectAxi begin
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Start
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Running
+[KDEBUG] hbm.littleReadMemory[0]: begin, partitions=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_apply step=4
+WEIGHTED_PMA_NATIVE_HOST stage=wait_step step=4
+Kernel Name: kernelApply_1, CU Number: 13, State: Start
+Kernel Name: kernelApply_1, CU Number: 13, State: Running
+[KDEBUG] apply.merge: begin, dense=1 sparse=0 total=4096
+[KDEBUG] hbm.littleReadMemory[0]: end request, processed=1/1
+[KDEBUG] hbm.littleReadMemory[0]: exit
+[KDEBUG] hbm.write_out: begin
+[KDEBUG] lksg_stream: accScatterDirectAxi done
+[KDEBUG] lksg_stream: accGather begin
+[KDEBUG] lksg_stream: accGather done
+[KDEBUG] lksg_stream: mergeWriteResults begin
+[KDEBUG] lksg_stream: mergeWriteResults done
+[KDEBUG] apply.merge: consumed 4096/4096, remaining=0
+[KDEBUG] apply.Apply: begin
+Kernel Name: lksg_stream_1, CU Number: 0, State: Idle
+[KDEBUG] apply.Apply: processed 4096 bursts, last write_idx=4095
+[KDEBUG] apply.Apply: end after 4096 bursts
+[KDEBUG] apply.write_out: begin
+[KDEBUG] hbm.write_out: wrote 4096 bursts, last write_idx=4095
+[KDEBUG] hbm.write_out: end after 4096 bursts
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, State: Idle
+[KDEBUG] apply.write_out: wrote 4096 bursts, last write_idx=4095
+[KDEBUG] apply.write_out: end after 4096 bursts
+WEIGHTED_PMA_NATIVE_SUPERSTEP step=4 adapter_ms=1.459082 lksg_ms=234.594521 apply_ms=370.529629 hbm_ms=369.556051
+WEIGHTED_PMA_NATIVE_TIMING grasu_ms=3.136760 barrier_ms=0.326010 adapter_ms=4.892870 lksg_ms=940.836824 apply_ms=1485.962425 hbm_ms=1482.277250 event_e2e_ms=1494.147299 wall_ms=1494.565181
+WEIGHTED_PMA_NATIVE_RESULT status=PASS mismatches=0 vertices=8 final_edges=5 logical_updates=5 physical_updates=8 processed_edge_slots_per_superstep=64 source_external=0 source_internal=0 supersteps=4 conversion_cost=absent
+Kernel Name: kernelApply_1, CU Number: 13, State: Idle
+device process sw_emu_device done
+Kernel Name: lksg_stream_1, CU Number: 0, Status: Shutdown
+Kernel Name: process_ddr_1, CU Number: 1, Status: Shutdown
+Kernel Name: process_ddr_2, CU Number: 2, Status: Shutdown
+Kernel Name: pma_to_regraph_adapter_1, CU Number: 3, Status: Shutdown
+Kernel Name: process_cache_1, CU Number: 4, Status: Shutdown
+Kernel Name: process_cache_2, CU Number: 5, Status: Shutdown
+Kernel Name: kernelLittleGSMerger_1, CU Number: 6, Status: Shutdown
+Kernel Name: bin_search_1, CU Number: 7, Status: Shutdown
+Kernel Name: bin_search_2, CU Number: 8, Status: Shutdown
+Kernel Name: bin_search_3, CU Number: 9, Status: Shutdown
+Kernel Name: bin_search_4, CU Number: 10, Status: Shutdown
+Kernel Name: pma_completion_barrier_1, CU Number: 11, Status: Shutdown
+Kernel Name: dispatch_1, CU Number: 12, Status: Shutdown
+Kernel Name: kernelApply_1, CU Number: 13, Status: Shutdown
+Kernel Name: kernelHBMWrapper_1, CU Number: 14, Status: Shutdown
+INFO [HLS SIM]: The maximum depth reached by any hls::stream() instance in the design is 32768

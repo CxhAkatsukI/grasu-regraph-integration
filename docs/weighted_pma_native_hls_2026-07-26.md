@@ -1,4 +1,4 @@
-# Weighted PMA-Native HLS Candidate
+# Weighted PMA-Native HLS `sw_emu` Proof
 
 Date: 2026-07-26
 
@@ -19,8 +19,10 @@ The existing hardware-validated native baseline remains unchanged:
 GraSU raw-destination PMA -> one-shot compactor -> edge array -> ReGraph
 ```
 
-No result from this branch is native hardware evidence until a matching xclbin
-passes emulation, synthesis, route, and board correctness gates.
+The complete weighted-axis pipeline now passes `sw_emu` against an independent
+CPU oracle. This is whole-system functional evidence, but it is not native
+hardware performance, resource, timing-closure, or board-correctness evidence.
+Those claims remain gated on `hw_emu` and real `hw` builds/runs.
 
 ## Implemented ABI Boundary
 
@@ -138,7 +140,7 @@ weighted PMA adapter, `lksg_stream`, little-GS merger, HBM wrapper, and apply
 kernel. It has no compactor, edge-array buffer, or `part_edge_array` HBM port.
 The adapter compile command includes `GRASU_REGRAPH_WEIGHTED_PMA=1`.
 
-The generated manifest deliberately records:
+The generated pre-build manifest deliberately records:
 
 ```text
 PIPELINE_MODE=weighted-axis
@@ -147,18 +149,20 @@ HANDOFF=weighted_pma_to_axis_stream
 CONVERSION_COST=absent
 ```
 
-`tests/test_prepare_weighted_pma_native_build.py` generates both modes in an
-isolated fixture, checks both command scripts with `bash -n`, verifies the
-selected kernels/ports/macros, and ensures the default compactor contract is
-unchanged. Reproduce it with:
+That value describes the generated build packet before compilation. The smoke
+runner produces a separate immutable run claim after the built xclbin passes
+its oracle. `tests/test_prepare_weighted_pma_native_build.py` generates both
+modes in an isolated fixture, checks both command scripts with `bash -n`,
+verifies the selected kernels/ports/macros, and ensures the default compactor
+contract is unchanged. Reproduce it with:
 
 ```bash
 python3 tests/test_prepare_weighted_pma_native_build.py
 ```
 
 ```text
-9c476569ad91adf7b43a2c2d464433a1aa911192d2ab4506536ef95473b08bc1  prepare_pure_hw_pipeline_build.sh
-3d37d04175d403eb4c52ac0e5042266e04d77b652a1959bb12410d08f3cc624a  test_prepare_weighted_pma_native_build.py
+713ef7505dee4ae83416e54b1051b9bf184c362270355d9d1510acbb6b0d9264  prepare_pure_hw_pipeline_build.sh
+27bb1fbde95ee135ef0f89e862753e11d7c5b593ac075997a83244e13d8b6941  test_prepare_weighted_pma_native_build.py
 ```
 
 ## Weighted Host And CPU Oracle Gate
@@ -190,9 +194,9 @@ cd /home/chuxiao/grasu-regraph-integration
 ./scripts/check_weighted_pma_native_host.sh
 ```
 
-The current evidence class is intentionally
-`host_preprocessing_and_cpu_oracle_only`, with `HARDWARE_EXECUTED=0`. The latest
-source hashes are:
+This short gate's evidence class is intentionally
+`host_preprocessing_and_cpu_oracle_only`, with `HARDWARE_EXECUTED=0`. The whole-
+system gate below has a distinct claim class. The latest source hashes are:
 
 ```text
 bba058ed9ca0785f2abf35e8e6436ceaec1467ded52488128a0633ee8b855085  weighted_pma_native_host.cpp
@@ -201,14 +205,87 @@ f37837193cba969dd670131735f68dcc72524b33f56a7dfd912bb041e69c213f  build_weighted
 adb3c32417e73a172ae6cb6eaced7d93618942e53260e9dea2a5c9bd6634a959  weighted_pma_native_tiny.graph
 ```
 
+## Whole-System `sw_emu` Proof
+
+The full conversion-free pipeline was compiled and linked as 15 CUs: four
+`bin_search` CUs, `dispatch`, two `process_cache` CUs, two `process_ddr` CUs,
+the completion barrier, weighted PMA adapter, `lksg_stream`, little-GS merger,
+HBM wrapper, and apply kernel. There is no compactor or intermediate edge-array
+buffer. The tracked weighted workload passed the independent synchronous SSSP
+oracle:
+
+```text
+WEIGHTED_PMA_NATIVE_RESULT status=PASS mismatches=0 vertices=8 final_edges=5 logical_updates=5 physical_updates=8 processed_edge_slots_per_superstep=64 source_external=0 source_internal=0 supersteps=4 conversion_cost=absent
+```
+
+Expected external-ID distances were exactly:
+
+```text
+0 0
+1 3
+2 10
+3 14
+4 12
+5 2147483646
+6 2147483646
+7 2147483646
+```
+
+Evidence is archived at:
+
+```text
+evidence/weighted_pma_native_sw_emu_ff13a67/
+```
+
+The bundle contains the run log/result, run environment, build/input manifests,
+all generated compile/link commands, all ten compile step logs, the link step
+log, and relative SHA-256 checksums. The xclbin is intentionally omitted because
+of its size, but is bound by hash:
+
+```text
+3e819201c8846299a0b5f40ed66be7043fa6f2b1e97bdc7dbba2e2171edaa0ba  grasu_regraph_weighted_pma_native.sw_emu.xclbin
+cbe32e71ff832b4378a69b888e25b11aa8b4116a737f87ae8e95d51397b1fe53  weighted_pma_native_host
+```
+
+Reproduce the build and run with:
+
+```bash
+cd /home/chuxiao/grasu-regraph-integration
+
+GRASU_ROOT=/home/chuxiao/GraSU \
+REGRAPH_ROOT=/home/chuxiao/ReGraph \
+./scripts/prepare_pure_hw_pipeline_build.sh \
+  --target sw_emu \
+  --pipeline-mode weighted-axis \
+  --build-root .tmp_build/weighted_pma_native_sw_emu_repro
+
+./.tmp_build/weighted_pma_native_sw_emu_repro/compile_commands.sh
+./.tmp_build/weighted_pma_native_sw_emu_repro/link_command.sh
+./scripts/build_weighted_pma_native_host.sh \
+  --out-dir .tmp_build/weighted_pma_native_sw_emu_repro/host
+
+./scripts/run_weighted_pma_native_smoke.sh \
+  --target sw_emu \
+  --host .tmp_build/weighted_pma_native_sw_emu_repro/host/weighted_pma_native_host \
+  --xclbin .tmp_build/weighted_pma_native_sw_emu_repro/build/grasu_regraph_weighted_pma_native.sw_emu.xclbin \
+  --out-dir results/weighted_pma_native_sw_emu_repro
+```
+
+The first compile attempt exposed one integration-owned generator omission:
+`lksg_stream` did not receive ReGraph's `kernel_little_gs` include directory.
+The generator now supplies it and the complete rebuild passes. The run still
+reports eight inherited GraSU `ap_uint` bitsize warnings. They did not produce a
+functional mismatch here, but remain a synthesis audit item.
+
+The reported `sw_emu` milliseconds must not be used for performance comparison.
+The valid claim is only: the complete conversion-free weighted PMA-to-ReGraph
+pipeline executes and returns the correct result in software emulation.
+
 ## Remaining Whole-System Gates
 
-1. Generate and compile the complete `weighted-axis` `sw_emu` xclbin.
-2. Run the tracked workload through that xclbin and require zero property-word
-   mismatches against the independent weighted SSSP oracle.
-3. Only after `sw_emu` passes should the
-   long `hw_emu` and `hw` commands be launched.
-
-The generator and matching host are complete at source/CPU-test level. The
-candidate is still not hardware evidence because no matching weighted xclbin
-has yet passed an execution gate.
+1. Build and run the same source/ABI under `hw_emu`, requiring zero oracle
+   mismatches.
+2. Build a routed `hw` xclbin, archive Vivado timing/resource reports, and run
+   the same correctness gate on U55C.
+3. Only the real-`hw` run may contribute weighted-axis latency/throughput data;
+   even then, a broader workload matrix is required before comparison claims.

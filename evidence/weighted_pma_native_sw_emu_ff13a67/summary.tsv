@@ -1,0 +1,2 @@
+target	status	host_exit	result_count	bitsize_warnings	result_line	timing_line
+sw_emu	PASS	0	1	8	WEIGHTED_PMA_NATIVE_RESULT status=PASS mismatches=0 vertices=8 final_edges=5 logical_updates=5 physical_updates=8 processed_edge_slots_per_superstep=64 source_external=0 source_internal=0 supersteps=4 conversion_cost=absent	WEIGHTED_PMA_NATIVE_TIMING grasu_ms=3.136760 barrier_ms=0.326010 adapter_ms=4.892870 lksg_ms=940.836824 apply_ms=1485.962425 hbm_ms=1482.277250 event_e2e_ms=1494.147299 wall_ms=1494.565181
