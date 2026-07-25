@@ -1,0 +1,285 @@
+#pragma once
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <map>
+#include <set>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
+namespace grasu::integration {
+
+constexpr std::uint32_t kWeightedPmaEmpty = 0x80000000U;
+constexpr std::uint64_t kWeightedPmaDelete = 0x8000000000000000ULL;
+constexpr std::uint32_t kWeightedPmaDestinationMask = 0x7ffffU;
+constexpr std::uint32_t kWeightedPmaWeightMask = 0xfffU;
+constexpr std::uint32_t kWeightedPmaWeightShift = 19U;
+constexpr std::size_t kWeightedPmaSegmentSlots = 16;
+
+struct WeightedEdgeRecord {
+    std::uint32_t source{};
+    std::uint32_t destination{};
+    std::uint16_t weight{1};
+    bool delete_op{};
+};
+
+struct WeightedPmaGraph {
+    std::size_t vertices{};
+    std::vector<std::uint32_t> external_to_internal;
+    std::vector<std::uint32_t> internal_to_external;
+    std::vector<std::uint64_t> row_bounds;
+    std::vector<std::uint64_t> binary_heads;
+    std::vector<std::uint32_t> initial_pma_words;
+    std::vector<std::uint64_t> physical_updates;
+    std::vector<WeightedEdgeRecord> initial_internal;
+    std::vector<WeightedEdgeRecord> final_internal;
+};
+
+inline std::uint32_t encode_weighted_pma_word(std::uint32_t destination,
+                                              std::uint16_t weight)
+{
+    if (destination > kWeightedPmaDestinationMask || weight == 0 ||
+        weight > kWeightedPmaWeightMask) {
+        throw std::invalid_argument("weighted PMA edge exceeds dst19/weight12 ABI");
+    }
+    return destination |
+           (static_cast<std::uint32_t>(weight) << kWeightedPmaWeightShift);
+}
+
+inline std::uint32_t decode_weighted_pma_destination(std::uint32_t word)
+{
+    return word & kWeightedPmaDestinationMask;
+}
+
+inline std::uint16_t decode_weighted_pma_weight(std::uint32_t word)
+{
+    return static_cast<std::uint16_t>(
+        (word >> kWeightedPmaWeightShift) & kWeightedPmaWeightMask);
+}
+
+inline std::uint64_t pack_weighted_update(std::uint32_t source,
+                                          std::uint32_t word,
+                                          bool delete_op)
+{
+    if ((word & kWeightedPmaEmpty) != 0 || source >= (1U << 31)) {
+        throw std::invalid_argument("weighted PMA update exceeds packed ABI");
+    }
+    const std::uint64_t packed =
+        (static_cast<std::uint64_t>(source) << 32) | word;
+    return delete_op ? packed | kWeightedPmaDelete : packed;
+}
+
+namespace detail {
+
+using EdgeKey = std::pair<std::uint32_t, std::uint32_t>;
+
+inline std::size_t round_up_segments(std::size_t records)
+{
+    return records == 0
+               ? 0
+               : (records + kWeightedPmaSegmentSlots - 1) /
+                     kWeightedPmaSegmentSlots;
+}
+
+inline void validate_record(const WeightedEdgeRecord &edge,
+                            std::size_t vertices)
+{
+    if (edge.source >= vertices || edge.destination >= vertices) {
+        throw std::invalid_argument("weighted PMA edge vertex is out of range");
+    }
+    (void)encode_weighted_pma_word(edge.destination, edge.weight);
+}
+
+inline WeightedEdgeRecord map_record(
+    const WeightedEdgeRecord &edge,
+    const std::vector<std::uint32_t> &external_to_internal)
+{
+    return {
+        .source = external_to_internal.at(edge.source),
+        .destination = external_to_internal.at(edge.destination),
+        .weight = edge.weight,
+        .delete_op = edge.delete_op,
+    };
+}
+
+}  // namespace detail
+
+inline WeightedPmaGraph build_weighted_pma_graph(
+    std::size_t vertices,
+    const std::vector<WeightedEdgeRecord> &initial,
+    const std::vector<WeightedEdgeRecord> &updates)
+{
+    if (vertices == 0 || vertices > kWeightedPmaDestinationMask + 1ULL) {
+        throw std::invalid_argument("weighted PMA graph exceeds one dst19 partition");
+    }
+    std::map<detail::EdgeKey, std::uint16_t> state;
+    std::vector<std::set<std::pair<std::uint32_t, std::uint16_t>>>
+        reserved_variants(vertices);
+    for (const auto &edge : initial) {
+        detail::validate_record(edge, vertices);
+        if (edge.delete_op ||
+            !state.emplace(detail::EdgeKey{edge.source, edge.destination},
+                           edge.weight)
+                 .second) {
+            throw std::invalid_argument("invalid duplicate initial weighted edge");
+        }
+        reserved_variants.at(edge.source).insert(
+            {edge.destination, edge.weight});
+    }
+
+    std::vector<std::uint32_t> logical_update_count(vertices, 0);
+    std::vector<WeightedEdgeRecord> physical_external;
+    for (const auto &update : updates) {
+        detail::validate_record(update, vertices);
+        ++logical_update_count.at(update.source);
+        const detail::EdgeKey key{update.source, update.destination};
+        const auto found = state.find(key);
+        if (update.delete_op) {
+            if (found == state.end() || found->second != update.weight) {
+                throw std::invalid_argument(
+                    "weighted PMA delete target or weight does not match");
+            }
+            physical_external.push_back(update);
+            state.erase(found);
+            continue;
+        }
+
+        reserved_variants.at(update.source).insert(
+            {update.destination, update.weight});
+        if (found == state.end()) {
+            physical_external.push_back(update);
+            state.emplace(key, update.weight);
+        } else if (found->second != update.weight) {
+            physical_external.push_back({
+                .source = update.source,
+                .destination = update.destination,
+                .weight = found->second,
+                .delete_op = true,
+            });
+            physical_external.push_back(update);
+            found->second = update.weight;
+        }
+    }
+
+    std::vector<std::pair<std::uint32_t, double>> reorder;
+    reorder.reserve(vertices);
+    for (std::uint32_t vertex = 0; vertex < vertices; ++vertex) {
+        const std::size_t segments =
+            detail::round_up_segments(reserved_variants[vertex].size());
+        const double density =
+            segments == 0
+                ? -1.0
+                : static_cast<double>(logical_update_count[vertex]) /
+                      static_cast<double>(segments);
+        reorder.emplace_back(vertex, density);
+    }
+    std::sort(reorder.begin(), reorder.end(),
+              [](const auto &left, const auto &right) {
+                  return left.second > right.second;
+              });
+
+    WeightedPmaGraph result;
+    result.vertices = vertices;
+    result.external_to_internal.resize(vertices);
+    result.internal_to_external.resize(vertices);
+    for (std::uint32_t internal = 0; internal < vertices; ++internal) {
+        const std::uint32_t external = reorder[internal].first;
+        result.external_to_internal[external] = internal;
+        result.internal_to_external[internal] = external;
+    }
+
+    std::vector<std::vector<std::uint32_t>> reserved_words(vertices);
+    for (std::uint32_t external_source = 0; external_source < vertices;
+         ++external_source) {
+        const std::uint32_t internal_source =
+            result.external_to_internal[external_source];
+        auto &words = reserved_words[internal_source];
+        for (const auto &[external_destination, weight] :
+             reserved_variants[external_source]) {
+            words.push_back(encode_weighted_pma_word(
+                result.external_to_internal[external_destination], weight));
+        }
+        std::sort(words.begin(), words.end());
+    }
+
+    result.row_bounds.resize(vertices + 1, 0);
+    std::size_t total_slots = 0;
+    for (std::uint32_t source = 0; source < vertices; ++source) {
+        const std::size_t begin = total_slots;
+        total_slots += detail::round_up_segments(reserved_words[source].size()) *
+                       kWeightedPmaSegmentSlots;
+        if (total_slots > std::numeric_limits<std::uint32_t>::max()) {
+            throw std::overflow_error("weighted PMA row offsets exceed 32 bits");
+        }
+        result.row_bounds[source] =
+            (static_cast<std::uint64_t>(begin) << 32) | total_slots;
+    }
+    result.row_bounds[vertices] =
+        (static_cast<std::uint64_t>(total_slots) << 32) | total_slots;
+    result.initial_pma_words.assign(total_slots, kWeightedPmaEmpty);
+    result.binary_heads.assign(total_slots / kWeightedPmaSegmentSlots, 0);
+
+    std::vector<std::vector<std::uint32_t>> initial_words(vertices);
+    for (const auto &edge : initial) {
+        const auto mapped = detail::map_record(edge, result.external_to_internal);
+        result.initial_internal.push_back(mapped);
+        initial_words[mapped.source].push_back(
+            encode_weighted_pma_word(mapped.destination, mapped.weight));
+    }
+    for (auto &[key, weight] : state) {
+        result.final_internal.push_back(detail::map_record(
+            {.source = key.first,
+             .destination = key.second,
+             .weight = weight,
+             .delete_op = false},
+            result.external_to_internal));
+    }
+
+    for (std::uint32_t source = 0; source < vertices; ++source) {
+        const std::size_t row_begin = result.row_bounds[source] >> 32;
+        const auto &reserved = reserved_words[source];
+        for (std::size_t offset = 0; offset < reserved.size();
+             offset += kWeightedPmaSegmentSlots) {
+            const std::size_t segment =
+                (row_begin + offset) / kWeightedPmaSegmentSlots;
+            result.binary_heads[segment] =
+                (static_cast<std::uint64_t>(source) << 32) | reserved[offset];
+        }
+        std::sort(initial_words[source].begin(), initial_words[source].end());
+        for (const std::uint32_t word : initial_words[source]) {
+            const auto reserved_position =
+                std::lower_bound(reserved.begin(), reserved.end(), word);
+            if (reserved_position == reserved.end() || *reserved_position != word) {
+                throw std::logic_error("initial weighted edge lacks a reserved slot");
+            }
+            const std::size_t reserved_offset =
+                static_cast<std::size_t>(reserved_position - reserved.begin());
+            const std::size_t segment_begin =
+                row_begin +
+                (reserved_offset / kWeightedPmaSegmentSlots) *
+                    kWeightedPmaSegmentSlots;
+            auto first = result.initial_pma_words.begin() + segment_begin;
+            auto last = first + kWeightedPmaSegmentSlots;
+            auto output = std::find(first, last, kWeightedPmaEmpty);
+            if (output == last) {
+                throw std::logic_error("initial weighted PMA segment overflowed");
+            }
+            *output = word;
+            std::sort(first, last);
+        }
+    }
+
+    for (const auto &edge : physical_external) {
+        const auto mapped = detail::map_record(edge, result.external_to_internal);
+        result.physical_updates.push_back(pack_weighted_update(
+            mapped.source,
+            encode_weighted_pma_word(mapped.destination, mapped.weight),
+            mapped.delete_op));
+    }
+    return result;
+}
+
+}  // namespace grasu::integration
