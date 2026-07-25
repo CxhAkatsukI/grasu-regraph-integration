@@ -12,8 +12,9 @@ usage() {
   cat <<USAGE
 Usage: $0 [--out-dir PATH]
 
-Run a lightweight C++ syntax check for the PMA-to-ReGraph adapter kernel using
-the Vitis HLS C++ headers. This does not synthesize an XO.
+Compile and execute legacy-unit and weighted-PMA C++ tests for the
+PMA-to-ReGraph adapter using the Vitis HLS headers. This does not synthesize an
+XO.
 USAGE
 }
 
@@ -47,8 +48,10 @@ fi
 mkdir -p "${OUT_DIR}"
 
 SRC="${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
-OBJ="${OUT_DIR}/pma_to_regraph_adapter.o"
-LOG="${OUT_DIR}/compile.log"
+TB="${GRI_ROOT}/tests/pma_to_regraph_adapter_tb.cpp"
+LEGACY_EXE="${OUT_DIR}/pma_to_regraph_adapter_legacy_test"
+WEIGHTED_EXE="${OUT_DIR}/pma_to_regraph_adapter_weighted_test"
+LOG="${OUT_DIR}/test.log"
 
 {
   echo "timestamp=$(date -Is)"
@@ -56,21 +59,38 @@ LOG="${OUT_DIR}/compile.log"
   echo "HLS_INCLUDE=${HLS_INCLUDE}"
   echo "HLS_INCLUDE_ETC=${HLS_INCLUDE_ETC}"
   echo "SRC=${SRC}"
-  echo "OBJ=${OBJ}"
+  echo "TB=${TB}"
+  echo "LEGACY_EXE=${LEGACY_EXE}"
+  echo "WEIGHTED_EXE=${WEIGHTED_EXE}"
 } > "${OUT_DIR}/manifest.env"
 
-g++ -std=c++17 -w \
-  -I"${HLS_INCLUDE}" \
-  -I"${HLS_INCLUDE_ETC}" \
-  -c "${SRC}" \
-  -o "${OBJ}" \
-  > "${LOG}" 2>&1
+if ! {
+  g++ -std=c++17 -w \
+    -I"${HLS_INCLUDE}" \
+    -I"${HLS_INCLUDE_ETC}" \
+    "${TB}" \
+    -o "${LEGACY_EXE}"
+  "${LEGACY_EXE}"
+
+  g++ -std=c++17 -w \
+    -DGRASU_REGRAPH_WEIGHTED_PMA=1 \
+    -I"${HLS_INCLUDE}" \
+    -I"${HLS_INCLUDE_ETC}" \
+    "${TB}" \
+    -o "${WEIGHTED_EXE}"
+  "${WEIGHTED_EXE}"
+} > "${LOG}" 2>&1; then
+  cat "${LOG}" >&2
+  exit 1
+fi
 
 {
   sha256sum "${SRC}"
-  sha256sum "${OBJ}"
+  sha256sum "${TB}"
+  sha256sum "${LEGACY_EXE}"
+  sha256sum "${WEIGHTED_EXE}"
   sha256sum "${LOG}"
 } > "${OUT_DIR}/SHA256SUMS"
 
-echo "PMA-to-ReGraph adapter syntax check passed:"
+echo "PMA-to-ReGraph adapter legacy and weighted tests passed:"
 echo "  ${OUT_DIR}"

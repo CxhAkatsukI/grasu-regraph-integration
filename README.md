@@ -100,6 +100,15 @@ proof gate are recorded in:
 docs/regraph_weighted_sssp_status_2026-07-12.md
 ```
 
+The `codex/weighted-pma-native-hls` candidate adds an opt-in weighted PMA ABI
+to the direct PMA-to-ReGraph AXIS adapter while preserving the legacy unit-
+weight default. Its executable HLS C++ lane/dummy tests and remaining GraSU
+host/update gaps are documented in:
+
+```text
+docs/weighted_pma_native_hls_2026-07-26.md
+```
+
 Build ReGraph SSSP from a clean fixed-source scratch:
 
 ```bash

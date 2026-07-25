@@ -17,10 +17,22 @@ static constexpr unsigned kDstLocalMask = 0x7ffffu;
 static constexpr unsigned kUnitWeight = 1u;
 static constexpr unsigned kWeightShift = 19;
 
+#ifndef GRASU_REGRAPH_WEIGHTED_PMA
+#define GRASU_REGRAPH_WEIGHTED_PMA 0
+#endif
+
+#if GRASU_REGRAPH_WEIGHTED_PMA != 0 && GRASU_REGRAPH_WEIGHTED_PMA != 1
+#error "GRASU_REGRAPH_WEIGHTED_PMA must be 0 or 1"
+#endif
+
 static ap_uint<32> pack_regraph_dst(ap_uint<32> dst, bool dummy)
 {
 #pragma HLS INLINE
+#if GRASU_REGRAPH_WEIGHTED_PMA
+    ap_uint<32> packed = dst & ~ap_uint<32>(kPmaEmptyMask);
+#else
     ap_uint<32> packed = (dst & kDstLocalMask) | (kUnitWeight << kWeightShift);
+#endif
     if (dummy) {
         packed |= kPmaEmptyMask;
     }
