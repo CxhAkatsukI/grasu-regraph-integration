@@ -12,7 +12,7 @@ usage() {
   cat <<USAGE
 Usage: $0 [--out-dir PATH]
 
-Compile and execute legacy-unit and weighted-PMA C++ tests for the
+Compile and execute legacy-unit, weighted-PMA, and destination-only C++ tests for the
 PMA-to-ReGraph adapter using the Vitis HLS headers. This does not synthesize an
 XO.
 USAGE
@@ -51,6 +51,7 @@ SRC="${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
 TB="${GRI_ROOT}/tests/pma_to_regraph_adapter_tb.cpp"
 LEGACY_EXE="${OUT_DIR}/pma_to_regraph_adapter_legacy_test"
 WEIGHTED_EXE="${OUT_DIR}/pma_to_regraph_adapter_weighted_test"
+DESTINATION_EXE="${OUT_DIR}/pma_to_regraph_adapter_destination_test"
 LOG="${OUT_DIR}/test.log"
 
 {
@@ -62,6 +63,7 @@ LOG="${OUT_DIR}/test.log"
   echo "TB=${TB}"
   echo "LEGACY_EXE=${LEGACY_EXE}"
   echo "WEIGHTED_EXE=${WEIGHTED_EXE}"
+  echo "DESTINATION_EXE=${DESTINATION_EXE}"
 } > "${OUT_DIR}/manifest.env"
 
 if ! {
@@ -79,6 +81,14 @@ if ! {
     "${TB}" \
     -o "${WEIGHTED_EXE}"
   "${WEIGHTED_EXE}"
+
+  g++ -std=c++17 -w \
+    -DGRASU_REGRAPH_DESTINATION_ONLY=1 \
+    -I"${HLS_INCLUDE}" \
+    -I"${HLS_INCLUDE_ETC}" \
+    "${TB}" \
+    -o "${DESTINATION_EXE}"
+  "${DESTINATION_EXE}"
 } > "${LOG}" 2>&1; then
   cat "${LOG}" >&2
   exit 1
@@ -89,8 +99,9 @@ fi
   sha256sum "${TB}"
   sha256sum "${LEGACY_EXE}"
   sha256sum "${WEIGHTED_EXE}"
+  sha256sum "${DESTINATION_EXE}"
   sha256sum "${LOG}"
 } > "${OUT_DIR}/SHA256SUMS"
 
-echo "PMA-to-ReGraph adapter legacy and weighted tests passed:"
+echo "PMA-to-ReGraph adapter legacy, weighted, and destination-only tests passed:"
 echo "  ${OUT_DIR}"

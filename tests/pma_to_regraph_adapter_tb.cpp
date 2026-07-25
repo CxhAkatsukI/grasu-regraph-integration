@@ -48,6 +48,9 @@ int main()
 #if GRASU_REGRAPH_WEIGHTED_PMA
     assert(lane_word(first, 0, true) == pack(3, 7));
     assert(lane_word(first, 1, true) == pack(9, 12));
+#elif GRASU_REGRAPH_DESTINATION_ONLY
+    assert(lane_word(first, 0, true) == 3);
+    assert(lane_word(first, 1, true) == 9);
 #else
     assert(lane_word(first, 0, true) == pack(3, 1));
     assert(lane_word(first, 1, true) == pack(9, 1));

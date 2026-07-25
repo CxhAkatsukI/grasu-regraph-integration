@@ -21,8 +21,20 @@ static constexpr unsigned kWeightShift = 19;
 #define GRASU_REGRAPH_WEIGHTED_PMA 0
 #endif
 
+#ifndef GRASU_REGRAPH_DESTINATION_ONLY
+#define GRASU_REGRAPH_DESTINATION_ONLY 0
+#endif
+
 #if GRASU_REGRAPH_WEIGHTED_PMA != 0 && GRASU_REGRAPH_WEIGHTED_PMA != 1
 #error "GRASU_REGRAPH_WEIGHTED_PMA must be 0 or 1"
+#endif
+
+#if GRASU_REGRAPH_DESTINATION_ONLY != 0 && GRASU_REGRAPH_DESTINATION_ONLY != 1
+#error "GRASU_REGRAPH_DESTINATION_ONLY must be 0 or 1"
+#endif
+
+#if GRASU_REGRAPH_WEIGHTED_PMA && GRASU_REGRAPH_DESTINATION_ONLY
+#error "weighted and destination-only PMA output modes are mutually exclusive"
 #endif
 
 static ap_uint<32> pack_regraph_dst(ap_uint<32> dst, bool dummy)
@@ -30,6 +42,8 @@ static ap_uint<32> pack_regraph_dst(ap_uint<32> dst, bool dummy)
 #pragma HLS INLINE
 #if GRASU_REGRAPH_WEIGHTED_PMA
     ap_uint<32> packed = dst & ~ap_uint<32>(kPmaEmptyMask);
+#elif GRASU_REGRAPH_DESTINATION_ONLY
+    ap_uint<32> packed = dst & kDstLocalMask;
 #else
     ap_uint<32> packed = (dst & kDstLocalMask) | (kUnitWeight << kWeightShift);
 #endif
