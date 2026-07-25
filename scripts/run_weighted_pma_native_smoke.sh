@@ -15,6 +15,8 @@ TIMEOUT_SECONDS=120
 PLATFORM_XPFM="/opt/xilinx/platforms/xilinx_u55c_gen3x16_xdma_3_202210_1/xilinx_u55c_gen3x16_xdma_3_202210_1.xpfm"
 VITIS_SETTINGS="/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh"
 EMCONFIG_PATH=""
+GIT_HEAD_AT_START="$(git -C "${GRI_ROOT}" rev-parse HEAD)"
+GIT_DIRTY_AT_START="$([[ -n "$(git -C "${GRI_ROOT}" status --short)" ]] && echo 1 || echo 0)"
 
 usage() {
   cat <<USAGE
@@ -163,12 +165,21 @@ fi
   printf 'HOST=%s\n' "${HOST}"
   printf 'XCLBIN=%s\n' "${XCLBIN}"
   printf 'GRAPH=%s\n' "${GRAPH}"
-  printf 'GIT_HEAD=%s\n' "$(git -C "${GRI_ROOT}" rev-parse HEAD)"
-  printf 'GIT_DIRTY=%s\n' "$([[ -n "$(git -C "${GRI_ROOT}" status --short)" ]] && echo 1 || echo 0)"
+  printf 'GIT_HEAD_AT_START=%s\n' "${GIT_HEAD_AT_START}"
+  printf 'GIT_DIRTY_AT_START=%s\n' "${GIT_DIRTY_AT_START}"
   printf 'HOST_SHA256=%s\n' "$(sha256sum "${HOST}" | awk '{print $1}')"
   printf 'XCLBIN_SHA256=%s\n' "$(sha256sum "${XCLBIN}" | awk '{print $1}')"
   printf 'GRAPH_SHA256=%s\n' "$(sha256sum "${GRAPH}" | awk '{print $1}')"
   printf 'RUN_LOG_SHA256=%s\n' "$(sha256sum "${RUN_LOG}" | awk '{print $1}')"
+  build_root="$(dirname "$(dirname "${XCLBIN}")")"
+  for build_input in manifest.env inputs.tsv compile_commands.sh link_command.sh; do
+    if [[ -f "${build_root}/${build_input}" ]]; then
+      key="$(printf '%s' "${build_input}" | tr '[:lower:].' '[:upper:]_')"
+      printf 'BUILD_%s=%s\n' "${key}" "${build_root}/${build_input}"
+      printf 'BUILD_%s_SHA256=%s\n' "${key}" \
+        "$(sha256sum "${build_root}/${build_input}" | awk '{print $1}')"
+    fi
+  done
   if [[ -f "${RESULT_FILE}" ]]; then
     printf 'RESULT_SHA256=%s\n' "$(sha256sum "${RESULT_FILE}" | awk '{print $1}')"
   fi

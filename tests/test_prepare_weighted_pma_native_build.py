@@ -123,6 +123,7 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     weighted_cfg = Path(weighted_manifest["LINK_CFG"]).read_text(encoding="utf-8")
     weighted_compile = (weighted / "compile_commands.sh").read_text(encoding="utf-8")
     weighted_link = (weighted / "link_command.sh").read_text(encoding="utf-8")
+    weighted_inputs = (weighted / "inputs.tsv").read_text(encoding="utf-8")
     assert weighted_manifest["CLAIM_CLASS"] == "candidate_hls_not_yet_built"
     assert weighted_manifest["HANDOFF"] == "weighted_pma_to_axis_stream"
     assert weighted_manifest["CONVERSION_COST"] == "absent"
@@ -144,6 +145,11 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert "pma_to_regraph_edge_array.cpp" not in weighted_compile
     assert "pma_to_regraph_adapter.sw_emu.xo" in weighted_link
     assert "lksg_stream.sw_emu.xo" in weighted_link
+    assert "generator_source\tpresent\t" in weighted_inputs
+    assert "pma_to_regraph_adapter.cpp" in weighted_inputs
+    assert "little_gs_stream.cpp" in weighted_inputs
+    assert "GRI_GIT_HEAD" in weighted_manifest
+    assert "GRASU_GIT_HEAD" in weighted_manifest
 
     invalid = subprocess.run(
         [str(PREPARE), "--pipeline-mode", "invalid"],

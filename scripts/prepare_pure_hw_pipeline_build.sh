@@ -309,6 +309,34 @@ emit_grasu_compile_command() {
   printf ' --config %q -o %q %q\n' "${cfg}" "${out}" "${src}"
 }
 
+git_head_or_unavailable() {
+  local repo="$1"
+  git -C "${repo}" rev-parse HEAD 2>/dev/null || printf 'not_available\n'
+}
+
+git_dirty_or_unavailable() {
+  local repo="$1"
+  if ! git -C "${repo}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    printf 'not_available\n'
+  elif [[ -n "$(git -C "${repo}" status --short)" ]]; then
+    printf '1\n'
+  else
+    printf '0\n'
+  fi
+}
+
+emit_input_record() {
+  local role="$1"
+  local path="$2"
+  if [[ -f "${path}" ]]; then
+    printf '%s\tpresent\t' "${role}"
+    sha256sum "${path}" | awk '{printf "%s\t", $1}'
+    stat --printf '%s\t%n\n' "${path}"
+  else
+    printf '%s\tmissing\t-\t-\t%s\n' "${role}" "${path}"
+  fi
+}
+
 if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
   PIPELINE_STEM="pure_pipeline"
   CLAIM_CLASS="native_hls_aligned_with_conversion"
@@ -531,6 +559,12 @@ chmod +x "${LINK_COMMAND}"
   echo "GRI_ROOT=${GRI_ROOT}"
   echo "GRASU_ROOT=${GRASU_ROOT}"
   echo "REGRAPH_ROOT=${REGRAPH_ROOT}"
+  echo "GRI_GIT_HEAD=$(git_head_or_unavailable "${GRI_ROOT}")"
+  echo "GRI_GIT_DIRTY=$(git_dirty_or_unavailable "${GRI_ROOT}")"
+  echo "GRASU_GIT_HEAD=$(git_head_or_unavailable "${GRASU_ROOT}")"
+  echo "GRASU_GIT_DIRTY=$(git_dirty_or_unavailable "${GRASU_ROOT}")"
+  echo "REGRAPH_GIT_HEAD=$(git_head_or_unavailable "${REGRAPH_ROOT}")"
+  echo "REGRAPH_GIT_DIRTY=$(git_dirty_or_unavailable "${REGRAPH_ROOT}")"
   echo "TARGET=${TARGET}"
   echo "PIPELINE_MODE=${PIPELINE_MODE}"
   echo "PIPELINE_STEM=${PIPELINE_STEM}"
@@ -568,6 +602,47 @@ chmod +x "${LINK_COMMAND}"
 
 {
   printf 'role\tstatus\tsha256\tbytes\tpath\n'
+  emit_input_record generator_source "${GRI_ROOT}/scripts/prepare_pure_hw_pipeline_build.sh"
+  emit_input_record config_input "${GRASU_LINK_CFG}"
+  emit_input_record config_input "${GRASU_STREAM_CFG}"
+  emit_input_record config_input "${REGRAPH_CONNECTIVITY_CFG}"
+  for source in \
+    "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_bin_search.cpp" \
+    "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_dispatch.cpp" \
+    "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_process_cache.cpp" \
+    "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_process_ddr.cpp" \
+    "${REGRAPH_ROOT}/acc_template/kernel_apply/kernel_apply.cpp" \
+    "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper/kernel_hbm_wrapper.cpp" \
+    "${REGRAPH_ROOT}/acc_template/kernel_little_gs_merger/kernel_little_gs_merger.cpp" \
+    "${GRI_ROOT}/kernels/pma_completion_barrier/pma_completion_barrier.cpp"; do
+    emit_input_record kernel_source "${source}"
+  done
+  if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
+    emit_input_record kernel_source \
+      "${GRI_ROOT}/kernels/pma_to_regraph_edge_array/pma_to_regraph_edge_array.cpp"
+    emit_input_record kernel_source \
+      "${REGRAPH_ROOT}/acc_template/kernel_little_gs/kernel_scatter_gather.cpp"
+  else
+    emit_input_record kernel_source \
+      "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
+    emit_input_record kernel_source \
+      "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp"
+  fi
+  for header_dir in \
+    "${GRASU_ROOT}/GraSU/GraSU_kernels/src" \
+    "${REGRAPH_ROOT}/acc_template/common" \
+    "${REGRAPH_ROOT}/acc_template/kernel_apply" \
+    "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper" \
+    "${REGRAPH_ROOT}/acc_template/kernel_little_gs" \
+    "${REGRAPH_ROOT}/acc_template/kernel_little_gs_merger" \
+    "${REGRAPH_ROOT}/acc_udfs/sssp"; do
+    if [[ -d "${header_dir}" ]]; then
+      while IFS= read -r -d '' header; do
+        emit_input_record kernel_header "${header}"
+      done < <(find "${header_dir}" -maxdepth 1 -type f \
+        \( -name '*.h' -o -name '*.hpp' \) -print0 | sort -z)
+    fi
+  done
   for xo in "${EXISTING_XOS[@]}"; do
     if [[ -f "${xo}" ]]; then
       printf 'existing_xo\tpresent\t'
