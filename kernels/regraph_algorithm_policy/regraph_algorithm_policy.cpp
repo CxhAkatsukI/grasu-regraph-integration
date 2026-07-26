@@ -1,6 +1,5 @@
 #include <ap_int.h>
 
-#include <cmath>
 #include <cstdint>
 
 #define REGRAPH_POLICY_WEIGHTED_SSSP 1
@@ -20,6 +19,12 @@ namespace {
 
 constexpr unsigned kLanes = 8;
 constexpr std::uint32_t kSsspInfinity = 0xffffffffU;
+
+float float_abs(float value)
+{
+#pragma HLS INLINE
+    return value < 0.0F ? -value : value;
+}
 
 enum PolicyOperation : unsigned {
     kSourceMap = 0,
@@ -199,7 +204,7 @@ policy_beats:
                 lane_primary = float_to_word(value);
                 lane_active = true;
                 lane_extra = float_to_word(
-                    std::fabs(value - word_to_float(primary)));
+                    float_abs(value - word_to_float(primary)));
 #else
                 const float incoming = valid ? word_to_float(operand_a) : 0.0F;
                 const float residual = word_to_float(auxiliary) + incoming +
@@ -207,8 +212,8 @@ policy_beats:
                 lane_auxiliary = float_to_word(residual);
                 const float threshold = vertices == 0 ? epsilon
                                                        : epsilon / vertices;
-                lane_active = std::fabs(residual) > threshold;
-                lane_extra = float_to_word(std::fabs(residual));
+                lane_active = float_abs(residual) > threshold;
+                lane_extra = float_to_word(float_abs(residual));
 #endif
             }
 

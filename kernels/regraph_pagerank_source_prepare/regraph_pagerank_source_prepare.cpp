@@ -1,5 +1,4 @@
 #include <ap_int.h>
-#include <cmath>
 #include <cstdint>
 
 #include "regraph_pagerank_apply.hpp"
@@ -16,6 +15,12 @@ namespace {
 
 constexpr unsigned kVerticesPerBurst = 16;
 constexpr unsigned kReductionBanks = 8;
+
+float float_abs(float value)
+{
+#pragma HLS INLINE
+    return value < 0.0F ? -value : value;
+}
 
 std::uint32_t float_to_word(float value)
 {
@@ -134,7 +139,7 @@ prepare_bursts:
 #else
             const float value =
                 word_to_float(lane(residual_beat, lane_index));
-            const bool active = std::fabs(value) > threshold;
+            const bool active = float_abs(value) > threshold;
 #endif
             const float payload = active && degree != 0
                                       ? damping * value / degree
