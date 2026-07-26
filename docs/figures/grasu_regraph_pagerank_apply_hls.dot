@@ -1,0 +1,30 @@
+digraph pagerank_apply_hls {
+  graph [rankdir=LR, bgcolor="white", pad="0.2", nodesep="0.45", ranksep="0.7"];
+  node [shape=box, style="filled", fillcolor="#f8fafc", color="#334155",
+        fontname="Helvetica", fontsize=10, margin="0.12,0.08"];
+  edge [color="#475569", fontname="Helvetica", fontsize=9];
+
+  pma [label="GraSU PMA\n4 HBM channels", fillcolor="#ecfdf5", color="#047857"];
+  adapter [label="PMA-native adapter\n8-edge AXIS bursts", fillcolor="#ecfdf5", color="#047857"];
+  source [label="Mirrored source payload\nHBM arrays", fillcolor="#eff6ff", color="#1d4ed8"];
+  scatter [label="ReGraph scatter\n8 lanes + source cache", fillcolor="#eff6ff", color="#1d4ed8"];
+  gather [label="ReGraph gather + merger\nfloat32 reduce", fillcolor="#eff6ff", color="#1d4ed8"];
+  apply [label="PageRank apply\n16 state lanes", fillcolor="#fff7ed", color="#c2410c"];
+  state [label="rank / residual / degree\nHBM state", fillcolor="#fefce8", color="#a16207"];
+  stats [label="active / error / dangling\nround statistics", fillcolor="#fdf2f8", color="#be185d"];
+  wrapper [label="Existing HBM wrapper\n512-bit writes", fillcolor="#eff6ff", color="#1d4ed8"];
+  host [label="Host round controller\nbarrier + convergence", fillcolor="#f1f5f9", color="#475569"];
+
+  pma -> adapter [label="segment reads"];
+  adapter -> scatter [label="{src,dst} bursts"];
+  source -> scatter [label="source cache reads"];
+  scatter -> gather [label="contributions"];
+  gather -> apply [label="incoming bursts"];
+  state -> apply [label="state reads"];
+  apply -> state [label="state writes"];
+  apply -> stats;
+  apply -> wrapper [label="next source payload"];
+  wrapper -> source [label="mirrored writes"];
+  stats -> host;
+  host -> adapter [label="next round"];
+}
