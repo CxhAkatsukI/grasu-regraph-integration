@@ -1,4 +1,3 @@
-#include <hls_stream.h>
 #include <ap_int.h>
 
 #include <array>
@@ -45,8 +44,9 @@ int main()
 {
     std::array<ap_uint<512>, 1> rank = {0};
     std::array<ap_uint<512>, 1> degree = {0};
+    std::array<ap_uint<512>, 1> source_1 = {0};
+    std::array<ap_uint<512>, 1> source_2 = {0};
     std::array<ap_uint<32>, kReGraphPageRankStatWords> stats = {};
-    hls::stream<regraph_write_burst_pkt_t> output;
     for (unsigned index = 0; index < 4; ++index) {
         put(rank[0], index, 0.25F);
     }
@@ -55,15 +55,14 @@ int main()
     degree[0].range(95, 64) = 0;
     degree[0].range(127, 96) = 1;
 
-    regraph_pagerank_source_prepare(rank.data(), degree.data(), stats.data(),
-                                    1, 4, 0.85F, 1.0e-6F, output);
-    const regraph_write_burst_pkt_t payload = output.read();
-    assert(output.read().last == 1);
-    assert(output.empty());
-    assert(std::fabs(get(payload.data, 0) - 0.10625F) <= 1.0e-6F);
-    assert(std::fabs(get(payload.data, 1) - 0.2125F) <= 1.0e-6F);
-    assert(get(payload.data, 2) == 0.0F);
-    assert(std::fabs(get(payload.data, 3) - 0.2125F) <= 1.0e-6F);
+    regraph_pagerank_source_prepare(
+        rank.data(), degree.data(), source_1.data(), source_2.data(),
+        stats.data(), 1, 4, 0.85F, 1.0e-6F);
+    assert(source_1[0] == source_2[0]);
+    assert(std::fabs(get(source_1[0], 0) - 0.10625F) <= 1.0e-6F);
+    assert(std::fabs(get(source_1[0], 1) - 0.2125F) <= 1.0e-6F);
+    assert(get(source_1[0], 2) == 0.0F);
+    assert(std::fabs(get(source_1[0], 3) - 0.2125F) <= 1.0e-6F);
     assert(stats[kReGraphPageRankStatus] == kReGraphPageRankOk);
     assert(stats[kReGraphPageRankActiveVertices] == 4);
     assert(std::fabs(word_float(stats[kReGraphPageRankNextDanglingBits]) -

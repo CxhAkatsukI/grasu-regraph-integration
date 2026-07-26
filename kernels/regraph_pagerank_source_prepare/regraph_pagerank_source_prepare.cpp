@@ -1,6 +1,4 @@
 #include <ap_int.h>
-#include <hls_stream.h>
-
 #include <cmath>
 #include <cstdint>
 
@@ -60,25 +58,29 @@ void regraph_pagerank_source_prepare(
     const ap_uint<512> *residual_state,
 #endif
     const ap_uint<512> *out_degree,
+    ap_uint<512> *source_prop_1,
+    ap_uint<512> *source_prop_2,
     ap_uint<32> *round_stats,
     unsigned burst_count,
     unsigned vertices,
     float damping,
-    float epsilon,
-    hls::stream<regraph_write_burst_pkt_t> &source_prop_write)
+    float epsilon)
 {
 #pragma HLS INTERFACE m_axi port=rank_state offset=slave bundle=gmem0
 #if GRASU_REGRAPH_PAGERANK_MODE == 2
 #pragma HLS INTERFACE m_axi port=residual_state offset=slave bundle=gmem1
 #endif
 #pragma HLS INTERFACE m_axi port=out_degree offset=slave bundle=gmem2
-#pragma HLS INTERFACE m_axi port=round_stats offset=slave bundle=gmem3
-#pragma HLS INTERFACE axis port=source_prop_write
+#pragma HLS INTERFACE m_axi port=source_prop_1 offset=slave bundle=gmem3
+#pragma HLS INTERFACE m_axi port=source_prop_2 offset=slave bundle=gmem4
+#pragma HLS INTERFACE m_axi port=round_stats offset=slave bundle=gmem5
 #pragma HLS INTERFACE s_axilite port=rank_state bundle=control
 #if GRASU_REGRAPH_PAGERANK_MODE == 2
 #pragma HLS INTERFACE s_axilite port=residual_state bundle=control
 #endif
 #pragma HLS INTERFACE s_axilite port=out_degree bundle=control
+#pragma HLS INTERFACE s_axilite port=source_prop_1 bundle=control
+#pragma HLS INTERFACE s_axilite port=source_prop_2 bundle=control
 #pragma HLS INTERFACE s_axilite port=round_stats bundle=control
 #pragma HLS INTERFACE s_axilite port=burst_count bundle=control
 #pragma HLS INTERFACE s_axilite port=vertices bundle=control
@@ -146,13 +148,8 @@ prepare_bursts:
             }
         }
 
-        regraph_write_burst_pkt_t source_packet;
-        source_packet.data = source_payload;
-        source_packet.keep = -1;
-        source_packet.strb = -1;
-        source_packet.dest = burst;
-        source_packet.last = 0;
-        source_prop_write.write(source_packet);
+        source_prop_1[burst] = source_payload;
+        source_prop_2[burst] = source_payload;
     }
 
     float dangling = 0.0F;
@@ -166,14 +163,6 @@ reduce_stats:
             active_vertices += active_partials[lane_index][bank];
         }
     }
-
-    regraph_write_burst_pkt_t end_packet;
-    end_packet.data = 0;
-    end_packet.keep = -1;
-    end_packet.strb = -1;
-    end_packet.dest = 0;
-    end_packet.last = 1;
-    source_prop_write.write(end_packet);
 
     round_stats[kReGraphPageRankStatus] =
         vertices <= capacity ? kReGraphPageRankOk

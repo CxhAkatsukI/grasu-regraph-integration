@@ -36,6 +36,12 @@ warm-start rank or residual plus the latest degree array, emits source payload,
 and reports current dangling mass without changing algorithm state.  Later
 rounds do not pay this extra pass because apply already emits their payload.
 
+The preparation CU writes the two mirrored source-property HBM arrays directly.
+It cannot share the HBM wrapper's single AXIS input with apply in one static
+xclbin connection.  The host runs preparation before the compute round, so the
+two direct mirrored writes preserve the same memory format and phase ordering
+without adding another wrapper instance or a graph conversion.
+
 The output AXIS type is exactly ReGraph's existing `write_burst_pkt` ABI:
 512-bit data, 32-bit destination burst index, and `TLAST`.  It can therefore
 connect directly to `kernelHBMWrapper.prop_write_burst_stm` without an HBM
@@ -117,6 +123,34 @@ The three C-sim tests cover:
 
 The script emits hashes and the claim class
 `functional_policy_path_not_synthesized_hardware`.
+
+## Complete build packets
+
+The generator prepares compile and link commands without running `v++`:
+
+```bash
+scripts/prepare_pagerank_pipeline_build.sh \
+  --target sw_emu \
+  --algorithm full_pagerank \
+  --build-root /data/tmp/chuxiao/grasu_regraph_full_pr_swemu_20260726
+
+scripts/prepare_pagerank_pipeline_build.sh \
+  --target hw \
+  --algorithm residual_pagerank \
+  --build-root /data/tmp/chuxiao/grasu_regraph_residual_pr_hw_20260726
+```
+
+Each packet contains eleven XO compile commands, a complete HBM/SLR/AXIS
+connectivity file, a link command, source hashes, tracked-dirty state, and a
+manifest.  The generated claim class remains
+`proposed_conversion_free_hls_not_yet_built` until the commands succeed and
+their reports are collected.
+
+These builds are an implementation/PPA validation track, not a prerequisite
+for reporting simulator-predicted normalized performance.  Simulation
+experiments may proceed after their architecture profile and workloads are
+frozen.  Synthesis findings that invalidate an assumed II or resource budget
+must update that profile and trigger a rerun of the same frozen workloads.
 
 ## Remaining promotion gates
 
