@@ -286,7 +286,8 @@ emit_regraph_compile_command() {
   local out="$3"
   local src="$4"
   shift 4
-  printf 'v++ --target %q --compile' "${TARGET}"
+  printf 'v++ --target %q --compile --kernel_frequency %q' \
+    "${TARGET}" "${KERNEL_FREQ}"
   for flag in "${REGRAPH_COMMON_FLAGS[@]}"; do
     printf ' %q' "${flag}"
   done
@@ -302,7 +303,8 @@ emit_grasu_compile_command() {
   local out="$2"
   local src="$3"
   shift 3
-  printf 'v++ --target %q --compile' "${TARGET}"
+  printf 'v++ --target %q --compile --kernel_frequency %q' \
+    "${TARGET}" "${KERNEL_FREQ}"
   for flag in "${GRASU_BASE_FLAGS[@]}" "$@"; do
     printf ' %q' "${flag}"
   done
@@ -496,14 +498,14 @@ fi
     "${CFG_DIR}/kernelLittleGSMerger_compile.cfg" \
     "${BUILD_DIR}/kernelLittleGSMerger.${TARGET}.${PLATFORM}.xo" \
     "${REGRAPH_ROOT}/acc_template/kernel_little_gs_merger/kernel_little_gs_merger.cpp"
-  printf 'v++ --target %q --compile %s %s --config %q -I%q -o %q %q\n' \
-    "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_completion_barrier_compile.cfg" \
+  printf 'v++ --target %q --compile --kernel_frequency %q %s %s --config %q -I%q -o %q %q\n' \
+    "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_completion_barrier_compile.cfg" \
     "${HLS_INCLUDE_ETC}" \
     "${BUILD_DIR}/pma_completion_barrier.${TARGET}.xo" \
     "${GRI_ROOT}/kernels/pma_completion_barrier/pma_completion_barrier.cpp"
   if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
-    printf 'v++ --target %q --compile %s %s --config %q -I%q -o %q %q\n' \
-      "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_edge_array_compile.cfg" \
+    printf 'v++ --target %q --compile --kernel_frequency %q %s %s --config %q -I%q -o %q %q\n' \
+      "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_edge_array_compile.cfg" \
       "${HLS_INCLUDE_ETC}" \
       "${BUILD_DIR}/pma_to_regraph_edge_array.${TARGET}.xo" \
       "${GRI_ROOT}/kernels/pma_to_regraph_edge_array/pma_to_regraph_edge_array.cpp"
@@ -513,8 +515,8 @@ fi
       "${BUILD_DIR}/littleKernelScatterGather.${TARGET}.xo" \
       "${REGRAPH_ROOT}/acc_template/kernel_little_gs/kernel_scatter_gather.cpp"
   else
-    printf 'v++ --target %q --compile %s %s -DGRASU_REGRAPH_WEIGHTED_PMA=1 --config %q -I%q -o %q %q\n' \
-      "${TARGET}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
+    printf 'v++ --target %q --compile --kernel_frequency %q %s %s -DGRASU_REGRAPH_WEIGHTED_PMA=1 --config %q -I%q -o %q %q\n' \
+      "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
       "${HLS_INCLUDE_ETC}" \
       "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo" \
       "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"

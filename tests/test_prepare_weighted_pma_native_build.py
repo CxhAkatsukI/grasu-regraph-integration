@@ -127,6 +127,11 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert weighted_manifest["CLAIM_CLASS"] == "candidate_hls_not_yet_built"
     assert weighted_manifest["HANDOFF"] == "weighted_pma_to_axis_stream"
     assert weighted_manifest["CONVERSION_COST"] == "absent"
+    compile_lines = [
+        line for line in weighted_compile.splitlines() if line.startswith("v++ ")
+    ]
+    assert compile_lines
+    assert all("--kernel_frequency 200" in line for line in compile_lines)
     assert "nk=pma_to_regraph_adapter:1:pma_to_regraph_adapter_1" in weighted_cfg
     assert "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32" in weighted_cfg
     assert "nk=lksg_stream:1:lksg_stream_1" in weighted_cfg
