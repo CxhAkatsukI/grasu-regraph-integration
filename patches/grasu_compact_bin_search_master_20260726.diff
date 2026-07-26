@@ -1,0 +1,13 @@
+diff --git a/GraSU/GraSU_kernels/src/kernel_bin_search.cpp b/GraSU/GraSU_kernels/src/kernel_bin_search.cpp
+index e97a353..fc86273 100644
+--- a/GraSU/GraSU_kernels/src/kernel_bin_search.cpp
++++ b/GraSU/GraSU_kernels/src/kernel_bin_search.cpp
+@@ -260,7 +260,7 @@ void bin_search(
+ 
+ #ifdef GRASU_COMPACT_HBM_PORTS
+ #pragma HLS INTERFACE m_axi port = binary_0 offset = slave bundle = gmem_binary
+-#pragma HLS INTERFACE m_axi port = row_offset_0 offset = slave bundle = gmem_row_offset
++#pragma HLS INTERFACE m_axi port = row_offset_0 offset = slave bundle = gmem_binary
+ #elif defined(GRASU_SHARE_HBM_PORTS)
+ #pragma HLS INTERFACE m_axi port = binary_0 offset = slave bundle = gmem_binary
+ #pragma HLS INTERFACE m_axi port = binary_1 offset = slave bundle = gmem_binary

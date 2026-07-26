@@ -79,7 +79,7 @@ with tempfile.TemporaryDirectory() as temp_name:
     assert "nk=regraph_pagerank_source_prepare:1:pr_source_1" in full_cfg
     assert "sp=pr_source_1.rank_state:HBM[4]" in full_cfg
     assert "sp=bin_search_1.binary_0:HBM[0]" in full_cfg
-    assert "sp=bin_search_1.row_offset_0:HBM[0]" in full_cfg
+    assert "sp=bin_search_1.row_offset_0" not in full_cfg
     assert "sp=bin_search_1.binary_1" not in full_cfg
     assert "sp=bin_search_1.row_offset_1" not in full_cfg
     assert "sp=grasu_degree_update_1.status:HBM[6]" in full_cfg
@@ -100,6 +100,9 @@ with tempfile.TemporaryDirectory() as temp_name:
         encoding="utf-8"
     )
     assert (full / "inputs.tsv").read_text().count("generated_xo\tpending") == 11
+    assert "check_xo_master_budget.py" in (residual / "run_build.sh").read_text(
+        encoding="utf-8"
+    )
 
     for packet in (full, residual):
         subprocess.run(["bash", "-n", str(packet / "compile_commands.sh")], check=True)

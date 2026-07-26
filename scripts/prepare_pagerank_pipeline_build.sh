@@ -170,9 +170,7 @@ OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${ALGORITHM}.${TARGET}.xclbin"
   for index in 1 2 3 4; do
     channel=$((index - 1))
     echo "sp=bin_search_${index}.edges:HBM[${channel}]"
-    for port in binary_0 row_offset_0; do
-      echo "sp=bin_search_${index}.${port}:HBM[${channel}]"
-    done
+    echo "sp=bin_search_${index}.binary_0:HBM[${channel}]"
   done
   echo "slr=bin_search_1:SLR0"
   echo "slr=bin_search_2:SLR1"
@@ -337,6 +335,9 @@ RUN_BUILD="${BUILD_ROOT}/run_build.sh"
   echo "#!/usr/bin/env bash"
   echo "set -euo pipefail"
   printf '%q\n' "${COMPILE_COMMANDS}"
+  printf 'python3 %q --xo %q --expected-masters 2\n' \
+    "${GRI_ROOT}/scripts/check_xo_master_budget.py" \
+    "${BUILD_DIR}/bin_search.${TARGET}.xo"
   printf '%q\n' "${LINK_COMMAND}"
 } > "${RUN_BUILD}"
 chmod +x "${RUN_BUILD}"
