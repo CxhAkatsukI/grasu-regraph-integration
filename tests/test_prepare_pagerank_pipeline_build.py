@@ -62,6 +62,7 @@ with tempfile.TemporaryDirectory() as temp_name:
 
     assert full_commands.count("v++ --target sw_emu --compile") == 11
     assert residual_commands.count("v++ --target hw --compile") == 11
+    assert residual_commands.count("--kernel_frequency 150") == 11
     assert "-DGRASU_REGRAPH_PAGERANK_MODE=1" in full_commands
     assert "-DGRASU_REGRAPH_PAGERANK_MODE=2" in residual_commands
     assert "-DGRASU_REGRAPH_DESTINATION_ONLY=1" in full_commands
@@ -94,6 +95,10 @@ with tempfile.TemporaryDirectory() as temp_name:
     )
     assert full_manifest["RESIDUAL_HBM_CHANNEL"] == "unused"
     assert residual_manifest["RESIDUAL_HBM_CHANNEL"] == "5"
+    assert residual_manifest["KERNEL_FREQUENCY_MHZ"] == "150"
+    assert "--kernel_frequency 150" in (residual / "link_command.sh").read_text(
+        encoding="utf-8"
+    )
     assert (full / "inputs.tsv").read_text().count("generated_xo\tpending") == 11
 
     for packet in (full, residual):
