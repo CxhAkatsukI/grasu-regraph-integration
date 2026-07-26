@@ -1,0 +1,2 @@
+source	design_name	target_device	target_clock_mhz	total_kernels
+/data/tmp/chuxiao/grasu_regraph_full_pagerank_normalized_v3_hw_retry6_7b922ee_d5c707c_150mhz_20260727/reports/link/link/system_estimate_grasu_regraph_full_pagerank.hw.xtxt	grasu_regraph_full_pagerank.hw	xilinx:u55c:gen3x16_xdma_3:202210.1	150	11

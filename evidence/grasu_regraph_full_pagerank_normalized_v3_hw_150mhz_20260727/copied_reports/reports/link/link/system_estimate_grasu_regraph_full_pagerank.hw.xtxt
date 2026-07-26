@@ -1,0 +1,193 @@
+===============================================================================
+Version:    v++ v2024.1 (64-bit)
+Build:      SW Build 5074859 on 2024-05-20-23:21:20
+Copyright:  Copyright 1986-2024 Xilinx, Inc. All Rights Reserved.
+Created:    Mon Jul 27 03:45:24 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             grasu_regraph_full_pagerank.hw
+Target Device:           xilinx:u55c:gen3x16_xdma_3:202210.1
+Target Clock:            150MHz
+Total number of kernels: 11
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name                      Type  Target              OpenCL Library                  Compute Units
+-------------------------------  ----  ------------------  ------------------------------  -------------
+process_ddr                      c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  2
+lksg_stream                      c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  1
+process_cache                    c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  2
+dispatch_degree                  c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  1
+kernelHBMWrapper                 c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  1
+bin_search                       c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  4
+grasu_degree_update              c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  1
+pma_to_regraph_adapter           c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  1
+kernelLittleGSMerger             c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  1
+regraph_pagerank_apply           c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  1
+regraph_pagerank_source_prepare  c     fpga0:OCL_REGION_0  grasu_regraph_full_pagerank.hw  1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     grasu_regraph_full_pagerank.hw
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit              Kernel Name                      Module Name                                                             Target Frequency  Estimated Frequency
+------------------------  -------------------------------  ----------------------------------------------------------------------  ----------------  -------------------
+bin_search_1              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    149.925034        205.465378
+bin_search_1              bin_search                       bin_search                                                              149.925034        205.465378
+bin_search_2              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    149.925034        205.465378
+bin_search_2              bin_search                       bin_search                                                              149.925034        205.465378
+bin_search_3              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    149.925034        205.465378
+bin_search_3              bin_search                       bin_search                                                              149.925034        205.465378
+bin_search_4              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    149.925034        205.465378
+bin_search_4              bin_search                       bin_search                                                              149.925034        205.465378
+dispatch_degree_1         dispatch_degree                  dispatch_degree_Pipeline_dispatch_loop                                  149.925034        396.353546
+dispatch_degree_1         dispatch_degree                  dispatch_degree                                                         149.925034        396.353546
+process_cache_1           process_cache                    process_cache                                                           149.925034        205.465378
+process_cache_2           process_cache                    process_cache                                                           149.925034        205.465378
+process_ddr_1             process_ddr                      process_ddr_Pipeline_dispatch_loop                                      149.925034        711.743774
+process_ddr_1             process_ddr                      process_Pipeline_process_ddr_sub_loop                                   149.925034        60.2918091
+process_ddr_1             process_ddr                      process_r                                                               149.925034        60.2918091
+process_ddr_1             process_ddr                      process_ddr                                                             149.925034        60.2918091
+process_ddr_2             process_ddr                      process_ddr_Pipeline_dispatch_loop                                      149.925034        711.743774
+process_ddr_2             process_ddr                      process_Pipeline_process_ddr_sub_loop                                   149.925034        60.2918091
+process_ddr_2             process_ddr                      process_r                                                               149.925034        60.2918091
+process_ddr_2             process_ddr                      process_ddr                                                             149.925034        60.2918091
+grasu_degree_update_1     grasu_degree_update              grasu_degree_update_Pipeline_update_loop                                149.925034        205.465378
+grasu_degree_update_1     grasu_degree_update              grasu_degree_update                                                     149.925034        205.465378
+pma_to_regraph_adapter_1  pma_to_regraph_adapter           pma_to_regraph_adapter_Pipeline_segment_loop                            149.925034        205.465378
+pma_to_regraph_adapter_1  pma_to_regraph_adapter           pma_to_regraph_adapter                                                  149.925034        205.465378
+lksg_stream_1             lksg_stream                      entry_proc                                                              149.925034        761.034973
+lksg_stream_1             lksg_stream                      Block_entry_split_proc                                                  149.925034        682.593811
+lksg_stream_1             lksg_stream                      Loop_read_stream_edges_proc                                             149.925034        314.6633
+lksg_stream_1             lksg_stream                      stream2axistream_ppbRequest_axis_s                                      149.925034        516.262268
+lksg_stream_1             lksg_stream                      axistream2stream_axis_ppbResponse_s                                     149.925034        742.942078
+lksg_stream_1             lksg_stream                      accScatter_Pipeline_scatterLoop                                         149.925034        238.720444
+lksg_stream_1             lksg_stream                      accScatter_Pipeline_exitscatter                                         149.925034        788.643555
+lksg_stream_1             lksg_stream                      accScatter                                                              149.925034        238.720444
+lksg_stream_1             lksg_stream                      accGather_Pipeline_initDstTmpProp                                       149.925034        270.343353
+lksg_stream_1             lksg_stream                      accGather_Pipeline_gatherLoop                                           149.925034        233.644852
+lksg_stream_1             lksg_stream                      accGather_Pipeline_tmpPropWriteToStream                                 149.925034        254.065033
+lksg_stream_1             lksg_stream                      accGather                                                               149.925034        233.644852
+lksg_stream_1             lksg_stream                      mergeWriteResults                                                       149.925034        224.315826
+lksg_stream_1             lksg_stream                      lksg_stream                                                             149.925034        224.315826
+kernelLittleGSMerger_1    kernelLittleGSMerger             merge_tmp_prop_little_krnls                                             149.925034        259.067352
+kernelLittleGSMerger_1    kernelLittleGSMerger             kernelLittleGSMerger                                                    149.925034        259.067352
+regraph_pagerank_apply_1  regraph_pagerank_apply           regraph_pagerank_apply_Pipeline_apply_bursts                            149.925034        165.892502
+regraph_pagerank_apply_1  regraph_pagerank_apply           regraph_pagerank_apply_Pipeline_reduce_stats_VITIS_LOOP_205_2           149.925034        235.460312
+regraph_pagerank_apply_1  regraph_pagerank_apply           regraph_pagerank_apply                                                  149.925034        165.892502
+pr_source_1               regraph_pagerank_source_prepare  regraph_pagerank_source_prepare_Pipeline_prepare_bursts                 149.925034        205.465378
+pr_source_1               regraph_pagerank_source_prepare  regraph_pagerank_source_prepare_Pipeline_reduce_stats_VITIS_LOOP_165_2  149.925034        235.460312
+pr_source_1               regraph_pagerank_source_prepare  regraph_pagerank_source_prepare                                         149.925034        205.465378
+kernelHBMWrapper_1        kernelHBMWrapper                 littleKernelReadMemory_0_s                                              149.925034        205.465378
+kernelHBMWrapper_1        kernelHBMWrapper                 write_out                                                               149.925034        205.465378
+kernelHBMWrapper_1        kernelHBMWrapper                 kernelHBMWrapper                                                        149.925034        205.465378
+
+Latency Information
+Compute Unit              Kernel Name                      Module Name                                                             Start Interval      Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+------------------------  -------------------------------  ----------------------------------------------------------------------  ------------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+bin_search_1              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    0                   undef          undef         undef           undef            undef           undef
+bin_search_1              bin_search                       bin_search                                                              undef               undef          undef         undef           undef            undef           undef
+bin_search_2              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    0                   undef          undef         undef           undef            undef           undef
+bin_search_2              bin_search                       bin_search                                                              undef               undef          undef         undef           undef            undef           undef
+bin_search_3              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    0                   undef          undef         undef           undef            undef           undef
+bin_search_3              bin_search                       bin_search                                                              undef               undef          undef         undef           undef            undef           undef
+bin_search_4              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    0                   undef          undef         undef           undef            undef           undef
+bin_search_4              bin_search                       bin_search                                                              undef               undef          undef         undef           undef            undef           undef
+dispatch_degree_1         dispatch_degree                  dispatch_degree_Pipeline_dispatch_loop                                  0                   undef          undef         undef           undef            undef           undef
+dispatch_degree_1         dispatch_degree                  dispatch_degree                                                         undef               undef          undef         undef           undef            undef           undef
+process_cache_1           process_cache                    process_cache                                                           0                   undef          undef         undef           undef            undef           undef
+process_cache_2           process_cache                    process_cache                                                           0                   undef          undef         undef           undef            undef           undef
+process_ddr_1             process_ddr                      process_ddr_Pipeline_dispatch_loop                                      0                   undef          undef         undef           undef            undef           undef
+process_ddr_1             process_ddr                      process_Pipeline_process_ddr_sub_loop                                   2241                2242           2242          2242            37.187 us        37.187 us       37.187 us
+process_ddr_1             process_ddr                      process_r                                                               undef               undef          undef         undef           undef            undef           undef
+process_ddr_1             process_ddr                      process_ddr                                                             undef               undef          undef         undef           undef            undef           undef
+process_ddr_2             process_ddr                      process_ddr_Pipeline_dispatch_loop                                      0                   undef          undef         undef           undef            undef           undef
+process_ddr_2             process_ddr                      process_Pipeline_process_ddr_sub_loop                                   2241                2242           2242          2242            37.187 us        37.187 us       37.187 us
+process_ddr_2             process_ddr                      process_r                                                               undef               undef          undef         undef           undef            undef           undef
+process_ddr_2             process_ddr                      process_ddr                                                             undef               undef          undef         undef           undef            undef           undef
+grasu_degree_update_1     grasu_degree_update              grasu_degree_update_Pipeline_update_loop                                undef               undef          undef         undef           undef            undef           undef
+grasu_degree_update_1     grasu_degree_update              grasu_degree_update                                                     undef               undef          undef         undef           undef            undef           undef
+pma_to_regraph_adapter_1  pma_to_regraph_adapter           pma_to_regraph_adapter_Pipeline_segment_loop                            1 ~ 536870914       2              268435530     536870986       13.334 ns        1.790 sec       3.579 sec
+pma_to_regraph_adapter_1  pma_to_regraph_adapter           pma_to_regraph_adapter                                                  undef               undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream                      entry_proc                                                              0                   0              0             0               0 ns             0 ns            0 ns
+lksg_stream_1             lksg_stream                      Block_entry_split_proc                                                  0                   0              0             0               0 ns             0 ns            0 ns
+lksg_stream_1             lksg_stream                      Loop_read_stream_edges_proc                                             1 ~ 536870912       2              268435457     536870913       13.334 ns        1.790 sec       3.579 sec
+lksg_stream_1             lksg_stream                      stream2axistream_ppbRequest_axis_s                                      0                   undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream                      axistream2stream_axis_ppbResponse_s                                     0                   undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream                      accScatter_Pipeline_scatterLoop                                         0                   undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream                      accScatter_Pipeline_exitscatter                                         0                   undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream                      accScatter                                                              undef               undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream                      accGather_Pipeline_initDstTmpProp                                       32769               32770          32770         32770           0.218 ms         0.218 ms        0.218 ms
+lksg_stream_1             lksg_stream                      accGather_Pipeline_gatherLoop                                           1 ~ 1610612736      2              805306373     1610612741      13.334 ns        5.369 sec       10.738 sec
+lksg_stream_1             lksg_stream                      accGather_Pipeline_tmpPropWriteToStream                                 32769               32770          32770         32770           0.218 ms         0.218 ms        0.218 ms
+lksg_stream_1             lksg_stream                      accGather                                                               32778 ~ 1610678287  32778          805355534     1610678287      0.219 ms         5.369 sec       10.738 sec
+lksg_stream_1             lksg_stream                      mergeWriteResults                                                       32768               32802          32802         32802           0.219 ms         0.219 ms        0.219 ms
+lksg_stream_1             lksg_stream                      lksg_stream                                                             undef               undef          undef         undef           undef            undef           undef
+kernelLittleGSMerger_1    kernelLittleGSMerger             merge_tmp_prop_little_krnls                                             undef               undef          undef         undef           undef            undef           undef
+kernelLittleGSMerger_1    kernelLittleGSMerger             kernelLittleGSMerger                                                    undef               undef          undef         undef           undef            undef           undef
+regraph_pagerank_apply_1  regraph_pagerank_apply           regraph_pagerank_apply_Pipeline_apply_bursts                            0                   undef          undef         undef           undef            undef           undef
+regraph_pagerank_apply_1  regraph_pagerank_apply           regraph_pagerank_apply_Pipeline_reduce_stats_VITIS_LOOP_205_2           387                 388            388           388             2.587 us         2.587 us        2.587 us
+regraph_pagerank_apply_1  regraph_pagerank_apply           regraph_pagerank_apply                                                  undef               undef          undef         undef           undef            undef           undef
+pr_source_1               regraph_pagerank_source_prepare  regraph_pagerank_source_prepare_Pipeline_prepare_bursts                 0                   undef          undef         undef           undef            undef           undef
+pr_source_1               regraph_pagerank_source_prepare  regraph_pagerank_source_prepare_Pipeline_reduce_stats_VITIS_LOOP_165_2  386                 387            387           387             2.580 us         2.580 us        2.580 us
+pr_source_1               regraph_pagerank_source_prepare  regraph_pagerank_source_prepare                                         undef               undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1        kernelHBMWrapper                 littleKernelReadMemory_0_s                                              0                   undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1        kernelHBMWrapper                 write_out                                                               0                   undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1        kernelHBMWrapper                 kernelHBMWrapper                                                        undef               undef          undef         undef           undef            undef           undef
+
+Area Information
+Compute Unit              Kernel Name                      Module Name                                                             FF      LUT    DSP  BRAM  URAM
+------------------------  -------------------------------  ----------------------------------------------------------------------  ------  -----  ---  ----  ----
+bin_search_1              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    458     734    0    0     0
+bin_search_1              bin_search                       bin_search                                                              3286    4937   0    4     0
+bin_search_2              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    458     734    0    0     0
+bin_search_2              bin_search                       bin_search                                                              3286    4937   0    4     0
+bin_search_3              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    458     734    0    0     0
+bin_search_3              bin_search                       bin_search                                                              3286    4937   0    4     0
+bin_search_4              bin_search                       bin_search_Pipeline_VITIS_LOOP_218_2                                    458     734    0    0     0
+bin_search_4              bin_search                       bin_search                                                              3286    4937   0    4     0
+dispatch_degree_1         dispatch_degree                  dispatch_degree_Pipeline_dispatch_loop                                  220     369    0    0     0
+dispatch_degree_1         dispatch_degree                  dispatch_degree                                                         304     960    0    0     0
+process_cache_1           process_cache                    process_cache                                                           6935    15366  0    30    0
+process_cache_2           process_cache                    process_cache                                                           6935    15366  0    30    0
+process_ddr_1             process_ddr                      process_ddr_Pipeline_dispatch_loop                                      104     492    0    0     0
+process_ddr_1             process_ddr                      process_Pipeline_process_ddr_sub_loop                                   401     12835  0    0     0
+process_ddr_1             process_ddr                      process_r                                                               507     13072  0    0     0
+process_ddr_1             process_ddr                      process_ddr                                                             17045   37881  0    60    0
+process_ddr_2             process_ddr                      process_ddr_Pipeline_dispatch_loop                                      104     492    0    0     0
+process_ddr_2             process_ddr                      process_Pipeline_process_ddr_sub_loop                                   401     12835  0    0     0
+process_ddr_2             process_ddr                      process_r                                                               507     13072  0    0     0
+process_ddr_2             process_ddr                      process_ddr                                                             17045   37881  0    60    0
+grasu_degree_update_1     grasu_degree_update              grasu_degree_update_Pipeline_update_loop                                640     2021   0    0     0
+grasu_degree_update_1     grasu_degree_update              grasu_degree_update                                                     2161    4115   0    4     0
+pma_to_regraph_adapter_1  pma_to_regraph_adapter           pma_to_regraph_adapter_Pipeline_segment_loop                            6119    7233   0    0     0
+pma_to_regraph_adapter_1  pma_to_regraph_adapter           pma_to_regraph_adapter                                                  18526   22636  0    60    0
+lksg_stream_1             lksg_stream                      entry_proc                                                              3       29     0    0     0
+lksg_stream_1             lksg_stream                      Block_entry_split_proc                                                  52      47     0    0     0
+lksg_stream_1             lksg_stream                      Loop_read_stream_edges_proc                                             448     350    0    0     0
+lksg_stream_1             lksg_stream                      stream2axistream_ppbRequest_axis_s                                      4       48     0    0     0
+lksg_stream_1             lksg_stream                      axistream2stream_axis_ppbResponse_s                                     2       29     0    0     0
+lksg_stream_1             lksg_stream                      accScatter_Pipeline_scatterLoop                                         945     17833  0    128   0
+lksg_stream_1             lksg_stream                      accScatter_Pipeline_exitscatter                                         2       20     0    0     0
+lksg_stream_1             lksg_stream                      accScatter                                                              985     17978  0    128   0
+lksg_stream_1             lksg_stream                      accGather_Pipeline_initDstTmpProp                                       18      74     0    0     0
+lksg_stream_1             lksg_stream                      accGather_Pipeline_gatherLoop                                           9554    9329   0    0     0
+lksg_stream_1             lksg_stream                      accGather_Pipeline_tmpPropWriteToStream                                 139     161    0    0     0
+lksg_stream_1             lksg_stream                      accGather                                                               9833    12736  0    0     64
+lksg_stream_1             lksg_stream                      mergeWriteResults                                                       5603    4131   0    0     0
+lksg_stream_1             lksg_stream                      lksg_stream                                                             23562   39535  0    128   64
+kernelLittleGSMerger_1    kernelLittleGSMerger             merge_tmp_prop_little_krnls                                             1213    6554   0    0     0
+kernelLittleGSMerger_1    kernelLittleGSMerger             kernelLittleGSMerger                                                    1216    6554   0    0     0
+regraph_pagerank_apply_1  regraph_pagerank_apply           regraph_pagerank_apply_Pipeline_apply_bursts                            152340  30144  0    0     0
+regraph_pagerank_apply_1  regraph_pagerank_apply           regraph_pagerank_apply_Pipeline_reduce_stats_VITIS_LOOP_205_2           186     2541   0    0     0
+regraph_pagerank_apply_1  regraph_pagerank_apply           regraph_pagerank_apply                                                  160650  40225  0    60    0
+pr_source_1               regraph_pagerank_source_prepare  regraph_pagerank_source_prepare_Pipeline_prepare_bursts                 37293   13647  0    0     0
+pr_source_1               regraph_pagerank_source_prepare  regraph_pagerank_source_prepare_Pipeline_reduce_stats_VITIS_LOOP_165_2  120     1724   0    0     0
+pr_source_1               regraph_pagerank_source_prepare  regraph_pagerank_source_prepare                                         49551   26779  0    75    0
+kernelHBMWrapper_1        kernelHBMWrapper                 littleKernelReadMemory_0_s                                              2019    5027   0    0     0
+kernelHBMWrapper_1        kernelHBMWrapper                 write_out                                                               1347    344    0    0     0
+kernelHBMWrapper_1        kernelHBMWrapper                 kernelHBMWrapper                                                        9732    10888  0    45    0
+-------------------------------------------------------------------------------
