@@ -26,5 +26,7 @@ with tempfile.TemporaryDirectory() as temp_name:
     assert "regraph_pagerank_apply.cpp" in manifest
     assert (output / "full_pagerank_apply").is_file()
     assert (output / "residual_pagerank_apply").is_file()
+    assert (output / "full_pagerank_source_prepare").is_file()
+    assert (output / "residual_pagerank_source_prepare").is_file()
 
 print("test_regraph_pagerank_apply_hls PASS")

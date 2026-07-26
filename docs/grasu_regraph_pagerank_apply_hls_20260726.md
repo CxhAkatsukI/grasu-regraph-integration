@@ -30,6 +30,12 @@ The integration supplies two algorithm-specific pieces:
    rank/residual/out-degree, writes state, emits the next 512-bit source payload,
    and reports active count, error, and next dangling mass.
 
+`regraph_pagerank_source_prepare` uses the same state and payload contract for
+the first round and immediately after a dynamic degree change.  It reads the
+warm-start rank or residual plus the latest degree array, emits source payload,
+and reports current dangling mass without changing algorithm state.  Later
+rounds do not pay this extra pass because apply already emits their payload.
+
 The output AXIS type is exactly ReGraph's existing `write_burst_pkt` ABI:
 512-bit data, 32-bit destination burst index, and `TLAST`.  It can therefore
 connect directly to `kernelHBMWrapper.prop_write_burst_stm` without an HBM
@@ -105,6 +111,8 @@ The three C-sim tests cover:
   insufficient burst capacity;
 - residual PageRank active/inactive handling, signed float state, dangling,
   next payload, and two consecutive rounds;
+- Full and residual first-round source preparation, including a negative
+  residual and updated degree values;
 - the float32 scatter/gather UDF, including a negative contribution.
 
 The script emits hashes and the claim class
@@ -114,7 +122,7 @@ The script emits hashes and the claim class
 
 - generate and syntax-check Vitis compile/connectivity packets for both modes;
 - connect merger -> PageRank apply -> HBM wrapper in `sw_emu`;
-- add host round control and first-round source-payload initialization;
+- add host round control around the implemented first-round source preparation;
 - compare every round's state and convergence decision against independent
   CPU float32 and mathematical oracles;
 - synthesize to measure achieved apply II, floating-point resource cost,

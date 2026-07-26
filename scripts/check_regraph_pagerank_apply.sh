@@ -36,6 +36,10 @@ compile_and_run full_pagerank_apply \
   "${GRI_ROOT}/tests/regraph_full_pagerank_apply_tb.cpp"
 compile_and_run residual_pagerank_apply \
   "${GRI_ROOT}/tests/regraph_residual_pagerank_apply_tb.cpp"
+compile_and_run full_pagerank_source_prepare \
+  "${GRI_ROOT}/tests/regraph_full_pagerank_source_prepare_tb.cpp"
+compile_and_run residual_pagerank_source_prepare \
+  "${GRI_ROOT}/tests/regraph_residual_pagerank_source_prepare_tb.cpp"
 compile_and_run pagerank_gather_udf \
   "${GRI_ROOT}/tests/regraph_pagerank_gather_udf_tb.cpp"
 
@@ -46,11 +50,16 @@ compile_and_run pagerank_gather_udf \
     "${GRI_ROOT}/include/regraph_pagerank_apply.hpp" \
     "${GRI_ROOT}/include/regraph_pagerank/l2.h" \
     "${GRI_ROOT}/kernels/regraph_pagerank_apply/regraph_pagerank_apply.cpp" \
+    "${GRI_ROOT}/kernels/regraph_pagerank_source_prepare/regraph_pagerank_source_prepare.cpp" \
     "${GRI_ROOT}/tests/regraph_full_pagerank_apply_tb.cpp" \
     "${GRI_ROOT}/tests/regraph_residual_pagerank_apply_tb.cpp" \
+    "${GRI_ROOT}/tests/regraph_full_pagerank_source_prepare_tb.cpp" \
+    "${GRI_ROOT}/tests/regraph_residual_pagerank_source_prepare_tb.cpp" \
     "${GRI_ROOT}/tests/regraph_pagerank_gather_udf_tb.cpp" \
     "${OUT_DIR}/full_pagerank_apply" \
     "${OUT_DIR}/residual_pagerank_apply" \
+    "${OUT_DIR}/full_pagerank_source_prepare" \
+    "${OUT_DIR}/residual_pagerank_source_prepare" \
     "${OUT_DIR}/pagerank_gather_udf"
 } > "${OUT_DIR}/manifest.txt"
 
