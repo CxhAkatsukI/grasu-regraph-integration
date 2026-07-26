@@ -1,7 +1,6 @@
 #include <ap_int.h>
 #include <hls_stream.h>
 
-#include <cmath>
 #include <cstdint>
 
 #include "regraph_pagerank_apply.hpp"
@@ -18,6 +17,12 @@ namespace {
 
 constexpr unsigned kVerticesPerBurst = 16;
 constexpr unsigned kReductionBanks = 8;
+
+float float_abs(float value)
+{
+#pragma HLS INLINE
+    return value < 0.0F ? -value : value;
+}
 
 std::uint32_t float_to_word(float value)
 {
@@ -148,19 +153,19 @@ apply_bursts:
             next_rank = base + dangling_share + incoming;
             next_value = next_rank;
             error_partials[lane_index][reduction_bank] +=
-                std::fabs(next_rank - old_rank);
+                float_abs(next_rank - old_rank);
 #else
             const float old_residual =
                 word_to_float(lane(residual_beat, lane_index));
-            const bool old_active = std::fabs(old_residual) > threshold;
+            const bool old_active = float_abs(old_residual) > threshold;
             if (old_active) {
                 next_rank += old_residual;
             }
             const float retained_residual = old_active ? 0.0F : old_residual;
             next_value = retained_residual + incoming + dangling_share;
-            active = std::fabs(next_value) > threshold;
+            active = float_abs(next_value) > threshold;
             error_partials[lane_index][reduction_bank] +=
-                std::fabs(next_value);
+                float_abs(next_value);
             set_lane(residual_beat, lane_index, float_to_word(next_value));
 #endif
 
