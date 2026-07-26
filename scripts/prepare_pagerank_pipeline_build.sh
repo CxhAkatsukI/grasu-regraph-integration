@@ -170,7 +170,7 @@ OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${ALGORITHM}.${TARGET}.xclbin"
   for index in 1 2 3 4; do
     channel=$((index - 1))
     echo "sp=bin_search_${index}.edges:HBM[${channel}]"
-    for port in binary_0 binary_1 binary_2 binary_3 row_offset_0 row_offset_1 row_offset_2 row_offset_3; do
+    for port in binary_0 row_offset_0; do
       echo "sp=bin_search_${index}.${port}:HBM[${channel}]"
     done
   done

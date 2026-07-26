@@ -65,6 +65,7 @@ with tempfile.TemporaryDirectory() as temp_name:
     assert "-DGRASU_REGRAPH_PAGERANK_MODE=1" in full_commands
     assert "-DGRASU_REGRAPH_PAGERANK_MODE=2" in residual_commands
     assert "-DGRASU_REGRAPH_DESTINATION_ONLY=1" in full_commands
+    assert "-DGRASU_COMPACT_HBM_PORTS" in residual_commands
     assert "-I" + str(ROOT / "include/regraph_pagerank") in full_commands
     assert "pma_to_regraph_edge_array" not in full_cfg
     assert "dispatch_degree_1.degree_delta:grasu_degree_update_1.degree_delta:64" in full_cfg
@@ -74,6 +75,10 @@ with tempfile.TemporaryDirectory() as temp_name:
     assert "sp=pr_source_1.residual_state:HBM[5]" in residual_cfg
     assert "nk=regraph_pagerank_source_prepare:1:pr_source_1" in full_cfg
     assert "sp=pr_source_1.rank_state:HBM[4]" in full_cfg
+    assert "sp=bin_search_1.binary_0:HBM[0]" in full_cfg
+    assert "sp=bin_search_1.row_offset_0:HBM[0]" in full_cfg
+    assert "sp=bin_search_1.binary_1" not in full_cfg
+    assert "sp=bin_search_1.row_offset_1" not in full_cfg
     assert "source_prop_write:kernelHBMWrapper_1.prop_write_burst_stm:16" in full_cfg
     assert full_manifest["CLAIM_CLASS"] == (
         "proposed_conversion_free_hls_not_yet_built"
