@@ -14,7 +14,8 @@ class XoMasterBudgetTests(unittest.TestCase):
         metadata = {
             "Interfaces": {
                 "m_axi_a": {"type": "axi4", "mode": "master"},
-                "m_axi_b": {"type": "axi4", "mode": "master"},
+                "m_axi_b": {"type": "axi4full", "mode": "master"},
+                "interrupt": {"type": "interrupt", "mode": "master"},
                 "s_axi_control": {"type": "axi4lite", "mode": "slave"},
                 "axis_out": {"type": "axis", "mode": "write_only"},
             }

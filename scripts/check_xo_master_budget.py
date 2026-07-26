@@ -21,7 +21,9 @@ def master_interfaces(xo: Path) -> list[str]:
     return sorted(
         name
         for name, description in interfaces.items()
-        if description.get("type") == "axi4" and description.get("mode") == "master"
+        if str(description.get("type", "")).startswith("axi4")
+        and description.get("mode") == "master"
+        and name.startswith("m_axi_")
     )
 
 
