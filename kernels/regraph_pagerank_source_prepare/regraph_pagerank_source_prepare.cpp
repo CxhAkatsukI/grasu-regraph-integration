@@ -78,7 +78,7 @@ void regraph_pagerank_source_prepare(
 #pragma HLS INTERFACE m_axi port=out_degree offset=slave bundle=gmem2
 #pragma HLS INTERFACE m_axi port=source_prop_1 offset=slave bundle=gmem3
 #pragma HLS INTERFACE m_axi port=source_prop_2 offset=slave bundle=gmem4
-#pragma HLS INTERFACE m_axi port=round_stats offset=slave bundle=gmem5
+#pragma HLS INTERFACE m_axi port=round_stats offset=slave bundle=gmem2
 #pragma HLS INTERFACE s_axilite port=rank_state bundle=control
 #if GRASU_REGRAPH_PAGERANK_MODE == 2
 #pragma HLS INTERFACE s_axilite port=residual_state bundle=control

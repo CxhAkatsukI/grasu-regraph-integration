@@ -194,7 +194,7 @@ OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${ALGORITHM}.${TARGET}.xclbin"
   echo "slr=process_ddr_2:SLR2"
   echo "nk=grasu_degree_update:1:grasu_degree_update_1"
   echo "sp=grasu_degree_update_1.out_degree:HBM[6]"
-  echo "sp=grasu_degree_update_1.status:HBM[7]"
+  echo "sp=grasu_degree_update_1.status:HBM[6]"
   echo "slr=grasu_degree_update_1:SLR1"
   for index in 1 2 3 4; do
     echo "stream_connect=bin_search_${index}.segment_head_stream_out:dispatch_degree_1.segment_head_stream_${index}:16"
@@ -221,7 +221,7 @@ OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${ALGORITHM}.${TARGET}.xclbin"
     echo "sp=regraph_pagerank_apply_1.residual_state:HBM[5]"
   fi
   echo "sp=regraph_pagerank_apply_1.out_degree:HBM[6]"
-  echo "sp=regraph_pagerank_apply_1.round_stats:HBM[7]"
+  echo "sp=regraph_pagerank_apply_1.round_stats:HBM[6]"
   echo "slr=regraph_pagerank_apply_1:SLR1"
   echo "nk=regraph_pagerank_source_prepare:1:pr_source_1"
   echo "sp=pr_source_1.rank_state:HBM[4]"
@@ -231,7 +231,7 @@ OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${ALGORITHM}.${TARGET}.xclbin"
   echo "sp=pr_source_1.out_degree:HBM[6]"
   echo "sp=pr_source_1.source_prop_1:HBM[1]"
   echo "sp=pr_source_1.source_prop_2:HBM[3]"
-  echo "sp=pr_source_1.round_stats:HBM[7]"
+  echo "sp=pr_source_1.round_stats:HBM[6]"
   echo "slr=pr_source_1:SLR1"
   echo "nk=kernelHBMWrapper:1:kernelHBMWrapper_1"
   echo "sp=kernelHBMWrapper_1.src_prop_1:HBM[1]"
@@ -304,9 +304,9 @@ COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
   emit_compile bin_search "${GRASU_KERNEL_DIR}/kernel_bin_search.cpp" "${GRASU_FLAGS[@]}"
   emit_compile dispatch_degree "${GRI_ROOT}/kernels/grasu_dispatch_degree/grasu_dispatch_degree.cpp" "${GRASU_FLAGS[@]}"
   emit_compile process_cache "${GRASU_KERNEL_DIR}/kernel_process_cache.cpp" "${GRASU_FLAGS[@]}" -DGRASU_PURE_PIPELINE_DIRECT_CACHE
-  emit_compile process_ddr "${GRASU_KERNEL_DIR}/kernel_process_ddr.cpp" "${GRASU_FLAGS[@]}"
+  emit_compile process_ddr "${GRASU_KERNEL_DIR}/kernel_process_ddr.cpp" "${GRASU_FLAGS[@]}" -DGRASU_SHARE_HBM_PORTS
   emit_compile grasu_degree_update "${GRI_ROOT}/kernels/grasu_degree_update/grasu_degree_update.cpp" "${GRASU_FLAGS[@]}"
-  emit_compile pma_to_regraph_adapter "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp" "${REGRAPH_FLAGS[@]}" -DGRASU_REGRAPH_DESTINATION_ONLY=1
+  emit_compile pma_to_regraph_adapter "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp" "${REGRAPH_FLAGS[@]}" -DGRASU_REGRAPH_DESTINATION_ONLY=1 -DGRASU_REGRAPH_SHARE_ROW_OFFSET_PORT=1
   emit_compile lksg_stream "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp" "${REGRAPH_FLAGS[@]}" "-I${REGRAPH_ROOT}/acc_template/kernel_little_gs"
   emit_compile kernelLittleGSMerger "${REGRAPH_MERGER}/kernel_little_gs_merger.cpp" "${REGRAPH_FLAGS[@]}" "-I${REGRAPH_MERGER}"
   emit_compile regraph_pagerank_apply "${GRI_ROOT}/kernels/regraph_pagerank_apply/regraph_pagerank_apply.cpp" "${COMMON_ENV}" "-DGRASU_REGRAPH_PAGERANK_MODE=${MODE}" "-I${GRI_ROOT}/include" "-I${HLS_INCLUDE_ETC}" ${TARGET_DEFINE:+"${TARGET_DEFINE}"}

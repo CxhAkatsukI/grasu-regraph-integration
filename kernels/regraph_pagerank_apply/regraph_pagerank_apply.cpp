@@ -80,7 +80,7 @@ void regraph_pagerank_apply(
 #pragma HLS INTERFACE m_axi port=residual_state offset=slave bundle=gmem1
 #endif
 #pragma HLS INTERFACE m_axi port=out_degree offset=slave bundle=gmem2
-#pragma HLS INTERFACE m_axi port=round_stats offset=slave bundle=gmem3
+#pragma HLS INTERFACE m_axi port=round_stats offset=slave bundle=gmem2
 #pragma HLS INTERFACE axis port=merged_prop
 #pragma HLS INTERFACE axis port=source_prop_write
 #pragma HLS INTERFACE s_axilite port=rank_state bundle=control

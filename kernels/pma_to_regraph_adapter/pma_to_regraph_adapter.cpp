@@ -25,12 +25,20 @@ static constexpr unsigned kWeightShift = 19;
 #define GRASU_REGRAPH_DESTINATION_ONLY 0
 #endif
 
+#ifndef GRASU_REGRAPH_SHARE_ROW_OFFSET_PORT
+#define GRASU_REGRAPH_SHARE_ROW_OFFSET_PORT 0
+#endif
+
 #if GRASU_REGRAPH_WEIGHTED_PMA != 0 && GRASU_REGRAPH_WEIGHTED_PMA != 1
 #error "GRASU_REGRAPH_WEIGHTED_PMA must be 0 or 1"
 #endif
 
 #if GRASU_REGRAPH_DESTINATION_ONLY != 0 && GRASU_REGRAPH_DESTINATION_ONLY != 1
 #error "GRASU_REGRAPH_DESTINATION_ONLY must be 0 or 1"
+#endif
+
+#if GRASU_REGRAPH_SHARE_ROW_OFFSET_PORT != 0 && GRASU_REGRAPH_SHARE_ROW_OFFSET_PORT != 1
+#error "GRASU_REGRAPH_SHARE_ROW_OFFSET_PORT must be 0 or 1"
 #endif
 
 #if GRASU_REGRAPH_WEIGHTED_PMA && GRASU_REGRAPH_DESTINATION_ONLY
@@ -106,7 +114,11 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
 #pragma HLS INTERFACE m_axi port=pma1 offset=slave bundle=gmem1
 #pragma HLS INTERFACE m_axi port=pma2 offset=slave bundle=gmem2
 #pragma HLS INTERFACE m_axi port=pma3 offset=slave bundle=gmem3
+#if GRASU_REGRAPH_SHARE_ROW_OFFSET_PORT
+#pragma HLS INTERFACE m_axi port=row_offset offset=slave bundle=gmem0
+#else
 #pragma HLS INTERFACE m_axi port=row_offset offset=slave bundle=gmem4
+#endif
 #pragma HLS INTERFACE s_axilite port=pma0 bundle=control
 #pragma HLS INTERFACE s_axilite port=pma1 bundle=control
 #pragma HLS INTERFACE s_axilite port=pma2 bundle=control

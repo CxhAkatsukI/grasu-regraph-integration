@@ -13,7 +13,7 @@ void grasu_degree_update(
 {
 #pragma HLS INTERFACE axis port=degree_delta
 #pragma HLS INTERFACE m_axi port=out_degree offset=slave bundle=gmem0
-#pragma HLS INTERFACE m_axi port=status offset=slave bundle=gmem1
+#pragma HLS INTERFACE m_axi port=status offset=slave bundle=gmem0
 #pragma HLS INTERFACE s_axilite port=out_degree bundle=control
 #pragma HLS INTERFACE s_axilite port=status bundle=control
 #pragma HLS INTERFACE s_axilite port=vertices bundle=control
