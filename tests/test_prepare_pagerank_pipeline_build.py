@@ -19,8 +19,8 @@ def parse_manifest(path: Path) -> dict[str, str]:
     )
 
 
-def prepare(root: Path, algorithm: str, target: str) -> Path:
-    output = root / f"{algorithm}-{target}"
+def prepare(root: Path, algorithm: str, target: str, pipelines: int = 1) -> Path:
+    output = root / f"{algorithm}-{target}-k{pipelines}"
     env = os.environ.copy()
     env["GRI_ROOT"] = str(ROOT)
     subprocess.run(
@@ -30,6 +30,8 @@ def prepare(root: Path, algorithm: str, target: str) -> Path:
             target,
             "--algorithm",
             algorithm,
+            "--compute-pipelines",
+            str(pipelines),
             "--build-root",
             str(output),
         ],
@@ -46,6 +48,7 @@ with tempfile.TemporaryDirectory() as temp_name:
     temp = Path(temp_name)
     full = prepare(temp, "full_pagerank", "sw_emu")
     residual = prepare(temp, "residual_pagerank", "hw")
+    residual_k2 = prepare(temp, "residual_pagerank", "hw", pipelines=2)
 
     full_commands = (full / "compile_commands.sh").read_text(encoding="utf-8")
     full_cfg = (full / "config/full_pagerank_sw_emu.cfg").read_text(
@@ -59,6 +62,10 @@ with tempfile.TemporaryDirectory() as temp_name:
         encoding="utf-8"
     )
     residual_manifest = parse_manifest(residual / "manifest.env")
+    residual_k2_cfg = (
+        residual_k2 / "config/residual_pagerank_hw.cfg"
+    ).read_text(encoding="utf-8")
+    residual_k2_manifest = parse_manifest(residual_k2 / "manifest.env")
 
     assert full_commands.count("v++ --target sw_emu --compile") == 11
     assert residual_commands.count("v++ --target hw --compile") == 11
@@ -96,6 +103,20 @@ with tempfile.TemporaryDirectory() as temp_name:
     assert full_manifest["RESIDUAL_HBM_CHANNEL"] == "unused"
     assert residual_manifest["RESIDUAL_HBM_CHANNEL"] == "5"
     assert residual_manifest["KERNEL_FREQUENCY_MHZ"] == "150"
+    assert residual_manifest["COMPUTE_PIPELINES"] == "1"
+    assert residual_k2_manifest["COMPUTE_PIPELINES"] == "2"
+    assert residual_k2_manifest["PIPELINE_TOPOLOGY"] == (
+        "direct_complete_worker_replication"
+    )
+    assert (
+        "nk=pma_to_regraph_adapter:2:"
+        "pma_to_regraph_adapter_1.pma_to_regraph_adapter_2"
+    ) in residual_k2_cfg
+    assert "nk=lksg_stream:2:lksg_stream_1.lksg_stream_2" in residual_k2_cfg
+    assert (
+        "regraph_pagerank_apply_2.source_prop_write:"
+        "kernelHBMWrapper_2.prop_write_burst_stm:16"
+    ) in residual_k2_cfg
     assert "--kernel_frequency 150" in (residual / "link_command.sh").read_text(
         encoding="utf-8"
     )
@@ -103,8 +124,11 @@ with tempfile.TemporaryDirectory() as temp_name:
     assert "check_xo_master_budget.py" in (residual / "run_build.sh").read_text(
         encoding="utf-8"
     )
+    assert "check_pipeline_master_budget.py" in (
+        residual / "run_build.sh"
+    ).read_text(encoding="utf-8")
 
-    for packet in (full, residual):
+    for packet in (full, residual, residual_k2):
         subprocess.run(["bash", "-n", str(packet / "compile_commands.sh")], check=True)
         subprocess.run(["bash", "-n", str(packet / "link_command.sh")], check=True)
         subprocess.run(["bash", "-n", str(packet / "run_build.sh")], check=True)

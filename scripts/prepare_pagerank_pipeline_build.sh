@@ -9,6 +9,8 @@ ALGORITHM="full_pagerank"
 PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
 PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
 KERNEL_FREQ=150
+COMPUTE_PIPELINES=1
+PLATFORM_MASTER_BUDGET=33
 MAX_CACHE_SEGMENT="${GRASU_MAX_CACHE_SEGMENT:-131072}"
 HLS_INCLUDE="${HLS_INCLUDE:-/data/yxx/tools/xilinx/Vitis_HLS/2024.1/include}"
 HLS_INCLUDE_ETC="${HLS_INCLUDE_ETC:-${HLS_INCLUDE}/etc}"
@@ -27,6 +29,8 @@ Options:
   --platform NAME
   --platform-xpfm PATH
   --kernel-frequency MHz
+  --compute-pipelines K
+  --platform-master-budget N
   --max-cache-segment N
   --hls-include PATH
   --hls-include-etc PATH
@@ -53,6 +57,8 @@ while [[ $# -gt 0 ]]; do
       ;;
     --platform-xpfm) PLATFORM_XPFM="$(abs_path "$2")"; shift 2 ;;
     --kernel-frequency) KERNEL_FREQ="$2"; shift 2 ;;
+    --compute-pipelines) COMPUTE_PIPELINES="$2"; shift 2 ;;
+    --platform-master-budget) PLATFORM_MASTER_BUDGET="$2"; shift 2 ;;
     --max-cache-segment) MAX_CACHE_SEGMENT="$2"; shift 2 ;;
     --hls-include) HLS_INCLUDE="$(abs_path "$2")"; shift 2 ;;
     --hls-include-etc) HLS_INCLUDE_ETC="$(abs_path "$2")"; shift 2 ;;
@@ -73,6 +79,14 @@ case "${ALGORITHM}" in
 esac
 if [[ ! "${KERNEL_FREQ}" =~ ^[1-9][0-9]*$ ]]; then
   echo "--kernel-frequency must be positive" >&2
+  exit 2
+fi
+if [[ ! "${COMPUTE_PIPELINES}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "--compute-pipelines must be positive" >&2
+  exit 2
+fi
+if [[ ! "${PLATFORM_MASTER_BUDGET}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "--platform-master-budget must be positive" >&2
   exit 2
 fi
 if [[ -z "${BUILD_ROOT}" ]]; then
@@ -203,24 +217,26 @@ OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${ALGORITHM}.${TARGET}.xclbin"
   echo "stream_connect=dispatch_degree_1.dispatch_to_process_ddr_2:process_ddr_2.update_stream:16"
   echo "stream_connect=dispatch_degree_1.degree_delta:grasu_degree_update_1.degree_delta:64"
   echo
-  echo "nk=pma_to_regraph_adapter:1:pma_to_regraph_adapter_1"
-  for index in 0 1 2 3; do
-    echo "sp=pma_to_regraph_adapter_1.pma${index}:HBM[${index}]"
+  worker_names=""
+  for index in $(seq 1 "${COMPUTE_PIPELINES}"); do
+    worker_names="${worker_names}${worker_names:+.}pma_to_regraph_adapter_${index}"
   done
-  echo "sp=pma_to_regraph_adapter_1.row_offset:HBM[0]"
-  echo "slr=pma_to_regraph_adapter_1:SLR1"
-  echo "nk=lksg_stream:1:lksg_stream_1"
-  echo "slr=lksg_stream_1:SLR0"
-  echo "nk=kernelLittleGSMerger:1:kernelLittleGSMerger_1"
-  echo "slr=kernelLittleGSMerger_1:SLR1"
-  echo "nk=regraph_pagerank_apply:1:regraph_pagerank_apply_1"
-  echo "sp=regraph_pagerank_apply_1.rank_state:HBM[4]"
-  if [[ "${MODE}" == 2 ]]; then
-    echo "sp=regraph_pagerank_apply_1.residual_state:HBM[5]"
-  fi
-  echo "sp=regraph_pagerank_apply_1.out_degree:HBM[6]"
-  echo "sp=regraph_pagerank_apply_1.round_stats:HBM[6]"
-  echo "slr=regraph_pagerank_apply_1:SLR1"
+  echo "nk=pma_to_regraph_adapter:${COMPUTE_PIPELINES}:${worker_names}"
+  worker_names=""
+  for index in $(seq 1 "${COMPUTE_PIPELINES}"); do
+    worker_names="${worker_names}${worker_names:+.}lksg_stream_${index}"
+  done
+  echo "nk=lksg_stream:${COMPUTE_PIPELINES}:${worker_names}"
+  worker_names=""
+  for index in $(seq 1 "${COMPUTE_PIPELINES}"); do
+    worker_names="${worker_names}${worker_names:+.}kernelLittleGSMerger_${index}"
+  done
+  echo "nk=kernelLittleGSMerger:${COMPUTE_PIPELINES}:${worker_names}"
+  worker_names=""
+  for index in $(seq 1 "${COMPUTE_PIPELINES}"); do
+    worker_names="${worker_names}${worker_names:+.}regraph_pagerank_apply_${index}"
+  done
+  echo "nk=regraph_pagerank_apply:${COMPUTE_PIPELINES}:${worker_names}"
   echo "nk=regraph_pagerank_source_prepare:1:pr_source_1"
   echo "sp=pr_source_1.rank_state:HBM[4]"
   if [[ "${MODE}" == 2 ]]; then
@@ -231,18 +247,38 @@ OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${ALGORITHM}.${TARGET}.xclbin"
   echo "sp=pr_source_1.source_prop_2:HBM[3]"
   echo "sp=pr_source_1.round_stats:HBM[6]"
   echo "slr=pr_source_1:SLR1"
-  echo "nk=kernelHBMWrapper:1:kernelHBMWrapper_1"
-  echo "sp=kernelHBMWrapper_1.src_prop_1:HBM[1]"
-  echo "sp=kernelHBMWrapper_1.src_prop_2:HBM[3]"
-  echo "sp=kernelHBMWrapper_1.new_prop_1:HBM[1]"
-  echo "sp=kernelHBMWrapper_1.new_prop_2:HBM[3]"
-  echo "slr=kernelHBMWrapper_1:SLR0"
-  echo "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32"
-  echo "stream_connect=lksg_stream_1.l_ppb_request_stm:kernelHBMWrapper_1.l_ppb_request_stm_1:32"
-  echo "stream_connect=kernelHBMWrapper_1.l_ppb_response_stm_1:lksg_stream_1.l_ppb_response_stm:32"
-  echo "stream_connect=lksg_stream_1.l_tmp_prop_stm:kernelLittleGSMerger_1.l_tmp_prop_stm_1:16"
-  echo "stream_connect=kernelLittleGSMerger_1.l_write_burst_stm:regraph_pagerank_apply_1.merged_prop:16"
-  echo "stream_connect=regraph_pagerank_apply_1.source_prop_write:kernelHBMWrapper_1.prop_write_burst_stm:16"
+  worker_names=""
+  for index in $(seq 1 "${COMPUTE_PIPELINES}"); do
+    worker_names="${worker_names}${worker_names:+.}kernelHBMWrapper_${index}"
+  done
+  echo "nk=kernelHBMWrapper:${COMPUTE_PIPELINES}:${worker_names}"
+  for index in $(seq 1 "${COMPUTE_PIPELINES}"); do
+    for pma_index in 0 1 2 3; do
+      echo "sp=pma_to_regraph_adapter_${index}.pma${pma_index}:HBM[${pma_index}]"
+    done
+    echo "sp=pma_to_regraph_adapter_${index}.row_offset:HBM[0]"
+    echo "slr=pma_to_regraph_adapter_${index}:SLR$((index % 3))"
+    echo "slr=lksg_stream_${index}:SLR$(((index - 1) % 3))"
+    echo "slr=kernelLittleGSMerger_${index}:SLR$((index % 3))"
+    echo "sp=regraph_pagerank_apply_${index}.rank_state:HBM[4]"
+    if [[ "${MODE}" == 2 ]]; then
+      echo "sp=regraph_pagerank_apply_${index}.residual_state:HBM[5]"
+    fi
+    echo "sp=regraph_pagerank_apply_${index}.out_degree:HBM[6]"
+    echo "sp=regraph_pagerank_apply_${index}.round_stats:HBM[6]"
+    echo "slr=regraph_pagerank_apply_${index}:SLR$((index % 3))"
+    echo "sp=kernelHBMWrapper_${index}.src_prop_1:HBM[1]"
+    echo "sp=kernelHBMWrapper_${index}.src_prop_2:HBM[3]"
+    echo "sp=kernelHBMWrapper_${index}.new_prop_1:HBM[1]"
+    echo "sp=kernelHBMWrapper_${index}.new_prop_2:HBM[3]"
+    echo "slr=kernelHBMWrapper_${index}:SLR$(((index - 1) % 3))"
+    echo "stream_connect=pma_to_regraph_adapter_${index}.edge_burst_out:lksg_stream_${index}.edge_burst_in:32"
+    echo "stream_connect=lksg_stream_${index}.l_ppb_request_stm:kernelHBMWrapper_${index}.l_ppb_request_stm_1:32"
+    echo "stream_connect=kernelHBMWrapper_${index}.l_ppb_response_stm_1:lksg_stream_${index}.l_ppb_response_stm:32"
+    echo "stream_connect=lksg_stream_${index}.l_tmp_prop_stm:kernelLittleGSMerger_${index}.l_tmp_prop_stm_1:16"
+    echo "stream_connect=kernelLittleGSMerger_${index}.l_write_burst_stm:regraph_pagerank_apply_${index}.merged_prop:16"
+    echo "stream_connect=regraph_pagerank_apply_${index}.source_prop_write:kernelHBMWrapper_${index}.prop_write_burst_stm:16"
+  done
 } > "${LINK_CFG}"
 
 TARGET_DEFINE=""
@@ -338,6 +374,10 @@ RUN_BUILD="${BUILD_ROOT}/run_build.sh"
   printf 'python3 %q --xo %q --expected-masters 2\n' \
     "${GRI_ROOT}/scripts/check_xo_master_budget.py" \
     "${BUILD_DIR}/bin_search.${TARGET}.xo"
+  printf 'python3 %q --build-dir %q --compute-pipelines %q --platform-master-budget %q --out %q\n' \
+    "${GRI_ROOT}/scripts/check_pipeline_master_budget.py" \
+    "${BUILD_DIR}" "${COMPUTE_PIPELINES}" "${PLATFORM_MASTER_BUDGET}" \
+    "${BUILD_ROOT}/pipeline_master_budget.json"
   printf '%q\n' "${LINK_COMMAND}"
 } > "${RUN_BUILD}"
 chmod +x "${RUN_BUILD}"
@@ -355,6 +395,9 @@ fi
   echo "PAGERANK_MODE=${MODE}"
   echo "TARGET=${TARGET}"
   echo "KERNEL_FREQUENCY_MHZ=${KERNEL_FREQ}"
+  echo "COMPUTE_PIPELINES=${COMPUTE_PIPELINES}"
+  echo "PIPELINE_TOPOLOGY=direct_complete_worker_replication"
+  echo "PLATFORM_MASTER_BUDGET=${PLATFORM_MASTER_BUDGET}"
   echo "PLATFORM=${PLATFORM}"
   echo "PLATFORM_XPFM=${PLATFORM_XPFM}"
   echo "GRI_GIT_HEAD=$(git -C "${GRI_ROOT}" rev-parse HEAD)"
