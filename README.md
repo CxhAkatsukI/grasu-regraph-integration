@@ -100,6 +100,14 @@ proof gate are recorded in:
 docs/regraph_weighted_sssp_status_2026-07-12.md
 ```
 
+The conversion-free shared-worker extension for up to four ReGraph
+destination partitions, including four-algorithm cross-partition `sw_emu`
+evidence and the current 150 MHz hardware packets, is documented in:
+
+```text
+docs/k4_shared_partition_hls_20260805.md
+```
+
 The `codex/weighted-pma-native-hls` branch adds an opt-in weighted PMA ABI
 to the direct PMA-to-ReGraph AXIS adapter while preserving the legacy unit-
 weight default. Its integration-owned host preprocessor lowers weight changes
