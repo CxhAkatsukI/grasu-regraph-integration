@@ -42,13 +42,36 @@ def read_slice(path: Path) -> tuple[int, list[tuple[int, int, int, int]]]:
     return vertices, rows
 
 
-def convert(initial: Path, update: Path, output: Path, metadata: Path) -> dict[str, object]:
+def reciprocal_rows(
+    rows: list[tuple[int, int, int, int]],
+) -> list[tuple[int, int, int, int]]:
+    result: list[tuple[int, int, int, int]] = []
+    seen: set[tuple[int, int, int, int]] = set()
+    for row in rows:
+        variants = (row,) if row[0] == row[1] else (row, (row[1], row[0], row[2], row[3]))
+        for variant in variants:
+            if variant not in seen:
+                seen.add(variant)
+                result.append(variant)
+    return result
+
+
+def convert(
+    initial: Path,
+    update: Path,
+    output: Path,
+    metadata: Path,
+    reciprocal: bool = False,
+) -> dict[str, object]:
     initial_vertices, initial_rows = read_slice(initial)
     update_vertices, update_rows = read_slice(update)
     if initial_vertices != update_vertices:
         raise ValueError("initial and update slices have different vertex counts")
     if any(diff != 1 for _, _, _, diff in initial_rows):
         raise ValueError("initial slice may contain only positive edges")
+    if reciprocal:
+        initial_rows = reciprocal_rows(initial_rows)
+        update_rows = reciprocal_rows(update_rows)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"{initial_vertices} {len(initial_rows)} {len(update_rows)}"]
@@ -71,6 +94,7 @@ def convert(initial: Path, update: Path, output: Path, metadata: Path) -> dict[s
         "pma_graph": str(output.resolve()),
         "pma_graph_sha256": sha256(output),
         "operation_mapping": {"1": "insert", "-1": "delete"},
+        "reciprocal_expansion": reciprocal,
         "conversion": "lossless format-only; vertex ids, weights, and order preserved",
     }
     metadata.parent.mkdir(parents=True, exist_ok=True)
@@ -84,8 +108,15 @@ def main() -> None:
     parser.add_argument("--update", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--metadata", type=Path, required=True)
+    parser.add_argument(
+        "--reciprocal",
+        action="store_true",
+        help="mirror every non-self edge and update for undirected CC semantics",
+    )
     args = parser.parse_args()
-    result = convert(args.initial, args.update, args.output, args.metadata)
+    result = convert(
+        args.initial, args.update, args.output, args.metadata, args.reciprocal
+    )
     print(
         "SPINE_SLICES_TO_PMA_GRAPH_PASS "
         f"vertices={result['vertices']} initial={result['initial_edges']} "
