@@ -130,6 +130,12 @@ with tempfile.TemporaryDirectory() as temp_name:
     assert "check_pipeline_master_budget.py" in (
         residual / "run_build.sh"
     ).read_text(encoding="utf-8")
+    assert "check_xo_master_budget.py" not in (full / "run_build.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "sw_emu XO omits synthesized bundle metadata" in (
+        full / "run_build.sh"
+    ).read_text(encoding="utf-8")
 
     for packet in (full, residual, residual_k2):
         subprocess.run(["bash", "-n", str(packet / "compile_commands.sh")], check=True)

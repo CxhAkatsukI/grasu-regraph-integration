@@ -376,13 +376,17 @@ RUN_BUILD="${BUILD_ROOT}/run_build.sh"
   echo "#!/usr/bin/env bash"
   echo "set -euo pipefail"
   printf '%q\n' "${COMPILE_COMMANDS}"
-  printf 'python3 %q --xo %q --expected-masters 2\n' \
-    "${GRI_ROOT}/scripts/check_xo_master_budget.py" \
-    "${BUILD_DIR}/bin_search.${TARGET}.xo"
-  printf 'python3 %q --build-dir %q --compute-pipelines %q --platform-master-budget %q --out %q\n' \
-    "${GRI_ROOT}/scripts/check_pipeline_master_budget.py" \
-    "${BUILD_DIR}" "${COMPUTE_PIPELINES}" "${PLATFORM_MASTER_BUDGET}" \
-    "${BUILD_ROOT}/pipeline_master_budget.json"
+  if [[ "${TARGET}" == "hw" ]]; then
+    printf 'python3 %q --xo %q --expected-masters 2\n' \
+      "${GRI_ROOT}/scripts/check_xo_master_budget.py" \
+      "${BUILD_DIR}/bin_search.${TARGET}.xo"
+    printf 'python3 %q --build-dir %q --compute-pipelines %q --platform-master-budget %q --out %q\n' \
+      "${GRI_ROOT}/scripts/check_pipeline_master_budget.py" \
+      "${BUILD_DIR}" "${COMPUTE_PIPELINES}" "${PLATFORM_MASTER_BUDGET}" \
+      "${BUILD_ROOT}/pipeline_master_budget.json"
+  else
+    echo "echo 'SKIP AXI master-budget audit: sw_emu XO omits synthesized bundle metadata'"
+  fi
   printf '%q\n' "${LINK_COMMAND}"
 } > "${RUN_BUILD}"
 chmod +x "${RUN_BUILD}"
