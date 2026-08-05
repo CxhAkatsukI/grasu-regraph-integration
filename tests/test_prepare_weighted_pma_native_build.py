@@ -78,8 +78,14 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     )
 
     outputs = {}
-    for mode in ("compactor", "weighted-axis"):
-        out = tmp / mode
+    cases = (
+        ("compactor", "weighted_sssp"),
+        ("weighted-axis", "weighted_sssp"),
+        ("weighted-axis", "connected_components"),
+    )
+    for mode, algorithm in cases:
+        key = mode if algorithm == "weighted_sssp" else algorithm
+        out = tmp / key
         subprocess.run(
             [
                 str(PREPARE),
@@ -87,6 +93,8 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
                 "sw_emu",
                 "--pipeline-mode",
                 mode,
+                "--algorithm",
+                algorithm,
                 "--platform-xpfm",
                 str(platform),
                 "--hls-include",
@@ -104,7 +112,7 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
         )
         subprocess.run(["bash", "-n", str(out / "compile_commands.sh")], check=True)
         subprocess.run(["bash", "-n", str(out / "link_command.sh")], check=True)
-        outputs[mode] = out
+        outputs[key] = out
 
     compactor = outputs["compactor"]
     compactor_manifest = parse_manifest(compactor / "manifest.env")
@@ -159,6 +167,23 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert "GRASU_GIT_HEAD" in weighted_manifest
     assert "GRI_GIT_TRACKED_DIRTY" in weighted_manifest
     assert "GRASU_GIT_UNTRACKED_COUNT" in weighted_manifest
+
+    cc = outputs["connected_components"]
+    cc_manifest = parse_manifest(cc / "manifest.env")
+    cc_cfg = Path(cc_manifest["LINK_CFG"]).read_text(encoding="utf-8")
+    cc_compile = (cc / "compile_commands.sh").read_text(encoding="utf-8")
+    assert cc_manifest["ALGORITHM"] == "connected_components"
+    assert cc_manifest["PIPELINE_STEM"] == "connected_components_pma_native"
+    assert cc_manifest["REGRAPH_EDGE_PROP"] == "0"
+    assert cc_manifest["ADAPTER_MODE_DEFINE"] == (
+        "-DGRASU_REGRAPH_DESTINATION_ONLY=1"
+    )
+    assert "-DHAVE_EDGE_PROP=0" in cc_compile
+    assert f"-I{ROOT}/include/regraph_cc" in cc_compile
+    assert "-DGRASU_REGRAPH_DESTINATION_ONLY=1" in cc_compile
+    assert "-DGRASU_REGRAPH_WEIGHTED_PMA=1" not in cc_compile
+    assert "connected_components connectivity" in cc_cfg
+    assert "sp=kernelApply_1.active_count:HBM[30]" in cc_cfg
 
     invalid = subprocess.run(
         [str(PREPARE), "--pipeline-mode", "invalid"],

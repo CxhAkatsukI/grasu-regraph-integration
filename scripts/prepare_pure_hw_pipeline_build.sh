@@ -6,6 +6,7 @@ source "${SCRIPT_DIR}/env.sh"
 
 TARGET="sw_emu"
 PIPELINE_MODE="compactor"
+ALGORITHM="weighted_sssp"
 PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
 PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
 KERNEL_FREQ=200
@@ -27,6 +28,7 @@ pipeline. This script is generate-only; it does not run v++.
 Options:
   --target sw_emu|hw_emu|hw      Build target. Default: ${TARGET}
   --pipeline-mode MODE           compactor or weighted-axis. Default: ${PIPELINE_MODE}
+  --algorithm NAME               weighted_sssp or connected_components.
   --platform NAME                Platform name. Default: ${PLATFORM}
   --platform-xpfm PATH           Platform xpfm. Default: ${PLATFORM_XPFM}
   --kernel-frequency MHz         Link frequency. Default: ${KERNEL_FREQ}
@@ -59,6 +61,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
     --pipeline-mode) PIPELINE_MODE="$2"; shift 2 ;;
+    --algorithm) ALGORITHM="$2"; shift 2 ;;
     --platform) PLATFORM="$2"; PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"; shift 2 ;;
     --platform-xpfm) PLATFORM_XPFM="$(abs_path "$2")"; shift 2 ;;
     --kernel-frequency) KERNEL_FREQ="$2"; shift 2 ;;
@@ -81,6 +84,15 @@ case "${PIPELINE_MODE}" in
   compactor|weighted-axis) ;;
   *) echo "Invalid --pipeline-mode: ${PIPELINE_MODE}" >&2; exit 2 ;;
 esac
+case "${ALGORITHM}" in
+  weighted_sssp|connected_components) ;;
+  *) echo "Invalid --algorithm: ${ALGORITHM}" >&2; exit 2 ;;
+esac
+if [[ "${ALGORITHM}" == "connected_components" &&
+      "${PIPELINE_MODE}" != "weighted-axis" ]]; then
+  echo "connected_components requires --pipeline-mode weighted-axis" >&2
+  exit 2
+fi
 
 if [[ -z "${BUILD_ROOT}" ]]; then
   if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
@@ -168,10 +180,20 @@ case "${TARGET}" in
   hw_emu|hw) GRASU_BASE_FLAGS+=("-DGRASU_COMPACT_HBM_PORTS") ;;
 esac
 
+if [[ "${ALGORITHM}" == "connected_components" ]]; then
+  REGRAPH_EDGE_PROP=0
+  REGRAPH_UDF_INCLUDE="${GRI_ROOT}/include/regraph_cc"
+  ADAPTER_MODE_DEFINE="-DGRASU_REGRAPH_DESTINATION_ONLY=1"
+else
+  REGRAPH_EDGE_PROP=1
+  REGRAPH_UDF_INCLUDE="${REGRAPH_ROOT}/acc_udfs/sssp"
+  ADAPTER_MODE_DEFINE="-DGRASU_REGRAPH_WEIGHTED_PMA=1"
+fi
+
 declare -a REGRAPH_COMMON_FLAGS=(
   "${SW_EMU_GTHREAD_DEFINE}"
   "-O3"
-  "-DHAVE_EDGE_PROP=1"
+  "-DHAVE_EDGE_PROP=${REGRAPH_EDGE_PROP}"
   "-DHAVE_UNSIGNED_PROP=1"
   "-DHAVE_APPLY_OUTDEG=0"
   "-DHAVE_VERTEX_PROP=1"
@@ -186,7 +208,7 @@ declare -a REGRAPH_COMMON_FLAGS=(
   "-DLITTLE_KERNEL_NUM=1"
   "-DREGRAPH_PURE_LITTLE_ONLY"
   "-I${HLS_INCLUDE_ETC}"
-  "-I${REGRAPH_ROOT}/acc_udfs/sssp"
+  "-I${REGRAPH_UDF_INCLUDE}"
   "-I${REGRAPH_ROOT}"
   "-I${REGRAPH_ROOT}/acc_template"
   "-I${REGRAPH_ROOT}/acc_template/common"
@@ -355,7 +377,11 @@ if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
   HANDOFF="capacity_wide_compactor_to_edge_array"
   CONVERSION_COST="included"
 else
-  PIPELINE_STEM="weighted_pma_native"
+  if [[ "${ALGORITHM}" == "connected_components" ]]; then
+    PIPELINE_STEM="connected_components_pma_native"
+  else
+    PIPELINE_STEM="weighted_pma_native"
+  fi
   CLAIM_CLASS="candidate_hls_not_yet_built"
   HANDOFF="weighted_pma_to_axis_stream"
   CONVERSION_COST="absent"
@@ -423,7 +449,7 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
     echo "sp=pma_to_regraph_adapter_1.row_offset:HBM[0]"
     echo "slr=pma_to_regraph_adapter_1:SLR1"
     echo
-    echo "# ReGraph weighted SSSP connectivity with stream-input little-only GS"
+    echo "# ReGraph ${ALGORITHM} connectivity with stream-input little-only GS"
     write_regraph_stream_little_only_connectivity "${REGRAPH_CONNECTIVITY_CFG}"
     echo "sp=kernelApply_1.active_count:HBM[30]"
   fi
@@ -517,8 +543,8 @@ fi
       "${BUILD_DIR}/littleKernelScatterGather.${TARGET}.xo" \
       "${REGRAPH_ROOT}/acc_template/kernel_little_gs/kernel_scatter_gather.cpp"
   else
-    printf 'v++ --target %q --compile --kernel_frequency %q %s %s -DGRASU_REGRAPH_WEIGHTED_PMA=1 --config %q -I%q -o %q %q\n' \
-      "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
+    printf 'v++ --target %q --compile --kernel_frequency %q %s %s %s --config %q -I%q -o %q %q\n' \
+      "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${ADAPTER_MODE_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
       "${HLS_INCLUDE_ETC}" \
       "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo" \
       "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
@@ -547,7 +573,7 @@ chmod +x "${COMPILE_COMMANDS}"
   printf 'v++ --target %q --link --kernel_frequency %q --config %q -D_GTHREAD_USE_COND_INIT_FUNC' \
     "${TARGET}" "${KERNEL_FREQ}" "${LINK_CFG}"
   for inc in \
-    "${REGRAPH_ROOT}/acc_udfs/sssp" \
+    "${REGRAPH_UDF_INCLUDE}" \
     "${REGRAPH_ROOT}" \
     "${REGRAPH_ROOT}/acc_template" \
     "${REGRAPH_ROOT}/acc_template/common" \
@@ -583,6 +609,7 @@ chmod +x "${LINK_COMMAND}"
   echo "REGRAPH_GIT_TRACKED_DIRTY=$(git_tracked_dirty_or_unavailable "${REGRAPH_ROOT}")"
   echo "REGRAPH_GIT_UNTRACKED_COUNT=$(git_untracked_count_or_unavailable "${REGRAPH_ROOT}")"
   echo "TARGET=${TARGET}"
+  echo "ALGORITHM=${ALGORITHM}"
   echo "PIPELINE_MODE=${PIPELINE_MODE}"
   echo "PIPELINE_STEM=${PIPELINE_STEM}"
   echo "CLAIM_CLASS=${CLAIM_CLASS}"
@@ -599,6 +626,9 @@ chmod +x "${LINK_COMMAND}"
   printf '%q ' "${GRASU_BASE_FLAGS[@]}"
   printf '\n'
   echo "REGRAPH_TARGET_DEFINE=${REGRAPH_TARGET_DEFINE}"
+  echo "REGRAPH_UDF_INCLUDE=${REGRAPH_UDF_INCLUDE}"
+  echo "REGRAPH_EDGE_PROP=${REGRAPH_EDGE_PROP}"
+  echo "ADAPTER_MODE_DEFINE=${ADAPTER_MODE_DEFINE}"
   printf 'REGRAPH_COMMON_FLAGS='
   printf '%q ' "${REGRAPH_COMMON_FLAGS[@]}"
   printf '\n'
@@ -652,7 +682,7 @@ chmod +x "${LINK_COMMAND}"
     "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper" \
     "${REGRAPH_ROOT}/acc_template/kernel_little_gs" \
     "${REGRAPH_ROOT}/acc_template/kernel_little_gs_merger" \
-    "${REGRAPH_ROOT}/acc_udfs/sssp"; do
+    "${REGRAPH_UDF_INCLUDE}"; do
     if [[ -d "${header_dir}" ]]; then
       while IFS= read -r -d '' header; do
         emit_input_record kernel_header "${header}"
