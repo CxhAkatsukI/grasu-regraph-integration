@@ -50,11 +50,11 @@ int main()
     std::array<ap_uint<32>, kReGraphPageRankStatWords> stats = {};
     put(residual[0], 0, 0.01F);
     put(residual[0], 1, -0.02F);
-    put(residual[0], 2, 1.0e-8F);
+    put(residual[0], 2, 5.0e-7F);
     put(residual[0], 3, 0.04F);
     degree[0].range(31, 0) = 2;
     degree[0].range(63, 32) = 1;
-    degree[0].range(95, 64) = 0;
+    degree[0].range(95, 64) = 1;
     degree[0].range(127, 96) = 0;
 
     regraph_pagerank_source_prepare(

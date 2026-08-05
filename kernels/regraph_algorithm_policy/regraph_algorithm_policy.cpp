@@ -210,9 +210,7 @@ policy_beats:
                 const float residual = word_to_float(auxiliary) + incoming +
                                        dangling_share;
                 lane_auxiliary = float_to_word(residual);
-                const float threshold = vertices == 0 ? epsilon
-                                                       : epsilon / vertices;
-                lane_active = float_abs(residual) > threshold;
+                lane_active = float_abs(residual) > epsilon;
                 lane_extra = float_to_word(float_abs(residual));
 #endif
             }

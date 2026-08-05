@@ -68,11 +68,11 @@ The HLS path preserves the simulator's source-map/apply ordering.  At apply,
 the residual that generated the current scatter payload is first consumed:
 
 ```text
-old_active = abs(old_residual) > epsilon / vertices
+old_active = abs(old_residual) > epsilon
 rank_after_source = old_rank + (old_active ? old_residual : 0)
 retained = old_active ? 0 : old_residual
 next_residual = retained + incoming + dangling_share
-next_active = abs(next_residual) > epsilon / vertices
+next_active = abs(next_residual) > epsilon
 next_source_payload = next_active && degree != 0
                     ? damping * next_residual / degree : 0
 ```
@@ -115,7 +115,8 @@ The three C-sim tests cover:
 
 - Full PageRank rank update, next payload, error, dangling, padded lanes, and
   insufficient burst capacity;
-- residual PageRank active/inactive handling, signed float state, dangling,
+- residual PageRank direct per-vertex epsilon handling (including a residual
+  between `epsilon / vertices` and `epsilon`), signed float state, dangling,
   next payload, and two consecutive rounds;
 - Full and residual first-round source preparation, including a negative
   residual and updated degree values;

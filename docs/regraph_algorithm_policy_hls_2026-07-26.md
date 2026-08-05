@@ -9,6 +9,9 @@ arithmetic interface for:
 - Full PageRank with float32 damping and dangling-share input;
 - thresholded residual PageRank with float32 rank/residual state.
 
+Residual PageRank uses the direct per-vertex activation contract
+`abs(residual) > epsilon`; `epsilon` is not divided by the graph size.
+
 The implementation is an isolated synthesizable policy core. It proves that
 the algorithm arithmetic represented by the cycle simulator has a concrete HLS
 implementation and allows per-policy incremental resource/timing comparison.
@@ -63,7 +66,9 @@ and validated in one xclbin.
 ## Current Evidence
 
 Vitis 2024.1 software-emulation compilation passed for all three profiles at a
-requested 200 MHz HLS clock. The generated XOs were:
+requested 200 MHz HLS clock. The generated XOs below predate the direct
+per-vertex epsilon correction and are retained only as historical evidence;
+they are superseded and must not be used as evidence for the current source:
 
 | Profile | Bytes | SHA-256 |
 |---|---:|---|

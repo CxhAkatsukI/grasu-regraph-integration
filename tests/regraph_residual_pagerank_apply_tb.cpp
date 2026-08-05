@@ -65,7 +65,7 @@ int main()
     incoming_packet.last = 0;
     put_float(residual[0], 0, 0.0375F);
     put_float(residual[0], 1, 0.0375F);
-    put_float(residual[0], 2, 1.0e-8F);
+    put_float(residual[0], 2, 5.0e-7F);
     put_float(residual[0], 3, 0.0375F);
     put_float(incoming_packet.data, 0, 0.01F);
     put_float(incoming_packet.data, 1, 0.02F);
@@ -73,7 +73,7 @@ int main()
     put_float(incoming_packet.data, 3, 0.04F);
     degree[0].range(31, 0) = 2;
     degree[0].range(63, 32) = 1;
-    degree[0].range(95, 64) = 0;
+    degree[0].range(95, 64) = 1;
     degree[0].range(127, 96) = 0;
     incoming.write(incoming_packet);
 
@@ -94,7 +94,7 @@ int main()
     expect_close(get_float(rank[0], 3), 0.0375F);
     expect_close(get_float(residual[0], 0), 0.01F);
     expect_close(get_float(residual[0], 1), 0.02F);
-    expect_close(get_float(residual[0], 2), 1.0e-8F);
+    expect_close(get_float(residual[0], 2), 5.0e-7F);
     expect_close(get_float(residual[0], 3), 0.04F);
     expect_close(get_float(payload.data, 0), 0.85F * 0.01F / 2.0F);
     expect_close(get_float(payload.data, 1), 0.85F * 0.02F);
@@ -124,11 +124,11 @@ int main()
     expect_close(get_float(rank[0], 3), 0.0775F);
     expect_close(get_float(residual[0], 0), 0.0085F);
     expect_close(get_float(residual[0], 1), 0.0085F);
-    expect_close(get_float(residual[0], 2), 0.00850001F);
+    expect_close(get_float(residual[0], 2), 0.0085005F);
     expect_close(get_float(residual[0], 3), 0.0085F);
     assert(stats[kReGraphPageRankActiveVertices] == 4);
     expect_close(test_word_to_float(stats[kReGraphPageRankNextDanglingBits]),
-                 0.01700001F, 2.0e-6F);
+                 0.0085F, 2.0e-6F);
 
     return 0;
 }

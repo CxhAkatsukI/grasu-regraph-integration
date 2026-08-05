@@ -151,17 +151,17 @@ int main()
 
     put(primary, 0, bits(0.3F));
     put(primary, 1, bits(0.4F));
-    put(auxiliary, 0, bits(0.02F));
-    put(auxiliary, 1, bits(0.005F));
+    put(auxiliary, 0, bits(0.04F));
+    put(auxiliary, 1, bits(0.03F));
     put(operand_a, 0, bits(0.04F));
     valid = 1;
     run_operation(kApply, primary, auxiliary, operand_a, operand_b,
                   valid, next_primary, next_auxiliary, result, extra, active,
                   0.8F, 0.08F, 0.05F, 0.01F);
     expect_close(value(get(next_primary, 0)), 0.3F);
-    expect_close(value(get(next_auxiliary, 0)), 0.07F);
-    expect_close(value(get(next_auxiliary, 1)), 0.015F);
-    expect_close(value(get(extra, 0)), 0.07F);
+    expect_close(value(get(next_auxiliary, 0)), 0.09F);
+    expect_close(value(get(next_auxiliary, 1)), 0.04F);
+    expect_close(value(get(extra, 0)), 0.09F);
     assert(active[0] && !active[1]);
 #endif
 

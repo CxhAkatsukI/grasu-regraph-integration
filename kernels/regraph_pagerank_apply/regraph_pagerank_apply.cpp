@@ -117,7 +117,7 @@ initialize_partials:
     }
 
     const unsigned capacity = burst_count * kVerticesPerBurst;
-    const float threshold = vertices == 0 ? epsilon : epsilon / vertices;
+    const float threshold = epsilon;
 
 apply_bursts:
     for (unsigned burst = 0; burst < burst_count; ++burst) {
