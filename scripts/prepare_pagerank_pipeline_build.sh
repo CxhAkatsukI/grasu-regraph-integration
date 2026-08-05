@@ -332,7 +332,7 @@ COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
   printf 'export TMPDIR=%q TMP=%q TEMP=%q\n' "${TMP_DIR}" "${TMP_DIR}" "${TMP_DIR}"
   printf 'export CPATH=%q${CPATH:+:${CPATH}}\n' "/usr/include/x86_64-linux-gnu:/usr/include"
   printf 'export C_INCLUDE_PATH=%q${C_INCLUDE_PATH:+:${C_INCLUDE_PATH}}\n' "/usr/include/x86_64-linux-gnu:/usr/include"
-  printf 'export CPLUS_INCLUDE_PATH=%q${CPLUS_INCLUDE_PATH:+:${CPLUS_INCLUDE_PATH}}\n' "${GCC_COMPAT_INCLUDE}:/usr/include/x86_64-linux-gnu:/usr/include"
+  printf 'export CPLUS_INCLUDE_PATH=%q${CPLUS_INCLUDE_PATH:+:${CPLUS_INCLUDE_PATH}}\n' "${GCC_COMPAT_INCLUDE}"
   printf 'export LIBRARY_PATH=%q${LIBRARY_PATH:+:${LIBRARY_PATH}}\n' "/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu"
   printf 'export COMPILER_PATH=%q${COMPILER_PATH:+:${COMPILER_PATH}}\n' "/usr/bin"
   emit_compile bin_search "${GRASU_KERNEL_DIR}/kernel_bin_search.cpp" "${GRASU_FLAGS[@]}"
@@ -359,7 +359,12 @@ LINK_COMMAND="${BUILD_ROOT}/link_command.sh"
   echo "set -euo pipefail"
   printf 'source %q\n' "/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh"
   printf 'export TMPDIR=%q TMP=%q TEMP=%q\n' "${TMP_DIR}" "${TMP_DIR}" "${TMP_DIR}"
-  printf 'v++ --target %q --link --kernel_frequency %q --config %q -o %q' \
+  printf 'export CPATH=%q${CPATH:+:${CPATH}}\n' "/usr/include/x86_64-linux-gnu:/usr/include"
+  printf 'export C_INCLUDE_PATH=%q${C_INCLUDE_PATH:+:${C_INCLUDE_PATH}}\n' "/usr/include/x86_64-linux-gnu:/usr/include"
+  printf 'export CPLUS_INCLUDE_PATH=%q${CPLUS_INCLUDE_PATH:+:${CPLUS_INCLUDE_PATH}}\n' "${GCC_COMPAT_INCLUDE}"
+  printf 'export LIBRARY_PATH=%q${LIBRARY_PATH:+:${LIBRARY_PATH}}\n' "/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu"
+  printf 'export COMPILER_PATH=%q${COMPILER_PATH:+:${COMPILER_PATH}}\n' "/usr/bin"
+  printf 'v++ --target %q --link --kernel_frequency %q --config %q -D_GTHREAD_USE_COND_INIT_FUNC -o %q' \
     "${TARGET}" "${KERNEL_FREQ}" "${LINK_CFG}" "${OUT_XCLBIN}"
   for xo in "${xos[@]}"; do printf ' %q' "${xo}"; done
   printf '\n'

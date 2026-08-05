@@ -54,6 +54,7 @@ with tempfile.TemporaryDirectory() as temp_name:
     full_cfg = (full / "config/full_pagerank_sw_emu.cfg").read_text(
         encoding="utf-8"
     )
+    full_link = (full / "link_command.sh").read_text(encoding="utf-8")
     full_manifest = parse_manifest(full / "manifest.env")
     residual_commands = (residual / "compile_commands.sh").read_text(
         encoding="utf-8"
@@ -77,6 +78,8 @@ with tempfile.TemporaryDirectory() as temp_name:
     assert "-DGRASU_SHARE_HBM_PORTS" in residual_commands
     assert "-DGRASU_REGRAPH_SHARE_ROW_OFFSET_PORT=1" in residual_commands
     assert "-I" + str(ROOT / "include/regraph_pagerank") in full_commands
+    assert "CPLUS_INCLUDE_PATH=" + str(full / "gcc_compat") in full_link
+    assert "-D_GTHREAD_USE_COND_INIT_FUNC" in full_link
     assert "pma_to_regraph_edge_array" not in full_cfg
     assert "dispatch_degree_1.degree_delta:grasu_degree_update_1.degree_delta:64" in full_cfg
     assert "regraph_pagerank_apply_1.residual_state" not in full_cfg

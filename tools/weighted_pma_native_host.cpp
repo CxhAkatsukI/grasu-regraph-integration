@@ -1388,12 +1388,14 @@ int main(int argc, char **argv)
             check_cl(process_ddr_1.setArg(arg, pma_dev[1]), "set process_ddr_1");
             check_cl(process_ddr_2.setArg(arg, pma_dev[3]), "set process_ddr_2");
         }
-        check_cl(degree_update.setArg(0, degree_dev), "set degree out_degree");
-        check_cl(degree_update.setArg(1, degree_status_dev), "set degree status");
+        check_cl(degree_update.setArg(0, sizeof(cl_mem), nullptr),
+                 "set degree connected stream");
+        check_cl(degree_update.setArg(1, degree_dev), "set degree out_degree");
+        check_cl(degree_update.setArg(2, degree_status_dev), "set degree status");
         check_cl(degree_update.setArg(
-                     2, static_cast<unsigned>(dataset.node_size)),
+                     3, static_cast<unsigned>(dataset.node_size)),
                  "set degree vertices");
-        check_cl(degree_update.setArg(3, physical_updates),
+        check_cl(degree_update.setArg(4, physical_updates),
                  "set degree update_count");
         check_cl(adapter.setArg(0, pma_dev[0]), "set adapter pma0");
         check_cl(adapter.setArg(1, pma_dev[1]), "set adapter pma1");
