@@ -38,7 +38,7 @@ int main()
     ap_uint<64> row_offset[1] = {16};
     hls::stream<edge_burst_pkt_t> output;
     pma_to_regraph_adapter(
-        pma, pma, pma, pma, row_offset, 1, 16, 131072, output);
+        pma, pma, pma, pma, row_offset, 1, 16, 131072, 0, 65536, output);
 
     assert(!output.empty());
     const edge_burst_pkt_t first = output.read();
@@ -69,5 +69,25 @@ int main()
         assert((lane_word(second, lane, true) & kEmpty) != 0);
     }
     assert(output.empty());
+
+    hls::stream<edge_burst_pkt_t> partitioned_output;
+    pma_to_regraph_adapter(
+        pma, pma, pma, pma, row_offset, 1, 16, 131072, 8, 8,
+        partitioned_output);
+    const edge_burst_pkt_t partitioned_first = partitioned_output.read();
+    assert((lane_word(partitioned_first, 0, false) & kEmpty) != 0);
+    assert((lane_word(partitioned_first, 0, true) & kEmpty) != 0);
+    assert(lane_word(partitioned_first, 1, false) == 0);
+#if GRASU_REGRAPH_WEIGHTED_PMA
+    assert(lane_word(partitioned_first, 1, true) == pack(9, 12));
+#elif GRASU_REGRAPH_DESTINATION_ONLY
+    assert(lane_word(partitioned_first, 1, true) == 9);
+#else
+    assert(lane_word(partitioned_first, 1, true) == pack(9, 1));
+#endif
+    assert(!partitioned_first.last);
+    assert(!partitioned_output.empty());
+    assert(partitioned_output.read().last);
+    assert(partitioned_output.empty());
     return 0;
 }

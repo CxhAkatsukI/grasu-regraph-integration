@@ -108,6 +108,8 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
                             unsigned node_count,
                             unsigned pma_slot_count,
                             unsigned max_cache_segment,
+                            unsigned part_dst_offset,
+                            unsigned part_vertex_count,
                             hls::stream<edge_burst_pkt_t> &edge_burst_out)
 {
 #pragma HLS INTERFACE m_axi port=pma0 offset=slave bundle=gmem0
@@ -127,11 +129,15 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
 #pragma HLS INTERFACE s_axilite port=node_count bundle=control
 #pragma HLS INTERFACE s_axilite port=pma_slot_count bundle=control
 #pragma HLS INTERFACE s_axilite port=max_cache_segment bundle=control
+#pragma HLS INTERFACE s_axilite port=part_dst_offset bundle=control
+#pragma HLS INTERFACE s_axilite port=part_vertex_count bundle=control
 #pragma HLS INTERFACE s_axilite port=return bundle=control
 #pragma HLS INTERFACE axis port=edge_burst_out
 
-    ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: begin nodes=%u pma_slots=%u\n",
-                         node_count, pma_slot_count);
+    ADAPTER_DEBUG_PRINTF(
+        "[KDEBUG] adapter: begin nodes=%u pma_slots=%u dst=[%u,%u)\n",
+        node_count, pma_slot_count, part_dst_offset,
+        part_dst_offset + part_vertex_count);
 
     edge_burst_pkt_t out;
     out.data = 0;
@@ -186,7 +192,14 @@ segment_loop:
                     const unsigned pma_lane = half * 8 + lane;
                     ap_uint<32> raw_dst = pma_segment.range(pma_lane * 32 + 31,
                                                             pma_lane * 32);
-                    bool dummy = raw_dst[31] || slot < begin || slot >= end || slot >= total_slots;
+                    const ap_uint<32> global_dst = raw_dst & kDstLocalMask;
+                    const ap_uint<33> partition_end =
+                        ap_uint<33>(part_dst_offset) + part_vertex_count;
+                    const bool in_partition =
+                        global_dst >= part_dst_offset &&
+                        ap_uint<33>(global_dst) < partition_end;
+                    bool dummy = raw_dst[31] || slot < begin || slot >= end ||
+                                 slot >= total_slots || !in_partition;
                     const ap_uint<32> out_src = dummy ? (ap_uint<32>(src) | kPmaEmptyMask)
                                                       : ap_uint<32>(src);
                     const ap_uint<32> out_dst = pack_regraph_dst(raw_dst, dummy);

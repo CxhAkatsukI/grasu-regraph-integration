@@ -37,6 +37,7 @@ constexpr uint32_t kActiveMask = 0x80000000u;
 constexpr uint32_t kPropMask = 0x7fffffffu;
 constexpr unsigned kPartitionSize = 65536;
 constexpr unsigned kLittleDstBufferSize = 65536;
+constexpr unsigned kMaxDestinationPartitions = 4;
 constexpr std::size_t kMaxCacheSegment = GRASU_MAX_CACHE_SEGMENT;
 static_assert(kMaxCacheSegment <= std::numeric_limits<unsigned>::max());
 
@@ -189,8 +190,11 @@ Dataset read_dataset(const std::string &path)
     if (!in) {
         fail("invalid graph header: " + path);
     }
-    if (dataset.node_size == 0 || dataset.node_size > kPartitionSize) {
-        fail("first-stage pure pipeline requires 1 <= V <= 65536");
+    if (dataset.node_size == 0 ||
+        dataset.node_size >
+            static_cast<std::size_t>(kMaxDestinationPartitions) *
+                kPartitionSize) {
+        fail("shared ReGraph pipeline requires 1 <= V <= 262144");
     }
 
     dataset.static_edges.resize(static_edge_size);
@@ -933,9 +937,13 @@ int main(int argc, char **argv)
                 &binary_ext[i], "binary_" + std::to_string(i));
         }
 
-        AlignedVector<uint32_t> prop_a(kLittleDstBufferSize, 0);
-        AlignedVector<uint32_t> prop_b(kLittleDstBufferSize, 0);
-        AlignedVector<uint32_t> apply_prop(kLittleDstBufferSize, 0);
+        const unsigned destination_partitions = static_cast<unsigned>(
+            (dataset.node_size + kPartitionSize - 1) / kPartitionSize);
+        const std::size_t state_capacity =
+            static_cast<std::size_t>(destination_partitions) * kPartitionSize;
+        AlignedVector<uint32_t> prop_a(state_capacity, 0);
+        AlignedVector<uint32_t> prop_b(state_capacity, 0);
+        AlignedVector<uint32_t> apply_prop(state_capacity, 0);
         AlignedVector<uint32_t> active_count(1, 0);
         for (std::size_t i = 0; i < dataset.node_size; ++i) {
             const uint32_t initial_value = kConnectedComponents
@@ -1031,10 +1039,9 @@ int main(int argc, char **argv)
         check_cl(adapter.setArg(7, static_cast<unsigned>(kMaxCacheSegment)),
                  "set adapter max_cache_segment");
 
-        const unsigned num_dense = 1;
+        const unsigned num_dense = destination_partitions;
         const unsigned num_sparse = 0;
         const unsigned compressed_group_count = 0;
-        const unsigned part_dst_offset = 0;
         const unsigned reg = 0;
         const unsigned part_edge_num = static_cast<unsigned>(prepared.pma_slot_count);
 
@@ -1097,32 +1104,8 @@ int main(int argc, char **argv)
             check_cl(apply.setArg(3, num_sparse), "set apply num_sparse");
             check_cl(apply.setArg(4, reg), "set apply reg");
 
-            check_cl(lksg.setArg(1, part_edge_num), "set lksg part_edge_num");
-            check_cl(lksg.setArg(2, compressed_group_count),
-                     "set lksg compressed_group_count");
-            check_cl(lksg.setArg(3, part_dst_offset), "set lksg part_dst_offset");
-            const bool reset_tmp_prop = (step == 0);
-            check_cl(lksg.setArg(4, reset_tmp_prop), "set lksg reset_tmp_prop");
-
-            cl::Event hbm_event, apply_event, lksg_event, adapter_event;
+            cl::Event hbm_event, apply_event;
             std::cout << kLogPrefix << "_HOST stage=launch_step step=" << (step + 1)
-                      << std::endl;
-            std::cout << kLogPrefix << "_HOST stage=enqueue_adapter step=" << (step + 1)
-                      << std::endl;
-            std::vector<cl::Event> adapter_wait_events;
-            const std::vector<cl::Event> *adapter_wait_list = nullptr;
-            if (step == 0) {
-                adapter_wait_events.push_back(barrier_event);
-                adapter_wait_list = &adapter_wait_events;
-            }
-            check_cl(pipeline_queue.enqueueTask(adapter, adapter_wait_list, &adapter_event),
-                     "enqueue adapter");
-            std::cout << kLogPrefix << "_HOST stage=enqueued_adapter step=" << (step + 1)
-                      << std::endl;
-            std::cout << kLogPrefix << "_HOST stage=enqueue_lksg step=" << (step + 1)
-                      << std::endl;
-            check_cl(pipeline_queue.enqueueTask(lksg, nullptr, &lksg_event), "enqueue lksg");
-            std::cout << kLogPrefix << "_HOST stage=enqueued_lksg step=" << (step + 1)
                       << std::endl;
             std::cout << kLogPrefix << "_HOST stage=enqueue_hbm step=" << (step + 1)
                       << std::endl;
@@ -1136,15 +1119,63 @@ int main(int argc, char **argv)
             std::cout << kLogPrefix << "_HOST stage=enqueued_apply step=" << (step + 1)
                       << std::endl;
 
-            std::vector<cl::Event> step_events{hbm_event, apply_event, lksg_event, adapter_event};
+            std::vector<cl::Event> adapter_events(destination_partitions);
+            std::vector<cl::Event> lksg_events(destination_partitions);
+            for (unsigned partition = 0; partition < destination_partitions;
+                 ++partition) {
+                const unsigned part_dst_offset = partition * kPartitionSize;
+                const unsigned part_vertex_count = static_cast<unsigned>(
+                    std::min<std::size_t>(
+                        kPartitionSize,
+                        dataset.node_size - part_dst_offset));
+                check_cl(adapter.setArg(8, part_dst_offset),
+                         "set adapter destination offset");
+                check_cl(adapter.setArg(9, part_vertex_count),
+                         "set adapter destination count");
+                check_cl(lksg.setArg(1, part_edge_num),
+                         "set lksg part_edge_num");
+                check_cl(lksg.setArg(2, compressed_group_count),
+                         "set lksg compressed_group_count");
+                check_cl(lksg.setArg(3, part_dst_offset),
+                         "set lksg part_dst_offset");
+                check_cl(lksg.setArg(4, true),
+                         "set lksg reset_tmp_prop");
+                std::vector<cl::Event> adapter_wait_events;
+                const std::vector<cl::Event> *adapter_wait_list = nullptr;
+                if (step == 0 && partition == 0) {
+                    adapter_wait_events.push_back(barrier_event);
+                    adapter_wait_list = &adapter_wait_events;
+                }
+                check_cl(pipeline_queue.enqueueTask(
+                             adapter, adapter_wait_list,
+                             &adapter_events[partition]),
+                         "enqueue partition adapter");
+                check_cl(pipeline_queue.enqueueTask(
+                             lksg, nullptr, &lksg_events[partition]),
+                         "enqueue partition lksg");
+            }
+
+            std::vector<cl::Event> step_events{hbm_event, apply_event};
+            step_events.insert(step_events.end(), adapter_events.begin(),
+                               adapter_events.end());
+            step_events.insert(step_events.end(), lksg_events.begin(),
+                               lksg_events.end());
             std::cout << kLogPrefix << "_HOST stage=wait_step step=" << (step + 1)
                       << std::endl;
             pipeline_queue.finish();
 
             timing.hbm_ms += event_duration_ms(hbm_event);
             timing.apply_ms += event_duration_ms(apply_event);
-            timing.lksg_ms += event_duration_ms(lksg_event);
-            timing.adapter_ms += event_duration_ms(adapter_event);
+            double step_lksg_ms = 0.0;
+            for (const cl::Event &event : lksg_events) {
+                step_lksg_ms += event_duration_ms(event);
+            }
+            double step_adapter_ms = 0.0;
+            for (const cl::Event &event : adapter_events) {
+                step_adapter_ms += event_duration_ms(event);
+            }
+            timing.lksg_ms += step_lksg_ms;
+            timing.adapter_ms += step_adapter_ms;
             all_events.insert(all_events.end(), step_events.begin(), step_events.end());
 
             const auto readback_begin = std::chrono::high_resolution_clock::now();
@@ -1162,8 +1193,8 @@ int main(int argc, char **argv)
             std::swap(read_host, write_host);
             std::cout << kLogPrefix << "_SUPERSTEP step=" << (step + 1)
                       << " adapter_ms=" << std::fixed << std::setprecision(6)
-                      << event_duration_ms(adapter_event)
-                      << " lksg_ms=" << event_duration_ms(lksg_event)
+                      << step_adapter_ms
+                      << " lksg_ms=" << step_lksg_ms
                       << " apply_ms=" << event_duration_ms(apply_event)
                       << " hbm_ms=" << event_duration_ms(hbm_event)
                       << " active_vertices=" << active_count[0]
@@ -1246,7 +1277,12 @@ int main(int argc, char **argv)
                   << " final_edges=" << final_edges.size()
                   << " logical_updates=" << dataset.update_edges.size()
                   << " physical_updates=" << graph.physical_updates.size()
-                  << " processed_edge_slots_per_superstep=" << part_edge_num
+                  << " destination_partitions=" << destination_partitions
+                  << " shared_regraph_pipelines=1"
+                  << " pma_slots_per_partition_pass=" << part_edge_num
+                  << " processed_edge_slots_per_superstep="
+                  << static_cast<std::uint64_t>(part_edge_num) *
+                         destination_partitions
                   << " source_external=" << source_external
                   << " source_internal=" << source_internal
                   << " max_supersteps=" << max_supersteps
@@ -1441,13 +1477,17 @@ int main(int argc, char **argv)
                 &binary_ext[index], "binary_" + std::to_string(index));
         }
 
-        AlignedVector<uint32_t> degree(kLittleDstBufferSize, 0);
+        const unsigned destination_partitions = static_cast<unsigned>(
+            (dataset.node_size + kPartitionSize - 1) / kPartitionSize);
+        const std::size_t state_capacity =
+            static_cast<std::size_t>(destination_partitions) * kPartitionSize;
+        AlignedVector<uint32_t> degree(state_capacity, 0);
         for (const auto &edge : dataset.static_edges) {
             const unsigned src = graph.external_to_internal.at(edge.source);
             degree[src]++;
         }
         AlignedVector<uint32_t> degree_status(16, 0);
-        AlignedVector<float> rank(kLittleDstBufferSize, 0.0F);
+        AlignedVector<float> rank(state_capacity, 0.0F);
         for (std::size_t vertex = 0; vertex < dataset.node_size; ++vertex) {
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
             const std::size_t external = graph.internal_to_external.at(vertex);
@@ -1457,11 +1497,11 @@ int main(int argc, char **argv)
 #endif
         }
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
-        AlignedVector<float> residual(kLittleDstBufferSize, 0.0F);
+        AlignedVector<float> residual(state_capacity, 0.0F);
 #endif
         AlignedVector<uint32_t> round_stats(16, 0);
-        AlignedVector<float> source_a(kLittleDstBufferSize, 0.0F);
-        AlignedVector<float> source_b(kLittleDstBufferSize, 0.0F);
+        AlignedVector<float> source_a(state_capacity, 0.0F);
+        AlignedVector<float> source_b(state_capacity, 0.0F);
 
         cl_mem_ext_ptr_t degree_ext = ext_ptr(6, degree.data());
         cl_mem_ext_ptr_t degree_status_ext = ext_ptr(6, degree_status.data());
@@ -1571,7 +1611,7 @@ int main(int argc, char **argv)
         check_cl(adapter.setArg(7, static_cast<unsigned>(kMaxCacheSegment)),
                  "set adapter max_cache_segment");
 
-        constexpr unsigned burst_count = kLittleDstBufferSize / 16;
+        const unsigned burst_count = static_cast<unsigned>(state_capacity / 16);
         const unsigned vertices = static_cast<unsigned>(dataset.node_size);
         const unsigned part_edge_num = static_cast<unsigned>(prepared.pma_slot_count);
         const float base = (1.0F - damping) / static_cast<float>(vertices);
@@ -1677,12 +1717,8 @@ int main(int argc, char **argv)
             check_cl(hbm.setArg(1, *current_source[1]), "set hbm src2");
             check_cl(hbm.setArg(2, *next_source[0]), "set hbm next1");
             check_cl(hbm.setArg(3, *next_source[1]), "set hbm next2");
-            check_cl(hbm.setArg(4, 1U), "set hbm dense");
+            check_cl(hbm.setArg(4, destination_partitions), "set hbm dense");
             check_cl(hbm.setArg(5, 0U), "set hbm sparse");
-            check_cl(lksg.setArg(1, part_edge_num), "set lksg edges");
-            check_cl(lksg.setArg(2, 0U), "set lksg compressed groups");
-            check_cl(lksg.setArg(3, 0U), "set lksg destination offset");
-            check_cl(lksg.setArg(4, round == 0), "set lksg reset");
             int apply_arg = 0;
             check_cl(apply.setArg(apply_arg++, rank_dev), "set apply rank");
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
@@ -1705,22 +1741,52 @@ int main(int argc, char **argv)
                      "set apply correction mode");
 #endif
 
-            cl::Event adapter_event, lksg_event, hbm_event, apply_event;
-            check_cl(pipeline_queue.enqueueTask(adapter, nullptr, &adapter_event),
-                     "enqueue adapter");
-            check_cl(pipeline_queue.enqueueTask(lksg, nullptr, &lksg_event),
-                     "enqueue lksg");
+            cl::Event hbm_event, apply_event;
             check_cl(pipeline_queue.enqueueTask(hbm, nullptr, &hbm_event),
                      "enqueue hbm");
             check_cl(pipeline_queue.enqueueTask(apply, nullptr, &apply_event),
                      "enqueue apply");
+            std::vector<cl::Event> adapter_events(destination_partitions);
+            std::vector<cl::Event> lksg_events(destination_partitions);
+            for (unsigned partition = 0; partition < destination_partitions;
+                 ++partition) {
+                const unsigned part_dst_offset = partition * kPartitionSize;
+                const unsigned part_vertex_count = static_cast<unsigned>(
+                    std::min<std::size_t>(
+                        kPartitionSize,
+                        dataset.node_size - part_dst_offset));
+                check_cl(adapter.setArg(8, part_dst_offset),
+                         "set adapter destination offset");
+                check_cl(adapter.setArg(9, part_vertex_count),
+                         "set adapter destination count");
+                check_cl(lksg.setArg(1, part_edge_num), "set lksg edges");
+                check_cl(lksg.setArg(2, 0U),
+                         "set lksg compressed groups");
+                check_cl(lksg.setArg(3, part_dst_offset),
+                         "set lksg destination offset");
+                check_cl(lksg.setArg(4, true), "set lksg reset");
+                check_cl(pipeline_queue.enqueueTask(
+                             adapter, nullptr, &adapter_events[partition]),
+                         "enqueue partition adapter");
+                check_cl(pipeline_queue.enqueueTask(
+                             lksg, nullptr, &lksg_events[partition]),
+                         "enqueue partition lksg");
+            }
             pipeline_queue.finish();
-            adapter_ms += event_duration_ms(adapter_event);
-            lksg_ms += event_duration_ms(lksg_event);
+            for (const cl::Event &event : adapter_events) {
+                adapter_ms += event_duration_ms(event);
+            }
+            for (const cl::Event &event : lksg_events) {
+                lksg_ms += event_duration_ms(event);
+            }
             hbm_ms += event_duration_ms(hbm_event);
             apply_ms += event_duration_ms(apply_event);
-            all_events.insert(all_events.end(), {
-                adapter_event, lksg_event, hbm_event, apply_event});
+            all_events.push_back(hbm_event);
+            all_events.push_back(apply_event);
+            all_events.insert(all_events.end(), adapter_events.begin(),
+                              adapter_events.end());
+            all_events.insert(all_events.end(), lksg_events.begin(),
+                              lksg_events.end());
 
             check_cl(transfer_queue.enqueueMigrateMemObjects(
                          {stats_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
@@ -1829,6 +1895,9 @@ int main(int argc, char **argv)
                   << " final_edges=" << final_edges.size()
                   << " logical_updates=" << dataset.update_edges.size()
                   << " physical_updates=" << graph.physical_updates.size()
+                  << " destination_partitions=" << destination_partitions
+                  << " shared_regraph_pipelines=1"
+                  << " pma_slots_per_partition_pass=" << part_edge_num
                   << " conversion_cost=absent"
                   << std::endl;
         return pass ? EXIT_SUCCESS : EXIT_FAILURE;
