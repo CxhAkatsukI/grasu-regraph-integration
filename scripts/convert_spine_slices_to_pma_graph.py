@@ -42,18 +42,31 @@ def read_slice(path: Path) -> tuple[int, list[tuple[int, int, int, int]]]:
     return vertices, rows
 
 
-def reciprocal_rows(
-    rows: list[tuple[int, int, int, int]],
-) -> list[tuple[int, int, int, int]]:
-    result: list[tuple[int, int, int, int]] = []
-    seen: set[tuple[int, int, int, int]] = set()
-    for row in rows:
-        variants = (row,) if row[0] == row[1] else (row, (row[1], row[0], row[2], row[3]))
-        for variant in variants:
-            if variant not in seen:
-                seen.add(variant)
-                result.append(variant)
-    return result
+def reciprocal_simple_graph(
+    initial: list[tuple[int, int, int, int]],
+    updates: list[tuple[int, int, int, int]],
+) -> tuple[list[tuple[int, int, int, int]], list[tuple[int, int, int, int]]]:
+    state: set[tuple[int, int]] = set()
+    reciprocal_initial: list[tuple[int, int, int, int]] = []
+    for src, dst, _weight, _diff in initial:
+        variants = ((src, dst),) if src == dst else ((src, dst), (dst, src))
+        for key in variants:
+            if key not in state:
+                state.add(key)
+                reciprocal_initial.append((key[0], key[1], 1, 1))
+
+    reciprocal_updates: list[tuple[int, int, int, int]] = []
+    for src, dst, _weight, diff in updates:
+        variants = ((src, dst),) if src == dst else ((src, dst), (dst, src))
+        for key in variants:
+            present = key in state
+            if diff == 1 and not present:
+                state.add(key)
+                reciprocal_updates.append((key[0], key[1], 1, 1))
+            elif diff == -1 and present:
+                state.remove(key)
+                reciprocal_updates.append((key[0], key[1], 1, -1))
+    return reciprocal_initial, reciprocal_updates
 
 
 def convert(
@@ -70,8 +83,9 @@ def convert(
     if any(diff != 1 for _, _, _, diff in initial_rows):
         raise ValueError("initial slice may contain only positive edges")
     if reciprocal:
-        initial_rows = reciprocal_rows(initial_rows)
-        update_rows = reciprocal_rows(update_rows)
+        initial_rows, update_rows = reciprocal_simple_graph(
+            initial_rows, update_rows
+        )
 
     output.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"{initial_vertices} {len(initial_rows)} {len(update_rows)}"]
@@ -95,6 +109,11 @@ def convert(
         "pma_graph_sha256": sha256(output),
         "operation_mapping": {"1": "insert", "-1": "delete"},
         "reciprocal_expansion": reciprocal,
+        "reciprocal_semantics": (
+            "unweighted simple graph; mirrored endpoint pairs; no-op updates removed"
+            if reciprocal
+            else "disabled"
+        ),
         "conversion": "lossless format-only; vertex ids, weights, and order preserved",
     }
     metadata.parent.mkdir(parents=True, exist_ok=True)

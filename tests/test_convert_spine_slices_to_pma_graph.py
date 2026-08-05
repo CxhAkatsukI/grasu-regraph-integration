@@ -51,9 +51,11 @@ class SliceConversionTest(unittest.TestCase):
             update = root / "update.slice"
             output = root / "case.graph"
             initial.write_text(
-                "# vertices=3\n0 1 2 1\n1 0 2 1\n2 2 4 1\n"
+                "# vertices=3\n0 1 2 1\n1 0 7 1\n2 2 4 1\n"
             )
-            update.write_text("# vertices=3\n0 2 3 1\n")
+            update.write_text(
+                "# vertices=3\n0 1 9 1\n0 2 3 1\n2 0 3 -1\n"
+            )
             manifest = convert(
                 initial,
                 update,
@@ -63,7 +65,7 @@ class SliceConversionTest(unittest.TestCase):
             )
             self.assertEqual(
                 output.read_text(),
-                "3 3 2\n0 1 2\n1 0 2\n2 2 4\n0 2 3 1\n2 0 3 1\n",
+                "3 3 4\n0 1 1\n1 0 1\n2 2 1\n0 2 1 1\n2 0 1 1\n2 0 1 0\n0 2 1 0\n",
             )
             self.assertTrue(manifest["reciprocal_expansion"])
 
