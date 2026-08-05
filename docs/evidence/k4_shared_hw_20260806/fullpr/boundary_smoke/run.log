@@ -1,0 +1,7 @@
+FULL_PR_PMA_NATIVE_INPUT vertices=65537 static_edges=4 logical_updates=2 physical_updates=2 final_edges=6 pma_slots=48 rounds=3 damping=0.85
+Using XCL_DEVICE_INDEX=0
+FULL_PR_PMA_NATIVE_ROUND round=1 l1_error=7.13318e-05 dangling=0.999916 active_vertices=65537
+FULL_PR_PMA_NATIVE_ROUND round=2 l1_error=7.20501e-05 dangling=0.999878 active_vertices=65537
+FULL_PR_PMA_NATIVE_ROUND round=3 l1_error=6.0055e-05 dangling=0.999847 active_vertices=65537
+FULL_PR_PMA_NATIVE_TIMING update_ms=0.424593 source_prepare_ms=0.133684 adapter_ms=390.124 lksg_ms=196.084 apply_ms=196.319 hbm_ms=196.442 device_e2e_ms=391.829 setup_inclusive_ms=392.443
+FULL_PR_PMA_NATIVE_RESULT status=PASS rank_mismatches=0 degree_mismatches=0 max_abs_error=1.82627e-09 pipeline_executions=3 rounds=3 vertices=65537 final_edges=6 logical_updates=2 physical_updates=2 destination_partitions=2 shared_regraph_pipelines=1 pma_slots_per_partition_pass=48 conversion_cost=absent

@@ -1,0 +1,4 @@
+case	algorithm	graph	gr_status	spine_status	comparison_status	gr_event_e2e_ms	gr_setup_inclusive_ms	spine_dynamic_kernel_ms	spine_dynamic_setup_inclusive_ms	kernel_speedup_gr_over_spine	setup_speedup_gr_over_spine
+amazon_insert	connected_components	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_amazon_2008_insert_u8_reciprocal.graph	PASS	PASS	ADMITTED	8.799542	9.071079	32.8803	340.149	0.267624	0.026668
+web_google_insert	connected_components	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_web_google_insert_u8_reciprocal.graph	PASS	PASS	ADMITTED	28.528596	28.762172	90.5913	685.871	0.314915	0.041935
+flickr_insert	connected_components	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_soc_flickr_und_insert_u8_reciprocal.graph	PASS	PASS	ADMITTED	21.541857	21.812954	94.2895	462.185	0.228465	0.047195

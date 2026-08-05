@@ -1,0 +1,42 @@
+===============================================================================
+Version:    v++ v2024.1 (64-bit)
+Build:      SW Build 5074859 on 2024-05-20-23:21:20
+Copyright:  Copyright 1986-2024 Xilinx, Inc. All Rights Reserved.
+Created:    Wed Aug  5 21:06:45 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             dispatch_degree.hw
+Target Device:           xilinx:u55c:gen3x16_xdma_3:202210.1
+Target Clock:            150MHz
+Total number of kernels: 1
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name      Type  Target              OpenCL Library      Compute Units
+---------------  ----  ------------------  ------------------  -------------
+dispatch_degree  c     fpga0:OCL_REGION_0  dispatch_degree.hw  1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     dispatch_degree.hw
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit       Kernel Name      Module Name                             Target Frequency  Estimated Frequency
+-----------------  ---------------  --------------------------------------  ----------------  -------------------
+dispatch_degree_1  dispatch_degree  dispatch_degree_Pipeline_dispatch_loop  149.925034        396.353546
+dispatch_degree_1  dispatch_degree  dispatch_degree                         149.925034        396.353546
+
+Latency Information
+Compute Unit       Kernel Name      Module Name                             Start Interval  Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+-----------------  ---------------  --------------------------------------  --------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+dispatch_degree_1  dispatch_degree  dispatch_degree_Pipeline_dispatch_loop  0               undef          undef         undef           undef            undef           undef
+dispatch_degree_1  dispatch_degree  dispatch_degree                         undef           undef          undef         undef           undef            undef           undef
+
+Area Information
+Compute Unit       Kernel Name      Module Name                             FF   LUT  DSP  BRAM  URAM
+-----------------  ---------------  --------------------------------------  ---  ---  ---  ----  ----
+dispatch_degree_1  dispatch_degree  dispatch_degree_Pipeline_dispatch_loop  220  369  0    0     0
+dispatch_degree_1  dispatch_degree  dispatch_degree                         304  960  0    0     0
+-------------------------------------------------------------------------------

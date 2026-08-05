@@ -1,0 +1,201 @@
+===============================================================================
+Version:    v++ v2024.1 (64-bit)
+Build:      SW Build 5074859 on 2024-05-20-23:21:20
+Copyright:  Copyright 1986-2024 Xilinx, Inc. All Rights Reserved.
+Created:    Thu Aug  6 00:28:45 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             grasu_regraph_connected_components_pma_native.hw
+Target Device:           xilinx:u55c:gen3x16_xdma_3:202210.1
+Target Clock:            150MHz
+Total number of kernels: 10
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name             Type  Target              OpenCL Library                                    Compute Units
+----------------------  ----  ------------------  ------------------------------------------------  -------------
+lksg_stream             c     fpga0:OCL_REGION_0  grasu_regraph_connected_components_pma_native.hw  1
+pma_to_regraph_adapter  c     fpga0:OCL_REGION_0  grasu_regraph_connected_components_pma_native.hw  1
+pma_completion_barrier  c     fpga0:OCL_REGION_0  grasu_regraph_connected_components_pma_native.hw  1
+dispatch                c     fpga0:OCL_REGION_0  grasu_regraph_connected_components_pma_native.hw  1
+bin_search              c     fpga0:OCL_REGION_0  grasu_regraph_connected_components_pma_native.hw  4
+kernelHBMWrapper        c     fpga0:OCL_REGION_0  grasu_regraph_connected_components_pma_native.hw  1
+process_ddr             c     fpga0:OCL_REGION_0  grasu_regraph_connected_components_pma_native.hw  2
+process_cache           c     fpga0:OCL_REGION_0  grasu_regraph_connected_components_pma_native.hw  2
+kernelLittleGSMerger    c     fpga0:OCL_REGION_0  grasu_regraph_connected_components_pma_native.hw  1
+kernelApply             c     fpga0:OCL_REGION_0  grasu_regraph_connected_components_pma_native.hw  1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     grasu_regraph_connected_components_pma_native.hw
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit              Kernel Name             Module Name                                                           Target Frequency  Estimated Frequency
+------------------------  ----------------------  --------------------------------------------------------------------  ----------------  -------------------
+bin_search_1              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  149.925034        205.465378
+bin_search_1              bin_search              bin_search                                                            149.925034        205.465378
+bin_search_2              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  149.925034        205.465378
+bin_search_2              bin_search              bin_search                                                            149.925034        205.465378
+bin_search_3              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  149.925034        205.465378
+bin_search_3              bin_search              bin_search                                                            149.925034        205.465378
+bin_search_4              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  149.925034        205.465378
+bin_search_4              bin_search              bin_search                                                            149.925034        205.465378
+dispatch_1                dispatch                dispatch_Pipeline_VITIS_LOOP_36_1                                     149.925034        416.146454
+dispatch_1                dispatch                dispatch                                                              149.925034        416.146454
+kernelApply_1             kernelApply             entry_proc                                                            149.925034        709.219849
+kernelApply_1             kernelApply             merge_big_little_writes_Pipeline_merge_big_little_writes              149.925034        400.160065
+kernelApply_1             kernelApply             merge_big_little_writes                                               149.925034        400.160065
+kernelApply_1             kernelApply             Apply_Pipeline_Apply                                                  149.925034        205.465378
+kernelApply_1             kernelApply             Apply                                                                 149.925034        205.465378
+kernelApply_1             kernelApply             p_anonymous_namespace_write_out_with_active_count_Pipeline_write_out  149.925034        205.465378
+kernelApply_1             kernelApply             p_anonymous_namespace_write_out_with_active_count                     149.925034        205.465378
+kernelApply_1             kernelApply             kernelApply                                                           149.925034        205.465378
+kernelHBMWrapper_1        kernelHBMWrapper        littleKernelReadMemory_0_s                                            149.925034        205.465378
+kernelHBMWrapper_1        kernelHBMWrapper        write_out                                                             149.925034        205.465378
+kernelHBMWrapper_1        kernelHBMWrapper        kernelHBMWrapper                                                      149.925034        205.465378
+kernelLittleGSMerger_1    kernelLittleGSMerger    merge_tmp_prop_little_krnls                                           149.925034        465.766174
+kernelLittleGSMerger_1    kernelLittleGSMerger    kernelLittleGSMerger                                                  149.925034        465.766174
+process_cache_1           process_cache           process_cache_Pipeline_VITIS_LOOP_94_1                                149.925034        205.465378
+process_cache_1           process_cache           process_cache                                                         149.925034        205.465378
+process_cache_2           process_cache           process_cache_Pipeline_VITIS_LOOP_94_1                                149.925034        205.465378
+process_cache_2           process_cache           process_cache                                                         149.925034        205.465378
+process_ddr_1             process_ddr             process_ddr_Pipeline_dispatch_loop                                    149.925034        711.743774
+process_ddr_1             process_ddr             process_Pipeline_process_ddr_sub_loop                                 149.925034        205.465378
+process_ddr_1             process_ddr             process_r                                                             149.925034        205.465378
+process_ddr_1             process_ddr             process_ddr                                                           149.925034        205.465378
+process_ddr_2             process_ddr             process_ddr_Pipeline_dispatch_loop                                    149.925034        711.743774
+process_ddr_2             process_ddr             process_Pipeline_process_ddr_sub_loop                                 149.925034        205.465378
+process_ddr_2             process_ddr             process_r                                                             149.925034        205.465378
+process_ddr_2             process_ddr             process_ddr                                                           149.925034        205.465378
+pma_completion_barrier_1  pma_completion_barrier  pma_completion_barrier                                                149.925034        12820.5127
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter_Pipeline_segment_loop                          149.925034        205.465378
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter                                                149.925034        205.465378
+lksg_stream_1             lksg_stream             entry_proc                                                            149.925034        761.034973
+lksg_stream_1             lksg_stream             Block_entry_split_proc                                                149.925034        682.593811
+lksg_stream_1             lksg_stream             Loop_read_stream_edges_proc                                           149.925034        314.6633
+lksg_stream_1             lksg_stream             stream2axistream_ppbRequest_axis_s                                    149.925034        516.262268
+lksg_stream_1             lksg_stream             axistream2stream_axis_ppbResponse_s                                   149.925034        742.942078
+lksg_stream_1             lksg_stream             accScatter_Pipeline_scatterLoop                                       149.925034        238.720444
+lksg_stream_1             lksg_stream             accScatter_Pipeline_exitscatter                                       149.925034        788.643555
+lksg_stream_1             lksg_stream             accScatter                                                            149.925034        238.720444
+lksg_stream_1             lksg_stream             accGather_Pipeline_initDstTmpProp                                     149.925034        270.343353
+lksg_stream_1             lksg_stream             accGather_Pipeline_gatherLoop                                         149.925034        265.745422
+lksg_stream_1             lksg_stream             accGather_Pipeline_tmpPropWriteToStream                               149.925034        254.065033
+lksg_stream_1             lksg_stream             accGather                                                             149.925034        254.065033
+lksg_stream_1             lksg_stream             mergeWriteResults                                                     149.925034        224.014328
+lksg_stream_1             lksg_stream             lksg_stream                                                           149.925034        224.014328
+
+Latency Information
+Compute Unit              Kernel Name             Module Name                                                           Start Interval     Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+------------------------  ----------------------  --------------------------------------------------------------------  -----------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+bin_search_1              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  0                  undef          undef         undef           undef            undef           undef
+bin_search_1              bin_search              bin_search                                                            undef              undef          undef         undef           undef            undef           undef
+bin_search_2              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  0                  undef          undef         undef           undef            undef           undef
+bin_search_2              bin_search              bin_search                                                            undef              undef          undef         undef           undef            undef           undef
+bin_search_3              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  0                  undef          undef         undef           undef            undef           undef
+bin_search_3              bin_search              bin_search                                                            undef              undef          undef         undef           undef            undef           undef
+bin_search_4              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  0                  undef          undef         undef           undef            undef           undef
+bin_search_4              bin_search              bin_search                                                            undef              undef          undef         undef           undef            undef           undef
+dispatch_1                dispatch                dispatch_Pipeline_VITIS_LOOP_36_1                                     0                  undef          undef         undef           undef            undef           undef
+dispatch_1                dispatch                dispatch                                                              undef              undef          undef         undef           undef            undef           undef
+kernelApply_1             kernelApply             entry_proc                                                            0                  0              0             0               0 ns             0 ns            0 ns
+kernelApply_1             kernelApply             merge_big_little_writes_Pipeline_merge_big_little_writes              0                  undef          undef         undef           undef            undef           undef
+kernelApply_1             kernelApply             merge_big_little_writes                                               undef              undef          undef         undef           undef            undef           undef
+kernelApply_1             kernelApply             Apply_Pipeline_Apply                                                  0                  undef          undef         undef           undef            undef           undef
+kernelApply_1             kernelApply             Apply                                                                 undef              undef          undef         undef           undef            undef           undef
+kernelApply_1             kernelApply             p_anonymous_namespace_write_out_with_active_count_Pipeline_write_out  0                  undef          undef         undef           undef            undef           undef
+kernelApply_1             kernelApply             p_anonymous_namespace_write_out_with_active_count                     undef              undef          undef         undef           undef            undef           undef
+kernelApply_1             kernelApply             kernelApply                                                           undef              undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1        kernelHBMWrapper        littleKernelReadMemory_0_s                                            0                  undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1        kernelHBMWrapper        write_out                                                             0                  undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1        kernelHBMWrapper        kernelHBMWrapper                                                      undef              undef          undef         undef           undef            undef           undef
+kernelLittleGSMerger_1    kernelLittleGSMerger    merge_tmp_prop_little_krnls                                           undef              undef          undef         undef           undef            undef           undef
+kernelLittleGSMerger_1    kernelLittleGSMerger    kernelLittleGSMerger                                                  undef              undef          undef         undef           undef            undef           undef
+process_cache_1           process_cache           process_cache_Pipeline_VITIS_LOOP_94_1                                0                  undef          undef         undef           undef            undef           undef
+process_cache_1           process_cache           process_cache                                                         undef              undef          undef         undef           undef            undef           undef
+process_cache_2           process_cache           process_cache_Pipeline_VITIS_LOOP_94_1                                0                  undef          undef         undef           undef            undef           undef
+process_cache_2           process_cache           process_cache                                                         undef              undef          undef         undef           undef            undef           undef
+process_ddr_1             process_ddr             process_ddr_Pipeline_dispatch_loop                                    0                  undef          undef         undef           undef            undef           undef
+process_ddr_1             process_ddr             process_Pipeline_process_ddr_sub_loop                                 17                 160            160           160             1.067 us         1.067 us        1.067 us
+process_ddr_1             process_ddr             process_r                                                             undef              undef          undef         undef           undef            undef           undef
+process_ddr_1             process_ddr             process_ddr                                                           undef              undef          undef         undef           undef            undef           undef
+process_ddr_2             process_ddr             process_ddr_Pipeline_dispatch_loop                                    0                  undef          undef         undef           undef            undef           undef
+process_ddr_2             process_ddr             process_Pipeline_process_ddr_sub_loop                                 17                 160            160           160             1.067 us         1.067 us        1.067 us
+process_ddr_2             process_ddr             process_r                                                             undef              undef          undef         undef           undef            undef           undef
+process_ddr_2             process_ddr             process_ddr                                                           undef              undef          undef         undef           undef            undef           undef
+pma_completion_barrier_1  pma_completion_barrier  pma_completion_barrier                                                1                  0              0             0               0 ns             0 ns            0 ns
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter_Pipeline_segment_loop                          1 ~ 536870914      2              268435530     536870986       13.334 ns        1.790 sec       3.579 sec
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter                                                undef              undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream             entry_proc                                                            0                  0              0             0               0 ns             0 ns            0 ns
+lksg_stream_1             lksg_stream             Block_entry_split_proc                                                0                  0              0             0               0 ns             0 ns            0 ns
+lksg_stream_1             lksg_stream             Loop_read_stream_edges_proc                                           1 ~ 536870912      2              268435457     536870913       13.334 ns        1.790 sec       3.579 sec
+lksg_stream_1             lksg_stream             stream2axistream_ppbRequest_axis_s                                    0                  undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream             axistream2stream_axis_ppbResponse_s                                   0                  undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream             accScatter_Pipeline_scatterLoop                                       0                  undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream             accScatter_Pipeline_exitscatter                                       0                  undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream             accScatter                                                            undef              undef          undef         undef           undef            undef           undef
+lksg_stream_1             lksg_stream             accGather_Pipeline_initDstTmpProp                                     32769              32770          32770         32770           0.218 ms         0.218 ms        0.218 ms
+lksg_stream_1             lksg_stream             accGather_Pipeline_gatherLoop                                         1 ~ 536870912      2              268435460     536870916       13.334 ns        1.790 sec       3.579 sec
+lksg_stream_1             lksg_stream             accGather_Pipeline_tmpPropWriteToStream                               32769              32770          32770         32770           0.218 ms         0.218 ms        0.218 ms
+lksg_stream_1             lksg_stream             accGather                                                             32778 ~ 536936462  32778          268484621     536936462       0.219 ms         1.790 sec       3.580 sec
+lksg_stream_1             lksg_stream             mergeWriteResults                                                     32768              32772          32772         32772           0.218 ms         0.218 ms        0.218 ms
+lksg_stream_1             lksg_stream             lksg_stream                                                           undef              undef          undef         undef           undef            undef           undef
+
+Area Information
+Compute Unit              Kernel Name             Module Name                                                           FF     LUT    DSP  BRAM  URAM
+------------------------  ----------------------  --------------------------------------------------------------------  -----  -----  ---  ----  ----
+bin_search_1              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  458    734    0    0     0
+bin_search_1              bin_search              bin_search                                                            3286   4937   0    4     0
+bin_search_2              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  458    734    0    0     0
+bin_search_2              bin_search              bin_search                                                            3286   4937   0    4     0
+bin_search_3              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  458    734    0    0     0
+bin_search_3              bin_search              bin_search                                                            3286   4937   0    4     0
+bin_search_4              bin_search              bin_search_Pipeline_VITIS_LOOP_218_2                                  458    734    0    0     0
+bin_search_4              bin_search              bin_search                                                            3286   4937   0    4     0
+dispatch_1                dispatch                dispatch_Pipeline_VITIS_LOOP_36_1                                     305    425    0    0     0
+dispatch_1                dispatch                dispatch                                                              389    935    0    0     0
+kernelApply_1             kernelApply             entry_proc                                                            3      29     0    0     0
+kernelApply_1             kernelApply             merge_big_little_writes_Pipeline_merge_big_little_writes              580    194    0    0     0
+kernelApply_1             kernelApply             merge_big_little_writes                                               606    306    0    0     0
+kernelApply_1             kernelApply             Apply_Pipeline_Apply                                                  1997   1390   0    0     0
+kernelApply_1             kernelApply             Apply                                                                 2004   1584   0    0     0
+kernelApply_1             kernelApply             p_anonymous_namespace_write_out_with_active_count_Pipeline_write_out  1320   302    0    0     0
+kernelApply_1             kernelApply             p_anonymous_namespace_write_out_with_active_count                     1517   911    0    0     0
+kernelApply_1             kernelApply             kernelApply                                                           12191  8221   0    30    0
+kernelHBMWrapper_1        kernelHBMWrapper        littleKernelReadMemory_0_s                                            2019   5027   0    0     0
+kernelHBMWrapper_1        kernelHBMWrapper        write_out                                                             1347   344    0    0     0
+kernelHBMWrapper_1        kernelHBMWrapper        kernelHBMWrapper                                                      9732   10888  0    45    0
+kernelLittleGSMerger_1    kernelLittleGSMerger    merge_tmp_prop_little_krnls                                           1065   6100   0    0     0
+kernelLittleGSMerger_1    kernelLittleGSMerger    kernelLittleGSMerger                                                  1068   6100   0    0     0
+process_cache_1           process_cache           process_cache_Pipeline_VITIS_LOOP_94_1                                3315   12517  0    0     0
+process_cache_1           process_cache           process_cache                                                         7006   15471  0    30    0
+process_cache_2           process_cache           process_cache_Pipeline_VITIS_LOOP_94_1                                3315   12517  0    0     0
+process_cache_2           process_cache           process_cache                                                         7006   15471  0    30    0
+process_ddr_1             process_ddr             process_ddr_Pipeline_dispatch_loop                                    104    492    0    0     0
+process_ddr_1             process_ddr             process_Pipeline_process_ddr_sub_loop                                 2986   12278  0    0     0
+process_ddr_1             process_ddr             process_r                                                             3092   12515  0    0     0
+process_ddr_1             process_ddr             process_ddr                                                           25045  39946  0    60    0
+process_ddr_2             process_ddr             process_ddr_Pipeline_dispatch_loop                                    104    492    0    0     0
+process_ddr_2             process_ddr             process_Pipeline_process_ddr_sub_loop                                 2986   12278  0    0     0
+process_ddr_2             process_ddr             process_r                                                             3092   12515  0    0     0
+process_ddr_2             process_ddr             process_ddr                                                           25045  39946  0    60    0
+pma_completion_barrier_1  pma_completion_barrier  pma_completion_barrier                                                41     87     0    0     0
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter_Pipeline_segment_loop                          6127   8593   0    0     0
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter                                                18264  20182  0    62    0
+lksg_stream_1             lksg_stream             entry_proc                                                            3      29     0    0     0
+lksg_stream_1             lksg_stream             Block_entry_split_proc                                                52     47     0    0     0
+lksg_stream_1             lksg_stream             Loop_read_stream_edges_proc                                           448    350    0    0     0
+lksg_stream_1             lksg_stream             stream2axistream_ppbRequest_axis_s                                    4      48     0    0     0
+lksg_stream_1             lksg_stream             axistream2stream_axis_ppbResponse_s                                   2      29     0    0     0
+lksg_stream_1             lksg_stream             accScatter_Pipeline_scatterLoop                                       945    18089  0    128   0
+lksg_stream_1             lksg_stream             accScatter_Pipeline_exitscatter                                       2      20     0    0     0
+lksg_stream_1             lksg_stream             accScatter                                                            985    18234  0    128   0
+lksg_stream_1             lksg_stream             accGather_Pipeline_initDstTmpProp                                     18     74     0    0     0
+lksg_stream_1             lksg_stream             accGather_Pipeline_gatherLoop                                         8817   9820   0    0     0
+lksg_stream_1             lksg_stream             accGather_Pipeline_tmpPropWriteToStream                               139    161    0    0     0
+lksg_stream_1             lksg_stream             accGather                                                             9096   13227  0    0     64
+lksg_stream_1             lksg_stream             mergeWriteResults                                                     1171   1867   0    0     0
+lksg_stream_1             lksg_stream             lksg_stream                                                           18393  38018  0    128   64
+-------------------------------------------------------------------------------

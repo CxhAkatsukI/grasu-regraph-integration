@@ -1,0 +1,21 @@
+WEIGHTED_PMA_NATIVE_INPUT vertices=65537 static_edges=4 logical_updates=2 physical_updates=2 final_edges=6 pma_slots=48 source_external=0 source_internal=2 max_supersteps=16 oracle_supersteps=2 oracle_converged=1
+Using XCL_DEVICE_INDEX=0
+WEIGHTED_PMA_NATIVE_HOST stage=launch_grasu
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_barrier
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_barrier
+WEIGHTED_PMA_NATIVE_HOST stage=launch_step step=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_hbm step=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_hbm step=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_apply step=1
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_apply step=1
+WEIGHTED_PMA_NATIVE_HOST stage=wait_step step=1
+WEIGHTED_PMA_NATIVE_SUPERSTEP step=1 adapter_ms=67.489196 lksg_ms=34.023366 apply_ms=34.075527 hbm_ms=34.104808 active_vertices=2
+WEIGHTED_PMA_NATIVE_HOST stage=launch_step step=2
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_hbm step=2
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_hbm step=2
+WEIGHTED_PMA_NATIVE_HOST stage=enqueue_apply step=2
+WEIGHTED_PMA_NATIVE_HOST stage=enqueued_apply step=2
+WEIGHTED_PMA_NATIVE_HOST stage=wait_step step=2
+WEIGHTED_PMA_NATIVE_SUPERSTEP step=2 adapter_ms=67.502797 lksg_ms=34.032026 apply_ms=34.110358 hbm_ms=34.148719 active_vertices=0
+WEIGHTED_PMA_NATIVE_TIMING grasu_ms=0.364511 barrier_ms=0.033901 adapter_ms=134.991993 lksg_ms=68.055392 apply_ms=68.185885 hbm_ms=68.253527 event_e2e_ms=135.767065 convergence_readback_ms=0.225616 setup_inclusive_ms=136.176567 wall_ms=136.176567
+WEIGHTED_PMA_NATIVE_RESULT status=PASS mismatches=0 vertices=65537 final_edges=6 logical_updates=2 physical_updates=2 destination_partitions=2 shared_regraph_pipelines=1 pma_slots_per_partition_pass=48 processed_edge_slots_per_superstep=96 source_external=0 source_internal=2 max_supersteps=16 executed_supersteps=2 hardware_converged=1 oracle_supersteps=2 oracle_converged=1 final_active_vertices=0 algorithm=weighted_sssp conversion_cost=absent

@@ -1,0 +1,14 @@
+source	kernel	type	target	opencl_library	compute_units
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	----------------------	----	------------------	------------------------------------	-------------
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	lksg_stream	c	fpga0:OCL_REGION_0	grasu_regraph_weighted_pma_native.hw	1
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	pma_to_regraph_adapter	c	fpga0:OCL_REGION_0	grasu_regraph_weighted_pma_native.hw	1
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	pma_completion_barrier	c	fpga0:OCL_REGION_0	grasu_regraph_weighted_pma_native.hw	1
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	process_ddr	c	fpga0:OCL_REGION_0	grasu_regraph_weighted_pma_native.hw	2
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	process_cache	c	fpga0:OCL_REGION_0	grasu_regraph_weighted_pma_native.hw	2
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	kernelLittleGSMerger	c	fpga0:OCL_REGION_0	grasu_regraph_weighted_pma_native.hw	1
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	bin_search	c	fpga0:OCL_REGION_0	grasu_regraph_weighted_pma_native.hw	4
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	kernelApply	c	fpga0:OCL_REGION_0	grasu_regraph_weighted_pma_native.hw	1
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	dispatch	c	fpga0:OCL_REGION_0	grasu_regraph_weighted_pma_native.hw	1
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	kernelHBMWrapper	c	fpga0:OCL_REGION_0	grasu_regraph_weighted_pma_native.hw	1
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/pma_to_regraph_adapter/pma_to_regraph_adapter/system_estimate_pma_to_regraph_adapter.hw.xtxt	----------------------	----	------------------	-------------------------	-------------
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/pma_to_regraph_adapter/pma_to_regraph_adapter/system_estimate_pma_to_regraph_adapter.hw.xtxt	pma_to_regraph_adapter	c	fpga0:OCL_REGION_0	pma_to_regraph_adapter.hw	1

@@ -1,0 +1,2 @@
+algorithm	status	host_exit	device_index	result_line	timing_line
+full_pagerank	PASS	0	0	FULL_PR_PMA_NATIVE_RESULT status=PASS rank_mismatches=0 degree_mismatches=0 max_abs_error=1.82627e-09 pipeline_executions=3 rounds=3 vertices=65537 final_edges=6 logical_updates=2 physical_updates=2 destination_partitions=2 shared_regraph_pipelines=1 pma_slots_per_partition_pass=48 conversion_cost=absent	FULL_PR_PMA_NATIVE_TIMING update_ms=0.424593 source_prepare_ms=0.133684 adapter_ms=390.124 lksg_ms=196.084 apply_ms=196.319 hbm_ms=196.442 device_e2e_ms=391.829 setup_inclusive_ms=392.443

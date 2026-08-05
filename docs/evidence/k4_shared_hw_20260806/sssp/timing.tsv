@@ -1,0 +1,2 @@
+source	design_state	wns_ns	tns_ns	tns_failing_endpoints	tns_total_endpoints	whs_ns	ths_ns	ths_failing_endpoints	ths_total_endpoints	wpws_ns	tpws_ns	tpws_failing_endpoints	tpws_total_endpoints
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/build/link/link/vivado/vpl/prj/prj.runs/impl_1/dr_timing_summary.rpt		0.001	0.000	0	1104286	0.009	0.000	0	1100742	0.000	0.000	0	479044

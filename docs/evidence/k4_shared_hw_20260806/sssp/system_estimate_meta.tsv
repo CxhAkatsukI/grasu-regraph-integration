@@ -1,0 +1,3 @@
+source	design_name	target_device	target_clock_mhz	total_kernels
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_weighted_pma_native.hw.xtxt	grasu_regraph_weighted_pma_native.hw	xilinx:u55c:gen3x16_xdma_3:202210.1	150	10
+/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/reports/pma_to_regraph_adapter/pma_to_regraph_adapter/system_estimate_pma_to_regraph_adapter.hw.xtxt	pma_to_regraph_adapter.hw	xilinx:u55c:gen3x16_xdma_3:202210.1	150	1

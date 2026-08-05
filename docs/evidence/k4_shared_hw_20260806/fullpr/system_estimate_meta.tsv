@@ -1,0 +1,5 @@
+source	design_name	target_device	target_clock_mhz	total_kernels
+/data/tmp/chuxiao/grasu_regraph_k4shared_fullpr_hw_bb2bd3b_20260805/reports/bin_search/bin_search/system_estimate_bin_search.hw.xtxt	bin_search.hw	xilinx:u55c:gen3x16_xdma_3:202210.1	150	1
+/data/tmp/chuxiao/grasu_regraph_k4shared_fullpr_hw_bb2bd3b_20260805/reports/dispatch_degree/dispatch_degree/system_estimate_dispatch_degree.hw.xtxt	dispatch_degree.hw	xilinx:u55c:gen3x16_xdma_3:202210.1	150	1
+/data/tmp/chuxiao/grasu_regraph_k4shared_fullpr_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_full_pagerank.hw.xtxt	grasu_regraph_full_pagerank.hw	xilinx:u55c:gen3x16_xdma_3:202210.1	150	11
+/data/tmp/chuxiao/grasu_regraph_k4shared_fullpr_hw_bb2bd3b_20260805/reports/pma_to_regraph_adapter/pma_to_regraph_adapter/system_estimate_pma_to_regraph_adapter.hw.xtxt	pma_to_regraph_adapter.hw	xilinx:u55c:gen3x16_xdma_3:202210.1	150	1

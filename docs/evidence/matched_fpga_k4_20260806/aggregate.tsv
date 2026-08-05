@@ -1,0 +1,13 @@
+algorithm	case	graph	samples	gr_event_e2e_median_ms	gr_event_e2e_cv_pct	spine_dynamic_kernel_median_ms	spine_dynamic_kernel_cv_pct	kernel_speedup_gr_over_spine_median	kernel_speedup_min	kernel_speedup_max	winner
+connected_components	amazon_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_amazon_2008_insert_u8_reciprocal.graph	3	8.794465	1.368950812580816	32.8803	0.13546840475823368	0.266842	0.260075	0.267624	G+R
+connected_components	flickr_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_soc_flickr_und_insert_u8_reciprocal.graph	3	20.907257	1.5093441660157572	94.4865	0.1007259185288942	0.221272	0.220455	0.228465	G+R
+connected_components	web_google_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_web_google_insert_u8_reciprocal.graph	3	28.415503	0.5175175442075153	90.248	0.19975696418813665	0.314915	0.31221	0.315103	G+R
+full_pagerank	amazon_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_amazon_2008_insert_u8.graph	3	4.07803	3.9502618632150384	18.0367	3.0860422847875855	0.220458	0.21835	0.251943	G+R
+full_pagerank	flickr_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_soc_flickr_und_insert_u8.graph	3	10.0158	0.6320842942191879	50.5663	0.1064084733474731	0.198067	0.196945	0.19957	G+R
+full_pagerank	web_google_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_web_google_insert_u8.graph	3	11.2467	0.41548563904662134	58.9322	0.7690346361065444	0.189864	0.188691	0.190841	G+R
+residual_pagerank	amazon_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_amazon_2008_insert_u8.graph	3	3.01564	0.704551967169319	1.74604	11.029388732001797	1.727131	1.403451	1.74842	Spine
+residual_pagerank	flickr_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_soc_flickr_und_insert_u8.graph	3	6.90014	1.4746519876891118	6.44572	0.7798661027462637	1.06594	1.052878	1.072195	Spine
+residual_pagerank	web_google_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_web_google_insert_u8.graph	3	7.79674	1.065905508263965	4.34133	6.7149567179033225	1.795934	1.575069	1.8664	Spine
+weighted_sssp	amazon_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_amazon_2008_insert_u8.graph	3	2.103651	0.5529210342386708	0.963368	1.35156112408106	2.15903	2.134046	2.201029	Spine
+weighted_sssp	flickr_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_soc_flickr_und_insert_u8.graph	3	9.388083	1.3010405875521038	3.10475	1.1395376443055023	3.039405	2.942421	3.096862	Spine
+weighted_sssp	web_google_insert	/data/tmp/chuxiao/matched_fpga_real_workloads_20260805/real_web_google_insert_u8.graph	3	4.605314	0.661890649856975	1.13	3.633712770368518	4.098632	3.880666	4.286126	Spine

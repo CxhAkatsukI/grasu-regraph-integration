@@ -1,0 +1,2 @@
+source	design_name	target_device	target_clock_mhz	total_kernels
+/data/tmp/chuxiao/grasu_regraph_k4shared_respr_hw_bb2bd3b_20260805/reports/link/link/system_estimate_grasu_regraph_residual_pagerank.hw.xtxt	grasu_regraph_residual_pagerank.hw	xilinx:u55c:gen3x16_xdma_3:202210.1	150	11

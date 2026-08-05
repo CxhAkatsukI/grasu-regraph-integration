@@ -1,0 +1,42 @@
+===============================================================================
+Version:    v++ v2024.1 (64-bit)
+Build:      SW Build 5074859 on 2024-05-20-23:21:20
+Copyright:  Copyright 1986-2024 Xilinx, Inc. All Rights Reserved.
+Created:    Wed Aug  5 21:05:56 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             bin_search.hw
+Target Device:           xilinx:u55c:gen3x16_xdma_3:202210.1
+Target Clock:            150MHz
+Total number of kernels: 1
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name  Type  Target              OpenCL Library  Compute Units
+-----------  ----  ------------------  --------------  -------------
+bin_search   c     fpga0:OCL_REGION_0  bin_search.hw   1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     bin_search.hw
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit  Kernel Name  Module Name                           Target Frequency  Estimated Frequency
+------------  -----------  ------------------------------------  ----------------  -------------------
+bin_search_1  bin_search   bin_search_Pipeline_VITIS_LOOP_218_2  149.925034        205.465378
+bin_search_1  bin_search   bin_search                            149.925034        205.465378
+
+Latency Information
+Compute Unit  Kernel Name  Module Name                           Start Interval  Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+------------  -----------  ------------------------------------  --------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+bin_search_1  bin_search   bin_search_Pipeline_VITIS_LOOP_218_2  0               undef          undef         undef           undef            undef           undef
+bin_search_1  bin_search   bin_search                            undef           undef          undef         undef           undef            undef           undef
+
+Area Information
+Compute Unit  Kernel Name  Module Name                           FF    LUT   DSP  BRAM  URAM
+------------  -----------  ------------------------------------  ----  ----  ---  ----  ----
+bin_search_1  bin_search   bin_search_Pipeline_VITIS_LOOP_218_2  458   734   0    0     0
+bin_search_1  bin_search   bin_search                            3286  4937  0    4     0
+-------------------------------------------------------------------------------

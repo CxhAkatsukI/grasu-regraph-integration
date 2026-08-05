@@ -1,0 +1,30 @@
+source	stage	design_state	name	indent	is_cu	lut	lut_pct	lut_as_mem	lut_as_mem_pct	reg	reg_pct	bram	bram_pct	uram	uram_pct	dsp	dsp_pct
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	Platform	1	no	167898	12.88	29259	4.87	311812	11.96	200	9.92	0	0.00	4	0.04
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	User Budget	1	no	1135782	100.00	571701	100.00	2295548	100.00	1816	100.00	960	100.00	9020	100.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	Used Resources	4	no	94776	8.34	11715	2.05	103490	4.51	229	12.61	64	6.67	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	Unused Resources	4	no	1041006	91.66	559986	97.95	2192058	95.49	1587	87.39	896	93.33	9020	100.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	bin_search	1	no	10380	0.91	1604	0.28	13452	0.59	8	0.44	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	bin_search_1	4	yes	2596	0.23	401	0.07	3363	0.15	2	0.11	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	bin_search_2	4	yes	2594	0.23	401	0.07	3363	0.15	2	0.11	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	bin_search_3	4	yes	2595	0.23	401	0.07	3363	0.15	2	0.11	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	bin_search_4	4	yes	2595	0.23	401	0.07	3363	0.15	2	0.11	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	dispatch	1	no	1114	0.10	0	0.00	1836	0.08	0	0.00	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	dispatch_1	4	yes	1114	0.10	0	0.00	1836	0.08	0	0.00	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	kernelApply	1	no	7899	0.70	2256	0.39	10709	0.47	15	0.83	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	kernelApply_1	4	yes	7899	0.70	2256	0.39	10709	0.47	15	0.83	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	kernelHBMWrapper	1	no	5673	0.50	1085	0.19	9960	0.43	23	1.27	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	kernelHBMWrapper_1	4	yes	5673	0.50	1085	0.19	9960	0.43	23	1.27	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	kernelLittleGSMerger	1	no	1117	0.10	0	0.00	2230	0.10	0	0.00	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	kernelLittleGSMerger_1	4	yes	1117	0.10	0	0.00	2230	0.10	0	0.00	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	lksg_stream	1	no	11141	0.98	1117	0.20	12452	0.54	60	3.30	64	6.67	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	lksg_stream_1	4	yes	11141	0.98	1117	0.20	12452	0.54	60	3.30	64	6.67	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	pma_completion_barrier	1	no	41	<0.01	0	0.00	52	<0.01	0	0.00	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	pma_completion_barrier_1	4	yes	41	<0.01	0	0.00	52	<0.01	0	0.00	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	pma_to_regraph_adapter	1	no	9638	0.85	929	0.16	10107	0.44	31	1.71	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	pma_to_regraph_adapter_1	4	yes	9638	0.85	929	0.16	10107	0.44	31	1.71	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	process_cache	1	no	13279	1.17	1224	0.21	10142	0.44	30	1.65	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	process_cache_1	4	yes	6640	0.58	612	0.11	5071	0.22	15	0.83	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	process_cache_2	4	yes	6639	0.58	612	0.11	5071	0.22	15	0.83	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	process_ddr	1	no	34494	3.04	3500	0.61	32550	1.42	62	3.41	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	process_ddr_1	4	yes	17248	1.52	1750	0.31	16275	0.71	31	1.71	0	0.00	0	0.00
+/data/tmp/chuxiao/grasu_regraph_k4shared_cc_hw_bb2bd3b_20260805/reports/link/link/imp/impl_1_kernel_util_routed.rpt	routed	Routed	process_ddr_2	4	yes	17246	1.52	1750	0.31	16275	0.71	31	1.71	0	0.00	0	0.00

@@ -111,6 +111,28 @@ K1 packets; the changed adapter XO was rebuilt from `bb2bd3b`. Every final
 xclbin must be newly linked and routed because the adapter control ABI gained
 the destination-range arguments.
 
+Routed packet status:
+
+| Algorithm | Routed xclbin SHA-256 | Routed WNS | LUT | REG | BRAM | URAM | DSP | Real-hardware gate |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Weighted SSSP | `d5cd942a85a69d1c60e9da475bb9931590831acf058256eaede90808506f6229` | +0.001 ns | 95,589 | 104,930 | 229 | 64 | 0 | PASS |
+| Connected Components | `3948373c26f8adfea1fd626997782eab675870132011df3a73c99666b0539e68` | +0.003 ns | 94,776 | 103,490 | 229 | 64 | 0 | PASS |
+| Full PageRank | `0516cf455470624df3d52574297feb6d97b395166630bff0d89f9e77e55e9c58` | -0.077 ns | 179,476 | 178,273 | 278 | 64 | 304 | PASS; slight target miss |
+| Residual PageRank | `b16db8d36fdea9b6cc270342de656b050513fc9acffcc065704f19cdc4fa7463` | -0.099 ns | 256,572 | 310,427 | 300 | 64 | 400 | PASS; HBM clock scaled |
+
+`Real-hardware gate` means that the xclbin passed the 65,537-vertex boundary
+smoke on a U55C. A small negative WNS is reported as a timing limitation rather
+than silently treated as closure. For Residual PageRank, the 150 MHz kernel
+data clock was retained, while Vitis reduced the platform HBM system clock from
+450 to 430.8 MHz after the routed signoff reported WNS=-0.099 ns. The measured
+FPGA rows use that generated xclbin and therefore include this implementation
+outcome.
+
+The compact routed reports, artifact hashes, connectivity, utilization, and
+boundary-smoke logs are tracked under
+`docs/evidence/k4_shared_hw_20260806/<algorithm>/`. The large xclbins remain in
+the `/data/tmp/chuxiao/` packets listed above and are identified by SHA-256.
+
 ## Promotion criteria
 
 A packet becomes hardware performance evidence only after all of the
