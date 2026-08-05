@@ -104,7 +104,13 @@ def summarize(matrix: Path, run_root: Path) -> list[dict[str, str]]:
             if timing_line:
                 spine_timing = parse_key_values(timing_line)
 
-        gr_kernel = gr_timing.get("event_e2e_ms", "")
+        # Weighted SSSP/CC call the OpenCL event envelope event_e2e_ms;
+        # PageRank hosts call the same update-to-final-kernel window
+        # device_e2e_ms. Normalize the protocol names without changing the
+        # measured value or accepting a setup-inclusive fallback.
+        gr_kernel = gr_timing.get("event_e2e_ms", "") or gr_timing.get(
+            "device_e2e_ms", ""
+        )
         spine_kernel = spine_timing.get("dynamic_kernel_ms", "")
         gr_setup = gr_timing.get("setup_inclusive_ms", "")
         spine_setup = spine_timing.get("dynamic_setup_inclusive_ms", "")
