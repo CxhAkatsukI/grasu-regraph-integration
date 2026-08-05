@@ -28,6 +28,7 @@
 #error "GRASU_MAX_CACHE_SEGMENT must match the generated GraSU kernels"
 #endif
 
+
 namespace {
 
 constexpr uint32_t kPmaEmpty32 = 0x80000000u;
@@ -136,7 +137,8 @@ struct AlgorithmOracleResult {
     throw std::runtime_error(message);
 }
 
-unsigned parse_unsigned_arg(const std::string &text, const std::string &name)
+[[maybe_unused]] unsigned parse_unsigned_arg(
+    const std::string &text, const std::string &name)
 {
     std::size_t consumed = 0;
     unsigned long long value = 0;
@@ -279,10 +281,11 @@ bool is_active(uint32_t prop)
     return (prop & kActiveMask) != 0;
 }
 
-AlgorithmOracleResult run_weighted_sssp_oracle(std::size_t vertices,
-                                               const FinalEdgeMap &edges,
-                                               unsigned source,
-                                               unsigned max_supersteps)
+[[maybe_unused]] AlgorithmOracleResult run_weighted_sssp_oracle(
+    std::size_t vertices,
+    const FinalEdgeMap &edges,
+    unsigned source,
+    unsigned max_supersteps)
 {
     std::vector<uint32_t> prop(vertices, kSsspInf);
     prop[source] = kActiveMask;
@@ -342,7 +345,7 @@ void require_reciprocal_cc_edges(const FinalEdgeMap &edges)
     }
 }
 
-AlgorithmOracleResult run_connected_components_oracle(
+[[maybe_unused]] AlgorithmOracleResult run_connected_components_oracle(
     std::size_t vertices,
     const FinalEdgeMap &external_edges,
     const WeightedPmaGraph &graph,
@@ -396,7 +399,8 @@ AlgorithmOracleResult run_connected_components_oracle(
     return result;
 }
 
-std::size_t count_components(const AlgorithmOracleResult &oracle)
+[[maybe_unused]] std::size_t count_components(
+    const AlgorithmOracleResult &oracle)
 {
     std::vector<uint32_t> labels;
     labels.reserve(oracle.prop.size());
@@ -404,6 +408,58 @@ std::size_t count_components(const AlgorithmOracleResult &oracle)
     std::sort(labels.begin(), labels.end());
     return static_cast<std::size_t>(
         std::unique(labels.begin(), labels.end()) - labels.begin());
+}
+
+struct FullPageRankOracleResult {
+    std::vector<float> rank;
+    std::vector<uint32_t> out_degree;
+};
+
+[[maybe_unused]] FullPageRankOracleResult run_full_pagerank_oracle(
+    std::size_t vertices,
+    const FinalEdgeMap &edges,
+    unsigned rounds,
+    float damping)
+{
+    FullPageRankOracleResult result;
+    result.rank.assign(vertices, 1.0F / static_cast<float>(vertices));
+    result.out_degree.assign(vertices, 0);
+    for (const auto &[key, weight] : edges) {
+        (void)weight;
+        if (key.first < vertices && key.second < vertices) {
+            result.out_degree[key.first]++;
+        }
+    }
+
+    const float base = (1.0F - damping) / static_cast<float>(vertices);
+    for (unsigned round = 0; round < rounds; ++round) {
+        float dangling = 0.0F;
+        for (std::size_t vertex = 0; vertex < vertices; ++vertex) {
+            if (result.out_degree[vertex] == 0) dangling += result.rank[vertex];
+        }
+        std::vector<float> next(
+            vertices, base + damping * dangling / static_cast<float>(vertices));
+        for (const auto &[key, weight] : edges) {
+            (void)weight;
+            const unsigned src = key.first;
+            const unsigned dst = key.second;
+            if (src >= vertices || dst >= vertices || result.out_degree[src] == 0) {
+                continue;
+            }
+            next[dst] += damping * result.rank[src] /
+                         static_cast<float>(result.out_degree[src]);
+        }
+        result.rank.swap(next);
+    }
+    return result;
+}
+
+[[maybe_unused]] float word_to_float(uint32_t word)
+{
+    float value = 0.0F;
+    static_assert(sizeof(value) == sizeof(word));
+    std::memcpy(&value, &word, sizeof(value));
+    return value;
 }
 
 PreparedGraSU prepare_grasu_inputs(const WeightedPmaGraph &graph)
@@ -550,7 +606,7 @@ cl::Buffer make_buffer(cl::Context &context,
     return buffer;
 }
 
-void usage(const char *argv0)
+[[maybe_unused]] void usage(const char *argv0)
 {
     std::cerr
         << "Usage: " << argv0
@@ -569,6 +625,7 @@ void usage(const char *argv0)
 
 }  // namespace
 
+#ifndef GRASU_REGRAPH_FULL_PAGERANK
 int main(int argc, char **argv)
 {
     try {
@@ -1092,3 +1149,461 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 }
+#endif
+#ifdef GRASU_REGRAPH_FULL_PAGERANK
+int main(int argc, char **argv)
+{
+    try {
+        const bool prepare_only = argc >= 2 && std::string(argv[1]) == "--prepare-only";
+        if ((!prepare_only && argc != 4) || (prepare_only && argc != 4)) {
+            std::cerr
+                << "Usage: " << argv[0]
+                << " <xclbin> <graph_file> <result_file>\n"
+                << "       " << argv[0]
+                << " --prepare-only <graph_file> <result_file>\n";
+            return EXIT_FAILURE;
+        }
+
+        int arg_index = prepare_only ? 2 : 1;
+        const std::string xclbin_path = prepare_only ? "" : argv[arg_index++];
+        const std::string graph_path = argv[arg_index++];
+        const std::string result_path = argv[arg_index++];
+        constexpr unsigned rounds = 3;
+        constexpr float damping = 0.85F;
+        constexpr float epsilon = 1.0e-6F;
+
+        Dataset dataset = read_dataset(graph_path);
+        const FinalEdgeMap final_edges = build_final_external_edges(dataset);
+        const WeightedPmaGraph graph = build_weighted_pma_graph(
+            dataset.node_size, dataset.static_edges, dataset.update_edges);
+        const FullPageRankOracleResult oracle = run_full_pagerank_oracle(
+            dataset.node_size, final_edges, rounds, damping);
+        PreparedGraSU prepared = prepare_grasu_inputs(graph);
+
+        if (graph.physical_updates.size() > std::numeric_limits<unsigned>::max()) {
+            fail("physical update count exceeds 32-bit kernel argument range");
+        }
+        if (prepared.pma_slot_count == 0 ||
+            prepared.pma_slot_count > std::numeric_limits<unsigned>::max() ||
+            prepared.pma_slot_count % kWeightedPmaSegmentSlots != 0) {
+            fail("PMA stream must contain complete 16-slot segments");
+        }
+
+        std::cout << "FULL_PR_PMA_NATIVE_INPUT"
+                  << " vertices=" << dataset.node_size
+                  << " static_edges=" << dataset.static_edges.size()
+                  << " logical_updates=" << dataset.update_edges.size()
+                  << " physical_updates=" << graph.physical_updates.size()
+                  << " final_edges=" << final_edges.size()
+                  << " pma_slots=" << prepared.pma_slot_count
+                  << " rounds=" << rounds
+                  << " damping=" << damping
+                  << std::endl;
+
+        if (prepare_only) {
+            float rank_sum = 0.0F;
+            for (float value : oracle.rank) rank_sum += value;
+            std::cout << "FULL_PR_PMA_NATIVE_PREP status=PASS"
+                      << " vertices=" << dataset.node_size
+                      << " final_edges=" << final_edges.size()
+                      << " physical_updates=" << graph.physical_updates.size()
+                      << " rounds=" << rounds
+                      << " rank_sum=" << std::fixed << std::setprecision(7)
+                      << rank_sum
+                      << " conversion_cost=absent"
+                      << std::endl;
+            return EXIT_SUCCESS;
+        }
+
+        cl::Device device = select_xilinx_device();
+        cl_int err = CL_SUCCESS;
+        cl::Context context(device, nullptr, nullptr, nullptr, &err);
+        check_cl(err, "create context");
+        auto make_queue = [&](const std::string &name) {
+            cl_int qerr = CL_SUCCESS;
+            cl::CommandQueue queue(
+                context, device,
+                CL_QUEUE_PROFILING_ENABLE | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,
+                &qerr);
+            check_cl(qerr, "create " + name);
+            return queue;
+        };
+        cl::CommandQueue transfer_queue = make_queue("transfer queue");
+        cl::CommandQueue grasu_queue = make_queue("grasu queue");
+        cl::CommandQueue pipeline_queue = make_queue("pipeline queue");
+
+        std::vector<unsigned char> xclbin = read_binary_file(xclbin_path);
+        cl::Program::Binaries bins{{xclbin.data(), xclbin.size()}};
+        cl::Program program(context, {device}, bins, nullptr, &err);
+        check_cl(err, "program device");
+
+        auto make_kernel = [&](const std::string &name) {
+            cl_int kernel_err = CL_SUCCESS;
+            cl::Kernel kernel(program, name.c_str(), &kernel_err);
+            check_cl(kernel_err, "create " + name);
+            return kernel;
+        };
+        cl::Kernel bin_search_1 = make_kernel("bin_search:{bin_search_1}");
+        cl::Kernel bin_search_2 = make_kernel("bin_search:{bin_search_2}");
+        cl::Kernel bin_search_3 = make_kernel("bin_search:{bin_search_3}");
+        cl::Kernel bin_search_4 = make_kernel("bin_search:{bin_search_4}");
+        cl::Kernel dispatch = make_kernel("dispatch_degree:{dispatch_degree_1}");
+        cl::Kernel process_cache_1 = make_kernel("process_cache:{process_cache_1}");
+        cl::Kernel process_cache_2 = make_kernel("process_cache:{process_cache_2}");
+        cl::Kernel process_ddr_1 = make_kernel("process_ddr:{process_ddr_1}");
+        cl::Kernel process_ddr_2 = make_kernel("process_ddr:{process_ddr_2}");
+        cl::Kernel degree_update =
+            make_kernel("grasu_degree_update:{grasu_degree_update_1}");
+        cl::Kernel adapter =
+            make_kernel("pma_to_regraph_adapter:{pma_to_regraph_adapter_1}");
+        cl::Kernel lksg = make_kernel("lksg_stream:{lksg_stream_1}");
+        cl::Kernel apply =
+            make_kernel("regraph_pagerank_apply:{regraph_pagerank_apply_1}");
+        cl::Kernel source_prepare =
+            make_kernel("regraph_pagerank_source_prepare:{pr_source_1}");
+        cl::Kernel hbm = make_kernel("kernelHBMWrapper:{kernelHBMWrapper_1}");
+
+        std::array<cl_mem_ext_ptr_t, 4> update_ext{};
+        std::array<cl_mem_ext_ptr_t, 4> pma_ext{};
+        std::array<cl_mem_ext_ptr_t, 4> row_ext{};
+        std::array<cl_mem_ext_ptr_t, 4> binary_ext{};
+        std::array<cl::Buffer, 4> update_dev;
+        std::array<cl::Buffer, 4> pma_dev;
+        std::array<cl::Buffer, 4> row_dev;
+        std::array<cl::Buffer, 4> binary_dev;
+        for (int index = 0; index < 4; ++index) {
+            update_ext[index] = ext_ptr(index, prepared.update_edges[index].data());
+            pma_ext[index] = ext_ptr(index, prepared.pma_words[index].data());
+            row_ext[index] = ext_ptr(index, prepared.row_offsets[index].data());
+            binary_ext[index] = ext_ptr(index, prepared.binary[index].data());
+            update_dev[index] = make_buffer(
+                context,
+                CL_MEM_READ_ONLY | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+                prepared.update_edges[index].size() * sizeof(std::uint64_t),
+                &update_ext[index], "update_edges_" + std::to_string(index));
+            pma_dev[index] = make_buffer(
+                context,
+                CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+                prepared.pma_words[index].size() * sizeof(uint32_t),
+                &pma_ext[index], "pma_" + std::to_string(index));
+            row_dev[index] = make_buffer(
+                context,
+                CL_MEM_READ_ONLY | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+                prepared.row_offsets[index].size() * sizeof(std::uint64_t),
+                &row_ext[index], "row_offset_" + std::to_string(index));
+            binary_dev[index] = make_buffer(
+                context,
+                CL_MEM_READ_ONLY | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+                prepared.binary[index].size() * sizeof(std::uint64_t),
+                &binary_ext[index], "binary_" + std::to_string(index));
+        }
+
+        AlignedVector<uint32_t> degree(kLittleDstBufferSize, 0);
+        for (const auto &edge : dataset.static_edges) {
+            const unsigned src = graph.external_to_internal.at(edge.source);
+            degree[src]++;
+        }
+        AlignedVector<uint32_t> degree_status(16, 0);
+        AlignedVector<float> rank(kLittleDstBufferSize, 0.0F);
+        for (std::size_t vertex = 0; vertex < dataset.node_size; ++vertex) {
+            rank[vertex] = 1.0F / static_cast<float>(dataset.node_size);
+        }
+        AlignedVector<uint32_t> round_stats(16, 0);
+        AlignedVector<float> source_a(kLittleDstBufferSize, 0.0F);
+        AlignedVector<float> source_b(kLittleDstBufferSize, 0.0F);
+
+        cl_mem_ext_ptr_t degree_ext = ext_ptr(6, degree.data());
+        cl_mem_ext_ptr_t degree_status_ext = ext_ptr(6, degree_status.data());
+        cl_mem_ext_ptr_t rank_ext = ext_ptr(4, rank.data());
+        cl_mem_ext_ptr_t stats_ext = ext_ptr(6, round_stats.data());
+        cl_mem_ext_ptr_t source_a1_ext = ext_ptr(1, source_a.data());
+        cl_mem_ext_ptr_t source_a2_ext = ext_ptr(3, source_a.data());
+        cl_mem_ext_ptr_t source_b1_ext = ext_ptr(1, source_b.data());
+        cl_mem_ext_ptr_t source_b2_ext = ext_ptr(3, source_b.data());
+        cl::Buffer degree_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            degree.size() * sizeof(uint32_t), &degree_ext, "out_degree");
+        cl::Buffer degree_status_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            degree_status.size() * sizeof(uint32_t), &degree_status_ext,
+            "degree_status");
+        cl::Buffer rank_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            rank.size() * sizeof(float), &rank_ext, "rank_state");
+        cl::Buffer stats_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            round_stats.size() * sizeof(uint32_t), &stats_ext, "round_stats");
+        cl::Buffer source_a1_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            source_a.size() * sizeof(float), &source_a1_ext, "source_a1");
+        cl::Buffer source_a2_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            source_a.size() * sizeof(float), &source_a2_ext, "source_a2");
+        cl::Buffer source_b1_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            source_b.size() * sizeof(float), &source_b1_ext, "source_b1");
+        cl::Buffer source_b2_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            source_b.size() * sizeof(float), &source_b2_ext, "source_b2");
+
+        std::vector<cl::Memory> initial_mems;
+        for (int index = 0; index < 4; ++index) {
+            initial_mems.push_back(update_dev[index]);
+            initial_mems.push_back(pma_dev[index]);
+            initial_mems.push_back(row_dev[index]);
+            initial_mems.push_back(binary_dev[index]);
+        }
+        initial_mems.insert(initial_mems.end(), {
+            degree_dev, degree_status_dev, rank_dev, stats_dev,
+            source_a1_dev, source_a2_dev, source_b1_dev, source_b2_dev});
+        check_cl(transfer_queue.enqueueMigrateMemObjects(initial_mems, 0),
+                 "migrate initial buffers");
+        transfer_queue.finish();
+
+        auto set_bin_search_args = [&](cl::Kernel &kernel, int index) {
+            int arg = 0;
+            check_cl(kernel.setArg(arg++, update_dev[index]), "set bin_search edges");
+            for (int copy = 0; copy < 4; ++copy) {
+                check_cl(kernel.setArg(arg++, binary_dev[index]),
+                         "set bin_search binary");
+            }
+            for (int copy = 0; copy < 4; ++copy) {
+                check_cl(kernel.setArg(arg++, row_dev[index]),
+                         "set bin_search row_offset");
+            }
+            check_cl(kernel.setArg(
+                         arg++, static_cast<unsigned>(prepared.update_counts[index])),
+                     "set bin_search edge_size");
+        };
+        set_bin_search_args(bin_search_1, 0);
+        set_bin_search_args(bin_search_2, 1);
+        set_bin_search_args(bin_search_3, 2);
+        set_bin_search_args(bin_search_4, 3);
+        const unsigned physical_updates =
+            static_cast<unsigned>(graph.physical_updates.size());
+        check_cl(dispatch.setArg(0, physical_updates), "set dispatch size");
+        check_cl(process_cache_1.setArg(0, pma_dev[0]), "set process_cache_1");
+        check_cl(process_cache_2.setArg(0, pma_dev[2]), "set process_cache_2");
+        for (int arg = 0; arg < 4; ++arg) {
+            check_cl(process_ddr_1.setArg(arg, pma_dev[1]), "set process_ddr_1");
+            check_cl(process_ddr_2.setArg(arg, pma_dev[3]), "set process_ddr_2");
+        }
+        check_cl(degree_update.setArg(0, degree_dev), "set degree out_degree");
+        check_cl(degree_update.setArg(1, degree_status_dev), "set degree status");
+        check_cl(degree_update.setArg(
+                     2, static_cast<unsigned>(dataset.node_size)),
+                 "set degree vertices");
+        check_cl(degree_update.setArg(3, physical_updates),
+                 "set degree update_count");
+        check_cl(adapter.setArg(0, pma_dev[0]), "set adapter pma0");
+        check_cl(adapter.setArg(1, pma_dev[1]), "set adapter pma1");
+        check_cl(adapter.setArg(2, pma_dev[2]), "set adapter pma2");
+        check_cl(adapter.setArg(3, pma_dev[3]), "set adapter pma3");
+        check_cl(adapter.setArg(4, row_dev[0]), "set adapter row_offset");
+        check_cl(adapter.setArg(5, static_cast<unsigned>(dataset.node_size)),
+                 "set adapter node_count");
+        check_cl(adapter.setArg(6, static_cast<unsigned>(prepared.pma_slot_count)),
+                 "set adapter pma_slot_count");
+        check_cl(adapter.setArg(7, static_cast<unsigned>(kMaxCacheSegment)),
+                 "set adapter max_cache_segment");
+
+        constexpr unsigned burst_count = kLittleDstBufferSize / 16;
+        const unsigned vertices = static_cast<unsigned>(dataset.node_size);
+        const unsigned part_edge_num = static_cast<unsigned>(prepared.pma_slot_count);
+        const float base = (1.0F - damping) / static_cast<float>(vertices);
+        check_cl(source_prepare.setArg(0, rank_dev), "set source rank");
+        check_cl(source_prepare.setArg(1, degree_dev), "set source degree");
+        check_cl(source_prepare.setArg(2, source_a1_dev), "set source prop1");
+        check_cl(source_prepare.setArg(3, source_a2_dev), "set source prop2");
+        check_cl(source_prepare.setArg(4, stats_dev), "set source stats");
+        check_cl(source_prepare.setArg(5, burst_count), "set source bursts");
+        check_cl(source_prepare.setArg(6, vertices), "set source vertices");
+        check_cl(source_prepare.setArg(7, damping), "set source damping");
+        check_cl(source_prepare.setArg(8, epsilon), "set source epsilon");
+
+        auto wall_begin = std::chrono::high_resolution_clock::now();
+        std::vector<cl::Event> all_events;
+        cl::Event pc1_event, pc2_event, pd1_event, pd2_event, degree_event;
+        cl::Event dispatch_event, bs1_event, bs2_event, bs3_event, bs4_event;
+        check_cl(grasu_queue.enqueueTask(process_cache_1, nullptr, &pc1_event),
+                 "enqueue process_cache_1");
+        check_cl(grasu_queue.enqueueTask(process_cache_2, nullptr, &pc2_event),
+                 "enqueue process_cache_2");
+        check_cl(grasu_queue.enqueueTask(process_ddr_1, nullptr, &pd1_event),
+                 "enqueue process_ddr_1");
+        check_cl(grasu_queue.enqueueTask(process_ddr_2, nullptr, &pd2_event),
+                 "enqueue process_ddr_2");
+        check_cl(grasu_queue.enqueueTask(degree_update, nullptr, &degree_event),
+                 "enqueue degree_update");
+        check_cl(grasu_queue.enqueueTask(dispatch, nullptr, &dispatch_event),
+                 "enqueue dispatch_degree");
+        check_cl(grasu_queue.enqueueTask(bin_search_1, nullptr, &bs1_event),
+                 "enqueue bin_search_1");
+        check_cl(grasu_queue.enqueueTask(bin_search_2, nullptr, &bs2_event),
+                 "enqueue bin_search_2");
+        check_cl(grasu_queue.enqueueTask(bin_search_3, nullptr, &bs3_event),
+                 "enqueue bin_search_3");
+        check_cl(grasu_queue.enqueueTask(bin_search_4, nullptr, &bs4_event),
+                 "enqueue bin_search_4");
+        grasu_queue.finish();
+        std::vector<cl::Event> update_events{
+            pc1_event, pc2_event, pd1_event, pd2_event, degree_event,
+            dispatch_event, bs1_event, bs2_event, bs3_event, bs4_event};
+        all_events.insert(all_events.end(), update_events.begin(), update_events.end());
+
+        check_cl(transfer_queue.enqueueMigrateMemObjects(
+                     {degree_status_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
+                 "read degree status");
+        transfer_queue.finish();
+        if (degree_status[0] != 0 || degree_status[1] != physical_updates) {
+            fail("device degree update status failed: status=" +
+                 std::to_string(degree_status[0]) + " processed=" +
+                 std::to_string(degree_status[1]));
+        }
+
+        cl::Event source_event;
+        check_cl(pipeline_queue.enqueueTask(source_prepare, nullptr, &source_event),
+                 "enqueue source_prepare");
+        pipeline_queue.finish();
+        all_events.push_back(source_event);
+        check_cl(transfer_queue.enqueueMigrateMemObjects(
+                     {stats_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
+                 "read source stats");
+        transfer_queue.finish();
+        if (round_stats[0] != 0) fail("source_prepare capacity status failed");
+        float dangling = word_to_float(round_stats[3]);
+
+        std::array<cl::Buffer *, 2> current_source{
+            &source_a1_dev, &source_a2_dev};
+        std::array<cl::Buffer *, 2> next_source{
+            &source_b1_dev, &source_b2_dev};
+        double adapter_ms = 0.0;
+        double lksg_ms = 0.0;
+        double apply_ms = 0.0;
+        double hbm_ms = 0.0;
+        for (unsigned round = 0; round < rounds; ++round) {
+            check_cl(hbm.setArg(0, *current_source[0]), "set hbm src1");
+            check_cl(hbm.setArg(1, *current_source[1]), "set hbm src2");
+            check_cl(hbm.setArg(2, *next_source[0]), "set hbm next1");
+            check_cl(hbm.setArg(3, *next_source[1]), "set hbm next2");
+            check_cl(hbm.setArg(4, 1U), "set hbm dense");
+            check_cl(hbm.setArg(5, 0U), "set hbm sparse");
+            check_cl(lksg.setArg(1, part_edge_num), "set lksg edges");
+            check_cl(lksg.setArg(2, 0U), "set lksg compressed groups");
+            check_cl(lksg.setArg(3, 0U), "set lksg destination offset");
+            check_cl(lksg.setArg(4, round == 0), "set lksg reset");
+            check_cl(apply.setArg(0, rank_dev), "set apply rank");
+            check_cl(apply.setArg(1, degree_dev), "set apply degree");
+            check_cl(apply.setArg(2, stats_dev), "set apply stats");
+            check_cl(apply.setArg(3, burst_count), "set apply bursts");
+            check_cl(apply.setArg(4, vertices), "set apply vertices");
+            check_cl(apply.setArg(5, damping), "set apply damping");
+            check_cl(apply.setArg(6, epsilon), "set apply epsilon");
+            check_cl(apply.setArg(7, base), "set apply base");
+            check_cl(apply.setArg(
+                         8, damping * dangling / static_cast<float>(vertices)),
+                     "set apply dangling_share");
+
+            cl::Event adapter_event, lksg_event, hbm_event, apply_event;
+            check_cl(pipeline_queue.enqueueTask(adapter, nullptr, &adapter_event),
+                     "enqueue adapter");
+            check_cl(pipeline_queue.enqueueTask(lksg, nullptr, &lksg_event),
+                     "enqueue lksg");
+            check_cl(pipeline_queue.enqueueTask(hbm, nullptr, &hbm_event),
+                     "enqueue hbm");
+            check_cl(pipeline_queue.enqueueTask(apply, nullptr, &apply_event),
+                     "enqueue apply");
+            pipeline_queue.finish();
+            adapter_ms += event_duration_ms(adapter_event);
+            lksg_ms += event_duration_ms(lksg_event);
+            hbm_ms += event_duration_ms(hbm_event);
+            apply_ms += event_duration_ms(apply_event);
+            all_events.insert(all_events.end(), {
+                adapter_event, lksg_event, hbm_event, apply_event});
+
+            check_cl(transfer_queue.enqueueMigrateMemObjects(
+                         {stats_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
+                     "read round stats");
+            transfer_queue.finish();
+            if (round_stats[0] != 0 || round_stats[4] != vertices) {
+                fail("PageRank apply status failed at round " +
+                     std::to_string(round + 1));
+            }
+            dangling = word_to_float(round_stats[3]);
+            std::swap(current_source, next_source);
+            std::cout << "FULL_PR_PMA_NATIVE_ROUND round=" << (round + 1)
+                      << " l1_error=" << word_to_float(round_stats[2])
+                      << " dangling=" << dangling
+                      << " active_vertices=" << round_stats[1]
+                      << std::endl;
+        }
+
+        check_cl(transfer_queue.enqueueMigrateMemObjects(
+                     {rank_dev, degree_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
+                 "read final rank and degree");
+        transfer_queue.finish();
+        const auto wall_end = std::chrono::high_resolution_clock::now();
+        const double setup_inclusive_ms =
+            std::chrono::duration<double, std::milli>(wall_end - wall_begin).count();
+
+        std::size_t rank_mismatches = 0;
+        std::size_t degree_mismatches = 0;
+        float max_abs_error = 0.0F;
+        for (std::size_t internal = 0; internal < dataset.node_size; ++internal) {
+            const std::size_t external = graph.internal_to_external.at(internal);
+            const float expected = oracle.rank.at(external);
+            const float actual = rank[internal];
+            const float abs_error = std::abs(actual - expected);
+            max_abs_error = std::max(max_abs_error, abs_error);
+            if (abs_error > 1.0e-4F + 1.0e-3F * std::abs(expected)) {
+                if (rank_mismatches < 20) {
+                    std::cerr << "rank mismatch external=" << external
+                              << " expected=" << expected
+                              << " actual=" << actual << std::endl;
+                }
+                rank_mismatches++;
+            }
+            if (degree[internal] != oracle.out_degree.at(external)) {
+                degree_mismatches++;
+            }
+        }
+
+        std::ofstream result_out(result_path);
+        if (!result_out) fail("failed to open result file: " + result_path);
+        result_out << std::setprecision(9);
+        for (std::size_t external = 0; external < dataset.node_size; ++external) {
+            const std::size_t internal = graph.external_to_internal.at(external);
+            result_out << external << ' ' << rank[internal] << '\n';
+        }
+        if (!result_out) fail("failed while writing result file");
+
+        std::cout << "FULL_PR_PMA_NATIVE_TIMING"
+                  << " update_ms=" << event_union_ms(update_events)
+                  << " source_prepare_ms=" << event_duration_ms(source_event)
+                  << " adapter_ms=" << adapter_ms
+                  << " lksg_ms=" << lksg_ms
+                  << " apply_ms=" << apply_ms
+                  << " hbm_ms=" << hbm_ms
+                  << " device_e2e_ms=" << event_union_ms(all_events)
+                  << " setup_inclusive_ms=" << setup_inclusive_ms
+                  << std::endl;
+        const bool pass = rank_mismatches == 0 && degree_mismatches == 0;
+        std::cout << "FULL_PR_PMA_NATIVE_RESULT"
+                  << " status=" << (pass ? "PASS" : "FAIL")
+                  << " rank_mismatches=" << rank_mismatches
+                  << " degree_mismatches=" << degree_mismatches
+                  << " max_abs_error=" << max_abs_error
+                  << " rounds=" << rounds
+                  << " vertices=" << dataset.node_size
+                  << " final_edges=" << final_edges.size()
+                  << " logical_updates=" << dataset.update_edges.size()
+                  << " physical_updates=" << graph.physical_updates.size()
+                  << " conversion_cost=absent"
+                  << std::endl;
+        return pass ? EXIT_SUCCESS : EXIT_FAILURE;
+    } catch (const std::exception &ex) {
+        std::cerr << "ERROR: " << ex.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+}
+#endif
