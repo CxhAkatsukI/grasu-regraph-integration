@@ -1145,13 +1145,22 @@ int main(int argc, char **argv)
                 if (step == 0 && partition == 0) {
                     adapter_wait_events.push_back(barrier_event);
                     adapter_wait_list = &adapter_wait_events;
+                } else if (partition != 0) {
+                    adapter_wait_events.push_back(adapter_events[partition - 1]);
+                    adapter_wait_list = &adapter_wait_events;
+                }
+                std::vector<cl::Event> lksg_wait_events;
+                const std::vector<cl::Event> *lksg_wait_list = nullptr;
+                if (partition != 0) {
+                    lksg_wait_events.push_back(lksg_events[partition - 1]);
+                    lksg_wait_list = &lksg_wait_events;
                 }
                 check_cl(pipeline_queue.enqueueTask(
                              adapter, adapter_wait_list,
                              &adapter_events[partition]),
                          "enqueue partition adapter");
                 check_cl(pipeline_queue.enqueueTask(
-                             lksg, nullptr, &lksg_events[partition]),
+                             lksg, lksg_wait_list, &lksg_events[partition]),
                          "enqueue partition lksg");
             }
 
@@ -1765,11 +1774,22 @@ int main(int argc, char **argv)
                 check_cl(lksg.setArg(3, part_dst_offset),
                          "set lksg destination offset");
                 check_cl(lksg.setArg(4, true), "set lksg reset");
+                std::vector<cl::Event> adapter_wait_events;
+                const std::vector<cl::Event> *adapter_wait_list = nullptr;
+                std::vector<cl::Event> lksg_wait_events;
+                const std::vector<cl::Event> *lksg_wait_list = nullptr;
+                if (partition != 0) {
+                    adapter_wait_events.push_back(adapter_events[partition - 1]);
+                    adapter_wait_list = &adapter_wait_events;
+                    lksg_wait_events.push_back(lksg_events[partition - 1]);
+                    lksg_wait_list = &lksg_wait_events;
+                }
                 check_cl(pipeline_queue.enqueueTask(
-                             adapter, nullptr, &adapter_events[partition]),
+                             adapter, adapter_wait_list,
+                             &adapter_events[partition]),
                          "enqueue partition adapter");
                 check_cl(pipeline_queue.enqueueTask(
-                             lksg, nullptr, &lksg_events[partition]),
+                             lksg, lksg_wait_list, &lksg_events[partition]),
                          "enqueue partition lksg");
             }
             pipeline_queue.finish();
