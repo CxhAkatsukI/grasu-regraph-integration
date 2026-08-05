@@ -18,7 +18,8 @@ Build the conversion-free weighted PMA native pipeline host.
 Options:
   --out-dir PATH    Output directory. Default: ${OUT_DIR}
   --out-bin PATH    Output binary. Default: <out-dir>/weighted_pma_native_host
-  --algorithm NAME  weighted_sssp, connected_components, or full_pagerank.
+  --algorithm NAME  weighted_sssp, connected_components, full_pagerank, or
+                    residual_pagerank.
   -h, --help        Show this help.
 USAGE
 }
@@ -49,6 +50,10 @@ case "${ALGORITHM}" in
   full_pagerank)
     DEFAULT_BIN=full_pagerank_pma_native_host
     ALGORITHM_DEFINE=(-DGRASU_REGRAPH_FULL_PAGERANK=1)
+    ;;
+  residual_pagerank)
+    DEFAULT_BIN=residual_pagerank_pma_native_host
+    ALGORITHM_DEFINE=(-DGRASU_REGRAPH_RESIDUAL_PAGERANK=1)
     ;;
   *) echo "Invalid --algorithm: ${ALGORITHM}" >&2; exit 2 ;;
 esac

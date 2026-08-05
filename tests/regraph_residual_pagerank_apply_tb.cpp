@@ -79,7 +79,7 @@ int main()
 
     regraph_pagerank_apply(rank.data(), residual.data(), degree.data(),
                            stats.data(), 1, 4, 0.85F, 1.0e-6F, 0.0F, 0.0F,
-                           incoming, source_output);
+                           false, incoming, source_output);
 
     const regraph_write_burst_pkt_t payload = source_output.read();
     const regraph_write_burst_pkt_t end = source_output.read();
@@ -114,7 +114,7 @@ int main()
     second_incoming.write(incoming_packet);
     regraph_pagerank_apply(rank.data(), residual.data(), degree.data(),
                            stats.data(), 1, 4, 0.85F, 1.0e-6F, 0.0F, 0.0085F,
-                           second_incoming, second_output);
+                           false, second_incoming, second_output);
     assert(second_output.read().last == 0);
     assert(second_output.read().last == 1);
     assert(second_output.empty());
@@ -129,6 +129,41 @@ int main()
     assert(stats[kReGraphPageRankActiveVertices] == 4);
     expect_close(test_word_to_float(stats[kReGraphPageRankNextDanglingBits]),
                  0.0085F, 2.0e-6F);
+
+    std::array<ap_uint<512>, 1> correction_rank = {0};
+    std::array<ap_uint<512>, 1> correction_residual = {0};
+    hls::stream<regraph_write_burst_pkt_t> correction_incoming;
+    hls::stream<regraph_write_burst_pkt_t> correction_output;
+    incoming_packet.data = 0;
+    for (unsigned lane_index = 0; lane_index < 4; ++lane_index) {
+        put_float(correction_rank[0], lane_index, 0.25F);
+        put_float(incoming_packet.data, lane_index,
+                  0.1F * static_cast<float>(lane_index + 1));
+    }
+    correction_incoming.write(incoming_packet);
+    regraph_pagerank_apply(
+        correction_rank.data(), correction_residual.data(), degree.data(),
+        stats.data(), 1, 4, 0.85F, 1.0e-6F, 0.0375F, 0.053125F, true,
+        correction_incoming, correction_output);
+    const regraph_write_burst_pkt_t correction_payload =
+        correction_output.read();
+    assert(correction_output.read().last == 1);
+    const std::array<float, 4> correction = {
+        -0.059375F, 0.040625F, 0.140625F, 0.240625F};
+    for (unsigned lane_index = 0; lane_index < correction.size();
+         ++lane_index) {
+        expect_close(get_float(correction_rank[0], lane_index), 0.25F);
+        expect_close(get_float(correction_residual[0], lane_index),
+                     correction[lane_index]);
+    }
+    expect_close(get_float(correction_payload.data, 0),
+                 0.85F * correction[0] / 2.0F);
+    expect_close(get_float(correction_payload.data, 1),
+                 0.85F * correction[1]);
+    expect_close(get_float(correction_payload.data, 2),
+                 0.85F * correction[2]);
+    expect_close(get_float(correction_payload.data, 3), 0.0F);
+    assert(stats[kReGraphPageRankActiveVertices] == 4);
 
     return 0;
 }

@@ -69,7 +69,11 @@ void regraph_pagerank_source_prepare(
     unsigned burst_count,
     unsigned vertices,
     float damping,
-    float epsilon)
+    float epsilon
+#if GRASU_REGRAPH_PAGERANK_MODE == 2
+    , bool correction_mode
+#endif
+    )
 {
 #pragma HLS INTERFACE m_axi port=rank_state offset=slave bundle=gmem0
 #if GRASU_REGRAPH_PAGERANK_MODE == 2
@@ -91,6 +95,9 @@ void regraph_pagerank_source_prepare(
 #pragma HLS INTERFACE s_axilite port=vertices bundle=control
 #pragma HLS INTERFACE s_axilite port=damping bundle=control
 #pragma HLS INTERFACE s_axilite port=epsilon bundle=control
+#if GRASU_REGRAPH_PAGERANK_MODE == 2
+#pragma HLS INTERFACE s_axilite port=correction_mode bundle=control
+#endif
 #pragma HLS INTERFACE s_axilite port=return bundle=control
 
     float dangling_partials[kVerticesPerBurst][kReductionBanks];
@@ -137,9 +144,10 @@ prepare_bursts:
             const float value = word_to_float(lane(rank_beat, lane_index));
             const bool active = true;
 #else
-            const float value =
-                word_to_float(lane(residual_beat, lane_index));
-            const bool active = float_abs(value) > threshold;
+            const float value = correction_mode
+                                    ? word_to_float(lane(rank_beat, lane_index))
+                                    : word_to_float(lane(residual_beat, lane_index));
+            const bool active = correction_mode || float_abs(value) > threshold;
 #endif
             const float payload = active && degree != 0
                                       ? damping * value / degree

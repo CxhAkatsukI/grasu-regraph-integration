@@ -59,7 +59,7 @@ int main()
 
     regraph_pagerank_source_prepare(
         rank.data(), residual.data(), degree.data(), source_1.data(),
-        source_2.data(), stats.data(), 1, 4, 0.85F, 1.0e-6F);
+        source_2.data(), stats.data(), 1, 4, 0.85F, 1.0e-6F, false);
     assert(source_1[0] == source_2[0]);
     assert(std::fabs(get(source_1[0], 0) - 0.00425F) <= 1.0e-6F);
     assert(std::fabs(get(source_1[0], 1) + 0.017F) <= 1.0e-6F);
@@ -69,5 +69,19 @@ int main()
     assert(stats[kReGraphPageRankActiveVertices] == 3);
     assert(std::fabs(word_float(stats[kReGraphPageRankNextDanglingBits]) -
                      0.04F) <= 1.0e-6F);
+
+    for (unsigned index = 0; index < 4; ++index) {
+        put(rank[0], index, 0.25F);
+    }
+    regraph_pagerank_source_prepare(
+        rank.data(), residual.data(), degree.data(), source_1.data(),
+        source_2.data(), stats.data(), 1, 4, 0.85F, 1.0e-6F, true);
+    assert(std::fabs(get(source_1[0], 0) - 0.10625F) <= 1.0e-6F);
+    assert(std::fabs(get(source_1[0], 1) - 0.2125F) <= 1.0e-6F);
+    assert(std::fabs(get(source_1[0], 2) - 0.2125F) <= 1.0e-6F);
+    assert(get(source_1[0], 3) == 0.0F);
+    assert(stats[kReGraphPageRankActiveVertices] == 4);
+    assert(std::fabs(word_float(stats[kReGraphPageRankNextDanglingBits]) -
+                     0.25F) <= 1.0e-6F);
     return 0;
 }

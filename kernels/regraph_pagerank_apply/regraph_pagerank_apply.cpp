@@ -72,6 +72,9 @@ void regraph_pagerank_apply(
     float epsilon,
     float base,
     float dangling_share,
+#if GRASU_REGRAPH_PAGERANK_MODE == 2
+    bool correction_mode,
+#endif
     hls::stream<regraph_write_burst_pkt_t> &merged_prop,
     hls::stream<regraph_write_burst_pkt_t> &source_prop_write)
 {
@@ -95,6 +98,9 @@ void regraph_pagerank_apply(
 #pragma HLS INTERFACE s_axilite port=epsilon bundle=control
 #pragma HLS INTERFACE s_axilite port=base bundle=control
 #pragma HLS INTERFACE s_axilite port=dangling_share bundle=control
+#if GRASU_REGRAPH_PAGERANK_MODE == 2
+#pragma HLS INTERFACE s_axilite port=correction_mode bundle=control
+#endif
 #pragma HLS INTERFACE s_axilite port=return bundle=control
 
     float error_partials[kVerticesPerBurst][kReductionBanks];
@@ -157,12 +163,17 @@ apply_bursts:
 #else
             const float old_residual =
                 word_to_float(lane(residual_beat, lane_index));
-            const bool old_active = float_abs(old_residual) > threshold;
-            if (old_active) {
-                next_rank += old_residual;
+            if (correction_mode) {
+                next_value = base + dangling_share + incoming - old_rank;
+            } else {
+                const bool old_active = float_abs(old_residual) > threshold;
+                if (old_active) {
+                    next_rank += old_residual;
+                }
+                const float retained_residual =
+                    old_active ? 0.0F : old_residual;
+                next_value = retained_residual + incoming + dangling_share;
             }
-            const float retained_residual = old_active ? 0.0F : old_residual;
-            next_value = retained_residual + incoming + dangling_share;
             active = float_abs(next_value) > threshold;
             error_partials[lane_index][reduction_bank] +=
                 float_abs(next_value);

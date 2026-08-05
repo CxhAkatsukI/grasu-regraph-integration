@@ -271,6 +271,13 @@ FinalEdgeMap build_final_external_edges(const Dataset &dataset)
     return final_edges;
 }
 
+[[maybe_unused]] FinalEdgeMap build_static_external_edges(const Dataset &dataset)
+{
+    Dataset static_dataset = dataset;
+    static_dataset.update_edges.clear();
+    return build_final_external_edges(static_dataset);
+}
+
 uint32_t sssp_value(uint32_t prop)
 {
     return prop & kPropMask;
@@ -415,6 +422,15 @@ struct FullPageRankOracleResult {
     std::vector<uint32_t> out_degree;
 };
 
+struct ResidualPageRankOracleResult {
+    std::vector<float> rank;
+    std::vector<float> residual;
+    std::vector<uint32_t> out_degree;
+    unsigned correction_active_vertices = 0;
+    unsigned propagation_rounds = 0;
+    bool converged = false;
+};
+
 [[maybe_unused]] FullPageRankOracleResult run_full_pagerank_oracle(
     std::size_t vertices,
     const FinalEdgeMap &edges,
@@ -450,6 +466,105 @@ struct FullPageRankOracleResult {
                          static_cast<float>(result.out_degree[src]);
         }
         result.rank.swap(next);
+    }
+    return result;
+}
+
+[[maybe_unused]] ResidualPageRankOracleResult run_residual_pagerank_oracle(
+    std::size_t vertices,
+    const FinalEdgeMap &edges,
+    const std::vector<float> &warm_rank,
+    unsigned max_propagation_rounds,
+    float damping,
+    float epsilon)
+{
+    if (warm_rank.size() != vertices) {
+        fail("residual PageRank warm-rank size mismatch");
+    }
+
+    ResidualPageRankOracleResult result;
+    result.rank = warm_rank;
+    result.residual.assign(vertices, 0.0F);
+    result.out_degree.assign(vertices, 0);
+    for (const auto &[key, weight] : edges) {
+        (void)weight;
+        if (key.first < vertices && key.second < vertices) {
+            result.out_degree[key.first]++;
+        }
+    }
+
+    const float base = (1.0F - damping) / static_cast<float>(vertices);
+    float dangling_rank = 0.0F;
+    for (std::size_t vertex = 0; vertex < vertices; ++vertex) {
+        if (result.out_degree[vertex] == 0) {
+            dangling_rank += result.rank[vertex];
+        }
+    }
+    const float dangling_share =
+        damping * dangling_rank / static_cast<float>(vertices);
+    std::vector<float> target(vertices, base + dangling_share);
+    for (const auto &[key, weight] : edges) {
+        (void)weight;
+        const unsigned src = key.first;
+        const unsigned dst = key.second;
+        if (src >= vertices || dst >= vertices || result.out_degree[src] == 0) {
+            continue;
+        }
+        target[dst] += damping * result.rank[src] /
+                       static_cast<float>(result.out_degree[src]);
+    }
+
+    std::vector<unsigned char> active(vertices, 0);
+    for (std::size_t vertex = 0; vertex < vertices; ++vertex) {
+        result.residual[vertex] = target[vertex] - result.rank[vertex];
+        active[vertex] = std::abs(result.residual[vertex]) > epsilon;
+        result.correction_active_vertices += active[vertex] != 0;
+    }
+    if (result.correction_active_vertices == 0) {
+        result.converged = true;
+        return result;
+    }
+
+    for (unsigned round = 0; round < max_propagation_rounds; ++round) {
+        std::vector<float> delta(vertices, 0.0F);
+        float dangling_delta = 0.0F;
+        for (std::size_t vertex = 0; vertex < vertices; ++vertex) {
+            if (!active[vertex]) continue;
+            delta[vertex] = result.residual[vertex];
+            result.residual[vertex] = 0.0F;
+            result.rank[vertex] += delta[vertex];
+            if (result.out_degree[vertex] == 0) {
+                dangling_delta += delta[vertex];
+            }
+        }
+
+        const float residual_dangling_share =
+            damping * dangling_delta / static_cast<float>(vertices);
+        for (float &value : result.residual) {
+            value += residual_dangling_share;
+        }
+        for (const auto &[key, weight] : edges) {
+            (void)weight;
+            const unsigned src = key.first;
+            const unsigned dst = key.second;
+            if (src >= vertices || dst >= vertices || !active[src] ||
+                result.out_degree[src] == 0) {
+                continue;
+            }
+            result.residual[dst] += damping * delta[src] /
+                                    static_cast<float>(result.out_degree[src]);
+        }
+
+        unsigned active_vertices = 0;
+        for (std::size_t vertex = 0; vertex < vertices; ++vertex) {
+            active[vertex] = std::abs(result.residual[vertex]) > epsilon;
+            active_vertices += active[vertex] != 0;
+        }
+        result.propagation_rounds = round + 1;
+        if (active_vertices == 0) {
+            result.converged = true;
+            break;
+        }
     }
     return result;
 }
@@ -625,7 +740,8 @@ cl::Buffer make_buffer(cl::Context &context,
 
 }  // namespace
 
-#ifndef GRASU_REGRAPH_FULL_PAGERANK
+#if !defined(GRASU_REGRAPH_FULL_PAGERANK) && \
+    !defined(GRASU_REGRAPH_RESIDUAL_PAGERANK)
 int main(int argc, char **argv)
 {
     try {
@@ -1150,7 +1266,8 @@ int main(int argc, char **argv)
     }
 }
 #endif
-#ifdef GRASU_REGRAPH_FULL_PAGERANK
+#if defined(GRASU_REGRAPH_FULL_PAGERANK) || \
+    defined(GRASU_REGRAPH_RESIDUAL_PAGERANK)
 int main(int argc, char **argv)
 {
     try {
@@ -1168,16 +1285,31 @@ int main(int argc, char **argv)
         const std::string xclbin_path = prepare_only ? "" : argv[arg_index++];
         const std::string graph_path = argv[arg_index++];
         const std::string result_path = argv[arg_index++];
-        constexpr unsigned rounds = 3;
         constexpr float damping = 0.85F;
         constexpr float epsilon = 1.0e-6F;
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        constexpr unsigned max_propagation_rounds = 256;
+        constexpr const char *pagerank_log_prefix = "RESIDUAL_PR_PMA_NATIVE";
+#else
+        constexpr unsigned rounds = 3;
+        constexpr const char *pagerank_log_prefix = "FULL_PR_PMA_NATIVE";
+#endif
 
         Dataset dataset = read_dataset(graph_path);
         const FinalEdgeMap final_edges = build_final_external_edges(dataset);
         const WeightedPmaGraph graph = build_weighted_pma_graph(
             dataset.node_size, dataset.static_edges, dataset.update_edges);
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        const FinalEdgeMap static_edges = build_static_external_edges(dataset);
+        const FullPageRankOracleResult warm_oracle = run_full_pagerank_oracle(
+            dataset.node_size, static_edges, 128, damping);
+        const ResidualPageRankOracleResult oracle = run_residual_pagerank_oracle(
+            dataset.node_size, final_edges, warm_oracle.rank,
+            max_propagation_rounds, damping, epsilon);
+#else
         const FullPageRankOracleResult oracle = run_full_pagerank_oracle(
             dataset.node_size, final_edges, rounds, damping);
+#endif
         PreparedGraSU prepared = prepare_grasu_inputs(graph);
 
         if (graph.physical_updates.size() > std::numeric_limits<unsigned>::max()) {
@@ -1189,25 +1321,36 @@ int main(int argc, char **argv)
             fail("PMA stream must contain complete 16-slot segments");
         }
 
-        std::cout << "FULL_PR_PMA_NATIVE_INPUT"
+        std::cout << pagerank_log_prefix << "_INPUT"
                   << " vertices=" << dataset.node_size
                   << " static_edges=" << dataset.static_edges.size()
                   << " logical_updates=" << dataset.update_edges.size()
                   << " physical_updates=" << graph.physical_updates.size()
                   << " final_edges=" << final_edges.size()
                   << " pma_slots=" << prepared.pma_slot_count
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+                  << " max_propagation_rounds=" << max_propagation_rounds
+                  << " threshold_semantics=direct_per_vertex"
+#else
                   << " rounds=" << rounds
+#endif
                   << " damping=" << damping
                   << std::endl;
 
         if (prepare_only) {
             float rank_sum = 0.0F;
             for (float value : oracle.rank) rank_sum += value;
-            std::cout << "FULL_PR_PMA_NATIVE_PREP status=PASS"
+            std::cout << pagerank_log_prefix << "_PREP status=PASS"
                       << " vertices=" << dataset.node_size
                       << " final_edges=" << final_edges.size()
                       << " physical_updates=" << graph.physical_updates.size()
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+                      << " oracle_propagation_rounds="
+                      << oracle.propagation_rounds
+                      << " oracle_converged=" << (oracle.converged ? 1 : 0)
+#else
                       << " rounds=" << rounds
+#endif
                       << " rank_sum=" << std::fixed << std::setprecision(7)
                       << rank_sum
                       << " conversion_cost=absent"
@@ -1306,8 +1449,16 @@ int main(int argc, char **argv)
         AlignedVector<uint32_t> degree_status(16, 0);
         AlignedVector<float> rank(kLittleDstBufferSize, 0.0F);
         for (std::size_t vertex = 0; vertex < dataset.node_size; ++vertex) {
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+            const std::size_t external = graph.internal_to_external.at(vertex);
+            rank[vertex] = warm_oracle.rank.at(external);
+#else
             rank[vertex] = 1.0F / static_cast<float>(dataset.node_size);
+#endif
         }
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        AlignedVector<float> residual(kLittleDstBufferSize, 0.0F);
+#endif
         AlignedVector<uint32_t> round_stats(16, 0);
         AlignedVector<float> source_a(kLittleDstBufferSize, 0.0F);
         AlignedVector<float> source_b(kLittleDstBufferSize, 0.0F);
@@ -1315,6 +1466,9 @@ int main(int argc, char **argv)
         cl_mem_ext_ptr_t degree_ext = ext_ptr(6, degree.data());
         cl_mem_ext_ptr_t degree_status_ext = ext_ptr(6, degree_status.data());
         cl_mem_ext_ptr_t rank_ext = ext_ptr(4, rank.data());
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        cl_mem_ext_ptr_t residual_ext = ext_ptr(5, residual.data());
+#endif
         cl_mem_ext_ptr_t stats_ext = ext_ptr(6, round_stats.data());
         cl_mem_ext_ptr_t source_a1_ext = ext_ptr(1, source_a.data());
         cl_mem_ext_ptr_t source_a2_ext = ext_ptr(3, source_a.data());
@@ -1330,6 +1484,11 @@ int main(int argc, char **argv)
         cl::Buffer rank_dev = make_buffer(
             context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
             rank.size() * sizeof(float), &rank_ext, "rank_state");
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        cl::Buffer residual_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            residual.size() * sizeof(float), &residual_ext, "residual_state");
+#endif
         cl::Buffer stats_dev = make_buffer(
             context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
             round_stats.size() * sizeof(uint32_t), &stats_ext, "round_stats");
@@ -1356,6 +1515,9 @@ int main(int argc, char **argv)
         initial_mems.insert(initial_mems.end(), {
             degree_dev, degree_status_dev, rank_dev, stats_dev,
             source_a1_dev, source_a2_dev, source_b1_dev, source_b2_dev});
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        initial_mems.push_back(residual_dev);
+#endif
         check_cl(transfer_queue.enqueueMigrateMemObjects(initial_mems, 0),
                  "migrate initial buffers");
         transfer_queue.finish();
@@ -1413,15 +1575,31 @@ int main(int argc, char **argv)
         const unsigned vertices = static_cast<unsigned>(dataset.node_size);
         const unsigned part_edge_num = static_cast<unsigned>(prepared.pma_slot_count);
         const float base = (1.0F - damping) / static_cast<float>(vertices);
-        check_cl(source_prepare.setArg(0, rank_dev), "set source rank");
-        check_cl(source_prepare.setArg(1, degree_dev), "set source degree");
-        check_cl(source_prepare.setArg(2, source_a1_dev), "set source prop1");
-        check_cl(source_prepare.setArg(3, source_a2_dev), "set source prop2");
-        check_cl(source_prepare.setArg(4, stats_dev), "set source stats");
-        check_cl(source_prepare.setArg(5, burst_count), "set source bursts");
-        check_cl(source_prepare.setArg(6, vertices), "set source vertices");
-        check_cl(source_prepare.setArg(7, damping), "set source damping");
-        check_cl(source_prepare.setArg(8, epsilon), "set source epsilon");
+        int source_arg = 0;
+        check_cl(source_prepare.setArg(source_arg++, rank_dev), "set source rank");
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        check_cl(source_prepare.setArg(source_arg++, residual_dev),
+                 "set source residual");
+#endif
+        check_cl(source_prepare.setArg(source_arg++, degree_dev),
+                 "set source degree");
+        check_cl(source_prepare.setArg(source_arg++, source_a1_dev),
+                 "set source prop1");
+        check_cl(source_prepare.setArg(source_arg++, source_a2_dev),
+                 "set source prop2");
+        check_cl(source_prepare.setArg(source_arg++, stats_dev), "set source stats");
+        check_cl(source_prepare.setArg(source_arg++, burst_count),
+                 "set source bursts");
+        check_cl(source_prepare.setArg(source_arg++, vertices),
+                 "set source vertices");
+        check_cl(source_prepare.setArg(source_arg++, damping),
+                 "set source damping");
+        check_cl(source_prepare.setArg(source_arg++, epsilon),
+                 "set source epsilon");
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        check_cl(source_prepare.setArg(source_arg++, true),
+                 "set source correction mode");
+#endif
 
         auto wall_begin = std::chrono::high_resolution_clock::now();
         std::vector<cl::Event> all_events;
@@ -1483,7 +1661,18 @@ int main(int argc, char **argv)
         double lksg_ms = 0.0;
         double apply_ms = 0.0;
         double hbm_ms = 0.0;
-        for (unsigned round = 0; round < rounds; ++round) {
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        const unsigned pipeline_execution_limit = max_propagation_rounds + 1;
+        bool hardware_converged = false;
+        unsigned executed_propagation_rounds = 0;
+#else
+        const unsigned pipeline_execution_limit = rounds;
+#endif
+        unsigned pipeline_executions = 0;
+        for (unsigned round = 0; round < pipeline_execution_limit; ++round) {
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+            const bool correction_mode = round == 0;
+#endif
             check_cl(hbm.setArg(0, *current_source[0]), "set hbm src1");
             check_cl(hbm.setArg(1, *current_source[1]), "set hbm src2");
             check_cl(hbm.setArg(2, *next_source[0]), "set hbm next1");
@@ -1494,17 +1683,27 @@ int main(int argc, char **argv)
             check_cl(lksg.setArg(2, 0U), "set lksg compressed groups");
             check_cl(lksg.setArg(3, 0U), "set lksg destination offset");
             check_cl(lksg.setArg(4, round == 0), "set lksg reset");
-            check_cl(apply.setArg(0, rank_dev), "set apply rank");
-            check_cl(apply.setArg(1, degree_dev), "set apply degree");
-            check_cl(apply.setArg(2, stats_dev), "set apply stats");
-            check_cl(apply.setArg(3, burst_count), "set apply bursts");
-            check_cl(apply.setArg(4, vertices), "set apply vertices");
-            check_cl(apply.setArg(5, damping), "set apply damping");
-            check_cl(apply.setArg(6, epsilon), "set apply epsilon");
-            check_cl(apply.setArg(7, base), "set apply base");
+            int apply_arg = 0;
+            check_cl(apply.setArg(apply_arg++, rank_dev), "set apply rank");
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+            check_cl(apply.setArg(apply_arg++, residual_dev),
+                     "set apply residual");
+#endif
+            check_cl(apply.setArg(apply_arg++, degree_dev), "set apply degree");
+            check_cl(apply.setArg(apply_arg++, stats_dev), "set apply stats");
+            check_cl(apply.setArg(apply_arg++, burst_count), "set apply bursts");
+            check_cl(apply.setArg(apply_arg++, vertices), "set apply vertices");
+            check_cl(apply.setArg(apply_arg++, damping), "set apply damping");
+            check_cl(apply.setArg(apply_arg++, epsilon), "set apply epsilon");
+            check_cl(apply.setArg(apply_arg++, base), "set apply base");
             check_cl(apply.setArg(
-                         8, damping * dangling / static_cast<float>(vertices)),
+                         apply_arg++,
+                         damping * dangling / static_cast<float>(vertices)),
                      "set apply dangling_share");
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+            check_cl(apply.setArg(apply_arg++, correction_mode),
+                     "set apply correction mode");
+#endif
 
             cl::Event adapter_event, lksg_event, hbm_event, apply_event;
             check_cl(pipeline_queue.enqueueTask(adapter, nullptr, &adapter_event),
@@ -1531,17 +1730,34 @@ int main(int argc, char **argv)
                 fail("PageRank apply status failed at round " +
                      std::to_string(round + 1));
             }
+            pipeline_executions = round + 1;
             dangling = word_to_float(round_stats[3]);
             std::swap(current_source, next_source);
-            std::cout << "FULL_PR_PMA_NATIVE_ROUND round=" << (round + 1)
+            std::cout << pagerank_log_prefix << "_ROUND round=" << (round + 1)
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+                      << " phase=" << (correction_mode ? "correction" : "propagation")
+#endif
                       << " l1_error=" << word_to_float(round_stats[2])
                       << " dangling=" << dangling
                       << " active_vertices=" << round_stats[1]
                       << std::endl;
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+            if (!correction_mode) {
+                executed_propagation_rounds = round;
+            }
+            if (round_stats[1] == 0) {
+                hardware_converged = true;
+                break;
+            }
+#endif
         }
 
+        std::vector<cl::Memory> final_mems{rank_dev, degree_dev};
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        final_mems.push_back(residual_dev);
+#endif
         check_cl(transfer_queue.enqueueMigrateMemObjects(
-                     {rank_dev, degree_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
+                     final_mems, CL_MIGRATE_MEM_OBJECT_HOST),
                  "read final rank and degree");
         transfer_queue.finish();
         const auto wall_end = std::chrono::high_resolution_clock::now();
@@ -1579,7 +1795,7 @@ int main(int argc, char **argv)
         }
         if (!result_out) fail("failed while writing result file");
 
-        std::cout << "FULL_PR_PMA_NATIVE_TIMING"
+        std::cout << pagerank_log_prefix << "_TIMING"
                   << " update_ms=" << event_union_ms(update_events)
                   << " source_prepare_ms=" << event_duration_ms(source_event)
                   << " adapter_ms=" << adapter_ms
@@ -1589,13 +1805,26 @@ int main(int argc, char **argv)
                   << " device_e2e_ms=" << event_union_ms(all_events)
                   << " setup_inclusive_ms=" << setup_inclusive_ms
                   << std::endl;
-        const bool pass = rank_mismatches == 0 && degree_mismatches == 0;
-        std::cout << "FULL_PR_PMA_NATIVE_RESULT"
+        bool pass = rank_mismatches == 0 && degree_mismatches == 0;
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        pass = pass && hardware_converged && oracle.converged;
+#endif
+        std::cout << pagerank_log_prefix << "_RESULT"
                   << " status=" << (pass ? "PASS" : "FAIL")
                   << " rank_mismatches=" << rank_mismatches
                   << " degree_mismatches=" << degree_mismatches
                   << " max_abs_error=" << max_abs_error
+                  << " pipeline_executions=" << pipeline_executions
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+                  << " propagation_rounds=" << executed_propagation_rounds
+                  << " hardware_converged=" << (hardware_converged ? 1 : 0)
+                  << " oracle_propagation_rounds=" << oracle.propagation_rounds
+                  << " oracle_converged=" << (oracle.converged ? 1 : 0)
+                  << " epsilon=" << epsilon
+                  << " threshold_semantics=direct_per_vertex"
+#else
                   << " rounds=" << rounds
+#endif
                   << " vertices=" << dataset.node_size
                   << " final_edges=" << final_edges.size()
                   << " logical_updates=" << dataset.update_edges.size()
