@@ -39,6 +39,16 @@ constexpr unsigned kLittleDstBufferSize = 65536;
 constexpr std::size_t kMaxCacheSegment = GRASU_MAX_CACHE_SEGMENT;
 static_assert(kMaxCacheSegment <= std::numeric_limits<unsigned>::max());
 
+#ifdef GRASU_REGRAPH_CONNECTED_COMPONENTS
+constexpr bool kConnectedComponents = true;
+constexpr const char *kAlgorithmName = "connected_components";
+constexpr const char *kLogPrefix = "CC_PMA_NATIVE";
+#else
+constexpr bool kConnectedComponents = false;
+constexpr const char *kAlgorithmName = "weighted_sssp";
+constexpr const char *kLogPrefix = "WEIGHTED_PMA_NATIVE";
+#endif
+
 using grasu::integration::WeightedEdgeRecord;
 using grasu::integration::WeightedPmaGraph;
 using grasu::integration::build_weighted_pma_graph;
@@ -115,7 +125,7 @@ struct Timing {
     double wall_ms = 0.0;
 };
 
-struct SsspOracleResult {
+struct AlgorithmOracleResult {
     std::vector<uint32_t> prop;
     unsigned executed_supersteps = 0;
     bool converged = false;
@@ -269,15 +279,15 @@ bool is_active(uint32_t prop)
     return (prop & kActiveMask) != 0;
 }
 
-SsspOracleResult run_weighted_sssp_oracle(std::size_t vertices,
-                                          const FinalEdgeMap &edges,
-                                          unsigned source,
-                                          unsigned max_supersteps)
+AlgorithmOracleResult run_weighted_sssp_oracle(std::size_t vertices,
+                                               const FinalEdgeMap &edges,
+                                               unsigned source,
+                                               unsigned max_supersteps)
 {
     std::vector<uint32_t> prop(vertices, kSsspInf);
     prop[source] = kActiveMask;
 
-    SsspOracleResult result;
+    AlgorithmOracleResult result;
     for (unsigned step = 0; step < max_supersteps; ++step) {
         std::vector<uint32_t> tmp(vertices, 0);
         for (const auto &[key, weight] : edges) {
@@ -319,6 +329,81 @@ SsspOracleResult run_weighted_sssp_oracle(std::size_t vertices,
 
     result.prop = std::move(prop);
     return result;
+}
+
+void require_reciprocal_cc_edges(const FinalEdgeMap &edges)
+{
+    for (const auto &[key, weight] : edges) {
+        (void)weight;
+        if (key.first == key.second) continue;
+        if (edges.find({key.second, key.first}) == edges.end()) {
+            fail("connected_components requires reciprocal directed edges");
+        }
+    }
+}
+
+AlgorithmOracleResult run_connected_components_oracle(
+    std::size_t vertices,
+    const FinalEdgeMap &external_edges,
+    const WeightedPmaGraph &graph,
+    unsigned max_supersteps)
+{
+    require_reciprocal_cc_edges(external_edges);
+
+    std::vector<uint32_t> prop(vertices, 0);
+    for (std::size_t internal = 0; internal < vertices; ++internal) {
+        prop[internal] = static_cast<uint32_t>(internal) | kActiveMask;
+    }
+
+    AlgorithmOracleResult result;
+    for (unsigned step = 0; step < max_supersteps; ++step) {
+        std::vector<uint32_t> tmp(vertices, 0);
+        for (const auto &[key, weight] : external_edges) {
+            (void)weight;
+            const unsigned src = graph.external_to_internal.at(key.first);
+            const unsigned dst = graph.external_to_internal.at(key.second);
+            if (!is_active(prop[src])) continue;
+
+            const uint32_t candidate = sssp_value(prop[src]) | kActiveMask;
+            if (!is_active(tmp[dst]) ||
+                sssp_value(candidate) < sssp_value(tmp[dst])) {
+                tmp[dst] = candidate;
+            }
+        }
+
+        std::vector<uint32_t> next(vertices, 0);
+        for (std::size_t vertex = 0; vertex < vertices; ++vertex) {
+            const uint32_t old_label = sssp_value(prop[vertex]);
+            if (is_active(tmp[vertex]) &&
+                sssp_value(tmp[vertex]) < old_label) {
+                next[vertex] = tmp[vertex];
+            } else {
+                next[vertex] = old_label;
+            }
+        }
+        prop.swap(next);
+        result.executed_supersteps = step + 1;
+
+        const bool has_active = std::any_of(
+            prop.begin(), prop.end(), [](uint32_t value) { return is_active(value); });
+        if (!has_active) {
+            result.converged = true;
+            break;
+        }
+    }
+
+    result.prop = std::move(prop);
+    return result;
+}
+
+std::size_t count_components(const AlgorithmOracleResult &oracle)
+{
+    std::vector<uint32_t> labels;
+    labels.reserve(oracle.prop.size());
+    for (uint32_t value : oracle.prop) labels.push_back(sssp_value(value));
+    std::sort(labels.begin(), labels.end());
+    return static_cast<std::size_t>(
+        std::unique(labels.begin(), labels.end()) - labels.begin());
 }
 
 PreparedGraSU prepare_grasu_inputs(const WeightedPmaGraph &graph)
@@ -473,12 +558,13 @@ void usage(const char *argv0)
         << "       " << argv0
         << " --prepare-only <graph_file> <result_file> [source_external] [max_supersteps]\n"
         << "\n"
-        << "Runs weighted GraSU PMA -> AXIS adapter -> ReGraph SSSP.\n"
+        << "Runs weighted GraSU PMA -> AXIS adapter -> ReGraph "
+        << kAlgorithmName << ".\n"
         << "Input: header 'V initial_edges updates'; initial rows 'src dst weight';\n"
         << "update rows 'src dst weight type', where type=0 deletes and type=1 inserts\n"
-        << "or changes weight. Hardware mode writes 'external_vertex distance'.\n"
+        << "or changes weight. Hardware mode writes 'external_vertex value'.\n"
         << "--prepare-only validates input, weighted PMA packing/lowering, and an\n"
-        << "independent external-ID synchronous SSSP oracle without loading xclbin.\n";
+        << "independent synchronous algorithm oracle without loading xclbin.\n";
 }
 
 }  // namespace
@@ -516,8 +602,11 @@ int main(int argc, char **argv)
         const WeightedPmaGraph graph = build_weighted_pma_graph(
             dataset.node_size, dataset.static_edges, dataset.update_edges);
         const unsigned source_internal = graph.external_to_internal[source_external];
-        const SsspOracleResult oracle = run_weighted_sssp_oracle(
-            dataset.node_size, final_edges, source_external, max_supersteps);
+        const AlgorithmOracleResult oracle = kConnectedComponents
+            ? run_connected_components_oracle(
+                  dataset.node_size, final_edges, graph, max_supersteps)
+            : run_weighted_sssp_oracle(
+                  dataset.node_size, final_edges, source_external, max_supersteps);
 
         PreparedGraSU prepared = prepare_grasu_inputs(graph);
         if (graph.physical_updates.size() >
@@ -531,7 +620,7 @@ int main(int argc, char **argv)
             prepared.pma_slot_count % kWeightedPmaSegmentSlots != 0) {
             fail("PMA stream must contain complete non-empty 16-slot segments");
         }
-        std::cout << "WEIGHTED_PMA_NATIVE_INPUT"
+        std::cout << kLogPrefix << "_INPUT"
                   << " vertices=" << dataset.node_size
                   << " static_edges=" << dataset.static_edges.size()
                   << " logical_updates=" << dataset.update_edges.size()
@@ -555,7 +644,7 @@ int main(int argc, char **argv)
                     max_distance = std::max(max_distance, distance);
                 }
             }
-            std::cout << "WEIGHTED_PMA_NATIVE_PREP"
+            std::cout << kLogPrefix << "_PREP"
                       << " status=" << (oracle.converged ? "PASS" : "FAIL")
                       << " vertices=" << dataset.node_size
                       << " static_edges=" << dataset.static_edges.size()
@@ -571,8 +660,11 @@ int main(int argc, char **argv)
                       << " oracle_supersteps=" << oracle.executed_supersteps
                       << " oracle_converged=" << (oracle.converged ? 1 : 0)
                       << " reachable_vertices=" << reachable_vertices
-                      << " max_distance=" << max_distance
-                      << " partition_size=" << kPartitionSize
+                      << " max_distance=" << max_distance;
+            if (kConnectedComponents) {
+                std::cout << " components=" << count_components(oracle);
+            }
+            std::cout << " partition_size=" << kPartitionSize
                       << " little_dst_buffer=" << kLittleDstBufferSize
                       << " weighted_pma=1"
                       << " conversion_cost=absent"
@@ -673,11 +765,16 @@ int main(int argc, char **argv)
         AlignedVector<uint32_t> apply_prop(kLittleDstBufferSize, 0);
         AlignedVector<uint32_t> active_count(1, 0);
         for (std::size_t i = 0; i < dataset.node_size; ++i) {
-            prop_a[i] = kSsspInf;
-            apply_prop[i] = kSsspInf;
+            const uint32_t initial_value = kConnectedComponents
+                ? static_cast<uint32_t>(i) | kActiveMask
+                : kSsspInf;
+            prop_a[i] = initial_value;
+            apply_prop[i] = initial_value;
         }
-        prop_a[source_internal] = kActiveMask;
-        apply_prop[source_internal] = kActiveMask;
+        if (!kConnectedComponents) {
+            prop_a[source_internal] = kActiveMask;
+            apply_prop[source_internal] = kActiveMask;
+        }
 
         cl_mem_ext_ptr_t prop_a0_ext = ext_ptr(1, prop_a.data());
         cl_mem_ext_ptr_t prop_a1_ext = ext_ptr(3, prop_a.data());
@@ -782,7 +879,7 @@ int main(int argc, char **argv)
 
         cl::Event pc1_event, pc2_event, pd1_event, pd2_event, dispatch_event;
         cl::Event bs1_event, bs2_event, bs3_event, bs4_event;
-        std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=launch_grasu" << std::endl;
+        std::cout << kLogPrefix << "_HOST stage=launch_grasu" << std::endl;
         check_cl(grasu_queue.enqueueTask(process_cache_1, nullptr, &pc1_event),
                  "enqueue process_cache_1");
         check_cl(grasu_queue.enqueueTask(process_cache_2, nullptr, &pc2_event),
@@ -807,10 +904,10 @@ int main(int argc, char **argv)
         all_events.insert(all_events.end(), grasu_events.begin(), grasu_events.end());
 
         cl::Event barrier_event;
-        std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueue_barrier" << std::endl;
+        std::cout << kLogPrefix << "_HOST stage=enqueue_barrier" << std::endl;
         check_cl(pipeline_queue.enqueueTask(barrier, nullptr, &barrier_event),
                  "enqueue pma_completion_barrier");
-        std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueued_barrier" << std::endl;
+        std::cout << kLogPrefix << "_HOST stage=enqueued_barrier" << std::endl;
         all_events.push_back(barrier_event);
 
         for (unsigned step = 0; step < max_supersteps; ++step) {
@@ -835,9 +932,9 @@ int main(int argc, char **argv)
             check_cl(lksg.setArg(4, reset_tmp_prop), "set lksg reset_tmp_prop");
 
             cl::Event hbm_event, apply_event, lksg_event, adapter_event;
-            std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=launch_step step=" << (step + 1)
+            std::cout << kLogPrefix << "_HOST stage=launch_step step=" << (step + 1)
                       << std::endl;
-            std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueue_adapter step=" << (step + 1)
+            std::cout << kLogPrefix << "_HOST stage=enqueue_adapter step=" << (step + 1)
                       << std::endl;
             std::vector<cl::Event> adapter_wait_events;
             const std::vector<cl::Event> *adapter_wait_list = nullptr;
@@ -847,27 +944,27 @@ int main(int argc, char **argv)
             }
             check_cl(pipeline_queue.enqueueTask(adapter, adapter_wait_list, &adapter_event),
                      "enqueue adapter");
-            std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueued_adapter step=" << (step + 1)
+            std::cout << kLogPrefix << "_HOST stage=enqueued_adapter step=" << (step + 1)
                       << std::endl;
-            std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueue_lksg step=" << (step + 1)
+            std::cout << kLogPrefix << "_HOST stage=enqueue_lksg step=" << (step + 1)
                       << std::endl;
             check_cl(pipeline_queue.enqueueTask(lksg, nullptr, &lksg_event), "enqueue lksg");
-            std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueued_lksg step=" << (step + 1)
+            std::cout << kLogPrefix << "_HOST stage=enqueued_lksg step=" << (step + 1)
                       << std::endl;
-            std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueue_hbm step=" << (step + 1)
+            std::cout << kLogPrefix << "_HOST stage=enqueue_hbm step=" << (step + 1)
                       << std::endl;
             check_cl(pipeline_queue.enqueueTask(hbm, nullptr, &hbm_event), "enqueue hbm");
-            std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueued_hbm step=" << (step + 1)
+            std::cout << kLogPrefix << "_HOST stage=enqueued_hbm step=" << (step + 1)
                       << std::endl;
-            std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueue_apply step=" << (step + 1)
+            std::cout << kLogPrefix << "_HOST stage=enqueue_apply step=" << (step + 1)
                       << std::endl;
             check_cl(pipeline_queue.enqueueTask(apply, nullptr, &apply_event),
                      "enqueue apply");
-            std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueued_apply step=" << (step + 1)
+            std::cout << kLogPrefix << "_HOST stage=enqueued_apply step=" << (step + 1)
                       << std::endl;
 
             std::vector<cl::Event> step_events{hbm_event, apply_event, lksg_event, adapter_event};
-            std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=wait_step step=" << (step + 1)
+            std::cout << kLogPrefix << "_HOST stage=wait_step step=" << (step + 1)
                       << std::endl;
             pipeline_queue.finish();
 
@@ -890,7 +987,7 @@ int main(int argc, char **argv)
 
             std::swap(read_props, write_props);
             std::swap(read_host, write_host);
-            std::cout << "WEIGHTED_PMA_NATIVE_SUPERSTEP step=" << (step + 1)
+            std::cout << kLogPrefix << "_SUPERSTEP step=" << (step + 1)
                       << " adapter_ms=" << std::fixed << std::setprecision(6)
                       << event_duration_ms(adapter_event)
                       << " lksg_ms=" << event_duration_ms(lksg_event)
@@ -944,13 +1041,17 @@ int main(int argc, char **argv)
         }
         for (std::size_t external = 0; external < dataset.node_size; ++external) {
             const std::size_t internal = graph.external_to_internal.at(external);
-            result_out << external << ' ' << sssp_value((*read_host)[internal]) << '\n';
+            uint32_t value = sssp_value((*read_host)[internal]);
+            if (kConnectedComponents) {
+                value = static_cast<uint32_t>(graph.internal_to_external.at(value));
+            }
+            result_out << external << ' ' << value << '\n';
         }
         if (!result_out) {
             fail("failed while writing result file: " + result_path);
         }
 
-        std::cout << "WEIGHTED_PMA_NATIVE_TIMING"
+        std::cout << kLogPrefix << "_TIMING"
                   << " grasu_ms=" << std::fixed << std::setprecision(6) << timing.grasu_ms
                   << " barrier_ms=" << timing.barrier_ms
                   << " adapter_ms=" << timing.adapter_ms
@@ -964,7 +1065,7 @@ int main(int argc, char **argv)
                   << std::endl;
 
         const bool pass = mismatch_count == 0 && hardware_converged && oracle.converged;
-        std::cout << "WEIGHTED_PMA_NATIVE_RESULT"
+        std::cout << kLogPrefix << "_RESULT"
                   << " status=" << (pass ? "PASS" : "FAIL")
                   << " mismatches=" << mismatch_count
                   << " vertices=" << dataset.node_size
@@ -980,6 +1081,7 @@ int main(int argc, char **argv)
                   << " oracle_supersteps=" << oracle.executed_supersteps
                   << " oracle_converged=" << (oracle.converged ? 1 : 0)
                   << " final_active_vertices=" << active_count[0]
+                  << " algorithm=" << kAlgorithmName
                   << " conversion_cost=absent"
                   << std::endl;
 
