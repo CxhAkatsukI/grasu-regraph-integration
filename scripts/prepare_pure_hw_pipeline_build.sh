@@ -410,6 +410,7 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
     echo
     echo "# ReGraph SSSP connectivity with compact edge-array little-only GS"
     write_regraph_little_only_connectivity "${REGRAPH_CONNECTIVITY_CFG}"
+    echo "sp=kernelApply_1.active_count:HBM[30]"
   else
     echo "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32"
     echo
@@ -424,6 +425,7 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
     echo
     echo "# ReGraph weighted SSSP connectivity with stream-input little-only GS"
     write_regraph_stream_little_only_connectivity "${REGRAPH_CONNECTIVITY_CFG}"
+    echo "sp=kernelApply_1.active_count:HBM[30]"
   fi
 } > "${LINK_CFG}"
 
@@ -487,7 +489,7 @@ fi
     "${REGRAPH_ROOT}/acc_template/kernel_apply" \
     "${CFG_DIR}/kernelApply_compile.cfg" \
     "${BUILD_DIR}/kernelApply.${TARGET}.${PLATFORM}.xo" \
-    "${REGRAPH_ROOT}/acc_template/kernel_apply/kernel_apply.cpp"
+    "${GRI_ROOT}/kernels/regraph_sssp_apply_status/kernel_apply.cpp"
   emit_regraph_compile_command \
     "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper" \
     "${CFG_DIR}/kernelHBMWrapper_compile.cfg" \
@@ -626,7 +628,7 @@ chmod +x "${LINK_COMMAND}"
     "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_dispatch.cpp" \
     "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_process_cache.cpp" \
     "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_process_ddr.cpp" \
-    "${REGRAPH_ROOT}/acc_template/kernel_apply/kernel_apply.cpp" \
+    "${GRI_ROOT}/kernels/regraph_sssp_apply_status/kernel_apply.cpp" \
     "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper/kernel_hbm_wrapper.cpp" \
     "${REGRAPH_ROOT}/acc_template/kernel_little_gs_merger/kernel_little_gs_merger.cpp" \
     "${GRI_ROOT}/kernels/pma_completion_barrier/pma_completion_barrier.cpp"; do

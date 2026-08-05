@@ -110,7 +110,15 @@ struct Timing {
     double apply_ms = 0.0;
     double hbm_ms = 0.0;
     double event_e2e_ms = 0.0;
+    double convergence_readback_ms = 0.0;
+    double setup_inclusive_ms = 0.0;
     double wall_ms = 0.0;
+};
+
+struct SsspOracleResult {
+    std::vector<uint32_t> prop;
+    unsigned executed_supersteps = 0;
+    bool converged = false;
 };
 
 [[noreturn]] void fail(const std::string &message)
@@ -261,15 +269,16 @@ bool is_active(uint32_t prop)
     return (prop & kActiveMask) != 0;
 }
 
-std::vector<uint32_t> run_weighted_sssp_oracle(std::size_t vertices,
-                                               const FinalEdgeMap &edges,
-                                               unsigned source,
-                                               unsigned supersteps)
+SsspOracleResult run_weighted_sssp_oracle(std::size_t vertices,
+                                          const FinalEdgeMap &edges,
+                                          unsigned source,
+                                          unsigned max_supersteps)
 {
     std::vector<uint32_t> prop(vertices, kSsspInf);
     prop[source] = kActiveMask;
 
-    for (unsigned step = 0; step < supersteps; ++step) {
+    SsspOracleResult result;
+    for (unsigned step = 0; step < max_supersteps; ++step) {
         std::vector<uint32_t> tmp(vertices, 0);
         for (const auto &[key, weight] : edges) {
             const unsigned src = key.first;
@@ -298,9 +307,18 @@ std::vector<uint32_t> run_weighted_sssp_oracle(std::size_t vertices,
             }
         }
         prop.swap(next);
+        result.executed_supersteps = step + 1;
+
+        const bool has_active = std::any_of(
+            prop.begin(), prop.end(), [](uint32_t value) { return is_active(value); });
+        if (!has_active) {
+            result.converged = true;
+            break;
+        }
     }
 
-    return prop;
+    result.prop = std::move(prop);
+    return result;
 }
 
 PreparedGraSU prepare_grasu_inputs(const WeightedPmaGraph &graph)
@@ -451,9 +469,9 @@ void usage(const char *argv0)
 {
     std::cerr
         << "Usage: " << argv0
-        << " <xclbin> <graph_file> <result_file> [source_external] [supersteps]\n"
+        << " <xclbin> <graph_file> <result_file> [source_external] [max_supersteps]\n"
         << "       " << argv0
-        << " --prepare-only <graph_file> <result_file> [source_external] [supersteps]\n"
+        << " --prepare-only <graph_file> <result_file> [source_external] [max_supersteps]\n"
         << "\n"
         << "Runs weighted GraSU PMA -> AXIS adapter -> ReGraph SSSP.\n"
         << "Input: header 'V initial_edges updates'; initial rows 'src dst weight';\n"
@@ -483,11 +501,11 @@ int main(int argc, char **argv)
             argc > arg_index
                 ? parse_unsigned_arg(argv[arg_index], "source_external")
                 : 0;
-        const unsigned supersteps =
+        const unsigned max_supersteps =
             argc > arg_index + 1
-                ? parse_unsigned_arg(argv[arg_index + 1], "supersteps")
-                : 1;
-        if (supersteps == 0) fail("supersteps must be >= 1");
+                ? parse_unsigned_arg(argv[arg_index + 1], "max_supersteps")
+                : 256;
+        if (max_supersteps == 0) fail("max_supersteps must be >= 1");
 
         Dataset dataset = read_dataset(graph_path);
         if (source_external >= dataset.node_size) {
@@ -498,9 +516,8 @@ int main(int argc, char **argv)
         const WeightedPmaGraph graph = build_weighted_pma_graph(
             dataset.node_size, dataset.static_edges, dataset.update_edges);
         const unsigned source_internal = graph.external_to_internal[source_external];
-        const std::vector<uint32_t> oracle =
-            run_weighted_sssp_oracle(
-                dataset.node_size, final_edges, source_external, supersteps);
+        const SsspOracleResult oracle = run_weighted_sssp_oracle(
+            dataset.node_size, final_edges, source_external, max_supersteps);
 
         PreparedGraSU prepared = prepare_grasu_inputs(graph);
         if (graph.physical_updates.size() >
@@ -523,13 +540,15 @@ int main(int argc, char **argv)
                   << " pma_slots=" << prepared.pma_slot_count
                   << " source_external=" << source_external
                   << " source_internal=" << source_internal
-                  << " supersteps=" << supersteps
+                  << " max_supersteps=" << max_supersteps
+                  << " oracle_supersteps=" << oracle.executed_supersteps
+                  << " oracle_converged=" << (oracle.converged ? 1 : 0)
                   << std::endl;
 
         if (prepare_only) {
             std::size_t reachable_vertices = 0;
             uint32_t max_distance = 0;
-            for (uint32_t value : oracle) {
+            for (uint32_t value : oracle.prop) {
                 const uint32_t distance = sssp_value(value);
                 if (distance < kSsspInf) {
                     reachable_vertices++;
@@ -537,7 +556,7 @@ int main(int argc, char **argv)
                 }
             }
             std::cout << "WEIGHTED_PMA_NATIVE_PREP"
-                      << " status=PASS"
+                      << " status=" << (oracle.converged ? "PASS" : "FAIL")
                       << " vertices=" << dataset.node_size
                       << " static_edges=" << dataset.static_edges.size()
                       << " logical_updates=" << dataset.update_edges.size()
@@ -548,7 +567,9 @@ int main(int argc, char **argv)
                       << " binary_segments=" << prepared.binary[0].size()
                       << " source_external=" << source_external
                       << " source_internal=" << source_internal
-                      << " supersteps=" << supersteps
+                      << " max_supersteps=" << max_supersteps
+                      << " oracle_supersteps=" << oracle.executed_supersteps
+                      << " oracle_converged=" << (oracle.converged ? 1 : 0)
                       << " reachable_vertices=" << reachable_vertices
                       << " max_distance=" << max_distance
                       << " partition_size=" << kPartitionSize
@@ -557,7 +578,7 @@ int main(int argc, char **argv)
                       << " conversion_cost=absent"
                       << " weight_change_lowering=delete_then_insert"
                       << std::endl;
-            return EXIT_SUCCESS;
+            return oracle.converged ? EXIT_SUCCESS : EXIT_FAILURE;
         }
 
         cl::Device device = select_xilinx_device();
@@ -650,6 +671,7 @@ int main(int argc, char **argv)
         AlignedVector<uint32_t> prop_a(kLittleDstBufferSize, 0);
         AlignedVector<uint32_t> prop_b(kLittleDstBufferSize, 0);
         AlignedVector<uint32_t> apply_prop(kLittleDstBufferSize, 0);
+        AlignedVector<uint32_t> active_count(1, 0);
         for (std::size_t i = 0; i < dataset.node_size; ++i) {
             prop_a[i] = kSsspInf;
             apply_prop[i] = kSsspInf;
@@ -662,6 +684,7 @@ int main(int argc, char **argv)
         cl_mem_ext_ptr_t prop_b0_ext = ext_ptr(1, prop_b.data());
         cl_mem_ext_ptr_t prop_b1_ext = ext_ptr(3, prop_b.data());
         cl_mem_ext_ptr_t apply_prop_ext = ext_ptr(30, apply_prop.data());
+        cl_mem_ext_ptr_t active_count_ext = ext_ptr(30, active_count.data());
 
         cl::Buffer prop_a0_dev = make_buffer(
             context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
@@ -678,6 +701,9 @@ int main(int argc, char **argv)
         cl::Buffer apply_prop_dev = make_buffer(
             context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
             apply_prop.size() * sizeof(uint32_t), &apply_prop_ext, "apply_prop");
+        cl::Buffer active_count_dev = make_buffer(
+            context, CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+            active_count.size() * sizeof(uint32_t), &active_count_ext, "active_count");
 
         std::vector<cl::Memory> initial_mems;
         for (int i = 0; i < 4; ++i) {
@@ -691,6 +717,7 @@ int main(int argc, char **argv)
         initial_mems.push_back(prop_b0_dev);
         initial_mems.push_back(prop_b1_dev);
         initial_mems.push_back(apply_prop_dev);
+        initial_mems.push_back(active_count_dev);
         check_cl(transfer_queue.enqueueMigrateMemObjects(initial_mems, 0),
                  "migrate initial buffers");
         transfer_queue.finish();
@@ -750,6 +777,8 @@ int main(int argc, char **argv)
         auto wall_begin = std::chrono::high_resolution_clock::now();
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> grasu_events;
+        unsigned executed_supersteps = 0;
+        bool hardware_converged = false;
 
         cl::Event pc1_event, pc2_event, pd1_event, pd2_event, dispatch_event;
         cl::Event bs1_event, bs2_event, bs3_event, bs4_event;
@@ -784,7 +813,7 @@ int main(int argc, char **argv)
         std::cout << "WEIGHTED_PMA_NATIVE_HOST stage=enqueued_barrier" << std::endl;
         all_events.push_back(barrier_event);
 
-        for (unsigned step = 0; step < supersteps; ++step) {
+        for (unsigned step = 0; step < max_supersteps; ++step) {
             check_cl(hbm.setArg(0, *read_props[0]), "set hbm src_prop_1");
             check_cl(hbm.setArg(1, *read_props[1]), "set hbm src_prop_2");
             check_cl(hbm.setArg(2, *write_props[0]), "set hbm new_prop_1");
@@ -793,9 +822,10 @@ int main(int argc, char **argv)
             check_cl(hbm.setArg(5, num_sparse), "set hbm num_sparse");
 
             check_cl(apply.setArg(0, apply_prop_dev), "set apply vertex_prop");
-            check_cl(apply.setArg(1, num_dense), "set apply num_dense");
-            check_cl(apply.setArg(2, num_sparse), "set apply num_sparse");
-            check_cl(apply.setArg(3, reg), "set apply reg");
+            check_cl(apply.setArg(1, active_count_dev), "set apply active_count");
+            check_cl(apply.setArg(2, num_dense), "set apply num_dense");
+            check_cl(apply.setArg(3, num_sparse), "set apply num_sparse");
+            check_cl(apply.setArg(4, reg), "set apply reg");
 
             check_cl(lksg.setArg(1, part_edge_num), "set lksg part_edge_num");
             check_cl(lksg.setArg(2, compressed_group_count),
@@ -847,6 +877,17 @@ int main(int argc, char **argv)
             timing.adapter_ms += event_duration_ms(adapter_event);
             all_events.insert(all_events.end(), step_events.begin(), step_events.end());
 
+            const auto readback_begin = std::chrono::high_resolution_clock::now();
+            check_cl(transfer_queue.enqueueMigrateMemObjects(
+                         {active_count_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
+                     "migrate active count");
+            transfer_queue.finish();
+            const auto readback_end = std::chrono::high_resolution_clock::now();
+            timing.convergence_readback_ms +=
+                std::chrono::duration<double, std::milli>(
+                    readback_end - readback_begin).count();
+            executed_supersteps = step + 1;
+
             std::swap(read_props, write_props);
             std::swap(read_host, write_host);
             std::cout << "WEIGHTED_PMA_NATIVE_SUPERSTEP step=" << (step + 1)
@@ -855,7 +896,12 @@ int main(int argc, char **argv)
                       << " lksg_ms=" << event_duration_ms(lksg_event)
                       << " apply_ms=" << event_duration_ms(apply_event)
                       << " hbm_ms=" << event_duration_ms(hbm_event)
+                      << " active_vertices=" << active_count[0]
                       << std::endl;
+            if (active_count[0] == 0) {
+                hardware_converged = true;
+                break;
+            }
         }
 
         for (cl::Event &event : grasu_events) {
@@ -863,22 +909,23 @@ int main(int argc, char **argv)
         }
         grasu_queue.finish();
         pipeline_queue.finish();
-        auto wall_end = std::chrono::high_resolution_clock::now();
-
         timing.grasu_ms = event_union_ms(grasu_events);
         timing.barrier_ms = event_duration_ms(barrier_event);
         timing.event_e2e_ms = event_union_ms(all_events);
-        timing.wall_ms = std::chrono::duration<double, std::milli>(wall_end - wall_begin).count();
 
         check_cl(transfer_queue.enqueueMigrateMemObjects({*read_props[0]},
                                                          CL_MIGRATE_MEM_OBJECT_HOST),
                  "migrate final result");
         transfer_queue.finish();
+        auto wall_end = std::chrono::high_resolution_clock::now();
+        timing.setup_inclusive_ms =
+            std::chrono::duration<double, std::milli>(wall_end - wall_begin).count();
+        timing.wall_ms = timing.setup_inclusive_ms;
 
         std::size_t mismatch_count = 0;
         for (std::size_t internal = 0; internal < dataset.node_size; ++internal) {
             const std::size_t external = graph.internal_to_external.at(internal);
-            const uint32_t expected = oracle.at(external);
+            const uint32_t expected = oracle.prop.at(external);
             if ((*read_host)[internal] != expected) {
                 if (mismatch_count < 20) {
                     std::cerr << "mismatch external_vertex=" << external
@@ -911,10 +958,12 @@ int main(int argc, char **argv)
                   << " apply_ms=" << timing.apply_ms
                   << " hbm_ms=" << timing.hbm_ms
                   << " event_e2e_ms=" << timing.event_e2e_ms
+                  << " convergence_readback_ms=" << timing.convergence_readback_ms
+                  << " setup_inclusive_ms=" << timing.setup_inclusive_ms
                   << " wall_ms=" << timing.wall_ms
                   << std::endl;
 
-        const bool pass = mismatch_count == 0;
+        const bool pass = mismatch_count == 0 && hardware_converged && oracle.converged;
         std::cout << "WEIGHTED_PMA_NATIVE_RESULT"
                   << " status=" << (pass ? "PASS" : "FAIL")
                   << " mismatches=" << mismatch_count
@@ -925,7 +974,12 @@ int main(int argc, char **argv)
                   << " processed_edge_slots_per_superstep=" << part_edge_num
                   << " source_external=" << source_external
                   << " source_internal=" << source_internal
-                  << " supersteps=" << supersteps
+                  << " max_supersteps=" << max_supersteps
+                  << " executed_supersteps=" << executed_supersteps
+                  << " hardware_converged=" << (hardware_converged ? 1 : 0)
+                  << " oracle_supersteps=" << oracle.executed_supersteps
+                  << " oracle_converged=" << (oracle.converged ? 1 : 0)
+                  << " final_active_vertices=" << active_count[0]
                   << " conversion_cost=absent"
                   << std::endl;
 

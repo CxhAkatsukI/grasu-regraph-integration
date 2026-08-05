@@ -13,9 +13,18 @@ HOST="${OUT_DIR}/weighted_pma_native_host"
 TINY_OUTPUT="${OUT_DIR}/tiny.out"
 "${HOST}" --prepare-only \
   "${GRI_ROOT}/workloads/weighted_pma_native_tiny/weighted_pma_native_tiny.graph" \
-  "${OUT_DIR}/tiny.result" 0 4 | tee "${TINY_OUTPUT}"
+  "${OUT_DIR}/tiny.result" 0 8 | tee "${TINY_OUTPUT}"
 rg -q 'WEIGHTED_PMA_NATIVE_PREP status=PASS .*logical_updates=5 physical_updates=8 final_edges=5 .*reachable_vertices=5 max_distance=14 .*conversion_cost=absent' \
   "${TINY_OUTPUT}"
+
+if "${HOST}" --prepare-only \
+     "${GRI_ROOT}/workloads/weighted_pma_native_tiny/weighted_pma_native_tiny.graph" \
+     "${OUT_DIR}/nonconverged.result" 0 1 >"${OUT_DIR}/nonconverged.out" 2>&1; then
+  echo "Expected insufficient max_supersteps to fail convergence" >&2
+  exit 1
+fi
+rg -q 'WEIGHTED_PMA_NATIVE_PREP status=FAIL .*oracle_converged=0' \
+  "${OUT_DIR}/nonconverged.out"
 
 printf '8 0 0\n' >"${OUT_DIR}/empty.graph"
 EMPTY_OUTPUT="${OUT_DIR}/empty.out"
@@ -68,7 +77,7 @@ NORMAL_LOGICAL_UPDATES=5
 NORMAL_PHYSICAL_UPDATES=8
 NORMAL_MAX_DISTANCE=14
 EMPTY_PROTOCOL_SLOTS=16
-ERROR_PATHS=bad_delete,zero_weight,duplicate_insert,overflowing_cli_arg
+ERROR_PATHS=nonconverged,bad_delete,zero_weight,duplicate_insert,overflowing_cli_arg
 MANIFEST
 
 printf 'Weighted PMA native host checks passed:\n  %s\n' "${OUT_DIR}"

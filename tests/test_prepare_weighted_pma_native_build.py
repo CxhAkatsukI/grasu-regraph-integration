@@ -135,6 +135,7 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert "nk=pma_to_regraph_adapter:1:pma_to_regraph_adapter_1" in weighted_cfg
     assert "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32" in weighted_cfg
     assert "nk=lksg_stream:1:lksg_stream_1" in weighted_cfg
+    assert "sp=kernelApply_1.active_count:HBM[30]" in weighted_cfg
     assert "pma_to_regraph_edge_array" not in weighted_cfg
     assert "part_edge_array" not in weighted_cfg
     assert "bigKernelScatterGather" not in weighted_cfg
@@ -142,6 +143,7 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert "-DGRASU_REGRAPH_WEIGHTED_PMA=1" in weighted_compile
     assert "kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp" in weighted_compile
     assert "kernels/regraph_stream_little_gs/little_gs_stream.cpp" in weighted_compile
+    assert "kernels/regraph_sssp_apply_status/kernel_apply.cpp" in weighted_compile
     lksg_command = next(
         line for line in weighted_compile.splitlines()
         if "lksg_stream.sw_emu.xo" in line
