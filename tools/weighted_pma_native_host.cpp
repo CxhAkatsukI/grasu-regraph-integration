@@ -1022,7 +1022,8 @@ int main(int argc, char **argv)
         std::size_t mismatch_count = 0;
         for (std::size_t internal = 0; internal < dataset.node_size; ++internal) {
             const std::size_t external = graph.internal_to_external.at(internal);
-            const uint32_t expected = oracle.prop.at(external);
+            const uint32_t expected = oracle.prop.at(
+                kConnectedComponents ? internal : external);
             if ((*read_host)[internal] != expected) {
                 if (mismatch_count < 20) {
                     std::cerr << "mismatch external_vertex=" << external
