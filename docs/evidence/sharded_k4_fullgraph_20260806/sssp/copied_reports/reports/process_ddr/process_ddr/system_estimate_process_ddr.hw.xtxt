@@ -1,0 +1,48 @@
+===============================================================================
+Version:    v++ v2024.1 (64-bit)
+Build:      SW Build 5074859 on 2024-05-20-23:21:20
+Copyright:  Copyright 1986-2024 Xilinx, Inc. All Rights Reserved.
+Created:    Thu Aug  6 18:50:57 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             process_ddr.hw
+Target Device:           xilinx:u55c:gen3x16_xdma_3:202210.1
+Target Clock:            150MHz
+Total number of kernels: 1
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name  Type  Target              OpenCL Library  Compute Units
+-----------  ----  ------------------  --------------  -------------
+process_ddr  c     fpga0:OCL_REGION_0  process_ddr.hw  1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     process_ddr.hw
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit   Kernel Name  Module Name                            Target Frequency  Estimated Frequency
+-------------  -----------  -------------------------------------  ----------------  -------------------
+process_ddr_1  process_ddr  process_ddr_Pipeline_dispatch_loop     149.925034        711.743774
+process_ddr_1  process_ddr  process_Pipeline_process_ddr_sub_loop  149.925034        205.465378
+process_ddr_1  process_ddr  process_r                              149.925034        205.465378
+process_ddr_1  process_ddr  process_ddr                            149.925034        205.465378
+
+Latency Information
+Compute Unit   Kernel Name  Module Name                            Start Interval  Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+-------------  -----------  -------------------------------------  --------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+process_ddr_1  process_ddr  process_ddr_Pipeline_dispatch_loop     0               undef          undef         undef           undef            undef           undef
+process_ddr_1  process_ddr  process_Pipeline_process_ddr_sub_loop  17              160            160           160             1.067 us         1.067 us        1.067 us
+process_ddr_1  process_ddr  process_r                              undef           undef          undef         undef           undef            undef           undef
+process_ddr_1  process_ddr  process_ddr                            undef           undef          undef         undef           undef            undef           undef
+
+Area Information
+Compute Unit   Kernel Name  Module Name                            FF     LUT    DSP  BRAM  URAM
+-------------  -----------  -------------------------------------  -----  -----  ---  ----  ----
+process_ddr_1  process_ddr  process_ddr_Pipeline_dispatch_loop     104    492    0    0     0
+process_ddr_1  process_ddr  process_Pipeline_process_ddr_sub_loop  2986   12278  0    0     0
+process_ddr_1  process_ddr  process_r                              3092   12515  0    0     0
+process_ddr_1  process_ddr  process_ddr                            25045  39946  0    60    0
+-------------------------------------------------------------------------------

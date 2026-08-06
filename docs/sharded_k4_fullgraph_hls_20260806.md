@@ -164,7 +164,13 @@ check, all 24 workload materializations, and all three algorithm-specific XO
 sets pass.  LJ08 SSSP (5.36M vertices, 99.03M initial edges) also passes host
 preflight under a 24 GiB hard ceiling: 82 destination shards map to 23 HBM
 pseudo-channels with 6.56 GB allocated in total and 295 MB in the fullest
-channel.  The corrected ResPR PMA DDR kernel has `II=1` and estimated
-`205.47 MHz`; the prior shared-bundle result (`II=140`) is rejected.  The SSSP
-xclbin is in route; routed xclbins and board-run results remain pending until
-their respective gates complete.
+channel.
+
+The SSSP xclbin routes successfully at 150 MHz with zero failed nets and zero
+timing violations.  Routed user logic uses 151,950 LUTs, 175,539 registers,
+429 BRAMs, 256 URAMs, and no DSPs; final WNS/WHS are +0.003/+0.009 ns.  Its
+xclbin SHA-256 and copied implementation reports are archived under
+`docs/evidence/sharded_k4_fullgraph_20260806/sssp`.  The corrected ResPR PMA
+DDR kernel has `II=1` and estimated `205.47 MHz`; the prior shared-bundle result
+(`II=140`) is rejected.  CC is linking, while CC/ResPR routed artifacts and all
+board-run results remain pending until their respective gates complete.
