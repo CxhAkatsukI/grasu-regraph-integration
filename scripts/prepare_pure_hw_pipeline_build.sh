@@ -27,7 +27,8 @@ pipeline. This script is generate-only; it does not run v++.
 
 Options:
   --target sw_emu|hw_emu|hw      Build target. Default: ${TARGET}
-  --pipeline-mode MODE           compactor or weighted-axis. Default: ${PIPELINE_MODE}
+  --pipeline-mode MODE           compactor, weighted-axis, or sharded-k4.
+                                 Default: ${PIPELINE_MODE}
   --algorithm NAME               weighted_sssp or connected_components.
   --platform NAME                Platform name. Default: ${PLATFORM}
   --platform-xpfm PATH           Platform xpfm. Default: ${PLATFORM_XPFM}
@@ -81,7 +82,7 @@ case "${TARGET}" in
   *) echo "Invalid --target: ${TARGET}" >&2; exit 2 ;;
 esac
 case "${PIPELINE_MODE}" in
-  compactor|weighted-axis) ;;
+  compactor|weighted-axis|sharded-k4) ;;
   *) echo "Invalid --pipeline-mode: ${PIPELINE_MODE}" >&2; exit 2 ;;
 esac
 case "${ALGORITHM}" in
@@ -189,6 +190,10 @@ else
   REGRAPH_UDF_INCLUDE="${REGRAPH_ROOT}/acc_udfs/sssp"
   ADAPTER_MODE_DEFINE="-DGRASU_REGRAPH_WEIGHTED_PMA=1"
 fi
+SHARDED_PMA_DEFINE=""
+if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+  SHARDED_PMA_DEFINE="-DGRASU_REGRAPH_SHARDED_PMA=1"
+fi
 
 declare -a REGRAPH_COMMON_FLAGS=(
   "${SW_EMU_GTHREAD_DEFINE}"
@@ -241,6 +246,15 @@ copy_connectivity_body() {
     BEGIN { in_conn = 0 }
     /^\[connectivity\]/ { in_conn = 1; next }
     in_conn == 1 { print }
+  ' "${file}"
+}
+
+copy_connectivity_body_without_memory() {
+  local file="$1"
+  awk '
+    BEGIN { in_conn = 0 }
+    /^\[connectivity\]/ { in_conn = 1; next }
+    in_conn == 1 && $0 !~ /^sp=/ { print }
   ' "${file}"
 }
 
@@ -300,6 +314,9 @@ if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
 else
   write_compile_cfg pma_to_regraph_adapter "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg"
   write_compile_cfg lksg_stream "${CFG_DIR}/little_gs_stream_compile.cfg"
+  if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+    write_compile_cfg pma_frontend_mux "${CFG_DIR}/pma_frontend_mux_compile.cfg"
+  fi
 fi
 
 emit_regraph_compile_command() {
@@ -382,8 +399,14 @@ else
   else
     PIPELINE_STEM="weighted_pma_native"
   fi
-  CLAIM_CLASS="candidate_hls_not_yet_built"
-  HANDOFF="weighted_pma_to_axis_stream"
+  if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+    PIPELINE_STEM="${PIPELINE_STEM}_sharded_k4"
+    CLAIM_CLASS="candidate_sharded_k4_hls_not_yet_built"
+    HANDOFF="four_sharded_pma_frontends_to_one_regraph_downstream"
+  else
+    CLAIM_CLASS="candidate_hls_not_yet_built"
+    HANDOFF="weighted_pma_to_axis_stream"
+  fi
   CONVERSION_COST="absent"
 fi
 LINK_CFG="${CFG_DIR}/${PIPELINE_STEM}_${TARGET}.cfg"
@@ -408,7 +431,22 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
   echo
   echo "[connectivity]"
   echo "# GraSU U55C connectivity"
-  copy_connectivity_body "${GRASU_LINK_CFG}"
+  if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+    copy_connectivity_body_without_memory "${GRASU_LINK_CFG}"
+    for index in 1 2 3 4; do
+      echo "sp=bin_search_${index}.edges:HBM[0:22]"
+      echo "sp=bin_search_${index}.binary_0:HBM[0:22]"
+      echo "sp=bin_search_${index}.row_offset_0:HBM[0:22]"
+    done
+    echo "sp=process_cache_1.pma_cache:HBM[0:22]"
+    echo "sp=process_cache_2.pma_cache:HBM[0:22]"
+    for port in pma_in0_ddr pma_in1_ddr pma_out0_ddr pma_out1_ddr; do
+      echo "sp=process_ddr_1.${port}:HBM[0:22]"
+      echo "sp=process_ddr_2.${port}:HBM[0:22]"
+    done
+  else
+    copy_connectivity_body "${GRASU_LINK_CFG}"
+  fi
   echo
   echo "# GraSU internal update streams"
   copy_connectivity_body "${GRASU_STREAM_CFG}"
@@ -436,6 +474,30 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
     echo
     echo "# ReGraph SSSP connectivity with compact edge-array little-only GS"
     write_regraph_little_only_connectivity "${REGRAPH_CONNECTIVITY_CFG}"
+    echo "sp=kernelApply_1.active_count:HBM[30]"
+  elif [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+    echo
+    echo "# Four destination-sharded PMA frontends with one shared downstream"
+    echo "nk=pma_to_regraph_adapter:4:pma_to_regraph_adapter_1.pma_to_regraph_adapter_2.pma_to_regraph_adapter_3.pma_to_regraph_adapter_4"
+    for index in 1 2 3 4; do
+      for port in pma0 pma1 pma2 pma3 row_offset; do
+        echo "sp=pma_to_regraph_adapter_${index}.${port}:HBM[0:22]"
+      done
+      echo "slr=pma_to_regraph_adapter_${index}:SLR$(((index - 1) % 3))"
+      echo "stream_connect=pma_to_regraph_adapter_${index}.edge_burst_out:pma_frontend_mux_1.input$((index - 1)):32"
+    done
+    echo "nk=pma_frontend_mux:1:pma_frontend_mux_1"
+    echo "slr=pma_frontend_mux_1:SLR1"
+    echo "stream_connect=pma_frontend_mux_1.output:lksg_stream_1.edge_burst_in:32"
+    echo
+    echo "# One shared ReGraph ${ALGORITHM} downstream"
+    write_regraph_stream_little_only_connectivity "${REGRAPH_CONNECTIVITY_CFG}" |
+      awk '$0 !~ /^sp=kernelHBMWrapper_1\./ && $0 !~ /^sp=kernelApply_1\./ { print }'
+    echo "sp=kernelHBMWrapper_1.src_prop_1:HBM[23]"
+    echo "sp=kernelHBMWrapper_1.src_prop_2:HBM[24]"
+    echo "sp=kernelHBMWrapper_1.new_prop_1:HBM[23]"
+    echo "sp=kernelHBMWrapper_1.new_prop_2:HBM[24]"
+    echo "sp=kernelApply_1.vertex_prop:HBM[30]"
     echo "sp=kernelApply_1.active_count:HBM[30]"
   else
     echo "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32"
@@ -477,6 +539,9 @@ else
     "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo"
     "${BUILD_DIR}/lksg_stream.${TARGET}.xo"
   )
+  if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+    GENERATED_XOS+=("${BUILD_DIR}/pma_frontend_mux.${TARGET}.xo")
+  fi
 fi
 
 {
@@ -543,11 +608,18 @@ fi
       "${BUILD_DIR}/littleKernelScatterGather.${TARGET}.xo" \
       "${REGRAPH_ROOT}/acc_template/kernel_little_gs/kernel_scatter_gather.cpp"
   else
-    printf 'v++ --target %q --compile --kernel_frequency %q %s %s %s --config %q -I%q -o %q %q\n' \
-      "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${ADAPTER_MODE_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
+    printf 'v++ --target %q --compile --kernel_frequency %q %s %s %s %s --config %q -I%q -o %q %q\n' \
+      "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${ADAPTER_MODE_DEFINE}" "${SHARDED_PMA_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
       "${HLS_INCLUDE_ETC}" \
       "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo" \
       "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
+    if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+      printf 'v++ --target %q --compile --kernel_frequency %q %s %s --config %q -I%q -o %q %q\n' \
+        "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" \
+        "${CFG_DIR}/pma_frontend_mux_compile.cfg" "${HLS_INCLUDE_ETC}" \
+        "${BUILD_DIR}/pma_frontend_mux.${TARGET}.xo" \
+        "${GRI_ROOT}/kernels/pma_frontend_mux/pma_frontend_mux.cpp"
+    fi
     emit_regraph_compile_command \
       "${GRI_ROOT}/kernels/regraph_stream_little_gs" \
       "${CFG_DIR}/little_gs_stream_compile.cfg" \
@@ -629,6 +701,9 @@ chmod +x "${LINK_COMMAND}"
   echo "REGRAPH_UDF_INCLUDE=${REGRAPH_UDF_INCLUDE}"
   echo "REGRAPH_EDGE_PROP=${REGRAPH_EDGE_PROP}"
   echo "ADAPTER_MODE_DEFINE=${ADAPTER_MODE_DEFINE}"
+  echo "SHARDED_PMA_DEFINE=${SHARDED_PMA_DEFINE}"
+  echo "PMA_FRONTEND_CUS=$([[ "${PIPELINE_MODE}" == "sharded-k4" ]] && echo 4 || echo 1)"
+  echo "SHARED_REGRAPH_DOWNSTREAM=1"
   printf 'REGRAPH_COMMON_FLAGS='
   printf '%q ' "${REGRAPH_COMMON_FLAGS[@]}"
   printf '\n'
@@ -674,6 +749,10 @@ chmod +x "${LINK_COMMAND}"
       "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
     emit_input_record kernel_source \
       "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp"
+    if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+      emit_input_record kernel_source \
+        "${GRI_ROOT}/kernels/pma_frontend_mux/pma_frontend_mux.cpp"
+    fi
   fi
   for header_dir in \
     "${GRASU_ROOT}/GraSU/GraSU_kernels/src" \

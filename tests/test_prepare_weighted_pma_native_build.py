@@ -36,9 +36,14 @@ with tempfile.TemporaryDirectory() as tmp_name:
         grasu / "u55c_hbm/config/GraSU-link.cfg",
         """[connectivity]
 nk=bin_search:4:bin_search_1.bin_search_2.bin_search_3.bin_search_4
+sp=bin_search_1.edges:HBM[0]
+sp=bin_search_1.binary_0:HBM[0]
+sp=bin_search_1.row_offset_0:HBM[0]
 nk=dispatch:1:dispatch_1
 nk=process_cache:2:process_cache_1.process_cache_2
+sp=process_cache_1.pma_cache:HBM[0]
 nk=process_ddr:2:process_ddr_1.process_ddr_2
+sp=process_ddr_1.pma_in0_ddr:HBM[1]
 """,
     )
     write(
@@ -82,6 +87,7 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
         ("compactor", "weighted_sssp"),
         ("weighted-axis", "weighted_sssp"),
         ("weighted-axis", "connected_components"),
+        ("sharded-k4", "weighted_sssp"),
     )
     for mode, algorithm in cases:
         key = mode if algorithm == "weighted_sssp" else algorithm
@@ -184,6 +190,53 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert "-DGRASU_REGRAPH_WEIGHTED_PMA=1" not in cc_compile
     assert "connected_components connectivity" in cc_cfg
     assert "sp=kernelApply_1.active_count:HBM[30]" in cc_cfg
+
+    sharded = outputs["sharded-k4"]
+    sharded_manifest = parse_manifest(sharded / "manifest.env")
+    sharded_cfg = Path(sharded_manifest["LINK_CFG"]).read_text(encoding="utf-8")
+    sharded_compile = (sharded / "compile_commands.sh").read_text(
+        encoding="utf-8"
+    )
+    sharded_link = (sharded / "link_command.sh").read_text(encoding="utf-8")
+    assert sharded_manifest["PIPELINE_MODE"] == "sharded-k4"
+    assert sharded_manifest["CLAIM_CLASS"] == (
+        "candidate_sharded_k4_hls_not_yet_built"
+    )
+    assert sharded_manifest["HANDOFF"] == (
+        "four_sharded_pma_frontends_to_one_regraph_downstream"
+    )
+    assert sharded_manifest["PMA_FRONTEND_CUS"] == "4"
+    assert sharded_manifest["SHARED_REGRAPH_DOWNSTREAM"] == "1"
+    assert sharded_manifest["SHARDED_PMA_DEFINE"] == (
+        "-DGRASU_REGRAPH_SHARDED_PMA=1"
+    )
+    assert (
+        "nk=pma_to_regraph_adapter:4:"
+        "pma_to_regraph_adapter_1.pma_to_regraph_adapter_2."
+        "pma_to_regraph_adapter_3.pma_to_regraph_adapter_4"
+    ) in sharded_cfg
+    assert "nk=pma_frontend_mux:1:pma_frontend_mux_1" in sharded_cfg
+    assert sharded_cfg.count(".edge_burst_out:pma_frontend_mux_1.input") == 4
+    assert (
+        "stream_connect=pma_frontend_mux_1.output:"
+        "lksg_stream_1.edge_burst_in:32"
+    ) in sharded_cfg
+    assert sharded_cfg.count("nk=lksg_stream:1:lksg_stream_1") == 1
+    assert sharded_cfg.count("nk=kernelApply:1") == 1
+    assert sharded_cfg.count("nk=kernelHBMWrapper:1") == 1
+    assert "sp=bin_search_1.edges:HBM[0:22]" in sharded_cfg
+    assert "sp=bin_search_1.edges:HBM[0]\n" not in sharded_cfg
+    assert "sp=process_cache_1.pma_cache:HBM[0:22]" in sharded_cfg
+    assert "sp=process_ddr_1.pma_in0_ddr:HBM[0:22]" in sharded_cfg
+    for index in range(1, 5):
+        assert f"sp=pma_to_regraph_adapter_{index}.pma0:HBM[0:22]" in sharded_cfg
+    assert "sp=kernelHBMWrapper_1.src_prop_1:HBM[23]" in sharded_cfg
+    assert "sp=kernelHBMWrapper_1.src_prop_2:HBM[24]" in sharded_cfg
+    assert "sp=kernelApply_1.vertex_prop:HBM[30]" in sharded_cfg
+    assert "-DGRASU_REGRAPH_WEIGHTED_PMA=1" in sharded_compile
+    assert "-DGRASU_REGRAPH_SHARDED_PMA=1" in sharded_compile
+    assert "kernels/pma_frontend_mux/pma_frontend_mux.cpp" in sharded_compile
+    assert "pma_frontend_mux.sw_emu.xo" in sharded_link
 
     invalid = subprocess.run(
         [str(PREPARE), "--pipeline-mode", "invalid"],
