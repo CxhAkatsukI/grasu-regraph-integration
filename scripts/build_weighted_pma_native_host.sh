@@ -8,6 +8,7 @@ OUT_DIR="${OUT_DIR:-${GRI_ROOT}/.tmp_build/weighted_pma_native_host}"
 OUT_BIN="${OUT_BIN:-}"
 VITIS_HLS="${VITIS_HLS:-/data/yxx/tools/xilinx/Vitis_HLS/2024.1}"
 ALGORITHM="weighted_sssp"
+PIPELINE_MODE="weighted-axis"
 
 usage() {
   cat <<USAGE
@@ -20,6 +21,9 @@ Options:
   --out-bin PATH    Output binary. Default: <out-dir>/weighted_pma_native_host
   --algorithm NAME  weighted_sssp, connected_components, full_pagerank, or
                     residual_pagerank.
+  --pipeline-mode MODE
+                    weighted-axis or sharded-k4. The sharded mode currently
+                    supports weighted_sssp and connected_components.
   -h, --help        Show this help.
 USAGE
 }
@@ -36,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     --out-dir) OUT_DIR="$(abs_path "$2")"; shift 2 ;;
     --out-bin) OUT_BIN="$(abs_path "$2")"; shift 2 ;;
     --algorithm) ALGORITHM="$2"; shift 2 ;;
+    --pipeline-mode) PIPELINE_MODE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -58,6 +63,26 @@ case "${ALGORITHM}" in
   *) echo "Invalid --algorithm: ${ALGORITHM}" >&2; exit 2 ;;
 esac
 
+case "${PIPELINE_MODE}" in
+  weighted-axis)
+    HOST_SOURCE="${GRI_ROOT}/tools/weighted_pma_native_host.cpp"
+    HANDOFF=weighted_pma_to_axis_stream
+    ;;
+  sharded-k4)
+    case "${ALGORITHM}" in
+      weighted_sssp) DEFAULT_BIN=sharded_k4_sssp_native_host ;;
+      connected_components) DEFAULT_BIN=sharded_k4_cc_native_host ;;
+      *)
+        echo "Pipeline mode sharded-k4 does not yet support ${ALGORITHM}" >&2
+        exit 2
+        ;;
+    esac
+    HOST_SOURCE="${GRI_ROOT}/tools/sharded_k4_native_host.cpp"
+    HANDOFF=four_sharded_pma_source_gather_frontends_to_one_regraph_downstream
+    ;;
+  *) echo "Invalid --pipeline-mode: ${PIPELINE_MODE}" >&2; exit 2 ;;
+esac
+
 mkdir -p "${OUT_DIR}"
 if [[ -z "${OUT_BIN}" ]]; then
   OUT_BIN="${OUT_DIR}/${DEFAULT_BIN}"
@@ -70,20 +95,21 @@ g++ -std=c++17 -O2 -Wall -Wextra -Werror \
   -I"${VITIS_HLS}/include" \
   -I"${VITIS_HLS}/include/etc" \
   -I"${GRI_ROOT}/include" \
-  "${GRI_ROOT}/tools/weighted_pma_native_host.cpp" \
+  "${HOST_SOURCE}" \
   -L"${XILINX_XRT}/lib" \
   -Wl,-rpath,"${XILINX_XRT}/lib" \
   -lxilinxopencl -lpthread \
   -o "${OUT_BIN}"
 
-sha256sum "${GRI_ROOT}/tools/weighted_pma_native_host.cpp" \
+sha256sum "${HOST_SOURCE}" \
+          "${GRI_ROOT}/tools/weighted_pma_native_host.cpp" \
           "${GRI_ROOT}/include/weighted_pma_graph.hpp" \
           "${OUT_BIN}" | tee "${OUT_DIR}/weighted_pma_native_host.sha256"
 cat >"${OUT_DIR}/manifest.txt" <<MANIFEST
 CLAIM_CLASS=candidate_hls_host_not_yet_run
 ALGORITHM=${ALGORITHM}
-PIPELINE_MODE=weighted-axis
-HANDOFF=weighted_pma_to_axis_stream
+PIPELINE_MODE=${PIPELINE_MODE}
+HANDOFF=${HANDOFF}
 CONVERSION_COST=absent
 MAX_CACHE_SEGMENT=131072
 HOST=${OUT_BIN}

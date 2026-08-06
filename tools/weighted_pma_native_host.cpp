@@ -190,12 +190,22 @@ Dataset read_dataset(const std::string &path)
     if (!in) {
         fail("invalid graph header: " + path);
     }
-    if (dataset.node_size == 0 ||
-        dataset.node_size >
-            static_cast<std::size_t>(kMaxDestinationPartitions) *
-                kPartitionSize) {
+    if (dataset.node_size == 0) {
+        fail("graph must contain at least one vertex");
+    }
+#ifdef GRASU_REGRAPH_SHARDED_K4_HOST
+    if (dataset.node_size >
+        static_cast<std::size_t>(std::numeric_limits<std::uint8_t>::max()) *
+            kPartitionSize) {
+        fail("sharded K4 host exceeds the 255-partition ReGraph control ABI");
+    }
+#else
+    if (dataset.node_size >
+        static_cast<std::size_t>(kMaxDestinationPartitions) *
+            kPartitionSize) {
         fail("shared ReGraph pipeline requires 1 <= V <= 262144");
     }
+#endif
 
     dataset.static_edges.resize(static_edge_size);
     for (std::size_t i = 0; i < static_edge_size; ++i) {
@@ -356,10 +366,11 @@ void require_reciprocal_cc_edges(const FinalEdgeMap &edges)
     }
 }
 
+template <typename Graph>
 [[maybe_unused]] AlgorithmOracleResult run_connected_components_oracle(
     std::size_t vertices,
     const FinalEdgeMap &external_edges,
-    const WeightedPmaGraph &graph,
+    const Graph &graph,
     unsigned max_supersteps)
 {
     require_reciprocal_cc_edges(external_edges);
@@ -423,10 +434,11 @@ void require_reciprocal_cc_edges(const FinalEdgeMap &edges)
     return sources;
 }
 
+template <typename Graph>
 [[maybe_unused]] AlgorithmOracleResult run_resident_relaxation_oracle(
     std::size_t vertices,
     const FinalEdgeMap &external_edges,
-    const WeightedPmaGraph &graph,
+    const Graph &graph,
     const AlgorithmOracleResult &resident,
     const std::vector<unsigned> &external_sources,
     unsigned max_supersteps,
@@ -653,7 +665,8 @@ struct ResidualPageRankOracleResult {
     return value;
 }
 
-PreparedGraSU prepare_grasu_inputs(const WeightedPmaGraph &graph)
+[[maybe_unused]] PreparedGraSU prepare_grasu_inputs(
+    const WeightedPmaGraph &graph)
 {
     PreparedGraSU prepared;
     const auto &update_edges = graph.physical_updates;
@@ -816,6 +829,7 @@ cl::Buffer make_buffer(cl::Context &context,
 
 }  // namespace
 
+#ifndef GRASU_REGRAPH_NO_MAIN
 #if !defined(GRASU_REGRAPH_FULL_PAGERANK) && \
     !defined(GRASU_REGRAPH_RESIDUAL_PAGERANK)
 int main(int argc, char **argv)
@@ -2045,3 +2059,4 @@ int main(int argc, char **argv)
     }
 }
 #endif
+#endif  // GRASU_REGRAPH_NO_MAIN
