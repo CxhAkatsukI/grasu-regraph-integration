@@ -280,7 +280,29 @@ shards, 16 physical insertions, and zero mismatches.  The run starts from the
 old graph's converged CC state, uses four frontends and one shared downstream,
 and has no conversion stage.
 
+The same artifact passes the connected-components matrix on all eight frozen
+graphs.  Each architecture pair starts from the converged old-graph component
+state, applies the same eight logical undirected insertions, and is admitted
+only when the independent CPU component-membership oracle agrees.  The table
+reports setup-inclusive medians over three correctness-admitted executions.
+
+| Graph | G+R setup-inclusive (ms) | Spine setup-inclusive (ms) | G+R / Spine |
+| --- | ---: | ---: | ---: |
+| AU | 1,040.126 | 104.323 | 9.97x |
+| SU | 1,702.077 | 111.558 | 15.27x |
+| WK | 11,342.283 | 134.722 | 84.17x |
+| SO | 137,681.554 | 132.645 | 1,037.97x |
+| PK | 11,480.155 | 104.050 | 110.33x |
+| LJ | 91,733.536 | 103.846 | 882.95x |
+| LJ08 | 112,033.768 | 109.385 | 1,024.22x |
+| R19 | 2,255.829 | 178.650 | 12.63x |
+
+There is no winner flip across repetitions; G+R setup-inclusive latency has
+at most 0.062% CV, and every individual setup-inclusive speedup remains above
+9.95x.  Compact evidence is archived under
+`docs/evidence/sharded_k4_fullgraph_20260806/cc_fullgraph_u55c`.
+
 The corrected ResPR PMA DDR kernel has `II=1` and estimated `205.47 MHz`; the
 prior shared-bundle result (`II=140`) is rejected.  Its routed artifact and
-board-run correctness gate remain pending.  The CC/ResPR eight-graph matched
-matrices remain pending until the ResPR board gate passes.
+board-run correctness gate remain pending.  The ResPR eight-graph matched
+matrix remains pending until that board gate passes.

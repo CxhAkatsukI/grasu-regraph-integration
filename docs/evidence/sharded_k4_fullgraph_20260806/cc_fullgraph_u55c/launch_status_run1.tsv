@@ -1,0 +1,9 @@
+case	algorithm	execution_mode	gr_memory_gib	spine_memory_gib	gr_exit	spine_exit	memory_guard
+au_connected_components_resident	connected_components	serial	32	32	0	0	PASS
+lj_connected_components_resident	connected_components	serial	32	32	0	0	PASS
+lj08_connected_components_resident	connected_components	serial	32	32	0	0	PASS
+pk_connected_components_resident	connected_components	serial	32	32	0	0	PASS
+r19_connected_components_resident	connected_components	serial	32	32	0	0	PASS
+so_connected_components_resident	connected_components	serial	32	32	0	0	PASS
+su_connected_components_resident	connected_components	serial	32	32	0	0	PASS
+wk_connected_components_resident	connected_components	serial	32	32	0	0	PASS
