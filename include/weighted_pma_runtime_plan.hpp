@@ -48,6 +48,13 @@ struct WeightedPmaRuntimePlan {
     std::size_t total_allocated_bytes{};
 };
 
+struct WeightedPmaPackedShardBuffers {
+    std::array<std::vector<std::uint64_t>, 4> updates;
+    std::array<std::vector<std::uint32_t>, 4> pma_words;
+    std::vector<std::uint64_t> row_bounds;
+    std::vector<std::uint64_t> binary_heads;
+};
+
 inline std::size_t align_weighted_pma_runtime_bytes(
     std::size_t value,
     std::size_t alignment = kWeightedPmaRuntimeAlignment)
@@ -198,6 +205,58 @@ inline const WeightedPmaBufferRegion &find_weighted_pma_region(
         throw std::out_of_range("weighted PMA runtime region is missing");
     }
     return *found;
+}
+
+inline std::vector<WeightedPmaPackedShardBuffers>
+pack_weighted_pma_runtime_buffers(
+    const WeightedPartitionedPmaGraph &graph,
+    const WeightedPmaRuntimePlan &plan)
+{
+    if (graph.shards.size() != plan.shards.size()) {
+        throw std::invalid_argument("weighted PMA graph/runtime shard mismatch");
+    }
+    std::vector<WeightedPmaPackedShardBuffers> result(graph.shards.size());
+    for (std::size_t shard_index = 0; shard_index < graph.shards.size();
+         ++shard_index) {
+        const WeightedPmaShard &shard = graph.shards[shard_index];
+        const WeightedPmaShardRuntimePlan &shard_plan = plan.shards[shard_index];
+        WeightedPmaPackedShardBuffers &buffers = result[shard_index];
+        for (std::size_t lane = 0; lane < 4; ++lane) {
+            buffers.updates[lane].assign(
+                shard_plan.update_alloc_counts[lane], 0);
+            buffers.pma_words[lane].assign(
+                shard_plan.pma_words[lane], kWeightedPmaEmpty);
+        }
+        for (std::size_t update = 0; update < shard.physical_updates.size();
+             ++update) {
+            buffers.updates[update % 4][update / 4] =
+                shard.physical_updates[update];
+        }
+        for (std::size_t slot = 0; slot < shard.initial_pma_words.size();
+             slot += kWeightedPmaSegmentSlots) {
+            const std::size_t segment = slot / kWeightedPmaSegmentSlots;
+            const std::size_t parity = segment & 1;
+            const std::size_t local_segment = segment >> 1;
+            const std::size_t port =
+                local_segment < plan.max_cache_segments
+                    ? parity * 2
+                    : parity * 2 + 1;
+            const std::size_t output_slot =
+                local_segment * kWeightedPmaSegmentSlots;
+            if (output_slot + kWeightedPmaSegmentSlots >
+                buffers.pma_words[port].size()) {
+                throw std::logic_error("weighted PMA packed port overflow");
+            }
+            std::copy_n(shard.initial_pma_words.begin() + slot,
+                        kWeightedPmaSegmentSlots,
+                        buffers.pma_words[port].begin() + output_slot);
+        }
+        buffers.row_bounds = shard.row_bounds;
+        buffers.binary_heads.assign(shard_plan.binary_words, 0);
+        std::copy(shard.binary_heads.begin(), shard.binary_heads.end(),
+                  buffers.binary_heads.begin());
+    }
+    return result;
 }
 
 }  // namespace grasu::integration
