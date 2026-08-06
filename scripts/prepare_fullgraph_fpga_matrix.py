@@ -34,9 +34,19 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workload-manifest", type=Path, required=True)
     parser.add_argument("--host-root", type=Path, required=True)
-    parser.add_argument("--sssp-xclbin", type=Path, required=True)
-    parser.add_argument("--cc-xclbin", type=Path, required=True)
-    parser.add_argument("--respr-xclbin", type=Path, required=True)
+    parser.add_argument("--sssp-xclbin", type=Path)
+    parser.add_argument("--cc-xclbin", type=Path)
+    parser.add_argument("--respr-xclbin", type=Path)
+    parser.add_argument(
+        "--algorithm",
+        action="append",
+        choices=ALGORITHMS,
+        dest="algorithms",
+        help=(
+            "Generate only this algorithm; repeat for multiple algorithms. "
+            "The default remains the complete three-algorithm matrix."
+        ),
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -44,24 +54,42 @@ def main() -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("status") != "pass":
         raise ValueError("workload manifest is not admitted")
-    xclbins = {
-        "weighted_sssp": require_file(args.sssp_xclbin, "SSSP xclbin"),
-        "connected_components": require_file(args.cc_xclbin, "CC xclbin"),
-        "residual_pagerank": require_file(args.respr_xclbin, "ResPR xclbin"),
+    selected_algorithms = tuple(args.algorithms or ALGORITHMS)
+    if len(set(selected_algorithms)) != len(selected_algorithms):
+        raise ValueError("duplicate --algorithm selection")
+    xclbin_args = {
+        "weighted_sssp": (args.sssp_xclbin, "SSSP xclbin"),
+        "connected_components": (args.cc_xclbin, "CC xclbin"),
+        "residual_pagerank": (args.respr_xclbin, "ResPR xclbin"),
     }
+    xclbins = {}
+    for algorithm in selected_algorithms:
+        path, role = xclbin_args[algorithm]
+        if path is None:
+            raise ValueError(f"missing --{role.split()[0].lower()}-xclbin")
+        xclbins[algorithm] = require_file(path, role)
     hosts = {
         algorithm: require_file(
             args.host_root / HOST_BASENAMES[algorithm], f"{algorithm} host"
         )
-        for algorithm in ALGORITHMS
+        for algorithm in selected_algorithms
     }
 
     records = manifest.get("records", [])
+    selected_records = [
+        record for record in records
+        if record.get("algorithm") in selected_algorithms
+    ]
     lookup = {
-        (record["dataset"], record["algorithm"]): record for record in records
+        (record["dataset"], record["algorithm"]): record
+        for record in selected_records
     }
-    datasets = sorted({record["dataset"] for record in records})
-    expected = {(dataset, algorithm) for dataset in datasets for algorithm in ALGORITHMS}
+    datasets = sorted({record["dataset"] for record in selected_records})
+    expected = {
+        (dataset, algorithm)
+        for dataset in datasets
+        for algorithm in selected_algorithms
+    }
     if set(lookup) != expected:
         missing = sorted(expected - set(lookup))
         extra = sorted(set(lookup) - expected)
@@ -74,7 +102,7 @@ def main() -> None:
             ("case", "algorithm", "graph", "source", "gr_host", "gr_xclbin")
         )
         for dataset in datasets:
-            for algorithm in ALGORITHMS:
+            for algorithm in selected_algorithms:
                 record = lookup[(dataset, algorithm)]
                 graph = require_file(Path(record["graph"]), f"{dataset} graph")
                 writer.writerow(

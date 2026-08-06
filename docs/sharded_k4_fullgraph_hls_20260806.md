@@ -180,6 +180,23 @@ python3 scripts/prepare_fullgraph_fpga_matrix.py \
   --output /data/tmp/chuxiao/fullgraph_fpga_matrix_20260806.tsv
 ```
 
+During incremental bring-up, `--algorithm` may be repeated to bind an explicit
+algorithm subset.  Only the selected algorithms' xclbins are required; omitting
+the option retains the strict complete-matrix default.  For example, the routed
+CC artifact can be exercised on all eight graphs while ResPR is still routing:
+
+```bash
+python3 scripts/prepare_fullgraph_fpga_matrix.py \
+  --workload-manifest \
+    /data/tmp/chuxiao/fullgraph_fpga_workloads_20260806/manifest.json \
+  --host-root /data/tmp/chuxiao/sharded_k4_hosts_5d501d9 \
+  --algorithm connected_components \
+  --cc-xclbin /data/tmp/chuxiao/\
+grasu_regraph_sharded_k4_cc_hw_d886f42_20260806/build/\
+grasu_regraph_connected_components_pma_native_sharded_k4.hw.xclbin \
+  --output /data/tmp/chuxiao/fullgraph_cc_fpga_matrix_20260807.tsv
+```
+
 Run the correctness-gated comparison with automatic memory-safe scheduling:
 
 ```bash

@@ -101,6 +101,64 @@ class FullGraphMatrixPreparationTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("missing SSSP xclbin", result.stderr)
 
+    def test_binds_selected_algorithm_without_other_xclbins(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            host_root = root / "hosts"
+            cc_host = host_root / "connected_components/sharded_k4_cc_native_host"
+            cc_host.parent.mkdir(parents=True)
+            cc_host.touch()
+            cc_xclbin = root / "cc.xclbin"
+            cc_xclbin.touch()
+            records = []
+            for dataset in ("AU", "SU"):
+                for algorithm in (
+                    "weighted_sssp",
+                    "connected_components",
+                    "residual_pagerank",
+                ):
+                    graph = root / f"{dataset}_{algorithm}.graph"
+                    graph.touch()
+                    records.append(
+                        {
+                            "dataset": dataset,
+                            "algorithm": algorithm,
+                            "graph": str(graph),
+                            "source": 0,
+                        }
+                    )
+            manifest = root / "manifest.json"
+            manifest.write_text(
+                json.dumps({"status": "pass", "records": records}),
+                encoding="utf-8",
+            )
+            output = root / "cc_matrix.tsv"
+            result = subprocess.run(
+                [
+                    "python3",
+                    str(ROOT / "scripts/prepare_fullgraph_fpga_matrix.py"),
+                    "--workload-manifest",
+                    str(manifest),
+                    "--host-root",
+                    str(host_root),
+                    "--algorithm",
+                    "connected_components",
+                    "--cc-xclbin",
+                    str(cc_xclbin),
+                    "--output",
+                    str(output),
+                ],
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            self.assertIn("datasets=2 rows=2", result.stdout)
+            rows = output.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(rows), 3)
+            self.assertTrue(
+                all("connected_components" in row for row in rows[1:])
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
