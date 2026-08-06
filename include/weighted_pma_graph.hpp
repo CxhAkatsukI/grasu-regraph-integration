@@ -335,8 +335,9 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
     }
 
     std::map<detail::EdgeKey, std::uint16_t> state;
-    std::vector<std::set<std::pair<std::uint32_t, std::uint16_t>>>
-        reserved_variants(vertices);
+    std::map<std::uint32_t,
+             std::set<std::pair<std::uint32_t, std::uint16_t>>>
+        reserved_variants;
     for (const auto &edge : initial) {
         if (edge.source >= vertices || edge.destination >= vertices ||
             edge.weight == 0 || edge.weight > kWeightedPmaWeightMask ||
@@ -347,8 +348,7 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
             throw std::invalid_argument(
                 "invalid initial edge for weighted partitioned PMA");
         }
-        reserved_variants.at(edge.source).insert(
-            {edge.destination, edge.weight});
+        reserved_variants[edge.source].insert({edge.destination, edge.weight});
     }
 
     std::vector<WeightedEdgeRecord> physical_external;
@@ -370,7 +370,7 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
             continue;
         }
 
-        reserved_variants.at(update.source).insert(
+        reserved_variants[update.source].insert(
             {update.destination, update.weight});
         if (found == state.end()) {
             physical_external.push_back(update);
@@ -403,8 +403,10 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
     std::vector<std::pair<std::uint32_t, double>> reorder;
     reorder.reserve(vertices);
     for (std::uint32_t vertex = 0; vertex < vertices; ++vertex) {
+        const auto variants = reserved_variants.find(vertex);
         const std::size_t segments =
-            detail::round_up_segments(reserved_variants[vertex].size());
+            detail::round_up_segments(
+                variants == reserved_variants.end() ? 0 : variants->second.size());
         const double density =
             segments == 0
                 ? -1.0
@@ -478,18 +480,18 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
         shard.initial_internal = std::move(initial_by_shard[partition]);
         shard.final_internal = std::move(final_by_shard[partition]);
 
-        std::vector<std::set<std::uint32_t>> reserved_words(vertices);
-        std::vector<std::vector<std::uint32_t>> initial_words(vertices);
+        std::map<std::uint32_t, std::set<std::uint32_t>> reserved_words;
+        std::map<std::uint32_t, std::vector<std::uint32_t>> initial_words;
         for (const auto &edge : shard.initial_internal) {
             const std::uint32_t local = edge.destination - shard.destination_base;
             const std::uint32_t word =
                 encode_weighted_pma_word(local, edge.weight);
-            reserved_words.at(edge.source).insert(word);
-            initial_words.at(edge.source).push_back(word);
+            reserved_words[edge.source].insert(word);
+            initial_words[edge.source].push_back(word);
         }
         for (const auto &edge : updates_by_shard[partition]) {
             if (!edge.delete_op) {
-                reserved_words.at(edge.source).insert(encode_weighted_pma_word(
+                reserved_words[edge.source].insert(encode_weighted_pma_word(
                     edge.destination - shard.destination_base, edge.weight));
             }
         }
@@ -498,8 +500,12 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
         std::size_t total_slots = 0;
         for (std::uint32_t source = 0; source < vertices; ++source) {
             const std::size_t begin = total_slots;
+            const auto reserved_source = reserved_words.find(source);
             std::size_t source_segments =
-                detail::round_up_segments(reserved_words[source].size());
+                detail::round_up_segments(
+                    reserved_source == reserved_words.end()
+                        ? 0
+                        : reserved_source->second.size());
             if (source == 0 && total_slots == 0 && source_segments == 0) {
                 source_segments = 1;
             }
@@ -518,8 +524,13 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
 
         for (std::uint32_t source = 0; source < vertices; ++source) {
             const std::size_t row_begin = shard.row_bounds[source] >> 32;
-            const std::vector<std::uint32_t> reserved(
-                reserved_words[source].begin(), reserved_words[source].end());
+            const auto reserved_source = reserved_words.find(source);
+            const std::vector<std::uint32_t> reserved =
+                reserved_source == reserved_words.end()
+                    ? std::vector<std::uint32_t>{}
+                    : std::vector<std::uint32_t>(
+                          reserved_source->second.begin(),
+                          reserved_source->second.end());
             for (std::size_t offset = 0; offset < reserved.size();
                  offset += kWeightedPmaSegmentSlots) {
                 const std::size_t segment =
@@ -528,8 +539,12 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
                     (static_cast<std::uint64_t>(source) << 32) |
                     reserved[offset];
             }
-            std::sort(initial_words[source].begin(), initial_words[source].end());
-            for (const std::uint32_t word : initial_words[source]) {
+            const auto initial_source = initial_words.find(source);
+            if (initial_source == initial_words.end()) {
+                continue;
+            }
+            std::sort(initial_source->second.begin(), initial_source->second.end());
+            for (const std::uint32_t word : initial_source->second) {
                 const auto reserved_position =
                     std::lower_bound(reserved.begin(), reserved.end(), word);
                 if (reserved_position == reserved.end() ||
