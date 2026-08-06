@@ -77,7 +77,11 @@ void regraph_pagerank_source_prepare(
 {
 #pragma HLS INTERFACE m_axi port=rank_state offset=slave bundle=gmem0
 #if GRASU_REGRAPH_PAGERANK_MODE == 2
+#if defined(GRASU_REGRAPH_SHARDED_PMA)
+#pragma HLS INTERFACE m_axi port=residual_state offset=slave bundle=gmem0
+#else
 #pragma HLS INTERFACE m_axi port=residual_state offset=slave bundle=gmem1
+#endif
 #endif
 #pragma HLS INTERFACE m_axi port=out_degree offset=slave bundle=gmem2
 #pragma HLS INTERFACE m_axi port=source_prop_1 offset=slave bundle=gmem3
@@ -122,9 +126,15 @@ initialize_partials:
 prepare_bursts:
     for (unsigned burst = 0; burst < burst_count; ++burst) {
 #pragma HLS PIPELINE II=1
-        const ap_uint<512> rank_beat = rank_state[burst];
 #if GRASU_REGRAPH_PAGERANK_MODE == 2
-        const ap_uint<512> residual_beat = residual_state[burst];
+        // A residual round consumes exactly one state array.  Sharing this
+        // conditional read avoids spending a U55C HMSS master on an array
+        // that is inactive for the whole launch.
+        const ap_uint<512> value_beat = correction_mode
+                                            ? rank_state[burst]
+                                            : residual_state[burst];
+#else
+        const ap_uint<512> value_beat = rank_state[burst];
 #endif
         const ap_uint<512> degree_beat = out_degree[burst];
         ap_uint<512> source_payload = 0;
@@ -141,12 +151,10 @@ prepare_bursts:
             }
             const unsigned degree = lane(degree_beat, lane_index).to_uint();
 #if GRASU_REGRAPH_PAGERANK_MODE == 1
-            const float value = word_to_float(lane(rank_beat, lane_index));
+            const float value = word_to_float(lane(value_beat, lane_index));
             const bool active = true;
 #else
-            const float value = correction_mode
-                                    ? word_to_float(lane(rank_beat, lane_index))
-                                    : word_to_float(lane(residual_beat, lane_index));
+            const float value = word_to_float(lane(value_beat, lane_index));
             const bool active = correction_mode || float_abs(value) > threshold;
 #endif
             const float payload = active && degree != 0

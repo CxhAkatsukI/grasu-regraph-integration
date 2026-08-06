@@ -96,7 +96,12 @@ def main() -> int:
         choices=("weighted-axis", "sharded-k4"),
         default="weighted-axis",
     )
-    parser.add_argument("--platform-master-budget", type=int, default=33)
+    parser.add_argument(
+        "--platform-master-budget",
+        type=int,
+        default=32,
+        help="U55C exposes 33 HMSS connections; one is platform-reserved",
+    )
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     total, breakdown = project_master_count(

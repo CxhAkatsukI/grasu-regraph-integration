@@ -12,7 +12,7 @@ KERNEL_FREQ=150
 COMPUTE_PIPELINES=1
 COMPUTE_PIPELINES_SET=0
 PIPELINE_MODE="weighted-axis"
-PLATFORM_MASTER_BUDGET=33
+PLATFORM_MASTER_BUDGET=32
 MAX_CACHE_SEGMENT="${GRASU_MAX_CACHE_SEGMENT:-131072}"
 HLS_INCLUDE="${HLS_INCLUDE:-/data/yxx/tools/xilinx/Vitis_HLS/2024.1/include}"
 HLS_INCLUDE_ETC="${HLS_INCLUDE_ETC:-${HLS_INCLUDE}/etc}"
@@ -294,9 +294,10 @@ OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${ALGORITHM}.${TARGET}.xclbin"
     echo "sp=kernelHBMWrapper_1.src_prop_4:HBM[24]"
     echo "sp=kernelHBMWrapper_1.new_prop_1:HBM[23]"
     echo "sp=kernelHBMWrapper_1.new_prop_2:HBM[24]"
-    echo "sp=pr_source_1.rank_state:HBM[25]"
     if [[ "${MODE}" == 2 ]]; then
-      echo "sp=pr_source_1.residual_state:HBM[26]"
+      echo "sp=pr_source_1.rank_state:HBM[25:26]"
+    else
+      echo "sp=pr_source_1.rank_state:HBM[25]"
     fi
     echo "sp=pr_source_1.out_degree:HBM[27]"
     echo "sp=pr_source_1.source_prop_1:HBM[23]"
@@ -459,7 +460,11 @@ COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
   emit_compile lksg_stream "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp" "${REGRAPH_FLAGS[@]}" "-I${REGRAPH_ROOT}/acc_template/kernel_little_gs"
   emit_compile kernelLittleGSMerger "${REGRAPH_MERGER}/kernel_little_gs_merger.cpp" "${REGRAPH_FLAGS[@]}" "-I${REGRAPH_MERGER}"
   emit_compile regraph_pagerank_apply "${GRI_ROOT}/kernels/regraph_pagerank_apply/regraph_pagerank_apply.cpp" "${COMMON_ENV}" "-DGRASU_REGRAPH_PAGERANK_MODE=${MODE}" "-I${GRI_ROOT}/include" "-I${HLS_INCLUDE_ETC}" ${TARGET_DEFINE:+"${TARGET_DEFINE}"}
-  emit_compile regraph_pagerank_source_prepare "${GRI_ROOT}/kernels/regraph_pagerank_source_prepare/regraph_pagerank_source_prepare.cpp" "${COMMON_ENV}" "-DGRASU_REGRAPH_PAGERANK_MODE=${MODE}" "-I${GRI_ROOT}/include" "-I${HLS_INCLUDE_ETC}" ${TARGET_DEFINE:+"${TARGET_DEFINE}"}
+  if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+    emit_compile regraph_pagerank_source_prepare "${GRI_ROOT}/kernels/regraph_pagerank_source_prepare/regraph_pagerank_source_prepare.cpp" "${COMMON_ENV}" "-DGRASU_REGRAPH_PAGERANK_MODE=${MODE}" -DGRASU_REGRAPH_SHARDED_PMA=1 "-I${GRI_ROOT}/include" "-I${HLS_INCLUDE_ETC}" ${TARGET_DEFINE:+"${TARGET_DEFINE}"}
+  else
+    emit_compile regraph_pagerank_source_prepare "${GRI_ROOT}/kernels/regraph_pagerank_source_prepare/regraph_pagerank_source_prepare.cpp" "${COMMON_ENV}" "-DGRASU_REGRAPH_PAGERANK_MODE=${MODE}" "-I${GRI_ROOT}/include" "-I${HLS_INCLUDE_ETC}" ${TARGET_DEFINE:+"${TARGET_DEFINE}"}
+  fi
   if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
     emit_compile regraph_frontend_mux "${GRI_ROOT}/kernels/regraph_frontend_mux/regraph_frontend_mux.cpp" "${COMMON_ENV}" "-I${HLS_INCLUDE_ETC}" ${TARGET_DEFINE:+"${TARGET_DEFINE}"}
     emit_compile kernelHBMWrapper "${GRI_ROOT}/kernels/regraph_k4_shared_hbm_wrapper/kernel_hbm_wrapper.cpp" "${REGRAPH_K4_FLAGS[@]}" "-I${REGRAPH_HBM}"
@@ -504,6 +509,9 @@ RUN_BUILD="${BUILD_ROOT}/run_build.sh"
       printf 'python3 %q --xo %q --expected-masters 2\n' \
         "${GRI_ROOT}/scripts/check_xo_master_budget.py" \
         "${BUILD_DIR}/kernelHBMWrapper.${TARGET}.xo"
+      printf 'python3 %q --xo %q --expected-masters 4\n' \
+        "${GRI_ROOT}/scripts/check_xo_master_budget.py" \
+        "${BUILD_DIR}/regraph_pagerank_source_prepare.${TARGET}.xo"
     fi
     printf 'python3 %q --build-dir %q --compute-pipelines %q --pipeline-mode %q --platform-master-budget %q --out %q\n' \
       "${GRI_ROOT}/scripts/check_pipeline_master_budget.py" \

@@ -61,7 +61,7 @@ class PipelineMasterBudgetTests(unittest.TestCase):
             build_dir = Path(temporary)
             sharded_counts = dict(MASTER_COUNTS)
             sharded_counts["process_ddr"] = 4
-            sharded_counts["regraph_pagerank_source_prepare"] = 5
+            sharded_counts["regraph_pagerank_source_prepare"] = 4
             sharded_counts["pma_to_regraph_adapter"] = 1
             sharded_counts["regraph_pagerank_apply"] = 3
             for kernel, count in sharded_counts.items():
@@ -71,7 +71,7 @@ class PipelineMasterBudgetTests(unittest.TestCase):
                 build_dir, 4, pipeline_mode="sharded-k4"
             )
 
-            self.assertEqual(total, 33)
+            self.assertEqual(total, 32)
             self.assertEqual(
                 breakdown["kernelHBMWrapper"]["masters_per_compute_unit"], 2
             )

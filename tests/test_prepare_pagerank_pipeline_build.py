@@ -149,6 +149,11 @@ with tempfile.TemporaryDirectory() as temp_name:
     )
     assert "-DGRASU_SHARE_HBM_PORTS" not in residual_sharded_commands
     assert "-DLITTLE_KERNEL_NUM=4" in residual_sharded_commands
+    source_prepare_line = next(
+        line for line in residual_sharded_commands.splitlines()
+        if "regraph_pagerank_source_prepare_compile.cfg" in line
+    )
+    assert "-DGRASU_REGRAPH_SHARDED_PMA=1" in source_prepare_line
     assert "regraph_k4_shared_hbm_wrapper" in residual_sharded_commands
     assert (
         "port=src_prop_3 offset=slave bundle=gmem1"
@@ -171,8 +176,8 @@ with tempfile.TemporaryDirectory() as temp_name:
     assert residual_sharded_cfg.count("nk=kernelLittleGSMerger:1") == 1
     assert residual_sharded_cfg.count("nk=regraph_pagerank_apply:1") == 1
     assert residual_sharded_cfg.count("nk=kernelHBMWrapper:1") == 1
-    assert "sp=pr_source_1.rank_state:HBM[25]" in residual_sharded_cfg
-    assert "sp=pr_source_1.residual_state:HBM[26]" in residual_sharded_cfg
+    assert "sp=pr_source_1.rank_state:HBM[25:26]" in residual_sharded_cfg
+    assert "sp=pr_source_1.residual_state" not in residual_sharded_cfg
     assert "sp=pr_source_1.out_degree:HBM[27]" in residual_sharded_cfg
     assert "sp=kernelHBMWrapper_1.src_prop_3:HBM[23]" in residual_sharded_cfg
     assert residual_sharded_manifest["PIPELINE_MODE"] == "sharded-k4"
@@ -189,6 +194,9 @@ with tempfile.TemporaryDirectory() as temp_name:
     )
     assert "--pipeline-mode sharded-k4" in sharded_run_build
     assert "kernelHBMWrapper.hw.xo --expected-masters 2" in sharded_run_build
+    assert "regraph_pagerank_source_prepare.hw.xo --expected-masters 4" in (
+        sharded_run_build
+    )
     assert "--kernel_frequency 150" in (residual / "link_command.sh").read_text(
         encoding="utf-8"
     )
