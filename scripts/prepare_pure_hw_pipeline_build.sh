@@ -315,7 +315,7 @@ else
   write_compile_cfg pma_to_regraph_adapter "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg"
   write_compile_cfg lksg_stream "${CFG_DIR}/little_gs_stream_compile.cfg"
   if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
-    write_compile_cfg pma_frontend_mux "${CFG_DIR}/pma_frontend_mux_compile.cfg"
+    write_compile_cfg regraph_frontend_mux "${CFG_DIR}/regraph_frontend_mux_compile.cfg"
   fi
 fi
 
@@ -335,6 +335,23 @@ emit_regraph_compile_command() {
   done
   printf ' --config %q -I%q -o %q %q\n' \
     "${cfg}" "${kernel_dir}" "${out}" "${src}"
+}
+
+emit_regraph_k4_wrapper_compile_command() {
+  local cfg="$1"
+  local out="$2"
+  local src="$3"
+  printf 'v++ --target %q --compile --kernel_frequency %q' \
+    "${TARGET}" "${KERNEL_FREQ}"
+  for flag in "${REGRAPH_COMMON_FLAGS[@]}"; do
+    if [[ "${flag}" != "-DLITTLE_KERNEL_NUM=1" ]]; then
+      printf ' %q' "${flag}"
+    fi
+  done
+  printf ' %q --config %q -I%q -I%q -o %q %q\n' \
+    "-DLITTLE_KERNEL_NUM=4" "${cfg}" \
+    "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper" \
+    "${HLS_INCLUDE_ETC}" "${out}" "${src}"
 }
 
 emit_grasu_compile_command() {
@@ -402,7 +419,7 @@ else
   if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
     PIPELINE_STEM="${PIPELINE_STEM}_sharded_k4"
     CLAIM_CLASS="candidate_sharded_k4_hls_not_yet_built"
-    HANDOFF="four_sharded_pma_frontends_to_one_regraph_downstream"
+    HANDOFF="four_sharded_pma_source_gather_frontends_to_one_regraph_downstream"
   else
     CLAIM_CLASS="candidate_hls_not_yet_built"
     HANDOFF="weighted_pma_to_axis_stream"
@@ -479,22 +496,29 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
     echo
     echo "# Four destination-sharded PMA frontends with one shared downstream"
     echo "nk=pma_to_regraph_adapter:4:pma_to_regraph_adapter_1.pma_to_regraph_adapter_2.pma_to_regraph_adapter_3.pma_to_regraph_adapter_4"
+    echo "nk=lksg_stream:4:lksg_stream_1.lksg_stream_2.lksg_stream_3.lksg_stream_4"
     for index in 1 2 3 4; do
       for port in pma0 pma1 pma2 pma3 row_offset; do
         echo "sp=pma_to_regraph_adapter_${index}.${port}:HBM[0:22]"
       done
       echo "slr=pma_to_regraph_adapter_${index}:SLR$(((index - 1) % 3))"
-      echo "stream_connect=pma_to_regraph_adapter_${index}.edge_burst_out:pma_frontend_mux_1.input$((index - 1)):32"
+      echo "slr=lksg_stream_${index}:SLR$(((index - 1) % 3))"
+      echo "stream_connect=pma_to_regraph_adapter_${index}.edge_burst_out:lksg_stream_${index}.edge_burst_in:32"
+      echo "stream_connect=lksg_stream_${index}.l_ppb_request_stm:kernelHBMWrapper_1.l_ppb_request_stm_${index}:16"
+      echo "stream_connect=kernelHBMWrapper_1.l_ppb_response_stm_${index}:lksg_stream_${index}.l_ppb_response_stm:16"
+      echo "stream_connect=lksg_stream_${index}.l_tmp_prop_stm:regraph_frontend_mux_1.input$((index - 1)):32"
     done
-    echo "nk=pma_frontend_mux:1:pma_frontend_mux_1"
-    echo "slr=pma_frontend_mux_1:SLR1"
-    echo "stream_connect=pma_frontend_mux_1.output:lksg_stream_1.edge_burst_in:32"
+    echo "nk=regraph_frontend_mux:1:regraph_frontend_mux_1"
+    echo "slr=regraph_frontend_mux_1:SLR1"
+    echo "stream_connect=regraph_frontend_mux_1.output:kernelLittleGSMerger_1.l_tmp_prop_stm_1:32"
     echo
     echo "# One shared ReGraph ${ALGORITHM} downstream"
     write_regraph_stream_little_only_connectivity "${REGRAPH_CONNECTIVITY_CFG}" |
-      awk '$0 !~ /^sp=kernelHBMWrapper_1\./ && $0 !~ /^sp=kernelApply_1\./ { print }'
+      awk '$0 !~ /lksg_stream_1/ && $0 !~ /^sp=kernelHBMWrapper_1\./ && $0 !~ /^sp=kernelApply_1\./ { print }'
     echo "sp=kernelHBMWrapper_1.src_prop_1:HBM[23]"
     echo "sp=kernelHBMWrapper_1.src_prop_2:HBM[24]"
+    echo "sp=kernelHBMWrapper_1.src_prop_3:HBM[23]"
+    echo "sp=kernelHBMWrapper_1.src_prop_4:HBM[24]"
     echo "sp=kernelHBMWrapper_1.new_prop_1:HBM[23]"
     echo "sp=kernelHBMWrapper_1.new_prop_2:HBM[24]"
     echo "sp=kernelApply_1.vertex_prop:HBM[30]"
@@ -540,7 +564,7 @@ else
     "${BUILD_DIR}/lksg_stream.${TARGET}.xo"
   )
   if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
-    GENERATED_XOS+=("${BUILD_DIR}/pma_frontend_mux.${TARGET}.xo")
+    GENERATED_XOS+=("${BUILD_DIR}/regraph_frontend_mux.${TARGET}.xo")
   fi
 fi
 
@@ -581,11 +605,18 @@ fi
     "${CFG_DIR}/kernelApply_compile.cfg" \
     "${BUILD_DIR}/kernelApply.${TARGET}.${PLATFORM}.xo" \
     "${GRI_ROOT}/kernels/regraph_sssp_apply_status/kernel_apply.cpp"
-  emit_regraph_compile_command \
-    "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper" \
-    "${CFG_DIR}/kernelHBMWrapper_compile.cfg" \
-    "${BUILD_DIR}/kernelHBMWrapper.${TARGET}.${PLATFORM}.xo" \
-    "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper/kernel_hbm_wrapper.cpp"
+  if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+    emit_regraph_k4_wrapper_compile_command \
+      "${CFG_DIR}/kernelHBMWrapper_compile.cfg" \
+      "${BUILD_DIR}/kernelHBMWrapper.${TARGET}.${PLATFORM}.xo" \
+      "${GRI_ROOT}/kernels/regraph_k4_shared_hbm_wrapper/kernel_hbm_wrapper.cpp"
+  else
+    emit_regraph_compile_command \
+      "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper" \
+      "${CFG_DIR}/kernelHBMWrapper_compile.cfg" \
+      "${BUILD_DIR}/kernelHBMWrapper.${TARGET}.${PLATFORM}.xo" \
+      "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper/kernel_hbm_wrapper.cpp"
+  fi
   emit_regraph_compile_command \
     "${REGRAPH_ROOT}/acc_template/kernel_little_gs_merger" \
     "${CFG_DIR}/kernelLittleGSMerger_compile.cfg" \
@@ -616,9 +647,9 @@ fi
     if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
       printf 'v++ --target %q --compile --kernel_frequency %q %s %s --config %q -I%q -o %q %q\n' \
         "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" \
-        "${CFG_DIR}/pma_frontend_mux_compile.cfg" "${HLS_INCLUDE_ETC}" \
-        "${BUILD_DIR}/pma_frontend_mux.${TARGET}.xo" \
-        "${GRI_ROOT}/kernels/pma_frontend_mux/pma_frontend_mux.cpp"
+        "${CFG_DIR}/regraph_frontend_mux_compile.cfg" "${HLS_INCLUDE_ETC}" \
+        "${BUILD_DIR}/regraph_frontend_mux.${TARGET}.xo" \
+        "${GRI_ROOT}/kernels/regraph_frontend_mux/regraph_frontend_mux.cpp"
     fi
     emit_regraph_compile_command \
       "${GRI_ROOT}/kernels/regraph_stream_little_gs" \
@@ -751,7 +782,9 @@ chmod +x "${LINK_COMMAND}"
       "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp"
     if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
       emit_input_record kernel_source \
-        "${GRI_ROOT}/kernels/pma_frontend_mux/pma_frontend_mux.cpp"
+        "${GRI_ROOT}/kernels/regraph_frontend_mux/regraph_frontend_mux.cpp"
+      emit_input_record kernel_source \
+        "${GRI_ROOT}/kernels/regraph_k4_shared_hbm_wrapper/kernel_hbm_wrapper.cpp"
     fi
   fi
   for header_dir in \

@@ -203,7 +203,7 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
         "candidate_sharded_k4_hls_not_yet_built"
     )
     assert sharded_manifest["HANDOFF"] == (
-        "four_sharded_pma_frontends_to_one_regraph_downstream"
+        "four_sharded_pma_source_gather_frontends_to_one_regraph_downstream"
     )
     assert sharded_manifest["PMA_FRONTEND_CUS"] == "4"
     assert sharded_manifest["SHARED_REGRAPH_DOWNSTREAM"] == "1"
@@ -215,13 +215,15 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
         "pma_to_regraph_adapter_1.pma_to_regraph_adapter_2."
         "pma_to_regraph_adapter_3.pma_to_regraph_adapter_4"
     ) in sharded_cfg
-    assert "nk=pma_frontend_mux:1:pma_frontend_mux_1" in sharded_cfg
-    assert sharded_cfg.count(".edge_burst_out:pma_frontend_mux_1.input") == 4
+    assert "nk=lksg_stream:4:" in sharded_cfg
+    assert "nk=regraph_frontend_mux:1:regraph_frontend_mux_1" in sharded_cfg
+    assert sharded_cfg.count(".edge_burst_out:lksg_stream_") == 4
+    assert sharded_cfg.count(".l_tmp_prop_stm:regraph_frontend_mux_1.input") == 4
     assert (
-        "stream_connect=pma_frontend_mux_1.output:"
-        "lksg_stream_1.edge_burst_in:32"
+        "stream_connect=regraph_frontend_mux_1.output:"
+        "kernelLittleGSMerger_1.l_tmp_prop_stm_1:32"
     ) in sharded_cfg
-    assert sharded_cfg.count("nk=lksg_stream:1:lksg_stream_1") == 1
+    assert sharded_cfg.count("nk=lksg_stream:") == 1
     assert sharded_cfg.count("nk=kernelApply:1") == 1
     assert sharded_cfg.count("nk=kernelHBMWrapper:1") == 1
     assert "sp=bin_search_1.edges:HBM[0:22]" in sharded_cfg
@@ -232,11 +234,17 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
         assert f"sp=pma_to_regraph_adapter_{index}.pma0:HBM[0:22]" in sharded_cfg
     assert "sp=kernelHBMWrapper_1.src_prop_1:HBM[23]" in sharded_cfg
     assert "sp=kernelHBMWrapper_1.src_prop_2:HBM[24]" in sharded_cfg
+    assert "sp=kernelHBMWrapper_1.src_prop_3:HBM[23]" in sharded_cfg
+    assert "sp=kernelHBMWrapper_1.src_prop_4:HBM[24]" in sharded_cfg
     assert "sp=kernelApply_1.vertex_prop:HBM[30]" in sharded_cfg
     assert "-DGRASU_REGRAPH_WEIGHTED_PMA=1" in sharded_compile
     assert "-DGRASU_REGRAPH_SHARDED_PMA=1" in sharded_compile
-    assert "kernels/pma_frontend_mux/pma_frontend_mux.cpp" in sharded_compile
-    assert "pma_frontend_mux.sw_emu.xo" in sharded_link
+    assert "kernels/regraph_frontend_mux/regraph_frontend_mux.cpp" in sharded_compile
+    assert "kernels/regraph_k4_shared_hbm_wrapper/kernel_hbm_wrapper.cpp" in (
+        sharded_compile
+    )
+    assert "-DLITTLE_KERNEL_NUM=4" in sharded_compile
+    assert "regraph_frontend_mux.sw_emu.xo" in sharded_link
 
     invalid = subprocess.run(
         [str(PREPARE), "--pipeline-mode", "invalid"],
