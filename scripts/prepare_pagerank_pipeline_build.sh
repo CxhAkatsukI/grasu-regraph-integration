@@ -439,7 +439,14 @@ COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
   emit_compile bin_search "${GRASU_KERNEL_DIR}/kernel_bin_search.cpp" "${GRASU_FLAGS[@]}"
   emit_compile dispatch_degree "${GRI_ROOT}/kernels/grasu_dispatch_degree/grasu_dispatch_degree.cpp" "${GRASU_FLAGS[@]}"
   emit_compile process_cache "${GRASU_KERNEL_DIR}/kernel_process_cache.cpp" "${GRASU_FLAGS[@]}" -DGRASU_PURE_PIPELINE_DIRECT_CACHE
-  emit_compile process_ddr "${GRASU_KERNEL_DIR}/kernel_process_ddr.cpp" "${GRASU_FLAGS[@]}" -DGRASU_SHARE_HBM_PORTS
+  if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+    # The sharded adapter saves twelve AXI masters relative to the replicated
+    # baseline. Keep PMA DDR read/write ports independent so HLS can sustain
+    # the updater's II=1 pipeline instead of serializing same-bundle RAW work.
+    emit_compile process_ddr "${GRASU_KERNEL_DIR}/kernel_process_ddr.cpp" "${GRASU_FLAGS[@]}"
+  else
+    emit_compile process_ddr "${GRASU_KERNEL_DIR}/kernel_process_ddr.cpp" "${GRASU_FLAGS[@]}" -DGRASU_SHARE_HBM_PORTS
+  fi
   emit_compile grasu_degree_update "${GRI_ROOT}/kernels/grasu_degree_update/grasu_degree_update.cpp" "${GRASU_FLAGS[@]}"
   adapter_flags=(-DGRASU_REGRAPH_DESTINATION_ONLY=1 -DGRASU_REGRAPH_SHARE_ROW_OFFSET_PORT=1)
   if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
@@ -544,6 +551,7 @@ fi
     echo "SOURCE_MIRROR_HBM_CHANNELS=23,24"
     echo "PMA_FRONTEND_CUS=4"
     echo "SHARED_REGRAPH_DOWNSTREAM=1"
+    echo "PMA_DDR_AXI_BUNDLES_PER_CU=4"
   else
     echo "PMA_HBM_CHANNELS=0,1,2,3"
     echo "RANK_HBM_CHANNEL=4"

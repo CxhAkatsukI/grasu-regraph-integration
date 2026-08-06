@@ -147,6 +147,7 @@ with tempfile.TemporaryDirectory() as temp_name:
         "-DGRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS=1"
         in residual_sharded_commands
     )
+    assert "-DGRASU_SHARE_HBM_PORTS" not in residual_sharded_commands
     assert "-DLITTLE_KERNEL_NUM=4" in residual_sharded_commands
     assert "regraph_k4_shared_hbm_wrapper" in residual_sharded_commands
     assert "nk=pma_to_regraph_adapter:4:" in residual_sharded_cfg
@@ -167,6 +168,7 @@ with tempfile.TemporaryDirectory() as temp_name:
         "four_sharded_pma_source_gather_frontends_one_shared_downstream"
     )
     assert residual_sharded_manifest["SHARED_REGRAPH_DOWNSTREAM"] == "1"
+    assert residual_sharded_manifest["PMA_DDR_AXI_BUNDLES_PER_CU"] == "4"
     assert residual_sharded_manifest["RESIDUAL_HBM_CHANNEL"] == "26"
     assert "--kernel_frequency 150" in (residual / "link_command.sh").read_text(
         encoding="utf-8"
