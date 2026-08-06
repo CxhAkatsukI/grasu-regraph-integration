@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit the AXI-master cost of a replicated GraSU+ReGraph compute pipeline."""
+"""Audit the AXI-master cost of a GraSU+ReGraph compute pipeline."""
 
 from __future__ import annotations
 
@@ -30,15 +30,44 @@ WORKER_CUS = {
     "kernelHBMWrapper": 1,
 }
 
+SHARDED_K4_CUS = {
+    "bin_search": 4,
+    "dispatch_degree": 1,
+    "process_cache": 2,
+    "process_ddr": 2,
+    "grasu_degree_update": 1,
+    "regraph_pagerank_source_prepare": 1,
+    "pma_to_regraph_adapter": 4,
+    "lksg_stream": 4,
+    "regraph_frontend_mux": 1,
+    "kernelLittleGSMerger": 1,
+    "regraph_pagerank_apply": 1,
+    "kernelHBMWrapper": 1,
+}
+
 
 def project_master_count(
-    build_dir: Path, compute_pipelines: int
+    build_dir: Path,
+    compute_pipelines: int,
+    pipeline_mode: str = "weighted-axis",
 ) -> tuple[int, dict[str, dict[str, int]]]:
     if compute_pipelines <= 0:
         raise ValueError("compute_pipelines must be positive")
+    if pipeline_mode not in {"weighted-axis", "sharded-k4"}:
+        raise ValueError(f"unsupported pipeline mode: {pipeline_mode}")
     breakdown: dict[str, dict[str, int]] = {}
     total = 0
-    for kernel, base_cus in {**SHARED_CUS, **WORKER_CUS}.items():
+    if pipeline_mode == "sharded-k4":
+        topology = SHARDED_K4_CUS
+    else:
+        topology = {
+            **SHARED_CUS,
+            **{
+                kernel: base_cus * compute_pipelines
+                for kernel, base_cus in WORKER_CUS.items()
+            },
+        }
+    for kernel, cus in topology.items():
         xo = build_dir / f"{kernel}.hw.xo"
         if not xo.is_file():
             matches = sorted(build_dir.glob(f"{kernel}.*.xo"))
@@ -48,7 +77,6 @@ def project_master_count(
                 )
             xo = matches[0]
         masters_per_cu = len(master_interfaces(xo))
-        cus = base_cus * (compute_pipelines if kernel in WORKER_CUS else 1)
         subtotal = masters_per_cu * cus
         breakdown[kernel] = {
             "compute_units": cus,
@@ -63,16 +91,26 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--compute-pipelines", type=int, required=True)
+    parser.add_argument(
+        "--pipeline-mode",
+        choices=("weighted-axis", "sharded-k4"),
+        default="weighted-axis",
+    )
     parser.add_argument("--platform-master-budget", type=int, default=33)
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     total, breakdown = project_master_count(
-        args.build_dir.resolve(), args.compute_pipelines
+        args.build_dir.resolve(), args.compute_pipelines, args.pipeline_mode
     )
     passed = total <= args.platform_master_budget
     result = {
         "schema_version": 1,
-        "topology": "direct_complete_worker_replication",
+        "topology": (
+            "four_sharded_pma_source_gather_frontends_one_shared_downstream"
+            if args.pipeline_mode == "sharded-k4"
+            else "direct_complete_worker_replication"
+        ),
+        "pipeline_mode": args.pipeline_mode,
         "compute_pipelines": args.compute_pipelines,
         "platform_master_budget": args.platform_master_budget,
         "projected_axi_master_instances": total,

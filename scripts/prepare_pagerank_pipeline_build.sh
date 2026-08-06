@@ -496,18 +496,22 @@ RUN_BUILD="${BUILD_ROOT}/run_build.sh"
   echo "#!/usr/bin/env bash"
   echo "set -euo pipefail"
   printf '%q\n' "${COMPILE_COMMANDS}"
-  if [[ "${TARGET}" == "hw" && "${PIPELINE_MODE}" != "sharded-k4" ]]; then
+  if [[ "${TARGET}" == "hw" ]]; then
     printf 'python3 %q --xo %q --expected-masters 2\n' \
       "${GRI_ROOT}/scripts/check_xo_master_budget.py" \
       "${BUILD_DIR}/bin_search.${TARGET}.xo"
-    printf 'python3 %q --build-dir %q --compute-pipelines %q --platform-master-budget %q --out %q\n' \
+    if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+      printf 'python3 %q --xo %q --expected-masters 2\n' \
+        "${GRI_ROOT}/scripts/check_xo_master_budget.py" \
+        "${BUILD_DIR}/kernelHBMWrapper.${TARGET}.xo"
+    fi
+    printf 'python3 %q --build-dir %q --compute-pipelines %q --pipeline-mode %q --platform-master-budget %q --out %q\n' \
       "${GRI_ROOT}/scripts/check_pipeline_master_budget.py" \
-      "${BUILD_DIR}" "${COMPUTE_PIPELINES}" "${PLATFORM_MASTER_BUDGET}" \
+      "${BUILD_DIR}" "${COMPUTE_PIPELINES}" "${PIPELINE_MODE}" \
+      "${PLATFORM_MASTER_BUDGET}" \
       "${BUILD_ROOT}/pipeline_master_budget.json"
   elif [[ "${TARGET}" != "hw" ]]; then
     echo "echo 'SKIP AXI master-budget audit: sw_emu XO omits synthesized bundle metadata'"
-  else
-    echo "echo 'SKIP legacy replicated-worker master audit: sharded-k4 uses lane-aware connectivity checked by system_link'"
   fi
   printf '%q\n' "${LINK_COMMAND}"
 } > "${RUN_BUILD}"
@@ -552,6 +556,7 @@ fi
     echo "PMA_FRONTEND_CUS=4"
     echo "SHARED_REGRAPH_DOWNSTREAM=1"
     echo "PMA_DDR_AXI_BUNDLES_PER_CU=4"
+    echo "SHARED_SOURCE_AXI_BUNDLES=2"
   else
     echo "PMA_HBM_CHANNELS=0,1,2,3"
     echo "RANK_HBM_CHANNEL=4"

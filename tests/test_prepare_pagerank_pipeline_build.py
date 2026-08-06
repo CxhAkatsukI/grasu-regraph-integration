@@ -150,6 +150,16 @@ with tempfile.TemporaryDirectory() as temp_name:
     assert "-DGRASU_SHARE_HBM_PORTS" not in residual_sharded_commands
     assert "-DLITTLE_KERNEL_NUM=4" in residual_sharded_commands
     assert "regraph_k4_shared_hbm_wrapper" in residual_sharded_commands
+    assert (
+        "port=src_prop_3 offset=slave bundle=gmem1"
+        in (ROOT / "kernels/regraph_k4_shared_hbm_wrapper/kernel_hbm_wrapper.cpp")
+        .read_text(encoding="utf-8")
+    )
+    assert (
+        "port=src_prop_4 offset=slave bundle=gmem2"
+        in (ROOT / "kernels/regraph_k4_shared_hbm_wrapper/kernel_hbm_wrapper.cpp")
+        .read_text(encoding="utf-8")
+    )
     assert "nk=pma_to_regraph_adapter:4:" in residual_sharded_cfg
     assert "nk=lksg_stream:4:" in residual_sharded_cfg
     assert "nk=regraph_frontend_mux:1:regraph_frontend_mux_1" in (
@@ -169,7 +179,13 @@ with tempfile.TemporaryDirectory() as temp_name:
     )
     assert residual_sharded_manifest["SHARED_REGRAPH_DOWNSTREAM"] == "1"
     assert residual_sharded_manifest["PMA_DDR_AXI_BUNDLES_PER_CU"] == "4"
+    assert residual_sharded_manifest["SHARED_SOURCE_AXI_BUNDLES"] == "2"
     assert residual_sharded_manifest["RESIDUAL_HBM_CHANNEL"] == "26"
+    sharded_run_build = (residual_sharded / "run_build.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "--pipeline-mode sharded-k4" in sharded_run_build
+    assert "kernelHBMWrapper.hw.xo --expected-masters 2" in sharded_run_build
     assert "--kernel_frequency 150" in (residual / "link_command.sh").read_text(
         encoding="utf-8"
     )

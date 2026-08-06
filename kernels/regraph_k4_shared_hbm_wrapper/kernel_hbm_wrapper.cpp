@@ -31,8 +31,8 @@ void kernelHBMWrapper(
 {
 #pragma HLS INTERFACE m_axi port=src_prop_1 offset=slave bundle=gmem1
 #pragma HLS INTERFACE m_axi port=src_prop_2 offset=slave bundle=gmem2
-#pragma HLS INTERFACE m_axi port=src_prop_3 offset=slave bundle=gmem3
-#pragma HLS INTERFACE m_axi port=src_prop_4 offset=slave bundle=gmem4
+#pragma HLS INTERFACE m_axi port=src_prop_3 offset=slave bundle=gmem1
+#pragma HLS INTERFACE m_axi port=src_prop_4 offset=slave bundle=gmem2
 #pragma HLS INTERFACE m_axi port=new_prop_1 offset=slave bundle=gmem1
 #pragma HLS INTERFACE m_axi port=new_prop_2 offset=slave bundle=gmem2
 #pragma HLS INTERFACE s_axilite port=src_prop_1 bundle=control
