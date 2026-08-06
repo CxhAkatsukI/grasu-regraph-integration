@@ -335,9 +335,8 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
     }
 
     std::map<detail::EdgeKey, std::uint16_t> state;
-    std::map<std::uint32_t,
-             std::set<std::pair<std::uint32_t, std::uint16_t>>>
-        reserved_variants;
+    std::vector<std::uint64_t> reserved_variant_count(vertices, 0);
+    std::map<detail::EdgeKey, std::set<std::uint16_t>> update_variant_history;
     for (const auto &edge : initial) {
         if (edge.source >= vertices || edge.destination >= vertices ||
             edge.weight == 0 || edge.weight > kWeightedPmaWeightMask ||
@@ -348,7 +347,7 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
             throw std::invalid_argument(
                 "invalid initial edge for weighted partitioned PMA");
         }
-        reserved_variants[edge.source].insert({edge.destination, edge.weight});
+        ++reserved_variant_count[edge.source];
     }
 
     std::vector<WeightedEdgeRecord> physical_external;
@@ -360,6 +359,11 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
         }
         const detail::EdgeKey key{update.source, update.destination};
         const auto found = state.find(key);
+        auto [history, inserted_history] =
+            update_variant_history.try_emplace(key);
+        if (inserted_history && found != state.end()) {
+            history->second.insert(found->second);
+        }
         if (update.delete_op) {
             if (found == state.end() || found->second != update.weight) {
                 throw std::invalid_argument(
@@ -370,8 +374,9 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
             continue;
         }
 
-        reserved_variants[update.source].insert(
-            {update.destination, update.weight});
+        if (history->second.insert(update.weight).second) {
+            ++reserved_variant_count[update.source];
+        }
         if (found == state.end()) {
             physical_external.push_back(update);
             state.emplace(key, update.weight);
@@ -403,10 +408,8 @@ inline WeightedPartitionedPmaGraph build_weighted_partitioned_pma_graph(
     std::vector<std::pair<std::uint32_t, double>> reorder;
     reorder.reserve(vertices);
     for (std::uint32_t vertex = 0; vertex < vertices; ++vertex) {
-        const auto variants = reserved_variants.find(vertex);
         const std::size_t segments =
-            detail::round_up_segments(
-                variants == reserved_variants.end() ? 0 : variants->second.size());
+            detail::round_up_segments(reserved_variant_count[vertex]);
         const double density =
             segments == 0
                 ? -1.0

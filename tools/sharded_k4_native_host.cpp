@@ -143,8 +143,10 @@ int main(int argc, char **argv)
             fail("source vertex is outside the graph");
         }
 
-        const FinalEdgeMap final_edges = build_final_external_edges(dataset);
-        const FinalEdgeMap static_edges = build_static_external_edges(dataset);
+        // Build the PMA before materializing the two oracle maps.  Each map is
+        // full-graph sized; overlapping both with the builder's transient
+        // state multiplies host memory on 100M-edge inputs without changing
+        // any device-visible data.
         const WeightedPartitionedPmaGraph graph =
             build_weighted_partitioned_pma_graph(
                 dataset.node_size, kPartitionSize, dataset.static_edges,
@@ -155,39 +157,52 @@ int main(int argc, char **argv)
                 grasu::integration::kWeightedPmaRuntimeChannels,
                 grasu::integration::kU55cHbmPseudoChannelBytes,
                 WeightedPmaChannelPolicy::lane_aware_u55c);
-        const std::vector<WeightedPmaPackedShardBuffers> packed =
-            pack_weighted_pma_runtime_buffers(graph, runtime_plan);
         const unsigned source_internal =
             graph.external_to_internal.at(source_external);
 
-        const bool resident_mode = std::all_of(
-            dataset.update_edges.begin(), dataset.update_edges.end(),
-            [&](const WeightedEdgeRecord &update) {
-                if (update.delete_op) return false;
-                if (kConnectedComponents) return true;
-                const auto found = static_edges.find(
-                    std::make_pair(update.source, update.destination));
-                return found == static_edges.end() ||
-                       update.weight <= found->second;
-            });
-        const AlgorithmOracleResult resident_oracle = kConnectedComponents
-            ? run_connected_components_oracle(
-                  dataset.node_size, static_edges, graph, max_supersteps)
-            : run_weighted_sssp_oracle(
-                  dataset.node_size, static_edges, source_external,
-                  max_supersteps);
+        bool resident_mode = false;
+        AlgorithmOracleResult resident_oracle;
+        {
+            const FinalEdgeMap static_edges =
+                build_static_external_edges(dataset);
+            resident_mode = std::all_of(
+                dataset.update_edges.begin(), dataset.update_edges.end(),
+                [&](const WeightedEdgeRecord &update) {
+                    if (update.delete_op) return false;
+                    if (kConnectedComponents) return true;
+                    const auto found = static_edges.find(
+                        std::make_pair(update.source, update.destination));
+                    return found == static_edges.end() ||
+                           update.weight <= found->second;
+                });
+            resident_oracle = kConnectedComponents
+                ? run_connected_components_oracle(
+                      dataset.node_size, static_edges, graph, max_supersteps)
+                : run_weighted_sssp_oracle(
+                      dataset.node_size, static_edges, source_external,
+                      max_supersteps);
+        }
         const std::vector<unsigned> update_sources =
             update_source_vertices(dataset);
-        const AlgorithmOracleResult oracle = resident_mode
-            ? run_resident_relaxation_oracle(
-                  dataset.node_size, final_edges, graph, resident_oracle,
-                  update_sources, max_supersteps, kConnectedComponents)
-            : (kConnectedComponents
-                   ? run_connected_components_oracle(
-                         dataset.node_size, final_edges, graph, max_supersteps)
-                   : run_weighted_sssp_oracle(
-                         dataset.node_size, final_edges, source_external,
-                         max_supersteps));
+        AlgorithmOracleResult oracle;
+        std::size_t final_edge_count = 0;
+        {
+            const FinalEdgeMap final_edges = build_final_external_edges(dataset);
+            final_edge_count = final_edges.size();
+            oracle = resident_mode
+                ? run_resident_relaxation_oracle(
+                      dataset.node_size, final_edges, graph, resident_oracle,
+                      update_sources, max_supersteps, kConnectedComponents)
+                : (kConnectedComponents
+                       ? run_connected_components_oracle(
+                             dataset.node_size, final_edges, graph,
+                             max_supersteps)
+                       : run_weighted_sssp_oracle(
+                             dataset.node_size, final_edges, source_external,
+                             max_supersteps));
+        }
+        const std::vector<WeightedPmaPackedShardBuffers> packed =
+            pack_weighted_pma_runtime_buffers(graph, runtime_plan);
 
         if (graph.shards.empty() || graph.shards.size() > 255) {
             fail("ReGraph sharded control ABI requires 1..255 partitions");
@@ -207,7 +222,7 @@ int main(int argc, char **argv)
                   << " static_edges=" << dataset.static_edges.size()
                   << " logical_updates=" << dataset.update_edges.size()
                   << " physical_updates=" << graph.physical_internal.size()
-                  << " final_edges=" << final_edges.size()
+                  << " final_edges=" << final_edge_count
                   << " destination_partitions=" << graph.shards.size()
                   << " pma_slots_total=" << total_pma_slots(graph)
                   << " hbm_graph_allocated_bytes="
@@ -731,7 +746,7 @@ int main(int argc, char **argv)
                   << " status=" << (pass ? "PASS" : "FAIL")
                   << " mismatches=" << mismatch_count
                   << " vertices=" << dataset.node_size
-                  << " final_edges=" << final_edges.size()
+                  << " final_edges=" << final_edge_count
                   << " logical_updates=" << dataset.update_edges.size()
                   << " physical_updates=" << graph.physical_internal.size()
                   << " destination_partitions=" << destination_partitions

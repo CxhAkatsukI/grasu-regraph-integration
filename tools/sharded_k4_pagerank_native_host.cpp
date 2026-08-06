@@ -130,8 +130,10 @@ int main(int argc, char **argv)
         const std::string result_path = argv[arg_index++];
 
         Dataset dataset = read_dataset(graph_path);
-        const FinalEdgeMap static_edges = build_static_external_edges(dataset);
-        const FinalEdgeMap final_edges = build_final_external_edges(dataset);
+        // Keep the PMA builder's transient state disjoint from the two
+        // full-graph oracle maps.  This is a host-memory optimization only;
+        // graph contents, kernel arguments, and measured device work do not
+        // change.
         const WeightedPartitionedPmaGraph graph =
             build_weighted_partitioned_pma_graph(
                 dataset.node_size, kPartitionSize, dataset.static_edges,
@@ -142,23 +144,36 @@ int main(int argc, char **argv)
                 grasu::integration::kWeightedPmaRuntimeChannels,
                 grasu::integration::kU55cHbmPseudoChannelBytes,
                 WeightedPmaChannelPolicy::lane_aware_u55c);
-        const std::vector<WeightedPmaPackedShardBuffers> packed =
-            pack_weighted_pma_runtime_buffers(graph, runtime_plan);
 
-        const FullPageRankOracleResult warm_oracle =
-            run_full_pagerank_oracle(
+        FullPageRankOracleResult warm_oracle;
+        {
+            const FinalEdgeMap static_edges =
+                build_static_external_edges(dataset);
+            warm_oracle = run_full_pagerank_oracle(
                 dataset.node_size, static_edges, 128, kPageRankDamping);
+        }
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
-        const ResidualPageRankOracleResult oracle =
-            run_residual_pagerank_oracle(
+        ResidualPageRankOracleResult oracle;
+#else
+        FullPageRankOracleResult oracle;
+#endif
+        std::size_t final_edge_count = 0;
+        {
+            const FinalEdgeMap final_edges = build_final_external_edges(dataset);
+            final_edge_count = final_edges.size();
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+            oracle = run_residual_pagerank_oracle(
                 dataset.node_size, final_edges, warm_oracle.rank,
                 kResidualPageRankMaxRounds, kPageRankDamping,
                 kPageRankEpsilon);
 #else
-        const FullPageRankOracleResult oracle = run_full_pagerank_oracle(
-            dataset.node_size, final_edges, kFullPageRankRounds,
-            kPageRankDamping);
+            oracle = run_full_pagerank_oracle(
+                dataset.node_size, final_edges, kFullPageRankRounds,
+                kPageRankDamping);
 #endif
+        }
+        const std::vector<WeightedPmaPackedShardBuffers> packed =
+            pack_weighted_pma_runtime_buffers(graph, runtime_plan);
 
         if (graph.shards.empty() || graph.shards.size() > 255) {
             fail("ReGraph sharded PageRank ABI requires 1..255 partitions");
@@ -183,7 +198,7 @@ int main(int argc, char **argv)
                   << " static_edges=" << dataset.static_edges.size()
                   << " logical_updates=" << dataset.update_edges.size()
                   << " physical_updates=" << graph.physical_internal.size()
-                  << " final_edges=" << final_edges.size()
+                  << " final_edges=" << final_edge_count
                   << " destination_partitions=" << graph.shards.size()
                   << " pma_slots_total=" << total_pma_slots(graph)
                   << " hbm_graph_allocated_bytes="
@@ -808,7 +823,7 @@ int main(int argc, char **argv)
                   << " rounds=" << kFullPageRankRounds
 #endif
                   << " vertices=" << dataset.node_size
-                  << " final_edges=" << final_edges.size()
+                  << " final_edges=" << final_edge_count
                   << " logical_updates=" << dataset.update_edges.size()
                   << " physical_updates=" << graph.physical_internal.size()
                   << " destination_partitions=" << destination_partitions
