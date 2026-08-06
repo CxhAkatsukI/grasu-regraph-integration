@@ -1,5 +1,9 @@
 # Preliminary bridge-workload FPGA comparison (2026-08-06)
 
+> Superseded for performance claims by
+> `bridge_fpga_resident_comparison_20260806.md`. This document is retained as
+> bring-up history and explains why the original cold-start rows were rejected.
+
 ## Purpose and evidence boundary
 
 This experiment checks that the routed Spine and conversion-free GraSU+ReGraph
