@@ -136,6 +136,25 @@ The accepted log, run environment, summary, and hashes are archived at
 `docs/evidence/sharded_k4_fullgraph_20260806/sssp_u55c_au`.  The per-vertex
 result file is omitted from Git; its SHA-256 remains in `evidence.sha256`.
 
+The routed CC artifact is exercised with the same protocol on AU:
+
+```bash
+./scripts/run_pma_native_hw.sh \
+  --algorithm connected_components \
+  --host /data/tmp/chuxiao/sharded_k4_hosts_5d501d9/connected_components/\
+sharded_k4_cc_native_host \
+  --xclbin /data/tmp/chuxiao/\
+grasu_regraph_sharded_k4_cc_hw_d886f42_20260806/build/\
+grasu_regraph_connected_components_pma_native_sharded_k4.hw.xclbin \
+  --graph /data/tmp/chuxiao/fullgraph_fpga_workloads_20260806/\
+au_connected_components_insert_u8.graph \
+  --out-dir /data/tmp/chuxiao/sharded_k4_fpga_smoke_20260807/au_cc \
+  --device-index 0 --source 0 --max-supersteps 256 --timeout 1800
+```
+
+Its compact evidence is archived at
+`docs/evidence/sharded_k4_fullgraph_20260806/cc_u55c_au`.
+
 The three hardware build roots are:
 
 ```text
@@ -232,6 +251,17 @@ pass with zero overflow or task error; setup-inclusive dynamic latency is
 for PK.  Compact evidence is archived under
 `docs/evidence/sharded_k4_fullgraph_20260806/spine_sssp_u55c_pk`.
 
+The CC xclbin routes with 151,453 LUTs, 170,219 registers, 429 BRAMs, 256
+URAMs, and no DSPs.  The user kernel clock closes at 150 MHz with +0.340 ns
+WNS.  A fixed platform HBM path misses 450 MHz by 0.060 ns, so Vitis selects
+438.2 MHz for `hbm_aclk`; this platform-clock adjustment is recorded rather
+than represented as user-kernel timing closure.  The xclbin passes a real-U55C
+AU gate with 515,281 vertices, 679,246 resident edges, eight destination
+shards, 16 physical insertions, and zero mismatches.  The run starts from the
+old graph's converged CC state, uses four frontends and one shared downstream,
+and has no conversion stage.
+
 The corrected ResPR PMA DDR kernel has `II=1` and estimated `205.47 MHz`; the
-prior shared-bundle result (`II=140`) is rejected.  CC is routing, while
-CC/ResPR routed artifacts and their board-run correctness gates remain pending.
+prior shared-bundle result (`II=140`) is rejected.  Its routed artifact and
+board-run correctness gate remain pending.  The CC/ResPR eight-graph matched
+matrices remain pending until the ResPR board gate passes.
