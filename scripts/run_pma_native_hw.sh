@@ -108,8 +108,10 @@ timeout --signal=TERM --kill-after=15s "${timeout_seconds}s" \
 host_exit=${PIPESTATUS[0]}
 set -e
 
-result_line=$(rg "^${prefix}_RESULT " "${run_log}" | tail -1 || true)
-timing_line=$(rg "^${prefix}_TIMING " "${run_log}" | tail -1 || true)
+# Sharded-K4 hosts retain an explicit SHARDED marker so their evidence cannot
+# be confused with the legacy full-PMA-scan baseline.
+result_line=$(rg "^${prefix}(_SHARDED)?_RESULT " "${run_log}" | tail -1 || true)
+timing_line=$(rg "^${prefix}(_SHARDED)?_TIMING " "${run_log}" | tail -1 || true)
 status=FAIL
 if (( host_exit == 0 )) &&
    [[ "${result_line}" == *"status=PASS"* ]] &&
