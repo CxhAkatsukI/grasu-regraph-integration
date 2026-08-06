@@ -204,6 +204,16 @@ the two-round oracle with zero mismatches, and reports 2,063.63 ms
 setup-inclusive latency.  This establishes functional correctness for one
 routed algorithm; it is not yet a cross-architecture speedup claim.
 
+The matched Spine host at commit `3678ad4` now loads resident baselines through
+the same hot/cold family classifier and multi-level serializer consumed by the
+routed kernel.  A real-U55C PK SSSP run passes with 1,632,803 vertices,
+44,603,928 initial edges, 16 cold destination partitions, 248,899 hot
+vertices, and 24,321,670 hot edges.  Maintenance and both propagation rounds
+pass with zero overflow or task error; setup-inclusive dynamic latency is
+185.608 ms.  This closes the previous host-only cold-family capacity rejection
+for PK.  Compact evidence is archived under
+`docs/evidence/sharded_k4_fullgraph_20260806/spine_sssp_u55c_pk`.
+
 The corrected ResPR PMA DDR kernel has `II=1` and estimated `205.47 MHz`; the
 prior shared-bundle result (`II=140`) is rejected.  CC is linking, while
 CC/ResPR routed artifacts and their board-run correctness gates remain pending.

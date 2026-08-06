@@ -1,0 +1,23 @@
+DYNAMIC_GRAPH_LOAD_PASS case=/data/tmp/chuxiao/fullgraph_fpga_workloads_20260806/pk_weighted_sssp_insert_u8.graph vertices=1632803 initial_edges=44603928 logical_updates=8 physical_updates=8 final_edges=44603936
+Using XCL_DEVICE_INDEX=1
+VERTEX_LIFECYCLE_HW_PASS vertex=1632802 transitions=deactivate,activate
+SPINE_DYNAMIC_MAINT_PASS logical_updates=8 physical_updates=8 target_level=0 path=2 hot_edges=1 cold_edges=7
+KERNEL_PAIR_PHASE algorithm=0 phase=input_migration_begin
+KERNEL_PAIR_PHASE algorithm=0 phase=input_migration_end
+KERNEL_PAIR_PHASE algorithm=0 phase=kernel_pair_begin
+KERNEL_PAIR_PHASE algorithm=0 phase=kernel_pair_end
+KERNEL_PAIR_PHASE algorithm=0 phase=output_migration_begin
+KERNEL_PAIR_PHASE algorithm=0 phase=output_migration_end
+KERNEL_PAIR_RESULT algorithm=weighted SSSP iteration=0 overflow=0 task_error=0 task_path=1 fallback_reason=0 task_count=109 processed_edges=278 source_status=0 source_requests=8 dirty_count=8 owner_status=0 owner_credits=1 owner_created=9 owner_retired=8 owner_reactivations=0 owner_queued=1 owner_fifo_backpressure=0 reactivation_fifo_backpressure=0 owner_fifo_max_occupancy=1 reactivation_fifo_max_occupancy=0
+ALGORITHM_STEP_PASS name=weighted_sssp iteration=0
+KERNEL_PAIR_PHASE algorithm=0 phase=input_migration_begin
+KERNEL_PAIR_PHASE algorithm=0 phase=input_migration_end
+KERNEL_PAIR_PHASE algorithm=0 phase=kernel_pair_begin
+KERNEL_PAIR_PHASE algorithm=0 phase=kernel_pair_end
+KERNEL_PAIR_PHASE algorithm=0 phase=output_migration_begin
+KERNEL_PAIR_PHASE algorithm=0 phase=output_migration_end
+KERNEL_PAIR_RESULT algorithm=weighted SSSP iteration=1 overflow=0 task_error=0 task_path=1 fallback_reason=0 task_count=1 processed_edges=1 source_status=0 source_requests=1 dirty_count=1 owner_status=0 owner_credits=0 owner_created=0 owner_retired=1 owner_reactivations=0 owner_queued=0 owner_fifo_backpressure=0 reactivation_fifo_backpressure=0 owner_fifo_max_occupancy=0 reactivation_fifo_max_occupancy=0
+ALGORITHM_STEP_PASS name=weighted_sssp iteration=1
+ALGORITHM_PASS name=weighted_sssp iterations=2
+PARTITIONED_ALGORITHM_PASS algorithm=weighted_sssp vertices=1632803 partitions=16 source=64 case=/data/tmp/chuxiao/fullgraph_fpga_workloads_20260806/pk_weighted_sssp_insert_u8.graph:final dynamic_run=1 resident_update=1 logical_updates=8 physical_updates=8 baseline_level=10 baseline_hot_vertices=248899 baseline_hot_edges=24321670 coverage=converged
+SPINE_HW_TIMING algorithm=weighted_sssp logical_updates=8 physical_updates=8 maintenance_input_ms=0.067652 maintenance_kernel_ms=0.235797 maintenance_output_ms=0.069612 maintenance_device_e2e_ms=0.373061 maintenance_setup_inclusive_ms=54.6955 iterations=2 input_migration_ms=0.297869 reader_ms=3.07463 compute_ms=1.21636 kernel_span_ms=3.11274 output_migration_ms=3.77775 device_e2e_ms=7.18836 setup_inclusive_ms=130.912 host_dynamic_preparation_ms=0 dynamic_device_e2e_ms=7.56142 dynamic_kernel_ms=3.34854 dynamic_setup_inclusive_ms=185.608 timing_scope=maintenance_plus_iterative_algorithm_excludes_static_graph_setup
