@@ -10,7 +10,10 @@
 
 using grasu::integration::WeightedEdgeRecord;
 using grasu::integration::WeightedPmaGraph;
+using grasu::integration::WeightedPartitionedPmaGraph;
+using grasu::integration::WeightedPmaShard;
 using grasu::integration::build_weighted_pma_graph;
+using grasu::integration::build_weighted_partitioned_pma_graph;
 using grasu::integration::decode_weighted_pma_destination;
 using grasu::integration::decode_weighted_pma_weight;
 using grasu::integration::kWeightedPmaDelete;
@@ -105,6 +108,103 @@ EdgeMap unmap_edges(const WeightedPmaGraph &graph, const EdgeMap &internal)
                 graph.internal_to_external.at(key.second)}] = weight;
     }
     return result;
+}
+
+EdgeMap materialize_partitioned(const WeightedPartitionedPmaGraph &graph)
+{
+    EdgeMap internal;
+    for (const WeightedPmaShard &shard : graph.shards) {
+        std::vector<std::uint32_t> words = shard.initial_pma_words;
+        for (const std::uint64_t update : shard.physical_updates) {
+            const bool delete_op = (update & kWeightedPmaDelete) != 0;
+            const std::uint64_t edge = update & ~kWeightedPmaDelete;
+            const std::uint32_t source = static_cast<std::uint32_t>(edge >> 32);
+            const std::uint32_t word = static_cast<std::uint32_t>(edge);
+            const std::uint64_t row = shard.row_bounds.at(source);
+            const std::size_t begin_segment =
+                (row >> 32) / kWeightedPmaSegmentSlots;
+            const std::size_t end_segment =
+                static_cast<std::uint32_t>(row) / kWeightedPmaSegmentSlots;
+            const std::uint64_t packed_key =
+                (static_cast<std::uint64_t>(source) << 32) | word;
+            std::size_t segment = begin_segment;
+            for (std::size_t candidate = begin_segment;
+                 candidate < end_segment; ++candidate) {
+                if (shard.binary_heads[candidate] <= packed_key) {
+                    segment = candidate;
+                }
+            }
+            auto first = words.begin() + segment * kWeightedPmaSegmentSlots;
+            auto last = first + kWeightedPmaSegmentSlots;
+            auto position = std::lower_bound(first, last, word);
+            if (delete_op) {
+                assert(position != last && *position == word);
+                std::rotate(position, position + 1, last);
+                *(last - 1) = kWeightedPmaEmpty;
+            } else {
+                assert(*(last - 1) == kWeightedPmaEmpty);
+                std::move_backward(position, last - 1, last);
+                *position = word;
+            }
+        }
+
+        for (std::uint32_t source = 0; source < shard.source_vertices;
+             ++source) {
+            const std::uint64_t row = shard.row_bounds.at(source);
+            const std::size_t begin = row >> 32;
+            const std::size_t end = static_cast<std::uint32_t>(row);
+            for (std::size_t slot = begin; slot < end; ++slot) {
+                if (words[slot] == kWeightedPmaEmpty) {
+                    continue;
+                }
+                const std::uint32_t destination =
+                    shard.destination_base +
+                    decode_weighted_pma_destination(words[slot]);
+                internal[{source, destination}] =
+                    decode_weighted_pma_weight(words[slot]);
+            }
+        }
+    }
+
+    EdgeMap external;
+    for (const auto &[key, weight] : internal) {
+        external[{graph.internal_to_external.at(key.first),
+                  graph.internal_to_external.at(key.second)}] = weight;
+    }
+    return external;
+}
+
+void check_partitioned_graph(
+    const std::vector<WeightedEdgeRecord> &initial,
+    const std::vector<WeightedEdgeRecord> &updates,
+    const WeightedPartitionedPmaGraph &graph,
+    std::size_t expected_partitions)
+{
+    assert(graph.shards.size() == expected_partitions);
+    assert(graph.external_to_internal.size() == graph.vertices);
+    assert(graph.internal_to_external.size() == graph.vertices);
+    std::size_t physical_updates = 0;
+    for (std::size_t partition = 0; partition < graph.shards.size();
+         ++partition) {
+        const WeightedPmaShard &shard = graph.shards[partition];
+        assert(shard.source_vertices == graph.vertices);
+        assert(shard.destination_base == partition * graph.partition_vertices);
+        assert(shard.destination_vertices <= graph.partition_vertices);
+        assert(shard.row_bounds.size() == graph.vertices + 1);
+        assert(!shard.initial_pma_words.empty());
+        assert(shard.initial_pma_words.size() % kWeightedPmaSegmentSlots == 0);
+        assert(shard.binary_heads.size() ==
+               shard.initial_pma_words.size() / kWeightedPmaSegmentSlots);
+        physical_updates += shard.physical_updates.size();
+        for (const std::uint32_t word : shard.initial_pma_words) {
+            if (word != kWeightedPmaEmpty) {
+                assert(decode_weighted_pma_destination(word) <
+                       shard.destination_vertices);
+            }
+        }
+    }
+    assert(physical_updates == graph.physical_internal.size());
+    assert(materialize_partitioned(graph) == external_oracle(initial, updates));
 }
 
 void check_graph(const std::vector<WeightedEdgeRecord> &initial,
@@ -243,6 +343,86 @@ int main()
         (void)build_weighted_pma_graph(
             8, initial,
             {{.source = 0, .destination = 1, .weight = 8}});
+    } catch (const std::invalid_argument &) {
+        rejected = true;
+    }
+    assert(rejected);
+
+    const std::vector<WeightedEdgeRecord> partitioned_initial = {
+        {.source = 0, .destination = 1, .weight = 2},
+        {.source = 0, .destination = 7, .weight = 3},
+        {.source = 1, .destination = 8, .weight = 4},
+        {.source = 2, .destination = 15, .weight = 5},
+        {.source = 3, .destination = 16, .weight = 6},
+        {.source = 17, .destination = 18, .weight = 7},
+    };
+    const std::vector<WeightedEdgeRecord> partitioned_updates = {
+        {.source = 0, .destination = 7, .weight = 9},
+        {.source = 1, .destination = 8, .weight = 4, .delete_op = true},
+        {.source = 2, .destination = 9, .weight = 8},
+        {.source = 17, .destination = 0, .weight = 1},
+    };
+    const WeightedPartitionedPmaGraph partitioned =
+        build_weighted_partitioned_pma_graph(
+            19, 8, partitioned_initial, partitioned_updates);
+    check_partitioned_graph(
+        partitioned_initial, partitioned_updates, partitioned, 3);
+    assert(partitioned.physical_internal.size() == 5);
+
+    const WeightedPartitionedPmaGraph one_partition =
+        build_weighted_partitioned_pma_graph(
+            19, 32, partitioned_initial, partitioned_updates);
+    check_partitioned_graph(
+        partitioned_initial, partitioned_updates, one_partition, 1);
+
+    std::vector<WeightedEdgeRecord> many_partition_initial;
+    for (std::uint32_t partition = 0; partition < 9; ++partition) {
+        many_partition_initial.push_back({
+            .source = partition,
+            .destination = partition * 4,
+            .weight = static_cast<std::uint16_t>(partition + 1),
+        });
+    }
+    const WeightedPartitionedPmaGraph many_partition =
+        build_weighted_partitioned_pma_graph(
+            36, 4, many_partition_initial, {});
+    check_partitioned_graph(many_partition_initial, {}, many_partition, 9);
+
+    const std::size_t over_dst19_vertices =
+        grasu::integration::kWeightedPmaDestinationMask + 3ULL;
+    const std::vector<WeightedEdgeRecord> over_dst19_initial = {
+        {.source = 0,
+         .destination =
+             grasu::integration::kWeightedPmaDestinationMask + 1U,
+         .weight = 11},
+    };
+    const std::vector<WeightedEdgeRecord> over_dst19_updates = {
+        {.source = 1,
+         .destination =
+             grasu::integration::kWeightedPmaDestinationMask + 2U,
+         .weight = 12},
+    };
+    const WeightedPartitionedPmaGraph over_dst19 =
+        build_weighted_partitioned_pma_graph(
+            over_dst19_vertices, 65536, over_dst19_initial,
+            over_dst19_updates);
+    check_partitioned_graph(
+        over_dst19_initial, over_dst19_updates, over_dst19, 9);
+
+    rejected = false;
+    try {
+        (void)build_weighted_pma_graph(
+            over_dst19_vertices, over_dst19_initial, over_dst19_updates);
+    } catch (const std::invalid_argument &) {
+        rejected = true;
+    }
+    assert(rejected);
+
+    rejected = false;
+    try {
+        (void)build_weighted_partitioned_pma_graph(
+            19, grasu::integration::kWeightedPmaDestinationMask + 2ULL,
+            partitioned_initial, partitioned_updates);
     } catch (const std::invalid_argument &) {
         rejected = true;
     }
