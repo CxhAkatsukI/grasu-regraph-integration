@@ -98,6 +98,16 @@ class MatchedFpgaRepeatAggregationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "non-admitted"):
                 load_summary(path)
 
+    def test_non_admitted_row_can_be_skipped_for_recovery_aggregation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "summary.tsv"
+            write_summary(
+                path,
+                [row(), row(case="rejected", comparison_status="REJECTED")],
+            )
+            samples = load_summary(path, skip_rejected=True)
+            self.assertEqual([sample.case for sample in samples], ["amazon_insert"])
+
     def test_graph_change_across_repeats_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

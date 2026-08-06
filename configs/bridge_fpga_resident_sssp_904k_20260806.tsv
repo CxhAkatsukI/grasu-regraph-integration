@@ -1,0 +1,2 @@
+case	algorithm	graph	source	gr_host	gr_xclbin
+askubuntu904k_sssp_resident	weighted_sssp	/data/tmp/chuxiao/matched_fpga_bridge_workloads_20260806/askubuntu_reciprocal_e903774_insert_u8.graph	0	/data/tmp/chuxiao/bridge_resident_hosts_20260806/weighted_sssp/weighted_pma_native_host	/data/tmp/chuxiao/grasu_regraph_k4shared_sssp_hw_bb2bd3b_20260805/build/grasu_regraph_weighted_pma_native.hw.xclbin

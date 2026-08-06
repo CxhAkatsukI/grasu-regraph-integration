@@ -18,8 +18,10 @@ FIELDS = (
     "gr_event_e2e_ms",
     "gr_setup_inclusive_ms",
     "spine_dynamic_kernel_ms",
+    "spine_dynamic_device_e2e_ms",
     "spine_dynamic_setup_inclusive_ms",
     "kernel_speedup_gr_over_spine",
+    "device_e2e_speedup_gr_over_spine",
     "setup_speedup_gr_over_spine",
 )
 
@@ -112,6 +114,7 @@ def summarize(matrix: Path, run_root: Path) -> list[dict[str, str]]:
             "device_e2e_ms", ""
         )
         spine_kernel = spine_timing.get("dynamic_kernel_ms", "")
+        spine_device = spine_timing.get("dynamic_device_e2e_ms", "")
         gr_setup = gr_timing.get("setup_inclusive_ms", "")
         spine_setup = spine_timing.get("dynamic_setup_inclusive_ms", "")
         admitted = gr_pass and spine_pass and bool(gr_kernel) and bool(spine_kernel)
@@ -126,9 +129,15 @@ def summarize(matrix: Path, run_root: Path) -> list[dict[str, str]]:
                 "gr_event_e2e_ms": gr_kernel,
                 "gr_setup_inclusive_ms": gr_setup,
                 "spine_dynamic_kernel_ms": spine_kernel,
+                "spine_dynamic_device_e2e_ms": spine_device,
                 "spine_dynamic_setup_inclusive_ms": spine_setup,
                 "kernel_speedup_gr_over_spine": (
                     safe_ratio(gr_kernel, spine_kernel) if admitted else ""
+                ),
+                "device_e2e_speedup_gr_over_spine": (
+                    safe_ratio(gr_kernel, spine_device)
+                    if admitted and spine_device
+                    else ""
                 ),
                 "setup_speedup_gr_over_spine": (
                     safe_ratio(gr_setup, spine_setup)

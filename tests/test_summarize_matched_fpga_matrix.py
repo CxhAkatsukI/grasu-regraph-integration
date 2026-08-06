@@ -47,13 +47,17 @@ class MatchedFpgaSummaryTest(unittest.TestCase):
                 "SPINE_DYNAMIC_MAINT_PASS\n"
                 "ALGORITHM_PASS name=weighted_sssp\n"
                 "PARTITIONED_ALGORITHM_PASS algorithm=weighted_sssp\n"
-                "SPINE_HW_TIMING dynamic_kernel_ms=2 dynamic_setup_inclusive_ms=5\n"
+                "SPINE_HW_TIMING dynamic_kernel_ms=2 "
+                "dynamic_device_e2e_ms=2.5 dynamic_setup_inclusive_ms=5\n"
             )
 
             rows = summarize(matrix, root)
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["comparison_status"], "ADMITTED")
             self.assertEqual(rows[0]["kernel_speedup_gr_over_spine"], "4.000000")
+            self.assertEqual(
+                rows[0]["device_e2e_speedup_gr_over_spine"], "3.200000"
+            )
             self.assertEqual(rows[0]["setup_speedup_gr_over_spine"], "2.000000")
 
     def test_normalizes_pagerank_device_event_window(self) -> None:

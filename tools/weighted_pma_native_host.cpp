@@ -410,6 +410,78 @@ void require_reciprocal_cc_edges(const FinalEdgeMap &edges)
     return result;
 }
 
+[[maybe_unused]] std::vector<unsigned> update_source_vertices(
+    const Dataset &dataset)
+{
+    std::vector<unsigned> sources;
+    sources.reserve(dataset.update_edges.size());
+    for (const WeightedEdgeRecord &update : dataset.update_edges) {
+        sources.push_back(update.source);
+    }
+    std::sort(sources.begin(), sources.end());
+    sources.erase(std::unique(sources.begin(), sources.end()), sources.end());
+    return sources;
+}
+
+[[maybe_unused]] AlgorithmOracleResult run_resident_relaxation_oracle(
+    std::size_t vertices,
+    const FinalEdgeMap &external_edges,
+    const WeightedPmaGraph &graph,
+    const AlgorithmOracleResult &resident,
+    const std::vector<unsigned> &external_sources,
+    unsigned max_supersteps,
+    bool connected_components)
+{
+    AlgorithmOracleResult result;
+    result.prop = resident.prop;
+    std::vector<unsigned char> active(vertices, 0);
+    for (unsigned external : external_sources) {
+        const unsigned vertex = connected_components
+            ? graph.external_to_internal.at(external)
+            : external;
+        active.at(vertex) = 1;
+    }
+
+    for (unsigned step = 0; step < max_supersteps; ++step) {
+        std::vector<uint32_t> reduced(vertices, 0);
+        std::vector<unsigned char> valid(vertices, 0);
+        for (const auto &[key, weight] : external_edges) {
+            const unsigned src = connected_components
+                ? graph.external_to_internal.at(key.first)
+                : key.first;
+            const unsigned dst = connected_components
+                ? graph.external_to_internal.at(key.second)
+                : key.second;
+            if (!active[src]) continue;
+            uint32_t candidate = result.prop[src];
+            if (!connected_components) {
+                const uint64_t sum = (uint64_t)candidate + weight;
+                candidate = sum >= kSsspInf ? kSsspInf : (uint32_t)sum;
+            }
+            if (!valid[dst] || candidate < reduced[dst]) {
+                reduced[dst] = candidate;
+                valid[dst] = 1;
+            }
+        }
+
+        std::fill(active.begin(), active.end(), 0);
+        bool any_active = false;
+        for (std::size_t vertex = 0; vertex < vertices; vertex++) {
+            if (valid[vertex] && reduced[vertex] < result.prop[vertex]) {
+                result.prop[vertex] = reduced[vertex];
+                active[vertex] = 1;
+                any_active = true;
+            }
+        }
+        result.executed_supersteps = step + 1;
+        if (!any_active) {
+            result.converged = true;
+            break;
+        }
+    }
+    return result;
+}
+
 [[maybe_unused]] std::size_t count_components(
     const AlgorithmOracleResult &oracle)
 {
@@ -776,14 +848,38 @@ int main(int argc, char **argv)
         }
 
         const FinalEdgeMap final_edges = build_final_external_edges(dataset);
+        const FinalEdgeMap static_edges = build_static_external_edges(dataset);
         const WeightedPmaGraph graph = build_weighted_pma_graph(
             dataset.node_size, dataset.static_edges, dataset.update_edges);
         const unsigned source_internal = graph.external_to_internal[source_external];
-        const AlgorithmOracleResult oracle = kConnectedComponents
+        const bool resident_mode = std::all_of(
+            dataset.update_edges.begin(), dataset.update_edges.end(),
+            [&](const WeightedEdgeRecord &update) {
+                if (update.delete_op) return false;
+                if (kConnectedComponents) return true;
+                const auto found = static_edges.find(
+                    std::make_pair(update.source, update.destination));
+                return found == static_edges.end() ||
+                       update.weight <= found->second;
+            });
+        const AlgorithmOracleResult resident_oracle = kConnectedComponents
             ? run_connected_components_oracle(
-                  dataset.node_size, final_edges, graph, max_supersteps)
+                  dataset.node_size, static_edges, graph, max_supersteps)
             : run_weighted_sssp_oracle(
-                  dataset.node_size, final_edges, source_external, max_supersteps);
+                  dataset.node_size, static_edges, source_external,
+                  max_supersteps);
+        const std::vector<unsigned> update_sources =
+            update_source_vertices(dataset);
+        const AlgorithmOracleResult oracle = resident_mode
+            ? run_resident_relaxation_oracle(
+                  dataset.node_size, final_edges, graph, resident_oracle,
+                  update_sources, max_supersteps, kConnectedComponents)
+            : (kConnectedComponents
+                  ? run_connected_components_oracle(
+                        dataset.node_size, final_edges, graph, max_supersteps)
+                  : run_weighted_sssp_oracle(
+                        dataset.node_size, final_edges, source_external,
+                        max_supersteps));
 
         PreparedGraSU prepared = prepare_grasu_inputs(graph);
         if (graph.physical_updates.size() >
@@ -809,6 +905,13 @@ int main(int argc, char **argv)
                   << " max_supersteps=" << max_supersteps
                   << " oracle_supersteps=" << oracle.executed_supersteps
                   << " oracle_converged=" << (oracle.converged ? 1 : 0)
+                  << " resident_state="
+                  << (resident_mode ? "old_graph_converged" : "cold_fallback")
+                  << " seed_sources="
+                  << (resident_mode ? update_sources.size()
+                                    : (kConnectedComponents
+                                           ? dataset.node_size
+                                           : 1))
                   << std::endl;
 
         if (prepare_only) {
@@ -946,13 +1049,21 @@ int main(int argc, char **argv)
         AlignedVector<uint32_t> apply_prop(state_capacity, 0);
         AlignedVector<uint32_t> active_count(1, 0);
         for (std::size_t i = 0; i < dataset.node_size; ++i) {
-            const uint32_t initial_value = kConnectedComponents
-                ? static_cast<uint32_t>(i) | kActiveMask
-                : kSsspInf;
+            const std::size_t external = graph.internal_to_external.at(i);
+            const uint32_t initial_value = resident_mode
+                ? resident_oracle.prop.at(kConnectedComponents ? i : external)
+                : (kConnectedComponents
+                       ? static_cast<uint32_t>(i) | kActiveMask
+                       : kSsspInf);
             prop_a[i] = initial_value;
             apply_prop[i] = initial_value;
         }
-        if (!kConnectedComponents) {
+        if (resident_mode) {
+            for (unsigned external : update_sources) {
+                const unsigned internal = graph.external_to_internal.at(external);
+                prop_a[internal] |= kActiveMask;
+            }
+        } else if (!kConnectedComponents) {
             prop_a[source_internal] = kActiveMask;
             apply_prop[source_internal] = kActiveMask;
         }
@@ -1301,6 +1412,13 @@ int main(int argc, char **argv)
                   << " oracle_converged=" << (oracle.converged ? 1 : 0)
                   << " final_active_vertices=" << active_count[0]
                   << " algorithm=" << kAlgorithmName
+                  << " resident_state="
+                  << (resident_mode ? "old_graph_converged" : "cold_fallback")
+                  << " seed_sources="
+                  << (resident_mode ? update_sources.size()
+                                    : (kConnectedComponents
+                                           ? dataset.node_size
+                                           : 1))
                   << " conversion_cost=absent"
                   << std::endl;
 
