@@ -13,9 +13,17 @@ mkdir -p "${OUT_DIR}"
 "${SCRIPT_DIR}/build_weighted_pma_native_host.sh" \
   --pipeline-mode sharded-k4 --algorithm connected_components \
   --out-dir "${OUT_DIR}/cc"
+"${SCRIPT_DIR}/build_weighted_pma_native_host.sh" \
+  --pipeline-mode sharded-k4 --algorithm full_pagerank \
+  --out-dir "${OUT_DIR}/full_pr"
+"${SCRIPT_DIR}/build_weighted_pma_native_host.sh" \
+  --pipeline-mode sharded-k4 --algorithm residual_pagerank \
+  --out-dir "${OUT_DIR}/residual_pr"
 
 SSSP_HOST="${OUT_DIR}/sssp/sharded_k4_sssp_native_host"
 CC_HOST="${OUT_DIR}/cc/sharded_k4_cc_native_host"
+FULL_PR_HOST="${OUT_DIR}/full_pr/sharded_k4_full_pagerank_native_host"
+RESIDUAL_PR_HOST="${OUT_DIR}/residual_pr/sharded_k4_residual_pagerank_native_host"
 
 # Six destination partitions exercise the path beyond the legacy four-partition
 # control limit. Cross-partition edges also require a local dst19 encoding.
@@ -51,6 +59,18 @@ CC_OUTPUT="${OUT_DIR}/six_partition_cc.out"
 rg -q 'CC_PMA_NATIVE_SHARDED_PREP status=PASS .*destination_partitions=6 .*oracle_converged=1 .*pma_destination_abi=local_dst19 .*k4_frontends=4 shared_regraph_downstream=1 conversion_cost=absent' \
   "${CC_OUTPUT}"
 
+FULL_PR_OUTPUT="${OUT_DIR}/six_partition_full_pr.out"
+"${FULL_PR_HOST}" --prepare-only "${SSSP_GRAPH}" \
+  "${OUT_DIR}/six_partition_full_pr.result" | tee "${FULL_PR_OUTPUT}"
+rg -q 'FULL_PR_PMA_NATIVE_SHARDED_PREP status=PASS .*destination_partitions=6 .*pma_destination_abi=local_dst19 .*k4_frontends=4 shared_regraph_downstream=1 conversion_cost=absent' \
+  "${FULL_PR_OUTPUT}"
+
+RESIDUAL_PR_OUTPUT="${OUT_DIR}/six_partition_residual_pr.out"
+"${RESIDUAL_PR_HOST}" --prepare-only "${SSSP_GRAPH}" \
+  "${OUT_DIR}/six_partition_residual_pr.result" | tee "${RESIDUAL_PR_OUTPUT}"
+rg -q 'RESIDUAL_PR_PMA_NATIVE_SHARDED_PREP status=PASS .*destination_partitions=6 .*pma_destination_abi=local_dst19 .*k4_frontends=4 shared_regraph_downstream=1 conversion_cost=absent' \
+  "${RESIDUAL_PR_OUTPUT}"
+
 cat >"${OUT_DIR}/check_manifest.env" <<MANIFEST
 STATUS=PASS
 CLAIM_CLASS=host_preprocessing_and_cpu_oracle_only
@@ -61,7 +81,7 @@ PMA_DESTINATION_ABI=local_dst19
 K4_FRONTENDS=4
 SHARED_REGRAPH_DOWNSTREAM=1
 CONVERSION_COST=absent
-ALGORITHMS=weighted_sssp,connected_components
+ALGORITHMS=weighted_sssp,connected_components,full_pagerank,residual_pagerank
 MANIFEST
 
 printf 'Sharded K4 native host checks passed:\n  %s\n' "${OUT_DIR}"

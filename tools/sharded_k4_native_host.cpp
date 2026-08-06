@@ -61,7 +61,7 @@ void write_device_buffer(cl::CommandQueue &queue,
              "write buffer " + name);
 }
 
-void print_prepare_result(const Dataset &dataset,
+[[maybe_unused]] void print_prepare_result(const Dataset &dataset,
                           const WeightedPartitionedPmaGraph &graph,
                           const WeightedPmaRuntimePlan &plan,
                           const AlgorithmOracleResult &oracle,
@@ -112,6 +112,7 @@ void print_prepare_result(const Dataset &dataset,
 
 }  // namespace
 
+#ifndef GRASU_REGRAPH_SHARDED_K4_NO_MAIN
 int main(int argc, char **argv)
 {
     try {
@@ -756,3 +757,4 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 }
+#endif  // GRASU_REGRAPH_SHARDED_K4_NO_MAIN

@@ -22,8 +22,7 @@ Options:
   --algorithm NAME  weighted_sssp, connected_components, full_pagerank, or
                     residual_pagerank.
   --pipeline-mode MODE
-                    weighted-axis or sharded-k4. The sharded mode currently
-                    supports weighted_sssp and connected_components.
+                    weighted-axis or sharded-k4.
   -h, --help        Show this help.
 USAGE
 }
@@ -72,12 +71,19 @@ case "${PIPELINE_MODE}" in
     case "${ALGORITHM}" in
       weighted_sssp) DEFAULT_BIN=sharded_k4_sssp_native_host ;;
       connected_components) DEFAULT_BIN=sharded_k4_cc_native_host ;;
-      *)
-        echo "Pipeline mode sharded-k4 does not yet support ${ALGORITHM}" >&2
-        exit 2
+      full_pagerank)
+        DEFAULT_BIN=sharded_k4_full_pagerank_native_host
+        ;;
+      residual_pagerank)
+        DEFAULT_BIN=sharded_k4_residual_pagerank_native_host
         ;;
     esac
-    HOST_SOURCE="${GRI_ROOT}/tools/sharded_k4_native_host.cpp"
+    case "${ALGORITHM}" in
+      full_pagerank|residual_pagerank)
+        HOST_SOURCE="${GRI_ROOT}/tools/sharded_k4_pagerank_native_host.cpp"
+        ;;
+      *) HOST_SOURCE="${GRI_ROOT}/tools/sharded_k4_native_host.cpp" ;;
+    esac
     HANDOFF=four_sharded_pma_source_gather_frontends_to_one_regraph_downstream
     ;;
   *) echo "Invalid --pipeline-mode: ${PIPELINE_MODE}" >&2; exit 2 ;;
