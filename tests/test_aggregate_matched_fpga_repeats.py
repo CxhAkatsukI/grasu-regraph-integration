@@ -18,6 +18,11 @@ FIELDNAMES = [
     "gr_event_e2e_ms",
     "spine_dynamic_kernel_ms",
     "kernel_speedup_gr_over_spine",
+    "spine_dynamic_device_e2e_ms",
+    "device_e2e_speedup_gr_over_spine",
+    "gr_setup_inclusive_ms",
+    "spine_dynamic_setup_inclusive_ms",
+    "setup_speedup_gr_over_spine",
 ]
 
 
@@ -90,6 +95,42 @@ class MatchedFpgaRepeatAggregationTests(unittest.TestCase):
             self.assertEqual(result[0]["kernel_speedup_min"], 1.9)
             self.assertEqual(result[0]["kernel_speedup_max"], 2.1)
             self.assertEqual(result[0]["winner"], "Spine")
+
+    def test_setup_inclusive_scope_controls_winner_and_variation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = root / "first.tsv"
+            second = root / "second.tsv"
+            write_summary(
+                first,
+                [
+                    row(
+                        gr_setup_inclusive_ms=8.0,
+                        spine_dynamic_setup_inclusive_ms=10.0,
+                        setup_speedup_gr_over_spine=0.8,
+                    )
+                ],
+            )
+            write_summary(
+                second,
+                [
+                    row(
+                        gr_setup_inclusive_ms=12.0,
+                        spine_dynamic_setup_inclusive_ms=10.0,
+                        setup_speedup_gr_over_spine=1.2,
+                    )
+                ],
+            )
+            result = aggregate(
+                [*load_summary(first), *load_summary(second)]
+            )[0]
+            self.assertEqual(result["gr_setup_inclusive_median_ms"], 10.0)
+            self.assertEqual(result["gr_setup_inclusive_cv_pct"], 20.0)
+            self.assertEqual(result["spine_setup_inclusive_cv_pct"], 0.0)
+            self.assertEqual(result["setup_speedup_median"], 1.0)
+            self.assertEqual(result["setup_speedup_min"], 0.8)
+            self.assertEqual(result["setup_speedup_max"], 1.2)
+            self.assertEqual(result["winner"], "G+R")
 
     def test_non_admitted_row_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

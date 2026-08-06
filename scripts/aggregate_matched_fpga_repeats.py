@@ -172,18 +172,36 @@ def aggregate(samples: list[MatchedSample]) -> list[dict[str, object]]:
                 "gr_setup_inclusive_median_ms": (
                     statistics.median(gr_setup) if gr_setup else ""
                 ),
+                "gr_setup_inclusive_cv_pct": (
+                    coefficient_of_variation_pct(gr_setup) if gr_setup else ""
+                ),
                 "spine_setup_inclusive_median_ms": (
                     statistics.median(spine_setup) if spine_setup else ""
+                ),
+                "spine_setup_inclusive_cv_pct": (
+                    coefficient_of_variation_pct(spine_setup)
+                    if spine_setup
+                    else ""
                 ),
                 "setup_speedup_median": (
                     statistics.median(setup_speedups)
                     if setup_speedups
                     else ""
                 ),
+                "setup_speedup_min": (
+                    min(setup_speedups) if setup_speedups else ""
+                ),
+                "setup_speedup_max": (
+                    max(setup_speedups) if setup_speedups else ""
+                ),
                 "winner": "Spine" if (
-                    statistics.median(device_speedups)
-                    if device_speedups
-                    else median_speedup
+                    statistics.median(setup_speedups)
+                    if setup_speedups
+                    else (
+                        statistics.median(device_speedups)
+                        if device_speedups
+                        else median_speedup
+                    )
                 ) > 1.0 else "G+R",
             }
         )

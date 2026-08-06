@@ -237,26 +237,28 @@ The same artifact passes the real-U55C weighted-SSSP matrix on all eight
 frozen graphs.  Both architectures start from the old graph's converged
 resident state, apply the same insertion batch, execute until the independent
 oracle converges, and include current host orchestration in the reported
-setup-inclusive window.  Every row below is one correctness-admitted execution;
-the values are not yet multi-run medians.
+setup-inclusive window.  Every row below is the median of three
+correctness-admitted executions.
 
 | Graph | G+R setup-inclusive (ms) | Spine setup-inclusive (ms) | G+R / Spine |
 | --- | ---: | ---: | ---: |
 | AU | 2,065.321 | 127.418 | 16.21x |
-| SU | 3,399.388 | 116.905 | 29.08x |
-| WK | 5,676.505 | 106.656 | 53.22x |
-| SO | 137,677.538 | 137.556 | 1,000.88x |
-| PK | 23,006.391 | 186.083 | 123.64x |
-| LJ | 274,702.199 | 185.380 | 1,481.83x |
-| LJ08 | 223,831.252 | 142.916 | 1,566.17x |
-| R19 | 2,202.999 | 116.802 | 18.86x |
+| SU | 3,397.731 | 125.410 | 27.09x |
+| WK | 5,677.198 | 105.338 | 53.93x |
+| SO | 137,677.262 | 137.556 | 1,000.88x |
+| PK | 23,006.391 | 184.151 | 124.91x |
+| LJ | 274,706.425 | 185.380 | 1,481.83x |
+| LJ08 | 223,831.252 | 148.028 | 1,512.03x |
+| R19 | 2,209.166 | 117.136 | 18.86x |
 
 The complete summary, launch status, matrix, and hashes of the untracked raw
 logs/results are archived under
 `docs/evidence/sharded_k4_fullgraph_20260806/sssp_fullgraph_u55c`.  These
 results validate the direction and magnitude variation of the SSSP advantage
-on routed hardware.  Statistical claims still require repeated runs and must
-not substitute kernel-only ratios for the setup-inclusive ratios above.
+on routed hardware.  There is no winner flip across the three repetitions;
+G+R setup-inclusive latency has at most 0.158% CV, and every individual
+setup-inclusive speedup remains above 14.80x.  Kernel-only ratios remain
+diagnostic and must not substitute for the setup-inclusive ratios above.
 
 The matched Spine host at commit `3678ad4` now loads resident baselines through
 the same hot/cold family classifier and multi-level serializer consumed by the

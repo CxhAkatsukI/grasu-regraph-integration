@@ -1,7 +1,7 @@
 # Weighted SSSP full-graph U55C matrix
 
-This directory records one correctness-admitted matched execution for each of
-AU, SU, WK, SO, PK, LJ, LJ08, and R19.
+This directory records three correctness-admitted matched executions for each
+of AU, SU, WK, SO, PK, LJ, LJ08, and R19.
 
 - G+R source: `700a8bd11970573dcd01fbf82f8238ee8b19795b`
 - Spine source: `3678ad488e0d0fe8538a36a11d87ddffa182fa99`
@@ -16,11 +16,16 @@ AU, SU, WK, SO, PK, LJ, LJ08, and R19.
 - Memory policy: serial architecture execution, per-process hard cap,
   18 GiB runtime reserve, and process-group termination on guard failure
 
-`summary.tsv` contains only admitted performance rows.  `launch_status.tsv`
-records process exits and memory-guard status.  `matrix.tsv` pins all workload,
-host, source, and xclbin paths.  `raw_evidence.sha256` authenticates the raw
-logs and result arrays retained under `/data/tmp/chuxiao`; the large result
-arrays are deliberately not committed to Git.
+`summary.tsv` contains the first execution's admitted performance rows, while
+`aggregate_3runs.tsv` reports medians, coefficients of variation, and speedup
+ranges over all three executions.  `launch_status.tsv` records the first
+execution's process exits and memory-guard status.  `matrix.tsv` pins all
+workload, host, source, and xclbin paths.  The three `*raw_evidence.sha256`
+files authenticate the raw logs and result arrays retained under
+`/data/tmp/chuxiao`; the large result arrays are deliberately not committed to
+Git.
 
-The matrix currently contains one run per row.  It is architectural and
-functional hardware evidence, not a claim about run-to-run variance.
+All 24 architecture pairs are correctness admitted.  There is no winner flip
+across repetitions.  G+R setup-inclusive latency has at most 0.158% CV; the
+setup-inclusive G+R/Spine speedup ranges from 14.80x to 1,566.17x across all
+individual samples.
