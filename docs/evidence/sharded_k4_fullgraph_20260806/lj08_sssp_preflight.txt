@@ -1,0 +1,11 @@
+command:
+  ulimit -v 25165824
+  sharded_k4_sssp_native_host --prepare-only \
+    lj08_weighted_sssp_insert_u8.graph /tmp/lj08_sssp.txt 26 256
+
+host_commit: 5d501d9
+elapsed: 3m40.950s
+exit_code: 0
+
+WEIGHTED_PMA_NATIVE_SHARDED_INPUT vertices=5363260 static_edges=99028542 logical_updates=8 physical_updates=8 final_edges=99028550 destination_partitions=82 pma_slots_total=431737872 hbm_graph_allocated_bytes=6562983936 source_external=26 source_internal=33 oracle_supersteps=2 oracle_converged=1 resident_state=old_graph_converged
+WEIGHTED_PMA_NATIVE_SHARDED_PREP status=PASS vertices=5363260 static_edges=99028542 logical_updates=8 physical_updates=8 destination_partitions=82 pma_slots_total=431737872 pma_slots_max_shard=15658224 hbm_graph_channels=23 hbm_graph_allocated_bytes=6562983936 hbm_max_channel_bytes=295227392 source_external=26 source_internal=33 max_supersteps=256 oracle_supersteps=2 oracle_converged=1 reachable_vertices=5363186 max_value=762 pma_destination_abi=local_dst19 partition_size=65536 k4_frontends=4 shared_regraph_downstream=1 conversion_cost=absent

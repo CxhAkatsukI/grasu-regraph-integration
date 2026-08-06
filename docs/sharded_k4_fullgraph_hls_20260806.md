@@ -97,6 +97,23 @@ python3 scripts/prepare_fullgraph_fpga_workloads.py \
   --out-dir /data/tmp/chuxiao/fullgraph_fpga_workloads_20260806
 ```
 
+The largest SSSP input can be capacity-checked under a hard 24 GiB host-memory
+ceiling.  This verifies the 82-shard layout and the 23-channel placement before
+an xclbin or board is involved:
+
+```bash
+ulimit -v 25165824
+/data/tmp/chuxiao/sharded_k4_hosts_5d501d9/weighted_sssp/\
+sharded_k4_sssp_native_host \
+  --prepare-only \
+  /data/tmp/chuxiao/fullgraph_fpga_workloads_20260806/\
+lj08_weighted_sssp_insert_u8.graph \
+  /tmp/lj08_sssp.txt 26 256
+```
+
+The accepted output is archived at
+`docs/evidence/sharded_k4_fullgraph_20260806/lj08_sssp_preflight.txt`.
+
 The three hardware build roots are:
 
 ```text
@@ -115,7 +132,7 @@ After all three routed xclbins exist, bind the fail-closed matrix:
 python3 scripts/prepare_fullgraph_fpga_matrix.py \
   --workload-manifest \
     /data/tmp/chuxiao/fullgraph_fpga_workloads_20260806/manifest.json \
-  --host-root /data/tmp/chuxiao/sharded_k4_hosts_4ef6d89 \
+  --host-root /data/tmp/chuxiao/sharded_k4_hosts_5d501d9 \
   --sssp-xclbin <SSSP_XCLBIN> \
   --cc-xclbin <CC_XCLBIN> \
   --respr-xclbin <RESPR_XCLBIN> \
@@ -142,9 +159,12 @@ field, or missing artifact rejects the row.
 
 ## Current status
 
-As of 2026-08-06, source checks, all four native hosts, the six-partition ABI
-check, all 24 workload materializations, and all CC/ResPR kernel XO builds
-pass.  The corrected ResPR PMA DDR kernel has `II=1` and estimated
-`205.47 MHz`; the prior shared-bundle result (`II=140`) is rejected.  Routed
-xclbin and board-run results are intentionally left pending until their
-respective gates complete.
+As of 2026-08-06, 22 unit tests, all four native hosts, the six-partition ABI
+check, all 24 workload materializations, and all three algorithm-specific XO
+sets pass.  LJ08 SSSP (5.36M vertices, 99.03M initial edges) also passes host
+preflight under a 24 GiB hard ceiling: 82 destination shards map to 23 HBM
+pseudo-channels with 6.56 GB allocated in total and 295 MB in the fullest
+channel.  The corrected ResPR PMA DDR kernel has `II=1` and estimated
+`205.47 MHz`; the prior shared-bundle result (`II=140`) is rejected.  The SSSP
+xclbin is in route; routed xclbins and board-run results remain pending until
+their respective gates complete.
