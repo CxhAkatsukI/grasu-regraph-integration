@@ -11,6 +11,7 @@ namespace {
 using grasu::integration::WeightedPartitionedPmaGraph;
 using grasu::integration::WeightedPmaPackedShardBuffers;
 using grasu::integration::WeightedPmaRuntimePlan;
+using grasu::integration::WeightedPmaChannelPolicy;
 using grasu::integration::build_weighted_partitioned_pma_graph;
 using grasu::integration::build_weighted_pma_runtime_plan;
 using grasu::integration::find_weighted_pma_region;
@@ -148,7 +149,11 @@ int main(int argc, char **argv)
                 dataset.node_size, kPartitionSize, dataset.static_edges,
                 dataset.update_edges);
         const WeightedPmaRuntimePlan runtime_plan =
-            build_weighted_pma_runtime_plan(graph, kMaxCacheSegment);
+            build_weighted_pma_runtime_plan(
+                graph, kMaxCacheSegment,
+                grasu::integration::kWeightedPmaRuntimeChannels,
+                grasu::integration::kU55cHbmPseudoChannelBytes,
+                WeightedPmaChannelPolicy::lane_aware_u55c);
         const std::vector<WeightedPmaPackedShardBuffers> packed =
             pack_weighted_pma_runtime_buffers(graph, runtime_plan);
         const unsigned source_internal =

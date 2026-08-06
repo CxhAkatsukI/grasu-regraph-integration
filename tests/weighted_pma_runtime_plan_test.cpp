@@ -7,6 +7,7 @@
 #include <vector>
 
 using grasu::integration::WeightedEdgeRecord;
+using grasu::integration::WeightedPmaChannelPolicy;
 using grasu::integration::build_weighted_partitioned_pma_graph;
 using grasu::integration::build_weighted_pma_runtime_plan;
 using grasu::integration::find_weighted_pma_region;
@@ -82,5 +83,25 @@ int main()
         rejected = true;
     }
     assert(rejected);
+
+    const auto u55c_plan = build_weighted_pma_runtime_plan(
+        graph, 32, 23, 1ULL << 20,
+        WeightedPmaChannelPolicy::lane_aware_u55c);
+    for (const auto &region : u55c_plan.regions) {
+        if (region.name.rfind("update", 0) == 0 ||
+            region.name.rfind("pma", 0) == 0) {
+            const std::size_t lane =
+                static_cast<std::size_t>(region.name.back() - '0');
+            const auto range =
+                grasu::integration::kWeightedPmaU55cLaneChannelRanges[lane];
+            assert(region.channel >= range.first);
+            assert(region.channel < range.second);
+            assert(region.channel_first == range.first);
+            assert(region.channel_last == range.second);
+        } else {
+            assert(region.channel_first == 0);
+            assert(region.channel_last == 23);
+        }
+    }
     return 0;
 }

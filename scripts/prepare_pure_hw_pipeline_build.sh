@@ -90,8 +90,8 @@ case "${ALGORITHM}" in
   *) echo "Invalid --algorithm: ${ALGORITHM}" >&2; exit 2 ;;
 esac
 if [[ "${ALGORITHM}" == "connected_components" &&
-      "${PIPELINE_MODE}" != "weighted-axis" ]]; then
-  echo "connected_components requires --pipeline-mode weighted-axis" >&2
+      "${PIPELINE_MODE}" == "compactor" ]]; then
+  echo "connected_components requires --pipeline-mode weighted-axis or sharded-k4" >&2
   exit 2
 fi
 
@@ -450,16 +450,17 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
   echo "# GraSU U55C connectivity"
   if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
     copy_connectivity_body_without_memory "${GRASU_LINK_CFG}"
+    lane_ranges=("0:5" "6:11" "12:17" "18:22")
     for index in 1 2 3 4; do
-      echo "sp=bin_search_${index}.edges:HBM[0:22]"
+      echo "sp=bin_search_${index}.edges:HBM[${lane_ranges[$((index - 1))]}]"
       echo "sp=bin_search_${index}.binary_0:HBM[0:22]"
       echo "sp=bin_search_${index}.row_offset_0:HBM[0:22]"
     done
-    echo "sp=process_cache_1.pma_cache:HBM[0:22]"
-    echo "sp=process_cache_2.pma_cache:HBM[0:22]"
+    echo "sp=process_cache_1.pma_cache:HBM[0:5]"
+    echo "sp=process_cache_2.pma_cache:HBM[12:17]"
     for port in pma_in0_ddr pma_in1_ddr pma_out0_ddr pma_out1_ddr; do
-      echo "sp=process_ddr_1.${port}:HBM[0:22]"
-      echo "sp=process_ddr_2.${port}:HBM[0:22]"
+      echo "sp=process_ddr_1.${port}:HBM[6:11]"
+      echo "sp=process_ddr_2.${port}:HBM[18:22]"
     done
   else
     copy_connectivity_body "${GRASU_LINK_CFG}"
@@ -498,9 +499,11 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
     echo "nk=pma_to_regraph_adapter:4:pma_to_regraph_adapter_1.pma_to_regraph_adapter_2.pma_to_regraph_adapter_3.pma_to_regraph_adapter_4"
     echo "nk=lksg_stream:4:lksg_stream_1.lksg_stream_2.lksg_stream_3.lksg_stream_4"
     for index in 1 2 3 4; do
-      for port in pma0 pma1 pma2 pma3 row_offset; do
-        echo "sp=pma_to_regraph_adapter_${index}.${port}:HBM[0:22]"
-      done
+      echo "sp=pma_to_regraph_adapter_${index}.pma0:HBM[0:5]"
+      echo "sp=pma_to_regraph_adapter_${index}.pma1:HBM[6:11]"
+      echo "sp=pma_to_regraph_adapter_${index}.pma2:HBM[12:17]"
+      echo "sp=pma_to_regraph_adapter_${index}.pma3:HBM[18:22]"
+      echo "sp=pma_to_regraph_adapter_${index}.row_offset:HBM[0:22]"
       echo "slr=pma_to_regraph_adapter_${index}:SLR$(((index - 1) % 3))"
       echo "slr=lksg_stream_${index}:SLR$(((index - 1) % 3))"
       echo "stream_connect=pma_to_regraph_adapter_${index}.edge_burst_out:lksg_stream_${index}.edge_burst_in:32"

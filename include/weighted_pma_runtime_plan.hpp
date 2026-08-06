@@ -18,12 +18,22 @@ constexpr std::size_t kU55cHbmPseudoChannelBytes = 512ULL << 20;
 constexpr std::size_t kWeightedPmaRuntimeChannels = 23;
 constexpr std::size_t kWeightedPmaRuntimeAlignment = 4096;
 
+enum class WeightedPmaChannelPolicy {
+    unrestricted,
+    lane_aware_u55c,
+};
+
+constexpr std::array<std::pair<std::size_t, std::size_t>, 4>
+    kWeightedPmaU55cLaneChannelRanges{{{0, 6}, {6, 12}, {12, 18}, {18, 23}}};
+
 struct WeightedPmaBufferRegion {
     std::size_t shard{};
     std::string name;
     std::size_t logical_bytes{};
     std::size_t allocated_bytes{};
     std::size_t channel{};
+    std::size_t channel_first{};
+    std::size_t channel_last{};
 };
 
 struct WeightedPmaShardRuntimePlan {
@@ -46,6 +56,8 @@ struct WeightedPmaRuntimePlan {
     std::vector<WeightedPmaBufferRegion> regions;
     std::vector<std::size_t> channel_load_bytes;
     std::size_t total_allocated_bytes{};
+    WeightedPmaChannelPolicy channel_policy{
+        WeightedPmaChannelPolicy::unrestricted};
 };
 
 struct WeightedPmaPackedShardBuffers {
@@ -70,29 +82,53 @@ inline WeightedPmaRuntimePlan build_weighted_pma_runtime_plan(
     const WeightedPartitionedPmaGraph &graph,
     std::size_t max_cache_segments,
     std::size_t channels = kWeightedPmaRuntimeChannels,
-    std::size_t channel_capacity_bytes = kU55cHbmPseudoChannelBytes)
+    std::size_t channel_capacity_bytes = kU55cHbmPseudoChannelBytes,
+    WeightedPmaChannelPolicy channel_policy =
+        WeightedPmaChannelPolicy::unrestricted)
 {
     if (graph.vertices == 0 || graph.shards.empty() ||
         max_cache_segments == 0 || channels == 0 ||
         channel_capacity_bytes == 0) {
         throw std::invalid_argument("invalid weighted PMA runtime geometry");
     }
+    if (channel_policy == WeightedPmaChannelPolicy::lane_aware_u55c &&
+        channels != kWeightedPmaRuntimeChannels) {
+        throw std::invalid_argument(
+            "lane-aware U55C placement requires exactly 23 graph channels");
+    }
 
     WeightedPmaRuntimePlan result;
     result.max_cache_segments = max_cache_segments;
     result.channel_capacity_bytes = channel_capacity_bytes;
+    result.channel_policy = channel_policy;
     result.channel_load_bytes.assign(channels, 0);
     result.shards.reserve(graph.shards.size());
 
-    const auto add_region = [&result](std::size_t shard,
-                                      std::string name,
-                                      std::size_t logical_bytes) {
+    const auto add_region = [&result, channels, channel_policy](
+                                std::size_t shard,
+                                std::string name,
+                                std::size_t logical_bytes) {
+        std::size_t channel_first = 0;
+        std::size_t channel_last = channels;
+        if (channel_policy == WeightedPmaChannelPolicy::lane_aware_u55c &&
+            (name.rfind("update", 0) == 0 || name.rfind("pma", 0) == 0)) {
+            const char lane_character = name.back();
+            if (lane_character < '0' || lane_character > '3') {
+                throw std::logic_error("weighted PMA lane role is malformed");
+            }
+            const std::size_t lane =
+                static_cast<std::size_t>(lane_character - '0');
+            channel_first = kWeightedPmaU55cLaneChannelRanges[lane].first;
+            channel_last = kWeightedPmaU55cLaneChannelRanges[lane].second;
+        }
         result.regions.push_back({
             .shard = shard,
             .name = std::move(name),
             .logical_bytes = logical_bytes,
             .allocated_bytes = align_weighted_pma_runtime_bytes(
                 std::max<std::size_t>(logical_bytes, 1)),
+            .channel_first = channel_first,
+            .channel_last = channel_last,
         });
     };
 
@@ -168,7 +204,8 @@ inline WeightedPmaRuntimePlan build_weighted_pma_runtime_plan(
     for (const std::size_t region_index : order) {
         WeightedPmaBufferRegion &region = result.regions[region_index];
         std::size_t selected = channels;
-        for (std::size_t channel = 0; channel < channels; ++channel) {
+        for (std::size_t channel = region.channel_first;
+             channel < region.channel_last; ++channel) {
             if (region.allocated_bytes > channel_capacity_bytes ||
                 result.channel_load_bytes[channel] >
                     channel_capacity_bytes - region.allocated_bytes) {

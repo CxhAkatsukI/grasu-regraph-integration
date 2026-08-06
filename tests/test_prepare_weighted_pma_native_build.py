@@ -88,9 +88,13 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
         ("weighted-axis", "weighted_sssp"),
         ("weighted-axis", "connected_components"),
         ("sharded-k4", "weighted_sssp"),
+        ("sharded-k4", "connected_components"),
     )
     for mode, algorithm in cases:
-        key = mode if algorithm == "weighted_sssp" else algorithm
+        if mode == "sharded-k4" and algorithm == "connected_components":
+            key = "sharded-k4-cc"
+        else:
+            key = mode if algorithm == "weighted_sssp" else algorithm
         out = tmp / key
         subprocess.run(
             [
@@ -226,12 +230,21 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert sharded_cfg.count("nk=lksg_stream:") == 1
     assert sharded_cfg.count("nk=kernelApply:1") == 1
     assert sharded_cfg.count("nk=kernelHBMWrapper:1") == 1
-    assert "sp=bin_search_1.edges:HBM[0:22]" in sharded_cfg
+    assert "sp=bin_search_1.edges:HBM[0:5]" in sharded_cfg
     assert "sp=bin_search_1.edges:HBM[0]\n" not in sharded_cfg
-    assert "sp=process_cache_1.pma_cache:HBM[0:22]" in sharded_cfg
-    assert "sp=process_ddr_1.pma_in0_ddr:HBM[0:22]" in sharded_cfg
+    assert "sp=process_cache_1.pma_cache:HBM[0:5]" in sharded_cfg
+    assert "sp=process_ddr_1.pma_in0_ddr:HBM[6:11]" in sharded_cfg
+    lane_ranges = ("0:5", "6:11", "12:17", "18:22")
     for index in range(1, 5):
-        assert f"sp=pma_to_regraph_adapter_{index}.pma0:HBM[0:22]" in sharded_cfg
+        for lane, channel_range in enumerate(lane_ranges):
+            assert (
+                f"sp=pma_to_regraph_adapter_{index}.pma{lane}:"
+                f"HBM[{channel_range}]"
+            ) in sharded_cfg
+        assert (
+            f"sp=pma_to_regraph_adapter_{index}.row_offset:HBM[0:22]"
+            in sharded_cfg
+        )
     assert "sp=kernelHBMWrapper_1.src_prop_1:HBM[23]" in sharded_cfg
     assert "sp=kernelHBMWrapper_1.src_prop_2:HBM[24]" in sharded_cfg
     assert "sp=kernelHBMWrapper_1.src_prop_3:HBM[23]" in sharded_cfg
@@ -245,6 +258,30 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     )
     assert "-DLITTLE_KERNEL_NUM=4" in sharded_compile
     assert "regraph_frontend_mux.sw_emu.xo" in sharded_link
+
+    sharded_cc = outputs["sharded-k4-cc"]
+    sharded_cc_manifest = parse_manifest(sharded_cc / "manifest.env")
+    sharded_cc_cfg = Path(sharded_cc_manifest["LINK_CFG"]).read_text(
+        encoding="utf-8"
+    )
+    sharded_cc_compile = (sharded_cc / "compile_commands.sh").read_text(
+        encoding="utf-8"
+    )
+    assert sharded_cc_manifest["ALGORITHM"] == "connected_components"
+    assert sharded_cc_manifest["PIPELINE_MODE"] == "sharded-k4"
+    assert sharded_cc_manifest["PIPELINE_STEM"] == (
+        "connected_components_pma_native_sharded_k4"
+    )
+    assert sharded_cc_manifest["PMA_FRONTEND_CUS"] == "4"
+    assert sharded_cc_manifest["SHARED_REGRAPH_DOWNSTREAM"] == "1"
+    assert sharded_cc_cfg.count("nk=lksg_stream:") == 1
+    assert "nk=lksg_stream:4:" in sharded_cc_cfg
+    assert sharded_cc_cfg.count("nk=kernelApply:1") == 1
+    assert sharded_cc_cfg.count("nk=kernelHBMWrapper:1") == 1
+    assert "-DHAVE_EDGE_PROP=0" in sharded_cc_compile
+    assert "-DGRASU_REGRAPH_DESTINATION_ONLY=1" in sharded_cc_compile
+    assert "-DGRASU_REGRAPH_SHARDED_PMA=1" in sharded_cc_compile
+    assert "-DGRASU_REGRAPH_WEIGHTED_PMA=1" not in sharded_cc_compile
 
     invalid = subprocess.run(
         [str(PREPARE), "--pipeline-mode", "invalid"],
