@@ -141,6 +141,11 @@ def main() -> None:
                 "vertices": metadata["vertices"],
                 "initial_edges": metadata["initial_edges"],
                 "updates": metadata["updates"],
+                "source": (
+                    graph_entry.get("source_cohorts", {}).get("median_degree", 0)
+                    if algorithm == "weighted_sssp"
+                    else 0
+                ),
                 "sha256": metadata["pma_graph_sha256"],
                 "reused": was_reused,
             }
@@ -163,7 +168,7 @@ def main() -> None:
     )
     with (args.out_dir / "manifest.tsv").open("w", encoding="utf-8") as handle:
         handle.write(
-            "dataset\talgorithm\tvertices\tinitial_edges\tupdates\tgraph\tsha256\n"
+            "dataset\talgorithm\tvertices\tinitial_edges\tupdates\tsource\tgraph\tsha256\n"
         )
         for record in records:
             handle.write(
@@ -175,6 +180,7 @@ def main() -> None:
                         "vertices",
                         "initial_edges",
                         "updates",
+                        "source",
                         "graph",
                         "sha256",
                     )
