@@ -29,6 +29,10 @@ static constexpr unsigned kWeightShift = 19;
 #define GRASU_REGRAPH_SHARE_ROW_OFFSET_PORT 0
 #endif
 
+#ifndef GRASU_REGRAPH_SHARDED_PMA
+#define GRASU_REGRAPH_SHARDED_PMA 0
+#endif
+
 #if GRASU_REGRAPH_WEIGHTED_PMA != 0 && GRASU_REGRAPH_WEIGHTED_PMA != 1
 #error "GRASU_REGRAPH_WEIGHTED_PMA must be 0 or 1"
 #endif
@@ -41,6 +45,10 @@ static constexpr unsigned kWeightShift = 19;
 #error "GRASU_REGRAPH_SHARE_ROW_OFFSET_PORT must be 0 or 1"
 #endif
 
+#if GRASU_REGRAPH_SHARDED_PMA != 0 && GRASU_REGRAPH_SHARDED_PMA != 1
+#error "GRASU_REGRAPH_SHARDED_PMA must be 0 or 1"
+#endif
+
 #if GRASU_REGRAPH_WEIGHTED_PMA && GRASU_REGRAPH_DESTINATION_ONLY
 #error "weighted and destination-only PMA output modes are mutually exclusive"
 #endif
@@ -51,7 +59,11 @@ static ap_uint<32> pack_regraph_dst(ap_uint<32> dst, bool dummy)
 #if GRASU_REGRAPH_WEIGHTED_PMA
     ap_uint<32> packed = dst & ~ap_uint<32>(kPmaEmptyMask);
 #elif GRASU_REGRAPH_DESTINATION_ONLY
+#if GRASU_REGRAPH_SHARDED_PMA
+    ap_uint<32> packed = dst & ~ap_uint<32>(kPmaEmptyMask);
+#else
     ap_uint<32> packed = dst & kDstLocalMask;
+#endif
 #else
     ap_uint<32> packed = (dst & kDstLocalMask) | (kUnitWeight << kWeightShift);
 #endif
@@ -192,17 +204,30 @@ segment_loop:
                     const unsigned pma_lane = half * 8 + lane;
                     ap_uint<32> raw_dst = pma_segment.range(pma_lane * 32 + 31,
                                                             pma_lane * 32);
-                    const ap_uint<32> global_dst = raw_dst & kDstLocalMask;
+                    const ap_uint<32> local_dst = raw_dst & kDstLocalMask;
+#if GRASU_REGRAPH_SHARDED_PMA
+                    const bool in_partition = local_dst < part_vertex_count;
+                    ap_uint<32> adapter_dst = raw_dst;
+#if GRASU_REGRAPH_DESTINATION_ONLY
+                    adapter_dst = ap_uint<32>(part_dst_offset) + local_dst;
+#endif
+#else
                     const ap_uint<33> partition_end =
                         ap_uint<33>(part_dst_offset) + part_vertex_count;
+                    const ap_uint<32> global_dst = local_dst;
                     const bool in_partition =
                         global_dst >= part_dst_offset &&
                         ap_uint<33>(global_dst) < partition_end;
+#endif
                     bool dummy = raw_dst[31] || slot < begin || slot >= end ||
                                  slot >= total_slots || !in_partition;
                     const ap_uint<32> out_src = dummy ? (ap_uint<32>(src) | kPmaEmptyMask)
                                                       : ap_uint<32>(src);
+#if GRASU_REGRAPH_SHARDED_PMA
+                    const ap_uint<32> out_dst = pack_regraph_dst(adapter_dst, dummy);
+#else
                     const ap_uint<32> out_dst = pack_regraph_dst(raw_dst, dummy);
+#endif
                     write_edge_burst(out, lane, out_src, out_dst);
                 }
 
