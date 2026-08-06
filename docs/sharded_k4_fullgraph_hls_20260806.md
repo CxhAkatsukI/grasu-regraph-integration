@@ -74,7 +74,9 @@ The generated manifest is rooted at:
 ```
 
 It contains 24 SHA-256-identified rows and must report `status=pass` before a
-matrix can be generated.
+matrix can be generated.  A compact, reviewable copy of those identities is
+tracked at
+`docs/evidence/sharded_k4_fullgraph_20260806/workloads.tsv`.
 
 ## Reproduction
 
