@@ -197,12 +197,30 @@ timing violations.  Routed user logic uses 151,950 LUTs, 175,539 registers,
 xclbin SHA-256 and copied implementation reports are archived under
 `docs/evidence/sharded_k4_fullgraph_20260806/sssp`.
 
-The same artifact passes a real-U55C AU full-graph smoke with 515,281 vertices,
-390,855 final edges, and eight destination shards.  It starts from the old
-graph's converged resident state, executes two hardware supersteps, matches
-the two-round oracle with zero mismatches, and reports 2,063.63 ms
-setup-inclusive latency.  This establishes functional correctness for one
-routed algorithm; it is not yet a cross-architecture speedup claim.
+The same artifact passes the real-U55C weighted-SSSP matrix on all eight
+frozen graphs.  Both architectures start from the old graph's converged
+resident state, apply the same insertion batch, execute until the independent
+oracle converges, and include current host orchestration in the reported
+setup-inclusive window.  Every row below is one correctness-admitted execution;
+the values are not yet multi-run medians.
+
+| Graph | G+R setup-inclusive (ms) | Spine setup-inclusive (ms) | G+R / Spine |
+| --- | ---: | ---: | ---: |
+| AU | 2,065.321 | 127.418 | 16.21x |
+| SU | 3,399.388 | 116.905 | 29.08x |
+| WK | 5,676.505 | 106.656 | 53.22x |
+| SO | 137,677.538 | 137.556 | 1,000.88x |
+| PK | 23,006.391 | 186.083 | 123.64x |
+| LJ | 274,702.199 | 185.380 | 1,481.83x |
+| LJ08 | 223,831.252 | 142.916 | 1,566.17x |
+| R19 | 2,202.999 | 116.802 | 18.86x |
+
+The complete summary, launch status, matrix, and hashes of the untracked raw
+logs/results are archived under
+`docs/evidence/sharded_k4_fullgraph_20260806/sssp_fullgraph_u55c`.  These
+results validate the direction and magnitude variation of the SSSP advantage
+on routed hardware.  Statistical claims still require repeated runs and must
+not substitute kernel-only ratios for the setup-inclusive ratios above.
 
 The matched Spine host at commit `3678ad4` now loads resident baselines through
 the same hot/cold family classifier and multi-level serializer consumed by the
@@ -215,5 +233,5 @@ for PK.  Compact evidence is archived under
 `docs/evidence/sharded_k4_fullgraph_20260806/spine_sssp_u55c_pk`.
 
 The corrected ResPR PMA DDR kernel has `II=1` and estimated `205.47 MHz`; the
-prior shared-bundle result (`II=140`) is rejected.  CC is linking, while
+prior shared-bundle result (`II=140`) is rejected.  CC is routing, while
 CC/ResPR routed artifacts and their board-run correctness gates remain pending.

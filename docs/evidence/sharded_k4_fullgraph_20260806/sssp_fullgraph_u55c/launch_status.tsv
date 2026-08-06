@@ -1,0 +1,9 @@
+case	algorithm	execution_mode	gr_memory_gib	spine_memory_gib	gr_exit	spine_exit	memory_guard
+au_weighted_sssp_resident	weighted_sssp	serial	16	16	0	0	PASS
+su_weighted_sssp_resident	weighted_sssp	serial	16	16	0	0	PASS
+wk_weighted_sssp_resident	weighted_sssp	serial	16	16	0	0	PASS
+so_weighted_sssp_resident	weighted_sssp	serial	32	31	0	0	PASS
+pk_weighted_sssp_resident	weighted_sssp	serial	32	31	0	0	PASS
+lj_weighted_sssp_resident	weighted_sssp	serial	31	31	0	0	PASS
+lj08_weighted_sssp_resident	weighted_sssp	serial	30	32	0	0	PASS
+r19_weighted_sssp_resident	weighted_sssp	serial	32	32	0	0	PASS
