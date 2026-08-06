@@ -160,6 +160,9 @@ with tempfile.TemporaryDirectory() as temp_name:
         in (ROOT / "kernels/regraph_k4_shared_hbm_wrapper/kernel_hbm_wrapper.cpp")
         .read_text(encoding="utf-8")
     )
+    assert "sharedLittleKernelReadMemory<0>" in (
+        ROOT / "kernels/regraph_k4_shared_hbm_wrapper/kernel_hbm_wrapper.cpp"
+    ).read_text(encoding="utf-8")
     assert "nk=pma_to_regraph_adapter:4:" in residual_sharded_cfg
     assert "nk=lksg_stream:4:" in residual_sharded_cfg
     assert "nk=regraph_frontend_mux:1:regraph_frontend_mux_1" in (
