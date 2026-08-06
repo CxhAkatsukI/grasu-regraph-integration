@@ -48,13 +48,14 @@ The generated summary is:
 | Weighted SSSP | 540,000 | 157,107 | 3255.116 ms | 4192.540 ms | 0.776x | Diagnostic only |
 | CC | 540,000 | 94,931 | 932.974 ms | n/a | n/a | Rejected |
 | CC | 903,774 | 156,289 | 2540.102 ms | n/a | n/a | Rejected |
-| Residual PageRank | 540,000 | 94,931 | 586.077 ms | 97.078 ms | 6.037x | Admitted |
-| Residual PageRank | 903,774 | 156,289 | 961.750 ms | 159.460 ms | 6.031x | Admitted |
+| Residual PageRank | 540,000 | 94,931 | 586.077 ms | 97.078 ms | 6.037x | Functional only |
+| Residual PageRank | 903,774 | 156,289 | 961.750 ms | 159.460 ms | 6.031x | Functional only |
 
 Every passing G+R row reports zero oracle mismatches. Both residual PageRank
-Spine rows also pass the independent host checks. The approximately 6.03x
-residual PageRank advantage is stable across the two bridge sizes, but these
-are single-run measurements and need repeated trials before publication.
+Spine rows also pass their independent host checks. These checks establish that
+each routed path implements its own current host contract; they do not establish
+cross-architecture semantic equivalence. No row in this first run is admitted
+as publication performance evidence.
 
 ## Why the SSSP row is not a paper-result comparison
 
@@ -83,6 +84,17 @@ device-derived update frontier. If the payload mismatch remains under that
 paper-aligned workload, it is an owner-FIFO correctness bug that must be fixed
 before performance measurement.
 
+## Why the residual PageRank ratios are functional-only
+
+The G+R host preloads the full PageRank solution of the old graph, computes the
+post-update correction, and then propagates residuals. The Spine host currently
+starts with zero rank and a residual at one source. Both paths are internally
+correct, but they solve different initial-value problems and use different
+active-frontier semantics. The observed 6.03x ratios are useful for routed-path
+bring-up only and must not be quoted as Spine-versus-G+R speedup. A valid rerun
+must preload the same old-graph rank in both architectures and apply the same
+device-generated degree correction and seed frontier.
+
 ## Full-graph simulator versus current HLS boundary
 
 The simulator does use runtime destination partitions and partition offsets,
@@ -103,7 +115,9 @@ execution domain, not with its full-graph address-mapping domain.
 
 1. Preload converged old-graph SSSP and CC state before the timed update.
 2. Generate the update-induced active frontier in the device path.
-3. Rerun all five rows and require zero correctness mismatches.
-4. Repeat each admitted row at least three times and report the median.
+3. Rerun all five rows and require cross-architecture final-state equivalence as
+   well as zero architecture-oracle mismatches.
+4. Repeat each semantically matched row at least three times and report the
+   median.
 5. Keep full-graph mapper integration as a separate HLS milestone; do not infer
    routed full-graph feasibility solely from the simulator mapper.
