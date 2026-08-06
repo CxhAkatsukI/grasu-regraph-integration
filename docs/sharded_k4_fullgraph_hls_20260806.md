@@ -114,6 +114,28 @@ lj08_weighted_sssp_insert_u8.graph \
 The accepted output is archived at
 `docs/evidence/sharded_k4_fullgraph_20260806/lj08_sssp_preflight.txt`.
 
+Run the routed SSSP artifact on the AU full-graph row.  This row has eight
+destination shards, so it exercises the full-graph path beyond the legacy
+four-partition limit:
+
+```bash
+./scripts/run_pma_native_hw.sh \
+  --algorithm weighted_sssp \
+  --host /data/tmp/chuxiao/sharded_k4_hosts_5d501d9/weighted_sssp/\
+sharded_k4_sssp_native_host \
+  --xclbin /data/tmp/chuxiao/\
+grasu_regraph_sharded_k4_sssp_hw_b8d2ba3_20260806/build/\
+grasu_regraph_weighted_pma_native_sharded_k4.hw.xclbin \
+  --graph /data/tmp/chuxiao/fullgraph_fpga_workloads_20260806/\
+au_weighted_sssp_insert_u8.graph \
+  --out-dir /data/tmp/chuxiao/sharded_k4_fpga_smoke_20260806/au_sssp \
+  --device-index 0 --source 11 --max-supersteps 256 --timeout 1800
+```
+
+The accepted log, run environment, summary, and hashes are archived at
+`docs/evidence/sharded_k4_fullgraph_20260806/sssp_u55c_au`.  The per-vertex
+result file is omitted from Git; its SHA-256 remains in `evidence.sha256`.
+
 The three hardware build roots are:
 
 ```text
@@ -170,7 +192,15 @@ The SSSP xclbin routes successfully at 150 MHz with zero failed nets and zero
 timing violations.  Routed user logic uses 151,950 LUTs, 175,539 registers,
 429 BRAMs, 256 URAMs, and no DSPs; final WNS/WHS are +0.003/+0.009 ns.  Its
 xclbin SHA-256 and copied implementation reports are archived under
-`docs/evidence/sharded_k4_fullgraph_20260806/sssp`.  The corrected ResPR PMA
-DDR kernel has `II=1` and estimated `205.47 MHz`; the prior shared-bundle result
-(`II=140`) is rejected.  CC is linking, while CC/ResPR routed artifacts and all
-board-run results remain pending until their respective gates complete.
+`docs/evidence/sharded_k4_fullgraph_20260806/sssp`.
+
+The same artifact passes a real-U55C AU full-graph smoke with 515,281 vertices,
+390,855 final edges, and eight destination shards.  It starts from the old
+graph's converged resident state, executes two hardware supersteps, matches
+the two-round oracle with zero mismatches, and reports 2,063.63 ms
+setup-inclusive latency.  This establishes functional correctness for one
+routed algorithm; it is not yet a cross-architecture speedup claim.
+
+The corrected ResPR PMA DDR kernel has `II=1` and estimated `205.47 MHz`; the
+prior shared-bundle result (`II=140`) is rejected.  CC is linking, while
+CC/ResPR routed artifacts and their board-run correctness gates remain pending.

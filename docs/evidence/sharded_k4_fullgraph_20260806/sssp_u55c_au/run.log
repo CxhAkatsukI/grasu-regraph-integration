@@ -1,0 +1,6 @@
+WEIGHTED_PMA_NATIVE_SHARDED_INPUT vertices=515281 static_edges=390847 logical_updates=8 physical_updates=8 final_edges=390855 destination_partitions=8 pma_slots_total=1843296 hbm_graph_allocated_bytes=168353792 source_external=11 source_internal=5 oracle_supersteps=2 oracle_converged=1 resident_state=old_graph_converged
+Using XCL_DEVICE_INDEX=0
+WEIGHTED_PMA_NATIVE_SHARDED_SUPERSTEP step=1 active_vertices=1
+WEIGHTED_PMA_NATIVE_SHARDED_SUPERSTEP step=2 active_vertices=0
+WEIGHTED_PMA_NATIVE_SHARDED_TIMING grasu_ms=8.811781 barrier_ms=7.795281 adapter_ms=8168.341915 lksg_ms=4751.568296 apply_ms=1192.463034 hbm_ms=1192.569077 event_e2e_ms=2062.695833 convergence_readback_ms=0.313599 setup_inclusive_ms=2063.627859
+WEIGHTED_PMA_NATIVE_SHARDED_RESULT status=PASS mismatches=0 vertices=515281 final_edges=390855 logical_updates=8 physical_updates=8 destination_partitions=8 k4_frontends=4 shared_regraph_downstream=1 pma_slots_total=1843296 processed_edge_slots_per_superstep=1843296 source_external=11 source_internal=5 executed_supersteps=2 hardware_converged=1 oracle_supersteps=2 oracle_converged=1 resident_state=old_graph_converged conversion_cost=absent
