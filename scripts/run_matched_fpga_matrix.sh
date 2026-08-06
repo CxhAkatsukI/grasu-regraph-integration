@@ -109,10 +109,8 @@ mem_available_kib() {
 run_with_memory_cap() {
   local cap_gib=$1
   shift
-  (
-    ulimit -v $((cap_gib * 1024 * 1024))
-    exec setsid "$@"
-  )
+  ulimit -v $((cap_gib * 1024 * 1024))
+  exec setsid "$@"
 }
 
 terminate_process_group() {
