@@ -1,0 +1,9 @@
+source	stage	design_state	site_type	slr0	slr1	slr2	slr0_pct	slr1_pct	slr2_pct
+/data/tmp/chuxiao/grasu_regraph_sharded_k4_cc_hw_d886f42_20260806/reports/link/link/imp/impl_1_slr_util_routed.rpt	routed	Routed	CLB	31110	32027	20868	56.60	59.31	38.64
+/data/tmp/chuxiao/grasu_regraph_sharded_k4_cc_hw_d886f42_20260806/reports/link/link/imp/impl_1_slr_util_routed.rpt	routed	Routed	CLB LUTs	111895	123607	88490	25.45	28.61	20.48
+/data/tmp/chuxiao/grasu_regraph_sharded_k4_cc_hw_d886f42_20260806/reports/link/link/imp/impl_1_slr_util_routed.rpt	routed	Routed	LUT as Logic	93859	108182	74646	21.35	25.04	17.28
+/data/tmp/chuxiao/grasu_regraph_sharded_k4_cc_hw_d886f42_20260806/reports/link/link/imp/impl_1_slr_util_routed.rpt	routed	Routed	LUT as Memory	18036	15425	13844	8.78	7.80	7.00
+/data/tmp/chuxiao/grasu_regraph_sharded_k4_cc_hw_d886f42_20260806/reports/link/link/imp/impl_1_slr_util_routed.rpt	routed	Routed	CLB Registers	189498	184128	118996	21.55	21.31	13.77
+/data/tmp/chuxiao/grasu_regraph_sharded_k4_cc_hw_d886f42_20260806/reports/link/link/imp/impl_1_slr_util_routed.rpt	routed	Routed	Block RAM Tile	258.5	206	168	38.47	30.65	25.00
+/data/tmp/chuxiao/grasu_regraph_sharded_k4_cc_hw_d886f42_20260806/reports/link/link/imp/impl_1_slr_util_routed.rpt	routed	Routed	URAM	128	64	64	40.00	20.00	20.00
+/data/tmp/chuxiao/grasu_regraph_sharded_k4_cc_hw_d886f42_20260806/reports/link/link/imp/impl_1_slr_util_routed.rpt	routed	Routed	DSPs	0	0	4	0.00	0.00	0.13

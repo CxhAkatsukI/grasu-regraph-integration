@@ -1,0 +1,54 @@
+===============================================================================
+Version:    v++ v2024.1 (64-bit)
+Build:      SW Build 5074859 on 2024-05-20-23:21:20
+Copyright:  Copyright 1986-2024 Xilinx, Inc. All Rights Reserved.
+Created:    Thu Aug  6 19:51:07 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             kernelHBMWrapper.hw.xilinx_u55c_gen3x16_xdma_3_202210_1
+Target Device:           xilinx:u55c:gen3x16_xdma_3:202210.1
+Target Clock:            150MHz
+Total number of kernels: 1
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name       Type  Target              OpenCL Library                                           Compute Units
+----------------  ----  ------------------  -------------------------------------------------------  -------------
+kernelHBMWrapper  c     fpga0:OCL_REGION_0  kernelHBMWrapper.hw.xilinx_u55c_gen3x16_xdma_3_202210_1  1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     kernelHBMWrapper.hw.xilinx_u55c_gen3x16_xdma_3_202210_1
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit        Kernel Name       Module Name                 Target Frequency  Estimated Frequency
+------------------  ----------------  --------------------------  ----------------  -------------------
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_0_s  149.925034        205.465378
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_1_s  149.925034        205.465378
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_2_s  149.925034        205.465378
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_3_s  149.925034        205.465378
+kernelHBMWrapper_1  kernelHBMWrapper  write_out                   149.925034        205.465378
+kernelHBMWrapper_1  kernelHBMWrapper  kernelHBMWrapper            149.925034        205.465378
+
+Latency Information
+Compute Unit        Kernel Name       Module Name                 Start Interval  Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+------------------  ----------------  --------------------------  --------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_0_s  0               undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_1_s  0               undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_2_s  0               undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_3_s  0               undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1  kernelHBMWrapper  write_out                   0               undef          undef         undef           undef            undef           undef
+kernelHBMWrapper_1  kernelHBMWrapper  kernelHBMWrapper            undef           undef          undef         undef           undef            undef           undef
+
+Area Information
+Compute Unit        Kernel Name       Module Name                 FF     LUT    DSP  BRAM  URAM
+------------------  ----------------  --------------------------  -----  -----  ---  ----  ----
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_0_s  2019   5027   0    0     0
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_1_s  2019   5027   0    0     0
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_2_s  2019   5027   0    0     0
+kernelHBMWrapper_1  kernelHBMWrapper  littleKernelReadMemory_3_s  2019   5027   0    0     0
+kernelHBMWrapper_1  kernelHBMWrapper  write_out                   1347   344    0    0     0
+kernelHBMWrapper_1  kernelHBMWrapper  kernelHBMWrapper            21997  31227  0    90    0
+-------------------------------------------------------------------------------

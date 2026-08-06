@@ -1,0 +1,42 @@
+===============================================================================
+Version:    v++ v2024.1 (64-bit)
+Build:      SW Build 5074859 on 2024-05-20-23:21:20
+Copyright:  Copyright 1986-2024 Xilinx, Inc. All Rights Reserved.
+Created:    Thu Aug  6 19:53:34 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             pma_to_regraph_adapter.hw
+Target Device:           xilinx:u55c:gen3x16_xdma_3:202210.1
+Target Clock:            150MHz
+Total number of kernels: 1
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name             Type  Target              OpenCL Library             Compute Units
+----------------------  ----  ------------------  -------------------------  -------------
+pma_to_regraph_adapter  c     fpga0:OCL_REGION_0  pma_to_regraph_adapter.hw  1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     pma_to_regraph_adapter.hw
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit              Kernel Name             Module Name                                   Target Frequency  Estimated Frequency
+------------------------  ----------------------  --------------------------------------------  ----------------  -------------------
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter_Pipeline_segment_loop  149.925034        205.465378
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter                        149.925034        205.465378
+
+Latency Information
+Compute Unit              Kernel Name             Module Name                                   Start Interval  Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+------------------------  ----------------------  --------------------------------------------  --------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter_Pipeline_segment_loop  1 ~ 536870914   2              268435530     536870986       13.334 ns        1.790 sec       3.579 sec
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter                        undef           undef          undef         undef           undef            undef           undef
+
+Area Information
+Compute Unit              Kernel Name             Module Name                                   FF     LUT    DSP  BRAM  URAM
+------------------------  ----------------------  --------------------------------------------  -----  -----  ---  ----  ----
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter_Pipeline_segment_loop  6119   8503   0    0     0
+pma_to_regraph_adapter_1  pma_to_regraph_adapter  pma_to_regraph_adapter                        11229  17560  0    15    0
+-------------------------------------------------------------------------------

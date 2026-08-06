@@ -1,0 +1,78 @@
+===============================================================================
+Version:    v++ v2024.1 (64-bit)
+Build:      SW Build 5074859 on 2024-05-20-23:21:20
+Copyright:  Copyright 1986-2024 Xilinx, Inc. All Rights Reserved.
+Created:    Thu Aug  6 19:55:21 2026
+===============================================================================
+
+-------------------------------------------------------------------------------
+Design Name:             lksg_stream.hw
+Target Device:           xilinx:u55c:gen3x16_xdma_3:202210.1
+Target Clock:            150MHz
+Total number of kernels: 1
+-------------------------------------------------------------------------------
+
+Kernel Summary
+Kernel Name  Type  Target              OpenCL Library  Compute Units
+-----------  ----  ------------------  --------------  -------------
+lksg_stream  c     fpga0:OCL_REGION_0  lksg_stream.hw  1
+
+
+-------------------------------------------------------------------------------
+OpenCL Binary:     lksg_stream.hw
+Kernels mapped to: clc_region
+
+Timing Information (MHz)
+Compute Unit   Kernel Name  Module Name                              Target Frequency  Estimated Frequency
+-------------  -----------  ---------------------------------------  ----------------  -------------------
+lksg_stream_1  lksg_stream  entry_proc                               149.925034        761.034973
+lksg_stream_1  lksg_stream  Block_entry_split_proc                   149.925034        682.593811
+lksg_stream_1  lksg_stream  Loop_read_stream_edges_proc              149.925034        314.6633
+lksg_stream_1  lksg_stream  stream2axistream_ppbRequest_axis_s       149.925034        516.262268
+lksg_stream_1  lksg_stream  axistream2stream_axis_ppbResponse_s      149.925034        742.942078
+lksg_stream_1  lksg_stream  accScatter_Pipeline_scatterLoop          149.925034        238.720444
+lksg_stream_1  lksg_stream  accScatter_Pipeline_exitscatter          149.925034        788.643555
+lksg_stream_1  lksg_stream  accScatter                               149.925034        238.720444
+lksg_stream_1  lksg_stream  accGather_Pipeline_initDstTmpProp        149.925034        270.343353
+lksg_stream_1  lksg_stream  accGather_Pipeline_gatherLoop            149.925034        265.745422
+lksg_stream_1  lksg_stream  accGather_Pipeline_tmpPropWriteToStream  149.925034        254.065033
+lksg_stream_1  lksg_stream  accGather                                149.925034        254.065033
+lksg_stream_1  lksg_stream  mergeWriteResults                        149.925034        224.014328
+lksg_stream_1  lksg_stream  lksg_stream                              149.925034        224.014328
+
+Latency Information
+Compute Unit   Kernel Name  Module Name                              Start Interval     Best (cycles)  Avg (cycles)  Worst (cycles)  Best (absolute)  Avg (absolute)  Worst (absolute)
+-------------  -----------  ---------------------------------------  -----------------  -------------  ------------  --------------  ---------------  --------------  ----------------
+lksg_stream_1  lksg_stream  entry_proc                               0                  0              0             0               0 ns             0 ns            0 ns
+lksg_stream_1  lksg_stream  Block_entry_split_proc                   0                  0              0             0               0 ns             0 ns            0 ns
+lksg_stream_1  lksg_stream  Loop_read_stream_edges_proc              1 ~ 536870912      2              268435457     536870913       13.334 ns        1.790 sec       3.579 sec
+lksg_stream_1  lksg_stream  stream2axistream_ppbRequest_axis_s       0                  undef          undef         undef           undef            undef           undef
+lksg_stream_1  lksg_stream  axistream2stream_axis_ppbResponse_s      0                  undef          undef         undef           undef            undef           undef
+lksg_stream_1  lksg_stream  accScatter_Pipeline_scatterLoop          0                  undef          undef         undef           undef            undef           undef
+lksg_stream_1  lksg_stream  accScatter_Pipeline_exitscatter          0                  undef          undef         undef           undef            undef           undef
+lksg_stream_1  lksg_stream  accScatter                               undef              undef          undef         undef           undef            undef           undef
+lksg_stream_1  lksg_stream  accGather_Pipeline_initDstTmpProp        32769              32770          32770         32770           0.218 ms         0.218 ms        0.218 ms
+lksg_stream_1  lksg_stream  accGather_Pipeline_gatherLoop            1 ~ 536870912      2              268435460     536870916       13.334 ns        1.790 sec       3.579 sec
+lksg_stream_1  lksg_stream  accGather_Pipeline_tmpPropWriteToStream  32769              32770          32770         32770           0.218 ms         0.218 ms        0.218 ms
+lksg_stream_1  lksg_stream  accGather                                32778 ~ 536936462  32778          268484621     536936462       0.219 ms         1.790 sec       3.580 sec
+lksg_stream_1  lksg_stream  mergeWriteResults                        32768              32772          32772         32772           0.218 ms         0.218 ms        0.218 ms
+lksg_stream_1  lksg_stream  lksg_stream                              undef              undef          undef         undef           undef            undef           undef
+
+Area Information
+Compute Unit   Kernel Name  Module Name                              FF     LUT    DSP  BRAM  URAM
+-------------  -----------  ---------------------------------------  -----  -----  ---  ----  ----
+lksg_stream_1  lksg_stream  entry_proc                               3      29     0    0     0
+lksg_stream_1  lksg_stream  Block_entry_split_proc                   52     47     0    0     0
+lksg_stream_1  lksg_stream  Loop_read_stream_edges_proc              448    350    0    0     0
+lksg_stream_1  lksg_stream  stream2axistream_ppbRequest_axis_s       4      48     0    0     0
+lksg_stream_1  lksg_stream  axistream2stream_axis_ppbResponse_s      2      29     0    0     0
+lksg_stream_1  lksg_stream  accScatter_Pipeline_scatterLoop          945    18089  0    128   0
+lksg_stream_1  lksg_stream  accScatter_Pipeline_exitscatter          2      20     0    0     0
+lksg_stream_1  lksg_stream  accScatter                               985    18234  0    128   0
+lksg_stream_1  lksg_stream  accGather_Pipeline_initDstTmpProp        18     74     0    0     0
+lksg_stream_1  lksg_stream  accGather_Pipeline_gatherLoop            8817   9820   0    0     0
+lksg_stream_1  lksg_stream  accGather_Pipeline_tmpPropWriteToStream  139    161    0    0     0
+lksg_stream_1  lksg_stream  accGather                                9096   13227  0    0     64
+lksg_stream_1  lksg_stream  mergeWriteResults                        1171   1867   0    0     0
+lksg_stream_1  lksg_stream  lksg_stream                              18393  38018  0    128   64
+-------------------------------------------------------------------------------
