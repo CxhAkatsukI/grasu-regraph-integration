@@ -234,17 +234,12 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert "sp=bin_search_1.edges:HBM[0]\n" not in sharded_cfg
     assert "sp=process_cache_1.pma_cache:HBM[0:5]" in sharded_cfg
     assert "sp=process_ddr_1.pma_in0_ddr:HBM[6:11]" in sharded_cfg
-    lane_ranges = ("0:5", "6:11", "12:17", "18:22")
     for index in range(1, 5):
-        for lane, channel_range in enumerate(lane_ranges):
-            assert (
-                f"sp=pma_to_regraph_adapter_{index}.pma{lane}:"
-                f"HBM[{channel_range}]"
-            ) in sharded_cfg
         assert (
-            f"sp=pma_to_regraph_adapter_{index}.row_offset:HBM[0:22]"
+            f"sp=pma_to_regraph_adapter_{index}.pma0:HBM[0:22]"
             in sharded_cfg
         )
+        assert f"sp=pma_to_regraph_adapter_{index}.pma1:" not in sharded_cfg
     assert "sp=kernelHBMWrapper_1.src_prop_1:HBM[23]" in sharded_cfg
     assert "sp=kernelHBMWrapper_1.src_prop_2:HBM[24]" in sharded_cfg
     assert "sp=kernelHBMWrapper_1.src_prop_3:HBM[23]" in sharded_cfg
@@ -252,6 +247,7 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert "sp=kernelApply_1.vertex_prop:HBM[30]" in sharded_cfg
     assert "-DGRASU_REGRAPH_WEIGHTED_PMA=1" in sharded_compile
     assert "-DGRASU_REGRAPH_SHARDED_PMA=1" in sharded_compile
+    assert "-DGRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS=1" in sharded_compile
     assert "kernels/regraph_frontend_mux/regraph_frontend_mux.cpp" in sharded_compile
     assert "kernels/regraph_k4_shared_hbm_wrapper/kernel_hbm_wrapper.cpp" in (
         sharded_compile
@@ -281,6 +277,7 @@ sp=bigKernelScatterGather_1.part_edge_array:HBM[2]
     assert "-DHAVE_EDGE_PROP=0" in sharded_cc_compile
     assert "-DGRASU_REGRAPH_DESTINATION_ONLY=1" in sharded_cc_compile
     assert "-DGRASU_REGRAPH_SHARDED_PMA=1" in sharded_cc_compile
+    assert "-DGRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS=1" in sharded_cc_compile
     assert "-DGRASU_REGRAPH_WEIGHTED_PMA=1" not in sharded_cc_compile
 
     invalid = subprocess.run(

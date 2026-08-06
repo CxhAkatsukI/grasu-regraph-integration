@@ -54,6 +54,7 @@ WEIGHTED_EXE="${OUT_DIR}/pma_to_regraph_adapter_weighted_test"
 DESTINATION_EXE="${OUT_DIR}/pma_to_regraph_adapter_destination_test"
 SHARDED_WEIGHTED_EXE="${OUT_DIR}/pma_to_regraph_adapter_sharded_weighted_test"
 SHARDED_DESTINATION_EXE="${OUT_DIR}/pma_to_regraph_adapter_sharded_destination_test"
+SHARED_MASTER_EXE="${OUT_DIR}/pma_to_regraph_adapter_shared_master_test"
 LOG="${OUT_DIR}/test.log"
 
 {
@@ -68,6 +69,7 @@ LOG="${OUT_DIR}/test.log"
   echo "DESTINATION_EXE=${DESTINATION_EXE}"
   echo "SHARDED_WEIGHTED_EXE=${SHARDED_WEIGHTED_EXE}"
   echo "SHARDED_DESTINATION_EXE=${SHARDED_DESTINATION_EXE}"
+  echo "SHARED_MASTER_EXE=${SHARED_MASTER_EXE}"
 } > "${OUT_DIR}/manifest.env"
 
 if ! {
@@ -111,6 +113,16 @@ if ! {
     "${TB}" \
     -o "${SHARDED_DESTINATION_EXE}"
   "${SHARDED_DESTINATION_EXE}"
+
+  g++ -std=c++17 -w \
+    -DGRASU_REGRAPH_WEIGHTED_PMA=1 \
+    -DGRASU_REGRAPH_SHARDED_PMA=1 \
+    -DGRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS=1 \
+    -I"${HLS_INCLUDE}" \
+    -I"${HLS_INCLUDE_ETC}" \
+    "${TB}" \
+    -o "${SHARED_MASTER_EXE}"
+  "${SHARED_MASTER_EXE}"
 } > "${LOG}" 2>&1; then
   cat "${LOG}" >&2
   exit 1
@@ -124,6 +136,7 @@ fi
   sha256sum "${DESTINATION_EXE}"
   sha256sum "${SHARDED_WEIGHTED_EXE}"
   sha256sum "${SHARDED_DESTINATION_EXE}"
+  sha256sum "${SHARED_MASTER_EXE}"
   sha256sum "${LOG}"
 } > "${OUT_DIR}/SHA256SUMS"
 

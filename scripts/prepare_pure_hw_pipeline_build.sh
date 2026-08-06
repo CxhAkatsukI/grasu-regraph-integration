@@ -499,11 +499,7 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
     echo "nk=pma_to_regraph_adapter:4:pma_to_regraph_adapter_1.pma_to_regraph_adapter_2.pma_to_regraph_adapter_3.pma_to_regraph_adapter_4"
     echo "nk=lksg_stream:4:lksg_stream_1.lksg_stream_2.lksg_stream_3.lksg_stream_4"
     for index in 1 2 3 4; do
-      echo "sp=pma_to_regraph_adapter_${index}.pma0:HBM[0:5]"
-      echo "sp=pma_to_regraph_adapter_${index}.pma1:HBM[6:11]"
-      echo "sp=pma_to_regraph_adapter_${index}.pma2:HBM[12:17]"
-      echo "sp=pma_to_regraph_adapter_${index}.pma3:HBM[18:22]"
-      echo "sp=pma_to_regraph_adapter_${index}.row_offset:HBM[0:22]"
+      echo "sp=pma_to_regraph_adapter_${index}.pma0:HBM[0:22]"
       echo "slr=pma_to_regraph_adapter_${index}:SLR$(((index - 1) % 3))"
       echo "slr=lksg_stream_${index}:SLR$(((index - 1) % 3))"
       echo "stream_connect=pma_to_regraph_adapter_${index}.edge_burst_out:lksg_stream_${index}.edge_burst_in:32"
@@ -642,8 +638,12 @@ fi
       "${BUILD_DIR}/littleKernelScatterGather.${TARGET}.xo" \
       "${REGRAPH_ROOT}/acc_template/kernel_little_gs/kernel_scatter_gather.cpp"
   else
-    printf 'v++ --target %q --compile --kernel_frequency %q %s %s %s %s --config %q -I%q -o %q %q\n' \
-      "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${ADAPTER_MODE_DEFINE}" "${SHARDED_PMA_DEFINE}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
+      adapter_memory_define=""
+      if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
+        adapter_memory_define="-DGRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS=1"
+      fi
+      printf 'v++ --target %q --compile --kernel_frequency %q %s %s %s %s %s --config %q -I%q -o %q %q\n' \
+        "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${ADAPTER_MODE_DEFINE}" "${SHARDED_PMA_DEFINE}" "${adapter_memory_define}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
       "${HLS_INCLUDE_ETC}" \
       "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo" \
       "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"

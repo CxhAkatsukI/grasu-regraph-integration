@@ -19,8 +19,14 @@ def parse_manifest(path: Path) -> dict[str, str]:
     )
 
 
-def prepare(root: Path, algorithm: str, target: str, pipelines: int = 1) -> Path:
-    output = root / f"{algorithm}-{target}-k{pipelines}"
+def prepare(
+    root: Path,
+    algorithm: str,
+    target: str,
+    pipelines: int = 1,
+    pipeline_mode: str = "weighted-axis",
+) -> Path:
+    output = root / f"{algorithm}-{target}-{pipeline_mode}-k{pipelines}"
     env = os.environ.copy()
     env["GRI_ROOT"] = str(ROOT)
     subprocess.run(
@@ -32,6 +38,8 @@ def prepare(root: Path, algorithm: str, target: str, pipelines: int = 1) -> Path
             algorithm,
             "--compute-pipelines",
             str(pipelines),
+            "--pipeline-mode",
+            pipeline_mode,
             "--build-root",
             str(output),
         ],
@@ -49,6 +57,10 @@ with tempfile.TemporaryDirectory() as temp_name:
     full = prepare(temp, "full_pagerank", "sw_emu")
     residual = prepare(temp, "residual_pagerank", "hw")
     residual_k2 = prepare(temp, "residual_pagerank", "hw", pipelines=2)
+    residual_sharded = prepare(
+        temp, "residual_pagerank", "hw", pipelines=4,
+        pipeline_mode="sharded-k4"
+    )
 
     full_commands = (full / "compile_commands.sh").read_text(encoding="utf-8")
     full_cfg = (full / "config/full_pagerank_sw_emu.cfg").read_text(
@@ -67,6 +79,15 @@ with tempfile.TemporaryDirectory() as temp_name:
         residual_k2 / "config/residual_pagerank_hw.cfg"
     ).read_text(encoding="utf-8")
     residual_k2_manifest = parse_manifest(residual_k2 / "manifest.env")
+    residual_sharded_cfg = (
+        residual_sharded / "config/residual_pagerank_hw.cfg"
+    ).read_text(encoding="utf-8")
+    residual_sharded_commands = (
+        residual_sharded / "compile_commands.sh"
+    ).read_text(encoding="utf-8")
+    residual_sharded_manifest = parse_manifest(
+        residual_sharded / "manifest.env"
+    )
 
     assert full_commands.count("v++ --target sw_emu --compile") == 11
     assert residual_commands.count("v++ --target hw --compile") == 11
@@ -120,6 +141,33 @@ with tempfile.TemporaryDirectory() as temp_name:
         "regraph_pagerank_apply_2.source_prop_write:"
         "kernelHBMWrapper_2.prop_write_burst_stm:16"
     ) in residual_k2_cfg
+    assert residual_sharded_commands.count("v++ --target hw --compile") == 12
+    assert "-DGRASU_REGRAPH_SHARDED_PMA=1" in residual_sharded_commands
+    assert (
+        "-DGRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS=1"
+        in residual_sharded_commands
+    )
+    assert "-DLITTLE_KERNEL_NUM=4" in residual_sharded_commands
+    assert "regraph_k4_shared_hbm_wrapper" in residual_sharded_commands
+    assert "nk=pma_to_regraph_adapter:4:" in residual_sharded_cfg
+    assert "nk=lksg_stream:4:" in residual_sharded_cfg
+    assert "nk=regraph_frontend_mux:1:regraph_frontend_mux_1" in (
+        residual_sharded_cfg
+    )
+    assert residual_sharded_cfg.count("nk=kernelLittleGSMerger:1") == 1
+    assert residual_sharded_cfg.count("nk=regraph_pagerank_apply:1") == 1
+    assert residual_sharded_cfg.count("nk=kernelHBMWrapper:1") == 1
+    assert "sp=pr_source_1.rank_state:HBM[25]" in residual_sharded_cfg
+    assert "sp=pr_source_1.residual_state:HBM[26]" in residual_sharded_cfg
+    assert "sp=pr_source_1.out_degree:HBM[27]" in residual_sharded_cfg
+    assert "sp=kernelHBMWrapper_1.src_prop_3:HBM[23]" in residual_sharded_cfg
+    assert residual_sharded_manifest["PIPELINE_MODE"] == "sharded-k4"
+    assert residual_sharded_manifest["COMPUTE_PIPELINES"] == "4"
+    assert residual_sharded_manifest["PIPELINE_TOPOLOGY"] == (
+        "four_sharded_pma_source_gather_frontends_one_shared_downstream"
+    )
+    assert residual_sharded_manifest["SHARED_REGRAPH_DOWNSTREAM"] == "1"
+    assert residual_sharded_manifest["RESIDUAL_HBM_CHANNEL"] == "26"
     assert "--kernel_frequency 150" in (residual / "link_command.sh").read_text(
         encoding="utf-8"
     )
@@ -137,7 +185,7 @@ with tempfile.TemporaryDirectory() as temp_name:
         full / "run_build.sh"
     ).read_text(encoding="utf-8")
 
-    for packet in (full, residual, residual_k2):
+    for packet in (full, residual, residual_k2, residual_sharded):
         subprocess.run(["bash", "-n", str(packet / "compile_commands.sh")], check=True)
         subprocess.run(["bash", "-n", str(packet / "link_command.sh")], check=True)
         subprocess.run(["bash", "-n", str(packet / "run_build.sh")], check=True)
