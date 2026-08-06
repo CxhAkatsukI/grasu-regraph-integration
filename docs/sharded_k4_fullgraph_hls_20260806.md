@@ -176,8 +176,11 @@ Run the correctness-gated comparison with automatic memory-safe scheduling:
 `auto` uses both U55C boards concurrently only when `MemAvailable` exceeds
 both process ceilings plus the reserve.  Otherwise it runs the two
 architectures serially.  Each process also inherits a hard virtual-memory
-ceiling.  An allocation failure, timeout, oracle mismatch, missing timing
-field, or missing artifact rejects the row.
+ceiling.  During execution, a one-second guard continues to sample
+`MemAvailable`; if another build or experiment consumes the reserve, it
+terminates the complete isolated process group and records exit 125 instead of
+risking a host OOM.  An allocation failure, guard trip, timeout, oracle
+mismatch, missing timing field, or missing artifact rejects the row.
 
 ## Current status
 

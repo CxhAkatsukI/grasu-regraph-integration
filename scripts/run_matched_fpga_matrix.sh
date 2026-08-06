@@ -15,6 +15,8 @@ execution_mode=auto
 gr_memory_gib=64
 spine_memory_gib=64
 memory_reserve_gib=16
+memory_poll_seconds=1
+active_process_groups=()
 
 usage() {
   cat <<USAGE
@@ -37,6 +39,8 @@ Options:
   --spine-memory-gib N    Spine process memory ceiling (default: 64 GiB).
   --memory-reserve-gib N  Memory kept outside experiment processes
                           (default: 16 GiB).
+  --memory-poll-seconds N Runtime MemAvailable polling interval
+                          (default: 1 second).
 USAGE
 }
 
@@ -53,6 +57,7 @@ while (( $# > 0 )); do
     --gr-memory-gib) gr_memory_gib=$2; shift 2 ;;
     --spine-memory-gib) spine_memory_gib=$2; shift 2 ;;
     --memory-reserve-gib) memory_reserve_gib=$2; shift 2 ;;
+    --memory-poll-seconds) memory_poll_seconds=$2; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -63,7 +68,7 @@ if [[ -z "${matrix}" || -z "${out_dir}" ]]; then
   exit 2
 fi
 for numeric in gr_device spine_device timeout_seconds gr_memory_gib \
-    spine_memory_gib memory_reserve_gib; do
+    spine_memory_gib memory_reserve_gib memory_poll_seconds; do
   if ! [[ "${!numeric}" =~ ^[0-9]+$ ]]; then
     echo "${numeric} must be a non-negative integer" >&2
     exit 2
@@ -79,6 +84,10 @@ if (( gr_device == spine_device )); then
 fi
 if (( gr_memory_gib == 0 || spine_memory_gib == 0 )); then
   echo "architecture memory ceilings must be positive" >&2
+  exit 2
+fi
+if (( memory_poll_seconds == 0 )); then
+  echo "--memory-poll-seconds must be positive" >&2
   exit 2
 fi
 if [[ ! -f "${matrix}" || ! -d "${spine_root}" ]]; then
@@ -102,9 +111,77 @@ run_with_memory_cap() {
   shift
   (
     ulimit -v $((cap_gib * 1024 * 1024))
-    exec "$@"
+    exec setsid "$@"
   )
 }
+
+terminate_process_group() {
+  local pid=$1
+  kill -TERM -- "-${pid}" 2>/dev/null || kill -TERM "${pid}" 2>/dev/null || true
+}
+
+kill_process_group() {
+  local pid=$1
+  kill -KILL -- "-${pid}" 2>/dev/null || kill -KILL "${pid}" 2>/dev/null || true
+}
+
+cleanup_active_process_groups() {
+  (( ${#active_process_groups[@]} != 0 )) || return 0
+  local pid
+  for pid in "${active_process_groups[@]}"; do
+    terminate_process_group "${pid}"
+  done
+  sleep 1
+  for pid in "${active_process_groups[@]}"; do
+    kill_process_group "${pid}"
+  done
+  active_process_groups=()
+}
+
+stop_memory_guard() {
+  local guard_pid=$1
+  kill -TERM "${guard_pid}" 2>/dev/null || true
+  wait "${guard_pid}" 2>/dev/null || true
+}
+
+memory_guard() {
+  local marker=$1
+  local label=$2
+  shift 2
+  local reserve_kib=$((memory_reserve_gib * 1024 * 1024))
+  trap 'exit 0' INT TERM
+  while true; do
+    local any_alive=0
+    local pid
+    for pid in "$@"; do
+      if kill -0 "${pid}" 2>/dev/null; then
+        any_alive=1
+        break
+      fi
+    done
+    (( any_alive != 0 )) || return 0
+
+    local available_kib
+    available_kib=$(mem_available_kib)
+    if (( available_kib < reserve_kib )); then
+      printf 'MEMORY_GUARD_TRIPPED label=%s available_kib=%s reserve_kib=%s pids=%s\n' \
+        "${label}" "${available_kib}" "${reserve_kib}" "$*" |
+        tee -a "${out_dir}/memory_guard.log" >"${marker}"
+      for pid in "$@"; do
+        terminate_process_group "${pid}"
+      done
+      sleep 2
+      for pid in "$@"; do
+        kill_process_group "${pid}"
+      done
+      return 0
+    fi
+    sleep "${memory_poll_seconds}"
+  done
+}
+
+trap 'cleanup_active_process_groups; exit 130' INT TERM
+trap cleanup_active_process_groups EXIT
 
 effective_serial_cap_gib() {
   local requested=$1
@@ -120,9 +197,8 @@ effective_serial_cap_gib() {
   fi
 }
 
-printf 'case\talgorithm\texecution_mode\tgr_memory_gib\tspine_memory_gib\tgr_exit\tspine_exit\n' \
+printf 'case\talgorithm\texecution_mode\tgr_memory_gib\tspine_memory_gib\tgr_exit\tspine_exit\tmemory_guard\n' \
   >"${out_dir}/launch_status.tsv"
-tail -n +2 "${matrix}" |
 while IFS=$'\t' read -r case algorithm graph source gr_host gr_xclbin rest; do
   [[ -z "${case}" ]] && continue
   case "${algorithm}" in
@@ -143,6 +219,9 @@ while IFS=$'\t' read -r case algorithm graph source gr_host gr_xclbin rest; do
   gr_out="${case_root}/grasu_regraph"
   spine_out="${case_root}/spine"
   mkdir -p "${case_root}"
+  rm -f "${case_root}/grasu_regraph.memory_guard" \
+    "${case_root}/spine.memory_guard" "${case_root}/concurrent.memory_guard"
+  case_guard_status=PASS
   case_mode=${execution_mode}
   if [[ "${case_mode}" == auto ]]; then
     available_gib=$(( $(mem_available_kib) / 1024 / 1024 ))
@@ -186,6 +265,7 @@ while IFS=$'\t' read -r case algorithm graph source gr_host gr_xclbin rest; do
       --timeout "${timeout_seconds}" \
       >"${case_root}/grasu_regraph.launch.log" 2>&1 &
   gr_pid=$!
+  active_process_groups=("${gr_pid}")
   if [[ "${case_mode}" == concurrent ]]; then
     run_with_memory_cap "${spine_case_memory_gib}" \
       timeout --signal=TERM --kill-after=15s "${timeout_seconds}s" \
@@ -195,32 +275,66 @@ while IFS=$'\t' read -r case algorithm graph source gr_host gr_xclbin rest; do
         "${graph}" "${source}" \
         >"${case_root}/spine.launch.log" 2>&1 &
     spine_pid=$!
+    active_process_groups=("${gr_pid}" "${spine_pid}")
+    memory_guard "${case_root}/concurrent.memory_guard" \
+      "${case}:concurrent" "${gr_pid}" "${spine_pid}" &
+    guard_pid=$!
     wait "${gr_pid}"; gr_exit=$?
     wait "${spine_pid}"; spine_exit=$?
+    stop_memory_guard "${guard_pid}"
+    if [[ -f "${case_root}/concurrent.memory_guard" ]]; then
+      gr_exit=125
+      spine_exit=125
+      case_guard_status=TRIPPED_CONCURRENT
+    fi
+    active_process_groups=()
   else
+    memory_guard "${case_root}/grasu_regraph.memory_guard" \
+      "${case}:grasu_regraph" "${gr_pid}" &
+    guard_pid=$!
     wait "${gr_pid}"; gr_exit=$?
-    spine_case_memory_gib=$(effective_serial_cap_gib "${spine_memory_gib}") || {
-      echo "insufficient memory reserve before Spine ${case}" >&2
-      exit 1
-    }
-    run_with_memory_cap "${spine_case_memory_gib}" \
-      timeout --signal=TERM --kill-after=15s "${timeout_seconds}s" \
-      env XCL_DEVICE_INDEX="${spine_device}" \
-      "${spine_root}/tests/test_integration/run_partitioned_dynamic_algorithm_hw.sh" \
-        "${spine_build_root}" "${spine_out}" "${spine_tag}" \
-        "${graph}" "${source}" \
-        >"${case_root}/spine.launch.log" 2>&1
-    spine_exit=$?
+    stop_memory_guard "${guard_pid}"
+    active_process_groups=()
+    if [[ -f "${case_root}/grasu_regraph.memory_guard" ]]; then
+      gr_exit=125
+      spine_exit=125
+      case_guard_status=TRIPPED_GR
+      spine_case_memory_gib=0
+    else
+      spine_case_memory_gib=$(effective_serial_cap_gib "${spine_memory_gib}") || {
+        echo "insufficient memory reserve before Spine ${case}" >&2
+        exit 1
+      }
+      run_with_memory_cap "${spine_case_memory_gib}" \
+        timeout --signal=TERM --kill-after=15s "${timeout_seconds}s" \
+        env XCL_DEVICE_INDEX="${spine_device}" \
+        "${spine_root}/tests/test_integration/run_partitioned_dynamic_algorithm_hw.sh" \
+          "${spine_build_root}" "${spine_out}" "${spine_tag}" \
+          "${graph}" "${source}" \
+          >"${case_root}/spine.launch.log" 2>&1 &
+      spine_pid=$!
+      active_process_groups=("${spine_pid}")
+      memory_guard "${case_root}/spine.memory_guard" \
+        "${case}:spine" "${spine_pid}" &
+      guard_pid=$!
+      wait "${spine_pid}"; spine_exit=$?
+      stop_memory_guard "${guard_pid}"
+      if [[ -f "${case_root}/spine.memory_guard" ]]; then
+        spine_exit=125
+        case_guard_status=TRIPPED_SPINE
+      fi
+      active_process_groups=()
+    fi
   fi
   set -e
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "${case}" "${algorithm}" "${case_mode}" \
     "${gr_case_memory_gib}" "${spine_case_memory_gib}" \
-    "${gr_exit}" "${spine_exit}" \
+    "${gr_exit}" "${spine_exit}" "${case_guard_status}" \
     >>"${out_dir}/launch_status.tsv"
   echo "MATCHED_FPGA_CASE_DONE case=${case} gr_exit=${gr_exit} spine_exit=${spine_exit}"
-done
+done < <(tail -n +2 "${matrix}")
 
 python3 "${SCRIPT_DIR}/summarize_matched_fpga_matrix.py" \
   --matrix "${out_dir}/matrix.tsv" --run-root "${out_dir}" \
