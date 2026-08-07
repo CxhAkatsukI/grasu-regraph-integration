@@ -160,7 +160,7 @@ The three hardware build roots are:
 ```text
 /data/tmp/chuxiao/grasu_regraph_sharded_k4_sssp_hw_b8d2ba3_20260806
 /data/tmp/chuxiao/grasu_regraph_sharded_k4_cc_hw_d886f42_20260806
-/data/tmp/chuxiao/grasu_regraph_sharded_k4_respr_hw_d886f42_20260806
+/data/tmp/chuxiao/grasu_regraph_sharded_k4_respr_hw_bfe2024_route_aggressive_slr2_20260807
 ```
 
 Each root contains `compile_commands.sh`, `link_command.sh`, `manifest.env`,
@@ -220,7 +220,7 @@ mismatch, missing timing field, or missing artifact rejects the row.
 
 ## Current status
 
-As of 2026-08-06, 22 unit tests, all four native hosts, the six-partition ABI
+As of 2026-08-07, 22 unit tests, all four native hosts, the six-partition ABI
 check, all 24 workload materializations, and all three algorithm-specific XO
 sets pass.  LJ08 SSSP (5.36M vertices, 99.03M initial edges) also passes host
 preflight under a 24 GiB hard ceiling: 82 destination shards map to 23 HBM
@@ -303,6 +303,34 @@ at most 0.062% CV, and every individual setup-inclusive speedup remains above
 `docs/evidence/sharded_k4_fullgraph_20260806/cc_fullgraph_u55c`.
 
 The corrected ResPR PMA DDR kernel has `II=1` and estimated `205.47 MHz`; the
-prior shared-bundle result (`II=140`) is rejected.  Its routed artifact and
-board-run correctness gate remain pending.  The ResPR eight-graph matched
-matrix remains pending until that board gate passes.
+prior shared-bundle result (`II=140`) is rejected. The replacement xclbin
+routes with the user kernel at 150 MHz and the platform HBM clock auto-scaled
+to 429.3 MHz. The remaining platform-only timing report is WNS -0.107 ns and
+TNS -28.768 ns; this is retained as a limitation rather than reported as user
+kernel timing closure. Its SHA-256 is
+`8d47aef98bcaa4cd338bbe5bd32d649db12b6dc15afb0a1d272bb2e47b7b5653`.
+
+That artifact passes the residual-PageRank matrix on all eight frozen graphs.
+Both architectures start from the converged old-graph rank, apply the same
+eight insertions, use direct per-vertex `epsilon=1e-6`, and are admitted only
+after rank, residual, degree, update-state, and convergence checks pass. The
+table reports setup-inclusive medians over three correctness-admitted runs.
+
+| Graph | G+R setup-inclusive (ms) | Spine setup-inclusive (ms) | G+R / Spine |
+| --- | ---: | ---: | ---: |
+| AU | 1,195.930 | 59.045 | 20.27x |
+| SU | 1,870.403 | 65.718 | 28.46x |
+| WK | 5,857.289 | 67.540 | 86.72x |
+| SO | 145,789.040 | 244.952 | 595.17x |
+| PK | 11,835.931 | 154.598 | 76.50x |
+| LJ | 101,300.473 | 257.513 | 393.03x |
+| LJ08 | 130,344.671 | 261.242 | 499.13x |
+| R19 | 1,113.091 | 89.332 | 12.46x |
+
+There is no winner flip. Every individual setup-inclusive speedup is above
+12.17x. These insertion batches require no post-update Spine propagation,
+whereas G+R still performs its required degree-correction execution over all
+destination shards. The result therefore establishes this realized-work
+regime, not a universal residual-PageRank speedup for batches that trigger
+substantial propagation. Compact evidence is archived under
+`docs/evidence/sharded_k4_fullgraph_20260806/respr_fullgraph_u55c`.

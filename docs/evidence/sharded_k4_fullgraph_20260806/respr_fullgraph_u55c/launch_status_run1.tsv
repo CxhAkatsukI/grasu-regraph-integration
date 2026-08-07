@@ -1,0 +1,9 @@
+case	algorithm	execution_mode	gr_memory_gib	spine_memory_gib	gr_exit	spine_exit	memory_guard
+au_residual_pagerank_resident	residual_pagerank	serial	52	52	0	0	PASS
+lj_residual_pagerank_resident	residual_pagerank	serial	52	54	0	0	PASS
+lj08_residual_pagerank_resident	residual_pagerank	serial	53	55	0	0	PASS
+pk_residual_pagerank_resident	residual_pagerank	serial	54	54	0	0	PASS
+r19_residual_pagerank_resident	residual_pagerank	serial	55	55	0	0	PASS
+so_residual_pagerank_resident	residual_pagerank	serial	55	56	0	0	PASS
+su_residual_pagerank_resident	residual_pagerank	serial	56	56	0	0	PASS
+wk_residual_pagerank_resident	residual_pagerank	serial	56	56	0	0	PASS
