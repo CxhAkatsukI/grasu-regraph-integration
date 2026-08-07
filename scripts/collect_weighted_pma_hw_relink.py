@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Collect timing-closure evidence from a weighted-PMA relink packet."""
+"""Collect timing-closure evidence from an isolated hardware relink packet."""
 
 from __future__ import annotations
 

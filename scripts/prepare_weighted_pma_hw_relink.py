@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare an isolated timing-closure relink from verified weighted-PMA XOs."""
+"""Prepare an isolated timing-closure relink from verified pipeline XOs."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ PROFILES = {
     },
 }
 
-XO_PATTERNS = (
+WEIGHTED_PMA_XO_PATTERNS = (
     "bin_search.hw.xo",
     "dispatch.hw.xo",
     "kernelApply.hw.*.xo",
@@ -37,6 +37,21 @@ XO_PATTERNS = (
     "pma_completion_barrier.hw.xo",
     "pma_to_regraph_adapter.hw.xo",
     "lksg_stream.hw.xo",
+)
+
+SHARDED_PAGERANK_XO_PATTERNS = (
+    "bin_search.hw.xo",
+    "dispatch_degree.hw.xo",
+    "grasu_degree_update.hw.xo",
+    "kernelHBMWrapper.hw.xo",
+    "kernelLittleGSMerger.hw.xo",
+    "lksg_stream.hw.xo",
+    "pma_to_regraph_adapter.hw.xo",
+    "process_cache.hw.xo",
+    "process_ddr.hw.xo",
+    "regraph_frontend_mux.hw.xo",
+    "regraph_pagerank_apply.hw.xo",
+    "regraph_pagerank_source_prepare.hw.xo",
 )
 
 
@@ -58,11 +73,27 @@ def read_manifest(path: Path) -> dict[str, str]:
     return values
 
 
-def require_source_contract(source_root: Path, manifest: dict[str, str]) -> Path:
+def require_source_contract(
+    source_root: Path, manifest: dict[str, str], pipeline_kind: str
+) -> Path:
     if manifest.get("TARGET") != "hw":
         raise ValueError("source manifest TARGET must be hw")
-    if manifest.get("PIPELINE_MODE") != "weighted-axis":
-        raise ValueError("source manifest PIPELINE_MODE must be weighted-axis")
+    expected_mode = {
+        "weighted-pma": "weighted-axis",
+        "sharded-pagerank": "sharded-k4",
+    }[pipeline_kind]
+    if manifest.get("PIPELINE_MODE") != expected_mode:
+        raise ValueError(
+            f"source manifest PIPELINE_MODE must be {expected_mode}"
+        )
+    if pipeline_kind == "sharded-pagerank" and manifest.get("ALGORITHM") not in {
+        "full_pagerank",
+        "residual_pagerank",
+    }:
+        raise ValueError(
+            "sharded-pagerank source ALGORITHM must be full_pagerank or "
+            "residual_pagerank"
+        )
     link_cfg = Path(manifest.get("LINK_CFG", ""))
     if not link_cfg.is_file():
         raise FileNotFoundError(f"source link config is missing: {link_cfg}")
@@ -71,10 +102,15 @@ def require_source_contract(source_root: Path, manifest: dict[str, str]) -> Path
     return link_cfg
 
 
-def find_xos(source_root: Path) -> list[Path]:
+def find_xos(source_root: Path, pipeline_kind: str) -> list[Path]:
     build_dir = source_root / "build"
     result: list[Path] = []
-    for pattern in XO_PATTERNS:
+    patterns = (
+        WEIGHTED_PMA_XO_PATTERNS
+        if pipeline_kind == "weighted-pma"
+        else SHARDED_PAGERANK_XO_PATTERNS
+    )
+    for pattern in patterns:
         matches = sorted(build_dir.glob(pattern))
         if len(matches) != 1:
             raise FileNotFoundError(
@@ -142,15 +178,29 @@ def prepare(args: argparse.Namespace) -> Path:
     if not source_manifest_path.is_file():
         raise FileNotFoundError(f"source manifest is missing: {source_manifest_path}")
     source_manifest = read_manifest(source_manifest_path)
-    source_cfg = require_source_contract(source_root, source_manifest)
-    xos = find_xos(source_root)
+    source_cfg = require_source_contract(
+        source_root, source_manifest, args.pipeline_kind
+    )
+    xos = find_xos(source_root, args.pipeline_kind)
 
     for child in ("build", "config", "logs", "reports", "tmp", "ip_cache"):
         (packet_root / child).mkdir(parents=True, exist_ok=True)
 
-    link_cfg = packet_root / "config" / "weighted_pma_native_hw_relink.cfg"
+    algorithm = source_manifest.get("ALGORITHM", "weighted_sssp")
+    config_stem = (
+        "weighted_pma_native"
+        if args.pipeline_kind == "weighted-pma"
+        else f"sharded_k4_{algorithm}"
+    )
+    link_cfg = packet_root / "config" / f"{config_stem}_hw_relink.cfg"
     rewrite_link_config(source_cfg, link_cfg, packet_root, args.profile)
-    output_xclbin = packet_root / "build" / "grasu_regraph_weighted_pma_native.hw.xclbin"
+    if args.pipeline_kind == "weighted-pma":
+        output_name = "grasu_regraph_weighted_pma_native.hw.xclbin"
+    else:
+        output_name = Path(source_manifest.get("OUT_XCLBIN", "")).name
+        if not output_name.endswith(".xclbin"):
+            raise ValueError("sharded-pagerank source OUT_XCLBIN is invalid")
+    output_xclbin = packet_root / "build" / output_name
     link_command = packet_root / "link_command.sh"
     command = [
         "v++",
@@ -214,8 +264,13 @@ def prepare(args: argparse.Namespace) -> Path:
     manifest = {
         "schema": 1,
         "claim_class": "timing_closure_relink_candidate",
-        "algorithm": "weighted_sssp",
-        "handoff": "weighted_pma_to_axis_stream",
+        "algorithm": algorithm,
+        "pipeline_kind": args.pipeline_kind,
+        "handoff": (
+            "weighted_pma_to_axis_stream"
+            if args.pipeline_kind == "weighted-pma"
+            else "destination_sharded_pma_native_axis"
+        ),
         "conversion_cost": "absent",
         "target": "hw",
         "profile": args.profile,
@@ -248,6 +303,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source-build-root", type=Path, required=True)
     parser.add_argument("--out-root", type=Path, required=True)
     parser.add_argument("--profile", choices=sorted(PROFILES), required=True)
+    parser.add_argument(
+        "--pipeline-kind",
+        choices=("weighted-pma", "sharded-pagerank"),
+        default="weighted-pma",
+    )
     parser.add_argument("--kernel-frequency", type=int, default=200)
     parser.add_argument("--jobs", type=int, default=8)
     args = parser.parse_args()
@@ -261,6 +321,6 @@ def parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     parsed = parse_args()
     result = prepare(parsed)
-    print(f"Prepared weighted-PMA hw relink packet: {result}")
+    print(f"Prepared hw relink packet: {result}")
     print(f"Run: {result / 'link_command.sh'}")
     print(f"Collect: {result / 'collect_result.sh'}")

@@ -26,6 +26,21 @@ XO_NAMES = (
     "lksg_stream.hw.xo",
 )
 
+PAGERANK_XO_NAMES = (
+    "bin_search.hw.xo",
+    "dispatch_degree.hw.xo",
+    "grasu_degree_update.hw.xo",
+    "kernelHBMWrapper.hw.xo",
+    "kernelLittleGSMerger.hw.xo",
+    "lksg_stream.hw.xo",
+    "pma_to_regraph_adapter.hw.xo",
+    "process_cache.hw.xo",
+    "process_ddr.hw.xo",
+    "regraph_frontend_mux.hw.xo",
+    "regraph_pagerank_apply.hw.xo",
+    "regraph_pagerank_source_prepare.hw.xo",
+)
+
 
 def make_source(root: Path, target: str = "hw") -> Path:
     source = root / "source"
@@ -67,6 +82,48 @@ def make_source(root: Path, target: str = "hw") -> Path:
     )
     for index, name in enumerate(XO_NAMES):
         (source / "build" / name).write_bytes(f"xo-{index}".encode())
+    return source
+
+
+def make_pagerank_source(root: Path) -> Path:
+    source = root / "source"
+    (source / "build").mkdir(parents=True)
+    (source / "config").mkdir()
+    cfg = source / "config" / "residual_pagerank_hw.cfg"
+    cfg.write_text(
+        "\n".join(
+            [
+                "platform=fake.xpfm",
+                "messageDb=/old/build.mdb",
+                "temp_dir=/old/temp",
+                "report_dir=/old/reports",
+                "log_dir=/old/logs",
+                "remote_ip_cache=/old/cache",
+                "",
+                "[connectivity]",
+                "nk=regraph_frontend_mux:1:regraph_frontend_mux_1",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    source_xclbin = source / "build" / "grasu_regraph_residual_pagerank.hw.xclbin"
+    (source / "manifest.env").write_text(
+        "\n".join(
+            [
+                "TARGET=hw",
+                "PIPELINE_MODE=sharded-k4",
+                "ALGORITHM=residual_pagerank",
+                "GRI_GIT_HEAD=bfe2024",
+                f"LINK_CFG={cfg}",
+                f"OUT_XCLBIN={source_xclbin}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    for index, name in enumerate(PAGERANK_XO_NAMES):
+        (source / "build" / name).write_bytes(f"pagerank-xo-{index}".encode())
     return source
 
 
@@ -145,6 +202,53 @@ class WeightedPmaRelinkTest(unittest.TestCase):
             cfg = (packet / "config/weighted_pma_native_hw_relink.cfg").read_text()
             self.assertIn("DIRECTIVE=ExtraNetDelay_high", cfg)
             self.assertIn("ROUTE_DESIGN.ARGS.DIRECTIVE=AlternateCLBRouting", cfg)
+
+    def test_sharded_pagerank_packet_reuses_exact_xos(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = Path(temp_name)
+            source = make_pagerank_source(temp)
+            packet = temp / "packet"
+            subprocess.run(
+                [
+                    "python3",
+                    str(PREPARE),
+                    "--source-build-root",
+                    str(source),
+                    "--out-root",
+                    str(packet),
+                    "--profile",
+                    "route-aggressive",
+                    "--pipeline-kind",
+                    "sharded-pagerank",
+                    "--kernel-frequency",
+                    "150",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            manifest = json.loads(
+                (packet / "manifest.json").read_text(encoding="utf-8")
+            )
+            cfg = (
+                packet / "config/sharded_k4_residual_pagerank_hw_relink.cfg"
+            ).read_text(encoding="utf-8")
+            command = (packet / "link_command.sh").read_text(encoding="utf-8")
+            self.assertEqual(manifest["algorithm"], "residual_pagerank")
+            self.assertEqual(manifest["pipeline_kind"], "sharded-pagerank")
+            self.assertEqual(manifest["input_xo_count"], len(PAGERANK_XO_NAMES))
+            self.assertEqual(manifest["kernel_frequency_mhz"], 150)
+            self.assertEqual(cfg.count("[vivado]"), 1)
+            self.assertIn("DIRECTIVE=AltSpreadLogic_high", cfg)
+            self.assertNotIn("/old/", cfg)
+            self.assertIn(
+                str(source / "build/regraph_pagerank_source_prepare.hw.xo"),
+                command,
+            )
+            self.assertIn(
+                str(packet / "build/grasu_regraph_residual_pagerank.hw.xclbin"),
+                command,
+            )
 
     def test_non_hw_source_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
