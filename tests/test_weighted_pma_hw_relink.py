@@ -318,6 +318,81 @@ class WeightedPmaRelinkTest(unittest.TestCase):
             self.assertTrue(passed_json["passed"])
             self.assertEqual(passed_json["claim_class"], "routed_timing_closed")
 
+    def test_collector_can_accept_platform_autoscale_without_hiding_slack(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            temp = Path(temp_name)
+            source = make_source(temp)
+            packet = temp / "packet"
+            subprocess.run(
+                [
+                    "python3",
+                    str(PREPARE),
+                    "--source-build-root",
+                    str(source),
+                    "--out-root",
+                    str(packet),
+                    "--profile",
+                    "route-aggressive",
+                    "--kernel-frequency",
+                    "150",
+                ],
+                check=True,
+            )
+            manifest = json.loads((packet / "manifest.json").read_text())
+            xclbin = Path(manifest["output_xclbin"])
+            xclbin.write_bytes(b"xclbin")
+            Path(str(xclbin) + ".info").write_text(
+                "\n".join(
+                    [
+                        "Scalable Clocks",
+                        "---------------",
+                        "   Name:      hbm_aclk",
+                        "   Type:      SYSTEM",
+                        "   Frequency: 429 MHz",
+                        "",
+                        "   Name:      DATA_CLK",
+                        "   Type:      DATA",
+                        "   Frequency: 150 MHz",
+                        "",
+                        "System Clocks",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            report = packet / "reports/link/impl/timing_summary_routed.rpt"
+            write_timing_report(report, -0.107, -28.768)
+
+            strict = subprocess.run(
+                ["python3", str(COLLECT), "--packet-root", str(packet)],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(strict.returncode, 1)
+
+            accepted = subprocess.run(
+                [
+                    "python3",
+                    str(COLLECT),
+                    "--packet-root",
+                    str(packet),
+                    "--accept-platform-autoscale",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            result = json.loads((packet / "result.json").read_text())
+            self.assertTrue(result["passed"])
+            self.assertFalse(result["timing_closed"])
+            self.assertTrue(result["platform_autoscale_accepted"])
+            self.assertTrue(result["kernel_target_met"])
+            self.assertEqual(result["selected_kernel_frequency_mhz"], 150.0)
+            self.assertEqual(result["selected_system_frequency_mhz"], 429.0)
+            self.assertEqual(
+                result["claim_class"],
+                "routed_kernel_target_met_platform_autoscaled",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
