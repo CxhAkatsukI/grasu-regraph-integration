@@ -102,6 +102,7 @@ def make_pagerank_source(root: Path) -> Path:
                 "",
                 "[connectivity]",
                 "nk=regraph_frontend_mux:1:regraph_frontend_mux_1",
+                "slr=pr_source_1:SLR1",
                 "",
             ]
         ),
@@ -222,6 +223,8 @@ class WeightedPmaRelinkTest(unittest.TestCase):
                     "sharded-pagerank",
                     "--kernel-frequency",
                     "150",
+                    "--source-prepare-slr",
+                    "SLR2",
                 ],
                 check=True,
                 capture_output=True,
@@ -238,8 +241,10 @@ class WeightedPmaRelinkTest(unittest.TestCase):
             self.assertEqual(manifest["pipeline_kind"], "sharded-pagerank")
             self.assertEqual(manifest["input_xo_count"], len(PAGERANK_XO_NAMES))
             self.assertEqual(manifest["kernel_frequency_mhz"], 150)
+            self.assertEqual(manifest["source_prepare_slr"], "SLR2")
             self.assertEqual(cfg.count("[vivado]"), 1)
             self.assertIn("DIRECTIVE=AltSpreadLogic_high", cfg)
+            self.assertIn("slr=pr_source_1:SLR2", cfg)
             self.assertNotIn("/old/", cfg)
             self.assertIn(
                 str(source / "build/regraph_pagerank_source_prepare.hw.xo"),

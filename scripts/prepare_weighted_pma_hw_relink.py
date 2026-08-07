@@ -125,6 +125,7 @@ def rewrite_link_config(
     destination: Path,
     packet_root: Path,
     profile: str,
+    source_prepare_slr: str,
 ) -> None:
     replacements = {
         "messageDb": packet_root / "build" / "grasu_regraph_weighted_pma_native.mdb",
@@ -143,7 +144,9 @@ def rewrite_link_config(
         if skip_vivado:
             continue
         key = line.split("=", 1)[0] if "=" in line else ""
-        if key in replacements:
+        if line.startswith("slr=pr_source_1:") and source_prepare_slr != "preserve":
+            output.append(f"slr=pr_source_1:{source_prepare_slr}")
+        elif key in replacements:
             output.append(f"{key}={replacements[key]}")
         else:
             output.append(line)
@@ -193,7 +196,17 @@ def prepare(args: argparse.Namespace) -> Path:
         else f"sharded_k4_{algorithm}"
     )
     link_cfg = packet_root / "config" / f"{config_stem}_hw_relink.cfg"
-    rewrite_link_config(source_cfg, link_cfg, packet_root, args.profile)
+    if args.pipeline_kind != "sharded-pagerank" and args.source_prepare_slr != "preserve":
+        raise ValueError(
+            "--source-prepare-slr is valid only for sharded-pagerank"
+        )
+    rewrite_link_config(
+        source_cfg,
+        link_cfg,
+        packet_root,
+        args.profile,
+        args.source_prepare_slr,
+    )
     if args.pipeline_kind == "weighted-pma":
         output_name = "grasu_regraph_weighted_pma_native.hw.xclbin"
     else:
@@ -274,6 +287,7 @@ def prepare(args: argparse.Namespace) -> Path:
         "conversion_cost": "absent",
         "target": "hw",
         "profile": args.profile,
+        "source_prepare_slr": args.source_prepare_slr,
         "kernel_frequency_mhz": args.kernel_frequency,
         "jobs": args.jobs,
         "source_build_root": str(source_root),
@@ -307,6 +321,12 @@ def parse_args() -> argparse.Namespace:
         "--pipeline-kind",
         choices=("weighted-pma", "sharded-pagerank"),
         default="weighted-pma",
+    )
+    parser.add_argument(
+        "--source-prepare-slr",
+        choices=("preserve", "SLR0", "SLR1", "SLR2"),
+        default="preserve",
+        help="optional physical placement override for sharded PageRank",
     )
     parser.add_argument("--kernel-frequency", type=int, default=200)
     parser.add_argument("--jobs", type=int, default=8)
