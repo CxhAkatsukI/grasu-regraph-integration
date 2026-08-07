@@ -78,9 +78,13 @@ case "${execution_mode}" in
   auto|concurrent|serial) ;;
   *) echo "execution_mode must be auto, concurrent, or serial" >&2; exit 2 ;;
 esac
-if (( gr_device == spine_device )); then
+if [[ "${execution_mode}" == "concurrent" ]] &&
+    (( gr_device == spine_device )); then
   echo "G+R and Spine must use distinct devices for concurrent execution" >&2
   exit 2
+fi
+if [[ "${execution_mode}" == "auto" ]] && (( gr_device == spine_device )); then
+  execution_mode=serial
 fi
 if (( gr_memory_gib == 0 || spine_memory_gib == 0 )); then
   echo "architecture memory ceilings must be positive" >&2
