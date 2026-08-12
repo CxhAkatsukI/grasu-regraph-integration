@@ -409,8 +409,34 @@ int main(int argc, char **argv)
         const auto wall_begin = std::chrono::high_resolution_clock::now();
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> update_events;
-        cl_ulong previous_update_shard_end = 0;
-        for (std::size_t shard = 0; shard < graph.shards.size(); ++shard) {
+        const unsigned update_repeats = update_repeat_count();
+        std::cout << "GRASU_SHARDED_UPDATE_REPEAT_CONFIG repeats="
+                  << update_repeats
+                  << " restore_pma_between_repeats=1 restore_degree=1"
+                  << std::endl;
+
+        for (unsigned repeat = 0; repeat < update_repeats; ++repeat) {
+          if (repeat != 0) {
+            restore_device_shard_pma(transfer_queue, packed, device_shards);
+            std::fill(degree_status.begin(), degree_status.end(), 0);
+            write_device_buffer(
+                transfer_queue, degree_dev,
+                degree.size() * sizeof(std::uint32_t), degree.data(),
+                "restore_degree");
+            write_device_buffer(
+                transfer_queue, degree_status_dev,
+                degree_status.size() * sizeof(std::uint32_t),
+                degree_status.data(), "restore_degree_status");
+            transfer_queue.finish();
+          }
+          std::vector<cl::Event> repeat_update_events;
+          cl_ulong previous_update_shard_end = 0;
+          const bool final_repeat = repeat + 1 == update_repeats;
+          const char *event_prefix = final_repeat
+              ? "GRASU_SHARDED_UPDATE_EVENTS"
+              : "GRASU_SHARDED_UPDATE_DIAGNOSTIC_EVENTS";
+
+          for (std::size_t shard = 0; shard < graph.shards.size(); ++shard) {
             const auto &shard_graph = graph.shards[shard];
             if (shard_graph.physical_updates.empty()) continue;
             DeviceShard &buffers = device_shards[shard];
@@ -486,14 +512,15 @@ int main(int argc, char **argv)
             }
             grasu_queue.finish();
             previous_update_shard_end = print_shard_update_events(
-                "GRASU_SHARDED_UPDATE_EVENTS", shard, shard_events,
+                event_prefix, shard, shard_events,
                 std::array<const char *, 10>{
                     "cache0", "cache1", "ddr0", "ddr1", "degree",
                     "dispatch", "search0", "search1", "search2",
                     "search3"},
                 previous_update_shard_end);
-            update_events.insert(update_events.end(), shard_events.begin(),
-                                 shard_events.end());
+            repeat_update_events.insert(repeat_update_events.end(),
+                                        shard_events.begin(),
+                                        shard_events.end());
             check_cl(transfer_queue.enqueueMigrateMemObjects(
                          {degree_status_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
                      "read PageRank degree status");
@@ -503,6 +530,14 @@ int main(int argc, char **argv)
                 fail("device degree update failed for shard " +
                      std::to_string(shard));
             }
+          }
+          std::cout << "GRASU_SHARDED_UPDATE_REPEAT repeat=" << repeat
+                    << " final=" << (final_repeat ? 1 : 0)
+                    << " update_ms=" << event_union_ms(repeat_update_events)
+                    << std::endl;
+          if (final_repeat) {
+            update_events = std::move(repeat_update_events);
+          }
         }
         timing.update_ms = event_union_ms(update_events);
         all_events.insert(all_events.end(), update_events.begin(),

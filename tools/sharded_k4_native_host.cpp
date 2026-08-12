@@ -203,6 +203,35 @@ void write_device_buffer(cl::CommandQueue &queue,
              "write buffer " + name);
 }
 
+unsigned update_repeat_count()
+{
+    const char *raw = std::getenv("GRASU_UPDATE_REPEATS");
+    if (raw == nullptr || *raw == '\0') return 1;
+    const unsigned repeats = parse_unsigned_arg(raw, "GRASU_UPDATE_REPEATS");
+    if (repeats == 0 || repeats > 32) {
+        fail("GRASU_UPDATE_REPEATS must be in [1, 32]");
+    }
+    return repeats;
+}
+
+void restore_device_shard_pma(
+    cl::CommandQueue &transfer_queue,
+    const std::vector<WeightedPmaPackedShardBuffers> &packed,
+    std::vector<DeviceShard> &device_shards)
+{
+    for (std::size_t shard = 0; shard < packed.size(); ++shard) {
+        for (std::size_t lane = 0; lane < 4; ++lane) {
+            const auto &words = packed[shard].pma_words[lane];
+            write_device_buffer(
+                transfer_queue, device_shards[shard].pma_dev[lane],
+                words.size() * sizeof(std::uint32_t), words.data(),
+                "restore_shard" + std::to_string(shard) + "_pma" +
+                    std::to_string(lane));
+        }
+    }
+    transfer_queue.finish();
+}
+
 [[maybe_unused]] void print_prepare_result(const Dataset &dataset,
                           const WeightedPartitionedPmaGraph &graph,
                           const WeightedPmaRuntimePlan &plan,
@@ -588,9 +617,24 @@ int main(int argc, char **argv)
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> grasu_events;
         std::vector<cl::Event> barrier_events;
-        cl_ulong previous_update_shard_end = 0;
+        const unsigned update_repeats = update_repeat_count();
+        std::cout << "GRASU_SHARDED_UPDATE_REPEAT_CONFIG repeats="
+                  << update_repeats << " restore_pma_between_repeats=1"
+                  << std::endl;
 
-        for (std::size_t shard = 0; shard < graph.shards.size(); ++shard) {
+        for (unsigned repeat = 0; repeat < update_repeats; ++repeat) {
+          if (repeat != 0) {
+            restore_device_shard_pma(transfer_queue, packed, device_shards);
+          }
+          std::vector<cl::Event> repeat_update_events;
+          std::vector<cl::Event> repeat_barrier_events;
+          cl_ulong previous_update_shard_end = 0;
+          const bool final_repeat = repeat + 1 == update_repeats;
+          const char *event_prefix = final_repeat
+              ? "GRASU_SHARDED_UPDATE_EVENTS"
+              : "GRASU_SHARDED_UPDATE_DIAGNOSTIC_EVENTS";
+
+          for (std::size_t shard = 0; shard < graph.shards.size(); ++shard) {
             const auto &shard_graph = graph.shards[shard];
             if (shard_graph.physical_updates.empty()) continue;
             DeviceShard &buffers = device_shards[shard];
@@ -654,15 +698,26 @@ int main(int argc, char **argv)
                      "enqueue sharded completion barrier");
             grasu_queue.finish();
             previous_update_shard_end = print_shard_update_events(
-                "GRASU_SHARDED_UPDATE_EVENTS", shard, update_events,
+                event_prefix, shard, update_events,
                 std::array<const char *, 9>{
                     "cache0", "cache1", "ddr0", "ddr1", "dispatch",
                     "search0", "search1", "search2", "search3"},
                 previous_update_shard_end);
             pipeline_queue.finish();
-            grasu_events.insert(grasu_events.end(), update_events.begin(),
-                                update_events.end());
-            barrier_events.push_back(barrier_event);
+            repeat_update_events.insert(repeat_update_events.end(),
+                                        update_events.begin(),
+                                        update_events.end());
+            repeat_barrier_events.push_back(barrier_event);
+          }
+          std::cout << "GRASU_SHARDED_UPDATE_REPEAT repeat=" << repeat
+                    << " final=" << (final_repeat ? 1 : 0)
+                    << " update_ms=" << event_union_ms(repeat_update_events)
+                    << " barrier_ms=" << event_union_ms(repeat_barrier_events)
+                    << std::endl;
+          if (final_repeat) {
+            grasu_events = std::move(repeat_update_events);
+            barrier_events = std::move(repeat_barrier_events);
+          }
         }
         all_events.insert(all_events.end(), grasu_events.begin(),
                           grasu_events.end());
