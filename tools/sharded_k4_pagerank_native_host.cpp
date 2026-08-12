@@ -215,9 +215,9 @@ int main(int argc, char **argv)
 #endif
                   << std::endl;
 
+        print_shard_update_layout(graph, "GRASU_SHARDED_UPDATE_LAYOUT");
+
         if (prepare_only) {
-            print_shard_update_layout(graph,
-                                      "GRASU_SHARDED_UPDATE_LAYOUT");
             std::cout << kShardedPageRankPrefix << "_PREP"
                       << " status="
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
