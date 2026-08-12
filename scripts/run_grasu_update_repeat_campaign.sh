@@ -76,6 +76,7 @@ for dataset in "${dataset_array[@]}"; do
         --device-index "${device_index}" \
         --source 0 \
         --max-supersteps 256 \
+        --update-only \
         --timeout 600
   done
 done

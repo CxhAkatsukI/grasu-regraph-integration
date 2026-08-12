@@ -3,6 +3,7 @@
 #include "weighted_pma_native_host.cpp"
 
 #include "weighted_pma_runtime_plan.hpp"
+#include "weighted_pma_update_reference.hpp"
 
 #include <numeric>
 
@@ -16,6 +17,7 @@ using grasu::integration::build_weighted_partitioned_pma_graph;
 using grasu::integration::build_weighted_pma_runtime_plan;
 using grasu::integration::find_weighted_pma_region;
 using grasu::integration::pack_weighted_pma_runtime_buffers;
+using grasu::integration::build_weighted_pma_update_reference;
 
 constexpr unsigned kK4Frontends = 4;
 constexpr unsigned kGatherPacketsPerPartition = kLittleDstBufferSize / 2;
@@ -232,6 +234,49 @@ void restore_device_shard_pma(
     transfer_queue.finish();
 }
 
+struct PmaUpdateValidation {
+    std::size_t touched_segments{};
+    std::size_t checked_words{};
+    std::size_t mismatches{};
+};
+
+PmaUpdateValidation validate_device_pma_updates(
+    cl::CommandQueue &transfer_queue,
+    const WeightedPartitionedPmaGraph &graph,
+    std::size_t max_cache_segments,
+    std::vector<DeviceShard> &device_shards)
+{
+    PmaUpdateValidation result;
+    const auto expected =
+        build_weighted_pma_update_reference(graph, max_cache_segments);
+    result.touched_segments = expected.size();
+    for (const auto &segment : expected) {
+        std::array<std::uint32_t, kWeightedPmaSegmentSlots> actual{};
+        check_cl(transfer_queue.enqueueReadBuffer(
+                     device_shards.at(segment.shard).pma_dev.at(segment.port),
+                     CL_TRUE,
+                     segment.port_word_offset * sizeof(std::uint32_t),
+                     actual.size() * sizeof(std::uint32_t), actual.data()),
+                 "read touched PMA segment");
+        for (std::size_t word = 0; word < actual.size(); ++word) {
+            ++result.checked_words;
+            if (actual[word] != segment.expected[word]) {
+                if (result.mismatches < 20) {
+                    std::cerr << "PMA update mismatch shard=" << segment.shard
+                              << " logical_segment="
+                              << segment.logical_segment
+                              << " port=" << segment.port
+                              << " word=" << word
+                              << " expected=" << segment.expected[word]
+                              << " actual=" << actual[word] << std::endl;
+                }
+                ++result.mismatches;
+            }
+        }
+    }
+    return result;
+}
+
 [[maybe_unused]] void print_prepare_result(const Dataset &dataset,
                           const WeightedPartitionedPmaGraph &graph,
                           const WeightedPmaRuntimePlan &plan,
@@ -289,13 +334,21 @@ int main(int argc, char **argv)
     try {
         const bool prepare_only =
             argc >= 2 && std::string(argv[1]) == "--prepare-only";
-        if ((!prepare_only && (argc < 4 || argc > 6)) ||
-            (prepare_only && (argc < 4 || argc > 6))) {
+        const bool update_only =
+            argc >= 2 && std::string(argv[1]) == "--update-only";
+        const bool invalid_arguments =
+            prepare_only ? (argc < 4 || argc > 6)
+                         : update_only ? (argc < 5 || argc > 7)
+                                       : (argc < 4 || argc > 6);
+        if (invalid_arguments) {
             usage(argv[0]);
+            std::cerr << "       " << argv[0]
+                      << " --update-only <xclbin> <graph_file> <result_file>"
+                         " [source_external] [max_supersteps]\n";
             return EXIT_FAILURE;
         }
 
-        int arg_index = prepare_only ? 2 : 1;
+        int arg_index = (prepare_only || update_only) ? 2 : 1;
         const std::string xclbin_path = prepare_only ? "" : argv[arg_index++];
         const std::string graph_path = argv[arg_index++];
         const std::string result_path = argv[arg_index++];
@@ -333,7 +386,7 @@ int main(int argc, char **argv)
 
         bool resident_mode = false;
         AlgorithmOracleResult resident_oracle;
-        {
+        if (!update_only) {
             const FinalEdgeMap static_edges =
                 build_static_external_edges(dataset);
             resident_mode = std::all_of(
@@ -356,8 +409,8 @@ int main(int argc, char **argv)
         const std::vector<unsigned> update_sources =
             update_source_vertices(dataset);
         AlgorithmOracleResult oracle;
-        std::size_t final_edge_count = 0;
-        {
+        std::size_t final_edge_count = dataset.static_edges.size();
+        if (!update_only) {
             const FinalEdgeMap final_edges = build_final_external_edges(dataset);
             final_edge_count = final_edges.size();
             oracle = resident_mode
@@ -400,10 +453,15 @@ int main(int argc, char **argv)
                   << runtime_plan.total_allocated_bytes
                   << " source_external=" << source_external
                   << " source_internal=" << source_internal
-                  << " oracle_supersteps=" << oracle.executed_supersteps
-                  << " oracle_converged=" << (oracle.converged ? 1 : 0)
+                  << " oracle_supersteps="
+                  << (update_only ? 0 : oracle.executed_supersteps)
+                  << " oracle_converged="
+                  << (update_only ? -1 : (oracle.converged ? 1 : 0))
                   << " resident_state="
-                  << (resident_mode ? "old_graph_converged" : "cold_fallback")
+                  << (update_only
+                          ? "not_loaded_update_datapath_only"
+                          : resident_mode ? "old_graph_converged"
+                                          : "cold_fallback")
                   << std::endl;
 
         print_shard_update_layout(graph, "GRASU_SHARDED_UPDATE_LAYOUT");
@@ -723,6 +781,33 @@ int main(int argc, char **argv)
                           grasu_events.end());
         all_events.insert(all_events.end(), barrier_events.begin(),
                           barrier_events.end());
+
+        if (update_only) {
+            const PmaUpdateValidation validation =
+                validate_device_pma_updates(
+                    transfer_queue, graph, kMaxCacheSegment, device_shards);
+            const bool pass = validation.mismatches == 0;
+            std::ofstream result_out(result_path);
+            if (!result_out) {
+                fail("failed to open update-only result file: " + result_path);
+            }
+            result_out << "status=" << (pass ? "PASS" : "FAIL")
+                       << " touched_segments=" << validation.touched_segments
+                       << " checked_words=" << validation.checked_words
+                       << " mismatches=" << validation.mismatches << '\n';
+            std::cout << "GRASU_SHARDED_UPDATE_ONLY_RESULT"
+                      << " status=" << (pass ? "PASS" : "FAIL")
+                      << " algorithm=" << kAlgorithmName
+                      << " update_ms=" << event_union_ms(grasu_events)
+                      << " touched_segments=" << validation.touched_segments
+                      << " checked_words=" << validation.checked_words
+                      << " pma_mismatches=" << validation.mismatches
+                      << " repeats=" << update_repeats
+                      << " measurement_window=same_process_update_events"
+                      << " first_repeat=cold_diagnostic"
+                      << " conversion_cost=absent" << std::endl;
+            return pass ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
 
         std::array<cl::Buffer *, 2> read_props{&prop_a0_dev, &prop_a1_dev};
         std::array<cl::Buffer *, 2> write_props{&prop_b0_dev, &prop_b1_dev};

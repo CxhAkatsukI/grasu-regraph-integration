@@ -38,7 +38,9 @@ void pagerank_usage(const char *program)
     std::cerr << "Usage: " << program
               << " <xclbin> <graph_file> <result_file>\n"
               << "       " << program
-              << " --prepare-only <graph_file> <result_file>\n";
+              << " --prepare-only <graph_file> <result_file>\n"
+              << "       " << program
+              << " --update-only <xclbin> <graph_file> <result_file>\n";
 }
 
 std::vector<DeviceShard> allocate_page_rank_shards(
@@ -120,11 +122,15 @@ int main(int argc, char **argv)
     try {
         const bool prepare_only =
             argc >= 2 && std::string(argv[1]) == "--prepare-only";
-        if (argc != 4) {
+        const bool update_only =
+            argc >= 2 && std::string(argv[1]) == "--update-only";
+        if ((prepare_only && argc != 4) ||
+            (update_only && argc != 5) ||
+            (!prepare_only && !update_only && argc != 4)) {
             pagerank_usage(argv[0]);
             return EXIT_FAILURE;
         }
-        int arg_index = prepare_only ? 2 : 1;
+        int arg_index = (prepare_only || update_only) ? 2 : 1;
         const std::string xclbin_path = prepare_only ? "" : argv[arg_index++];
         const std::string graph_path = argv[arg_index++];
         const std::string result_path = argv[arg_index++];
@@ -146,7 +152,7 @@ int main(int argc, char **argv)
                 WeightedPmaChannelPolicy::lane_aware_u55c);
 
         FullPageRankOracleResult warm_oracle;
-        {
+        if (!update_only) {
             const FinalEdgeMap static_edges =
                 build_static_external_edges(dataset);
             warm_oracle = run_full_pagerank_oracle(
@@ -157,8 +163,8 @@ int main(int argc, char **argv)
 #else
         FullPageRankOracleResult oracle;
 #endif
-        std::size_t final_edge_count = 0;
-        {
+        std::size_t final_edge_count = dataset.static_edges.size();
+        if (!update_only) {
             const FinalEdgeMap final_edges = build_final_external_edges(dataset);
             final_edge_count = final_edges.size();
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
@@ -208,7 +214,7 @@ int main(int argc, char **argv)
                   << " epsilon=" << kPageRankEpsilon
                   << " threshold_semantics=direct_per_vertex"
                   << " oracle_propagation_rounds="
-                  << oracle.propagation_rounds
+                  << (update_only ? 0 : oracle.propagation_rounds)
                   << " oracle_converged=" << (oracle.converged ? 1 : 0)
 #else
                   << " rounds=" << kFullPageRankRounds
@@ -324,6 +330,7 @@ int main(int argc, char **argv)
         for (const WeightedEdgeRecord &edge : dataset.static_edges) {
             ++degree[graph.external_to_internal.at(edge.source)];
         }
+        const AlignedVector<std::uint32_t> initial_degree = degree;
         AlignedVector<std::uint32_t> degree_status(16, 0);
         AlignedVector<float> rank(state_capacity, 0.0F);
         for (std::size_t internal = 0; internal < dataset.node_size;
@@ -331,7 +338,8 @@ int main(int argc, char **argv)
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
             const std::size_t external =
                 graph.internal_to_external.at(internal);
-            rank[internal] = warm_oracle.rank.at(external);
+            rank[internal] = update_only ? 0.0F
+                                         : warm_oracle.rank.at(external);
 #else
             rank[internal] = 1.0F / static_cast<float>(dataset.node_size);
 #endif
@@ -421,7 +429,8 @@ int main(int argc, char **argv)
             std::fill(degree_status.begin(), degree_status.end(), 0);
             write_device_buffer(
                 transfer_queue, degree_dev,
-                degree.size() * sizeof(std::uint32_t), degree.data(),
+                initial_degree.size() * sizeof(std::uint32_t),
+                initial_degree.data(),
                 "restore_degree");
             write_device_buffer(
                 transfer_queue, degree_status_dev,
@@ -542,6 +551,75 @@ int main(int argc, char **argv)
         timing.update_ms = event_union_ms(update_events);
         all_events.insert(all_events.end(), update_events.begin(),
                           update_events.end());
+
+        if (update_only) {
+            const PmaUpdateValidation pma_validation =
+                validate_device_pma_updates(
+                    transfer_queue, graph, kMaxCacheSegment, device_shards);
+            std::map<std::uint32_t, std::uint32_t> expected_degree;
+            for (const auto &shard : graph.shards) {
+                for (const std::uint64_t update : shard.physical_updates) {
+                    const std::uint32_t source = static_cast<std::uint32_t>(
+                        (update >> 32) & 0x7fffffffULL);
+                    auto [entry, inserted] = expected_degree.try_emplace(
+                        source, initial_degree.at(source));
+                    if ((update &
+                         grasu::integration::kWeightedPmaDelete) != 0) {
+                        if (entry->second == 0) {
+                            fail("update-only expected degree underflow");
+                        }
+                        --entry->second;
+                    } else {
+                        ++entry->second;
+                    }
+                }
+            }
+            std::size_t degree_mismatches = 0;
+            for (const auto &[source, expected] : expected_degree) {
+                std::uint32_t actual = 0;
+                check_cl(transfer_queue.enqueueReadBuffer(
+                             degree_dev, CL_TRUE,
+                             source * sizeof(std::uint32_t),
+                             sizeof(actual), &actual),
+                         "read touched degree");
+                if (actual != expected) {
+                    if (degree_mismatches < 20) {
+                        std::cerr << "degree update mismatch source=" << source
+                                  << " expected=" << expected
+                                  << " actual=" << actual << std::endl;
+                    }
+                    ++degree_mismatches;
+                }
+            }
+            const bool pass = pma_validation.mismatches == 0 &&
+                              degree_mismatches == 0;
+            std::ofstream result_out(result_path);
+            if (!result_out) {
+                fail("failed to open update-only result file: " + result_path);
+            }
+            result_out << "status=" << (pass ? "PASS" : "FAIL")
+                       << " touched_segments="
+                       << pma_validation.touched_segments
+                       << " checked_words=" << pma_validation.checked_words
+                       << " pma_mismatches=" << pma_validation.mismatches
+                       << " degree_sources=" << expected_degree.size()
+                       << " degree_mismatches=" << degree_mismatches << '\n';
+            std::cout << "GRASU_SHARDED_UPDATE_ONLY_RESULT"
+                      << " status=" << (pass ? "PASS" : "FAIL")
+                      << " algorithm=" << kShardedPageRankPrefix
+                      << " update_ms=" << timing.update_ms
+                      << " touched_segments="
+                      << pma_validation.touched_segments
+                      << " checked_words=" << pma_validation.checked_words
+                      << " pma_mismatches=" << pma_validation.mismatches
+                      << " degree_sources=" << expected_degree.size()
+                      << " degree_mismatches=" << degree_mismatches
+                      << " repeats=" << update_repeats
+                      << " measurement_window=same_process_update_events"
+                      << " first_repeat=cold_diagnostic"
+                      << " conversion_cost=absent" << std::endl;
+            return pass ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
 
         int source_arg = 0;
         check_cl(source_prepare.setArg(source_arg++, rank_dev),

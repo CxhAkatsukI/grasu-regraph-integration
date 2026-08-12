@@ -110,6 +110,8 @@ g++ -std=c++17 -O2 -Wall -Wextra -Werror \
 sha256sum "${HOST_SOURCE}" \
           "${GRI_ROOT}/tools/weighted_pma_native_host.cpp" \
           "${GRI_ROOT}/include/weighted_pma_graph.hpp" \
+          "${GRI_ROOT}/include/weighted_pma_runtime_plan.hpp" \
+          "${GRI_ROOT}/include/weighted_pma_update_reference.hpp" \
           "${OUT_BIN}" | tee "${OUT_DIR}/weighted_pma_native_host.sha256"
 cat >"${OUT_DIR}/manifest.txt" <<MANIFEST
 CLAIM_CLASS=candidate_hls_host_not_yet_run
