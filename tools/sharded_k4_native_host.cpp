@@ -377,9 +377,9 @@ int main(int argc, char **argv)
                   << (resident_mode ? "old_graph_converged" : "cold_fallback")
                   << std::endl;
 
+        print_shard_update_layout(graph, "GRASU_SHARDED_UPDATE_LAYOUT");
+
         if (prepare_only) {
-            print_shard_update_layout(graph,
-                                      "GRASU_SHARDED_UPDATE_LAYOUT");
             print_prepare_result(dataset, graph, runtime_plan, oracle,
                                  source_external, source_internal,
                                  max_supersteps);
