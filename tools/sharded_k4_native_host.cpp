@@ -128,9 +128,13 @@ cl_ulong print_shard_update_events(
     const std::array<const char *, N> &names,
     cl_ulong previous_shard_end)
 {
+    cl_ulong shard_queued = std::numeric_limits<cl_ulong>::max();
     cl_ulong shard_start = std::numeric_limits<cl_ulong>::max();
     cl_ulong shard_end = 0;
     for (const cl::Event &event : events) {
+        shard_queued = std::min(
+            shard_queued,
+            event.getProfilingInfo<CL_PROFILING_COMMAND_QUEUED>());
         shard_start = std::min(
             shard_start,
             event.getProfilingInfo<CL_PROFILING_COMMAND_START>());
@@ -154,6 +158,38 @@ cl_ulong print_shard_update_events(
                   << event_duration_ms(events[index]);
     }
     std::cout << std::endl;
+
+    for (std::size_t index = 0; index < N; ++index) {
+        const cl_ulong queued =
+            events[index].template getProfilingInfo<
+                CL_PROFILING_COMMAND_QUEUED>();
+        const cl_ulong submitted =
+            events[index].template getProfilingInfo<
+                CL_PROFILING_COMMAND_SUBMIT>();
+        const cl_ulong started =
+            events[index].template getProfilingInfo<
+                CL_PROFILING_COMMAND_START>();
+        const cl_ulong ended =
+            events[index].template getProfilingInfo<
+                CL_PROFILING_COMMAND_END>();
+        std::cout << prefix << "_PHASE"
+                  << " shard=" << shard
+                  << " cu=" << names[index]
+                  << " queued_offset_ms=" << std::fixed
+                  << std::setprecision(6)
+                  << static_cast<double>(queued - shard_queued) / 1000000.0
+                  << " queued_to_submit_ms="
+                  << static_cast<double>(submitted - queued) / 1000000.0
+                  << " submit_to_start_ms="
+                  << static_cast<double>(started - submitted) / 1000000.0
+                  << " execute_ms="
+                  << static_cast<double>(ended - started) / 1000000.0
+                  << " start_offset_ms="
+                  << static_cast<double>(started - shard_start) / 1000000.0
+                  << " end_offset_ms="
+                  << static_cast<double>(ended - shard_start) / 1000000.0
+                  << std::endl;
+    }
     return shard_end;
 }
 
