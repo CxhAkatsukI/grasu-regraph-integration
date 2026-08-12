@@ -51,6 +51,112 @@ std::size_t max_shard_pma_slots(const WeightedPartitionedPmaGraph &graph)
         ->initial_pma_words.size();
 }
 
+struct ShardUpdateLayoutStats {
+    std::size_t unique_sources{};
+    std::size_t source_segments{};
+    std::size_t binary_probes{};
+    std::size_t cache_updates{};
+    std::size_t ddr_updates{};
+};
+
+ShardUpdateLayoutStats shard_update_layout_stats(
+    const grasu::integration::WeightedPmaShard &shard)
+{
+    ShardUpdateLayoutStats stats;
+    std::set<std::uint32_t> sources;
+    for (const std::uint64_t packed : shard.physical_updates) {
+        const std::uint32_t source =
+            static_cast<std::uint32_t>((packed >> 32) & 0x7fffffffULL);
+        const std::uint32_t word = static_cast<std::uint32_t>(packed);
+        const std::uint64_t bounds = shard.row_bounds.at(source);
+        std::uint32_t begin = static_cast<std::uint32_t>(bounds >> 32) /
+                              kWeightedPmaSegmentSlots;
+        std::uint32_t end = static_cast<std::uint32_t>(bounds) /
+                            kWeightedPmaSegmentSlots;
+        sources.insert(source);
+        stats.source_segments += end - begin;
+        std::uint32_t mid = (begin + end) >> 1;
+        while (begin != mid) {
+            ++stats.binary_probes;
+            if (shard.binary_heads.at(mid) <=
+                ((static_cast<std::uint64_t>(source) << 32) | word)) {
+                begin = mid;
+            } else {
+                end = mid;
+            }
+            mid = (begin + end) >> 1;
+        }
+        if (begin < GRASU_MAX_CACHE_SEGMENT) {
+            ++stats.cache_updates;
+        } else {
+            ++stats.ddr_updates;
+        }
+    }
+    stats.unique_sources = sources.size();
+    return stats;
+}
+
+void print_shard_update_layout(const WeightedPartitionedPmaGraph &graph,
+                               const char *prefix)
+{
+    for (std::size_t shard_index = 0; shard_index < graph.shards.size();
+         ++shard_index) {
+        const auto &shard = graph.shards[shard_index];
+        if (shard.physical_updates.empty()) continue;
+        const ShardUpdateLayoutStats stats =
+            shard_update_layout_stats(shard);
+        std::cout << prefix
+                  << " shard=" << shard_index
+                  << " destination_base=" << shard.destination_base
+                  << " destination_vertices=" << shard.destination_vertices
+                  << " updates=" << shard.physical_updates.size()
+                  << " unique_sources=" << stats.unique_sources
+                  << " pma_slots=" << shard.initial_pma_words.size()
+                  << " source_segments=" << stats.source_segments
+                  << " binary_probes=" << stats.binary_probes
+                  << " cache_updates=" << stats.cache_updates
+                  << " ddr_updates=" << stats.ddr_updates
+                  << std::endl;
+    }
+}
+
+template <std::size_t N>
+cl_ulong print_shard_update_events(
+    const char *prefix,
+    std::size_t shard,
+    const std::array<cl::Event, N> &events,
+    const std::array<const char *, N> &names,
+    cl_ulong previous_shard_end)
+{
+    cl_ulong shard_start = std::numeric_limits<cl_ulong>::max();
+    cl_ulong shard_end = 0;
+    for (const cl::Event &event : events) {
+        shard_start = std::min(
+            shard_start,
+            event.getProfilingInfo<CL_PROFILING_COMMAND_START>());
+        shard_end = std::max(
+            shard_end,
+            event.getProfilingInfo<CL_PROFILING_COMMAND_END>());
+    }
+    const double gap_ms = previous_shard_end == 0
+                              ? 0.0
+                              : static_cast<double>(shard_start -
+                                                    previous_shard_end) /
+                                    1000000.0;
+    std::cout << prefix
+              << " shard=" << shard
+              << " gap_from_previous_ms=" << std::fixed
+              << std::setprecision(6) << gap_ms
+              << " union_ms="
+              << static_cast<double>(shard_end - shard_start) / 1000000.0;
+    for (std::size_t index = 0; index < N; ++index) {
+        std::cout << " " << names[index] << "_ms="
+                  << event_duration_ms(events[index]);
+    }
+    std::cout << std::endl;
+    return shard_end;
+}
+
 void write_device_buffer(cl::CommandQueue &queue,
                          cl::Buffer &buffer,
                          std::size_t bytes,
@@ -236,6 +342,8 @@ int main(int argc, char **argv)
                   << std::endl;
 
         if (prepare_only) {
+            print_shard_update_layout(graph,
+                                      "GRASU_SHARDED_UPDATE_LAYOUT");
             print_prepare_result(dataset, graph, runtime_plan, oracle,
                                  source_external, source_internal,
                                  max_supersteps);
@@ -444,6 +552,7 @@ int main(int argc, char **argv)
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> grasu_events;
         std::vector<cl::Event> barrier_events;
+        cl_ulong previous_update_shard_end = 0;
 
         for (std::size_t shard = 0; shard < graph.shards.size(); ++shard) {
             const auto &shard_graph = graph.shards[shard];
@@ -508,6 +617,12 @@ int main(int argc, char **argv)
                                                 &barrier_event),
                      "enqueue sharded completion barrier");
             grasu_queue.finish();
+            previous_update_shard_end = print_shard_update_events(
+                "GRASU_SHARDED_UPDATE_EVENTS", shard, update_events,
+                std::array<const char *, 9>{
+                    "cache0", "cache1", "ddr0", "ddr1", "dispatch",
+                    "search0", "search1", "search2", "search3"},
+                previous_update_shard_end);
             pipeline_queue.finish();
             grasu_events.insert(grasu_events.end(), update_events.begin(),
                                 update_events.end());

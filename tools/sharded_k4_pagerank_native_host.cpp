@@ -216,6 +216,8 @@ int main(int argc, char **argv)
                   << std::endl;
 
         if (prepare_only) {
+            print_shard_update_layout(graph,
+                                      "GRASU_SHARDED_UPDATE_LAYOUT");
             std::cout << kShardedPageRankPrefix << "_PREP"
                       << " status="
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
@@ -407,6 +409,7 @@ int main(int argc, char **argv)
         const auto wall_begin = std::chrono::high_resolution_clock::now();
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> update_events;
+        cl_ulong previous_update_shard_end = 0;
         for (std::size_t shard = 0; shard < graph.shards.size(); ++shard) {
             const auto &shard_graph = graph.shards[shard];
             if (shard_graph.physical_updates.empty()) continue;
@@ -482,6 +485,13 @@ int main(int argc, char **argv)
                          "enqueue PageRank bin_search");
             }
             grasu_queue.finish();
+            previous_update_shard_end = print_shard_update_events(
+                "GRASU_SHARDED_UPDATE_EVENTS", shard, shard_events,
+                std::array<const char *, 10>{
+                    "cache0", "cache1", "ddr0", "ddr1", "degree",
+                    "dispatch", "search0", "search1", "search2",
+                    "search3"},
+                previous_update_shard_end);
             update_events.insert(update_events.end(), shard_events.begin(),
                                  shard_events.end());
             check_cl(transfer_queue.enqueueMigrateMemObjects(
