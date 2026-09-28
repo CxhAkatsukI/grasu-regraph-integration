@@ -431,3 +431,17 @@ standalone command is useful when repacking an existing audit:
 ./scripts/export_pure_pipeline_evidence_bundle.py \
   --out-dir results/pure_pipeline_evidence_bundle_after_$(git rev-parse --short HEAD)
 ```
+
+## Artifact layout (large outputs on /data)
+
+Large build/run artifacts are kept **outside this repository and outside $HOME
+(disk quota)** on the server data volume:
+
+- `.tmp_build/` → symlink to `/data/chuxiao/grasu-regraph-integration/tmp_build/`
+  (v++ temp dirs, xclbins, build logs from `scripts/build_*.sh`)
+- `results/` → symlink to `/data/chuxiao/grasu-regraph-integration/results/`
+  (per-run result bundles produced by `scripts/run_*.sh`)
+
+All existing scripts keep working unchanged: they write through the symlinks
+and the data physically lands on `/data`. Set `OUT_DIR` / `--build-root` (most
+scripts already support them) to redirect output elsewhere when needed.

@@ -27,3 +27,5 @@ emulation_debug.log
 *~
 .cache/
 __pycache__/
+results
+.tmp_build
