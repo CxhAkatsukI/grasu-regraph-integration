@@ -1,6 +1,7 @@
 #define GRASU_REGRAPH_NO_MAIN 1
 #define GRASU_REGRAPH_SHARDED_K4_HOST 1
 #include "weighted_pma_native_host.cpp"
+#include "sharded_event_trace.hpp"
 
 #include "weighted_pma_runtime_plan.hpp"
 #include "weighted_pma_update_reference.hpp"
@@ -671,6 +672,8 @@ int main(int argc, char **argv)
         transfer_queue.finish();
 
         Timing timing;
+        grasu_regraph::ShardedEventTrace<cl::Event> event_trace(
+            grasu_regraph::sharded_event_trace_enabled());
         const auto wall_begin = std::chrono::high_resolution_clock::now();
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> grasu_events;
@@ -945,6 +948,8 @@ int main(int argc, char **argv)
                               lksg_events.end());
             all_events.insert(all_events.end(), mux_events.begin(),
                               mux_events.end());
+            event_trace.remember_round(step, hbm_event, apply_event,
+                                       adapter_events, lksg_events, mux_events);
 
             const auto readback_begin =
                 std::chrono::high_resolution_clock::now();
@@ -983,6 +988,13 @@ int main(int argc, char **argv)
             std::chrono::duration<double, std::milli>(wall_end - wall_begin)
                 .count();
         timing.wall_ms = timing.setup_inclusive_ms;
+        event_trace.emit(std::cout, [](const cl::Event &event) {
+            return std::array<cl_ulong, 4>{
+                event.getProfilingInfo<CL_PROFILING_COMMAND_QUEUED>(),
+                event.getProfilingInfo<CL_PROFILING_COMMAND_SUBMIT>(),
+                event.getProfilingInfo<CL_PROFILING_COMMAND_START>(),
+                event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
+        });
 
         std::size_t mismatch_count = 0;
         for (std::size_t internal = 0; internal < dataset.node_size;

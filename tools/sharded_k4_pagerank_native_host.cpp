@@ -414,6 +414,8 @@ int main(int argc, char **argv)
         transfer_queue.finish();
 
         PageRankTiming timing;
+        grasu_regraph::ShardedEventTrace<cl::Event> event_trace(
+            grasu_regraph::sharded_event_trace_enabled());
         const auto wall_begin = std::chrono::high_resolution_clock::now();
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> update_events;
@@ -655,6 +657,7 @@ int main(int argc, char **argv)
         pipeline_queue.finish();
         timing.source_prepare_ms = event_duration_ms(source_event);
         all_events.push_back(source_event);
+        event_trace.remember("source_prepare", 0, -1, -1, source_event);
         check_cl(transfer_queue.enqueueMigrateMemObjects(
                      {stats_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
                  "read PageRank source stats");
@@ -830,6 +833,8 @@ int main(int argc, char **argv)
                               lksg_events.end());
             all_events.insert(all_events.end(), mux_events.begin(),
                               mux_events.end());
+            event_trace.remember_round(round, hbm_event, apply_event,
+                                       adapter_events, lksg_events, mux_events);
 
             check_cl(transfer_queue.enqueueMigrateMemObjects(
                          {stats_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
@@ -874,6 +879,13 @@ int main(int argc, char **argv)
         timing.setup_inclusive_ms =
             std::chrono::duration<double, std::milli>(wall_end - wall_begin)
                 .count();
+        event_trace.emit(std::cout, [](const cl::Event &event) {
+            return std::array<cl_ulong, 4>{
+                event.getProfilingInfo<CL_PROFILING_COMMAND_QUEUED>(),
+                event.getProfilingInfo<CL_PROFILING_COMMAND_SUBMIT>(),
+                event.getProfilingInfo<CL_PROFILING_COMMAND_START>(),
+                event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
+        });
 
         std::size_t rank_mismatches = 0;
         std::size_t degree_mismatches = 0;

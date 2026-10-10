@@ -37,6 +37,26 @@ static constexpr unsigned kWeightShift = 19;
 #define GRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS 0
 #endif
 
+#ifndef GRASU_REGRAPH_ROW_PREFETCH
+#define GRASU_REGRAPH_ROW_PREFETCH 0
+#endif
+
+#ifndef GRASU_REGRAPH_STOP_AFTER_LAST
+#define GRASU_REGRAPH_STOP_AFTER_LAST 0
+#endif
+
+#if GRASU_REGRAPH_STOP_AFTER_LAST != 0 && GRASU_REGRAPH_STOP_AFTER_LAST != 1
+#error "GRASU_REGRAPH_STOP_AFTER_LAST must be 0 or 1"
+#endif
+
+#if GRASU_REGRAPH_ROW_PREFETCH != 0 && GRASU_REGRAPH_ROW_PREFETCH != 1
+#error "GRASU_REGRAPH_ROW_PREFETCH must be 0 or 1"
+#endif
+
+#if GRASU_REGRAPH_ROW_PREFETCH
+#include "row_prefetch.hpp"
+#endif
+
 #if GRASU_REGRAPH_WEIGHTED_PMA != 0 && GRASU_REGRAPH_WEIGHTED_PMA != 1
 #error "GRASU_REGRAPH_WEIGHTED_PMA must be 0 or 1"
 #endif
@@ -187,12 +207,27 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
 
     ap_uint<64> emitted_slots = 0;
     unsigned emitted_bursts = 0;
+#if GRASU_REGRAPH_ROW_PREFETCH
+    ap_uint<64> row_cache[kRowPrefetchCount];
+#pragma HLS ARRAY_PARTITION variable=row_cache complete
+#endif
 
 source_loop:
     for (unsigned src = 0; src < node_count; ++src) {
+#if GRASU_REGRAPH_STOP_AFTER_LAST
+        // The aligned, monotonic row ABI uses the final row end as the stream
+        // length. Once its last packet is sent, no later source has any slots.
+        if (emitted_slots >= total_slots) break;
+#endif
         ap_uint<64> begin = 0;
         ap_uint<64> end = 0;
+#if GRASU_REGRAPH_ROW_PREFETCH
+        unpack_row_bounds(
+            read_prefetched_row(row_offset, src, node_count, row_cache),
+            begin, end);
+#else
         unpack_row_bounds(row_offset[src], begin, end);
+#endif
         if (end > pma_slot_count) {
             end = pma_slot_count;
         }

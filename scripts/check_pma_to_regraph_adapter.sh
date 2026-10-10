@@ -123,6 +123,19 @@ if ! {
     "${TB}" \
     -o "${SHARED_MASTER_EXE}"
   "${SHARED_MASTER_EXE}"
+
+  for mode in weighted destination unit; do
+    case "${mode}" in
+      weighted) row_defines=(-DGRASU_REGRAPH_WEIGHTED_PMA=1) ;;
+      destination) row_defines=(-DGRASU_REGRAPH_WEIGHTED_PMA=0 -DGRASU_REGRAPH_DESTINATION_ONLY=1) ;;
+      unit) row_defines=(-DGRASU_REGRAPH_WEIGHTED_PMA=0) ;;
+    esac
+    g++ -std=c++17 -w "${row_defines[@]}" \
+      -I"${HLS_INCLUDE}" -I"${HLS_INCLUDE_ETC}" \
+      "${GRI_ROOT}/tests/pma_adapter_row_prefetch_tb.cpp" \
+      -o "${OUT_DIR}/row_prefetch_${mode}_test"
+    "${OUT_DIR}/row_prefetch_${mode}_test"
+  done
 } > "${LOG}" 2>&1; then
   cat "${LOG}" >&2
   exit 1
@@ -137,6 +150,9 @@ fi
   sha256sum "${SHARDED_WEIGHTED_EXE}"
   sha256sum "${SHARDED_DESTINATION_EXE}"
   sha256sum "${SHARED_MASTER_EXE}"
+  sha256sum "${GRI_ROOT}/kernels/pma_to_regraph_adapter/row_prefetch.hpp"
+  sha256sum "${GRI_ROOT}/tests/pma_adapter_row_prefetch_tb.cpp"
+  sha256sum "${OUT_DIR}"/row_prefetch_*_test
   sha256sum "${LOG}"
 } > "${OUT_DIR}/SHA256SUMS"
 

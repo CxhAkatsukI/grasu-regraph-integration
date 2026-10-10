@@ -1,0 +1,90 @@
+#include <hls_stream.h>
+#include <hls_streamofblocks.h>
+#include <ap_axi_sdata.h>
+#include <ap_int.h>
+
+#include <cassert>
+#include <iostream>
+#include <vector>
+
+#ifndef GRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS
+#define GRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS 1
+#endif
+#ifndef GRASU_REGRAPH_SHARDED_PMA
+#define GRASU_REGRAPH_SHARDED_PMA 1
+#endif
+#ifndef GRASU_REGRAPH_WEIGHTED_PMA
+#define GRASU_REGRAPH_WEIGHTED_PMA 1
+#endif
+
+namespace baseline {
+#define pma_to_regraph_adapter baseline_adapter
+#include "../kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
+#undef pma_to_regraph_adapter
+}
+
+namespace candidate {
+#undef GRASU_REGRAPH_ROW_PREFETCH
+#define GRASU_REGRAPH_ROW_PREFETCH 1
+#undef GRASU_REGRAPH_STOP_AFTER_LAST
+#define GRASU_REGRAPH_STOP_AFTER_LAST 1
+#define pma_to_regraph_adapter prefetched_adapter
+#include "../kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
+#undef pma_to_regraph_adapter
+}
+
+int main()
+{
+    unsigned cases = 0;
+    unsigned packets = 0;
+    for (unsigned vertices : {0U, 1U, 7U, 8U, 9U, 15U, 16U, 17U, 65U}) {
+        for (unsigned density : {0U, 1U, 3U}) {
+          for (unsigned placement : {0U, 1U, 2U}) {
+            std::vector<ap_uint<64>> rows(vertices);
+            std::vector<ap_uint<512>> pma[4];
+            for (auto &bank : pma) bank.resize(256);
+            unsigned segments = 0;
+            for (unsigned source = 0; source < vertices; ++source) {
+                const bool occupied = placement == 0 ? source % 3 == 0
+                    : placement == 1 ? source == 0 : source + 1 == vertices;
+                const unsigned length = occupied ? density : 0;
+                const unsigned begin = segments * 16;
+                for (unsigned s = 0; s < length; ++s) {
+                    ap_uint<512> word = 0;
+                    for (unsigned lane = 0; lane < 16; ++lane) {
+                        const unsigned value = lane % 3 == 0 ? 0x80000000U
+                            : ((source + lane) % 32) | ((s + 1) << 19);
+                        word.range(lane * 32 + 31, lane * 32) = value;
+                    }
+                    const unsigned bank = (segments < 4 ? 0 : 1) +
+                        (segments % 2 ? 2 : 0);
+                    pma[bank][segments / 2] = word;
+                    ++segments;
+                }
+                rows[source] = (ap_uint<64>(begin) << 32) | (segments * 16);
+            }
+            for (unsigned capacity : {segments * 16, segments * 16 + 16,
+                                      segments ? segments * 16 - 16 : 0}) {
+                hls::stream<baseline::edge_burst_pkt_t> before;
+                hls::stream<candidate::edge_burst_pkt_t> after;
+                baseline::baseline_adapter(pma[0].data(), pma[1].data(), pma[2].data(),
+                    pma[3].data(), rows.data(), vertices, capacity, 2, 65536, 32, before);
+                candidate::prefetched_adapter(pma[0].data(), pma[1].data(), pma[2].data(),
+                    pma[3].data(), rows.data(), vertices, capacity, 2, 65536, 32, after);
+                while (!before.empty()) {
+                    assert(!after.empty());
+                    const auto left = before.read();
+                    const auto right = after.read();
+                    assert(left.data == right.data && left.keep == right.keep &&
+                           left.strb == right.strb && left.last == right.last);
+                    ++packets;
+                }
+                assert(after.empty());
+                ++cases;
+            }
+          }
+        }
+    }
+    std::cout << "ROW_PREFETCH_EQUIVALENCE status=PASS cases=" << cases
+              << " packets=" << packets << '\n';
+}
