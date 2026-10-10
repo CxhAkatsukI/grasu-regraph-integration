@@ -154,11 +154,19 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
                             hls::stream<edge_burst_pkt_t> &edge_burst_out)
 {
 #if GRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS
+#ifdef GRASU_REGRAPH_COSIM_DEPTH
+#pragma HLS INTERFACE m_axi port=pma0 offset=slave bundle=gmem0 depth=256
+#pragma HLS INTERFACE m_axi port=pma1 offset=slave bundle=gmem0 depth=256
+#pragma HLS INTERFACE m_axi port=pma2 offset=slave bundle=gmem0 depth=256
+#pragma HLS INTERFACE m_axi port=pma3 offset=slave bundle=gmem0 depth=256
+#pragma HLS INTERFACE m_axi port=row_offset offset=slave bundle=gmem0 depth=1025
+#else
 #pragma HLS INTERFACE m_axi port=pma0 offset=slave bundle=gmem0
 #pragma HLS INTERFACE m_axi port=pma1 offset=slave bundle=gmem0
 #pragma HLS INTERFACE m_axi port=pma2 offset=slave bundle=gmem0
 #pragma HLS INTERFACE m_axi port=pma3 offset=slave bundle=gmem0
 #pragma HLS INTERFACE m_axi port=row_offset offset=slave bundle=gmem0
+#endif
 #else
 #pragma HLS INTERFACE m_axi port=pma0 offset=slave bundle=gmem0
 #pragma HLS INTERFACE m_axi port=pma1 offset=slave bundle=gmem1
@@ -195,9 +203,11 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
     out.last = 0;
 
     ap_uint<64> total_slots = 0;
+    // HLS may issue this read speculatively even when the value is discarded.
+    const unsigned last_source = node_count == 0 ? 0 : node_count - 1;
     if (node_count != 0) {
         ap_uint<64> last_begin = 0;
-        unpack_row_bounds(row_offset[node_count - 1], last_begin, total_slots);
+        unpack_row_bounds(row_offset[last_source], last_begin, total_slots);
         if (total_slots > pma_slot_count) {
             total_slots = pma_slot_count;
         }
