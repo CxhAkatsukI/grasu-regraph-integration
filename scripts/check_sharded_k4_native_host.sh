@@ -4,21 +4,33 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/env.sh"
 
+ROW_LINE_READ=0
+BUILD_OPTIONS=()
+case "${1:-}" in
+  "") ;;
+  --row-line-read) ROW_LINE_READ=1; BUILD_OPTIONS=(--row-line-read); shift ;;
+  *) echo "Usage: $0 [--row-line-read]" >&2; exit 2 ;;
+esac
+if [[ $# != 0 ]]; then
+  echo "Usage: $0 [--row-line-read]" >&2
+  exit 2
+fi
+
 OUT_DIR="${OUT_DIR:-${GRI_ROOT}/.tmp_build/sharded_k4_native_host_check_$(date +%Y%m%d_%H%M%S)}"
 mkdir -p "${OUT_DIR}"
 
 "${SCRIPT_DIR}/build_weighted_pma_native_host.sh" \
   --pipeline-mode sharded-k4 --algorithm weighted_sssp \
-  --out-dir "${OUT_DIR}/sssp"
+  --out-dir "${OUT_DIR}/sssp" "${BUILD_OPTIONS[@]}"
 "${SCRIPT_DIR}/build_weighted_pma_native_host.sh" \
   --pipeline-mode sharded-k4 --algorithm connected_components \
-  --out-dir "${OUT_DIR}/cc"
+  --out-dir "${OUT_DIR}/cc" "${BUILD_OPTIONS[@]}"
 "${SCRIPT_DIR}/build_weighted_pma_native_host.sh" \
   --pipeline-mode sharded-k4 --algorithm full_pagerank \
-  --out-dir "${OUT_DIR}/full_pr"
+  --out-dir "${OUT_DIR}/full_pr" "${BUILD_OPTIONS[@]}"
 "${SCRIPT_DIR}/build_weighted_pma_native_host.sh" \
   --pipeline-mode sharded-k4 --algorithm residual_pagerank \
-  --out-dir "${OUT_DIR}/residual_pr"
+  --out-dir "${OUT_DIR}/residual_pr" "${BUILD_OPTIONS[@]}"
 
 SSSP_HOST="${OUT_DIR}/sssp/sharded_k4_sssp_native_host"
 CC_HOST="${OUT_DIR}/cc/sharded_k4_cc_native_host"
@@ -81,6 +93,7 @@ PMA_DESTINATION_ABI=local_dst19
 K4_FRONTENDS=4
 SHARED_REGRAPH_DOWNSTREAM=1
 CONVERSION_COST=absent
+ROW_LINE_READ=${ROW_LINE_READ}
 ALGORITHMS=weighted_sssp,connected_components,full_pagerank,residual_pagerank
 MANIFEST
 

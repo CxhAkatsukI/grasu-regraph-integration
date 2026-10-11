@@ -8,6 +8,13 @@
 
 #include <numeric>
 
+#ifndef GRASU_REGRAPH_HOST_ROW_LINE_READ
+#define GRASU_REGRAPH_HOST_ROW_LINE_READ 0
+#endif
+#if GRASU_REGRAPH_HOST_ROW_LINE_READ != 0 && GRASU_REGRAPH_HOST_ROW_LINE_READ != 1
+#error "GRASU_REGRAPH_HOST_ROW_LINE_READ must be 0 or 1"
+#endif
+
 namespace {
 
 using grasu::integration::WeightedPartitionedPmaGraph;
@@ -381,7 +388,8 @@ int main(int argc, char **argv)
                 graph, kMaxCacheSegment,
                 grasu::integration::kWeightedPmaRuntimeChannels,
                 grasu::integration::kU55cHbmPseudoChannelBytes,
-                WeightedPmaChannelPolicy::lane_aware_u55c);
+                WeightedPmaChannelPolicy::lane_aware_u55c,
+                GRASU_REGRAPH_HOST_ROW_LINE_READ);
         const unsigned source_internal =
             graph.external_to_internal.at(source_external);
 

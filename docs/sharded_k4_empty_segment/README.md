@@ -1,5 +1,9 @@
 # Sharded-K4 Empty-Segment Candidate
 
+The later [whole-line directory candidate](../sharded_k4_row_line/README.md)
+has separate production-XO, full AXI RTL and padded-host gates. It does not
+replace the earlier evidence or imply new routed/board timing.
+
 The default-off `GRASU_REGRAPH_SKIP_EMPTY_SEGMENT=1` flag avoids starting
 `emit_row_segments` when its rounded segment range is empty. It is a
 follow-up to the row-prefetch and stop-after-last adapter optimization, not a

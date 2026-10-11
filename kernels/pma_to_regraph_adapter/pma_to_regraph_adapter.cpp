@@ -41,6 +41,18 @@ static constexpr unsigned kWeightShift = 19;
 #define GRASU_REGRAPH_ROW_PREFETCH 0
 #endif
 
+#ifndef GRASU_REGRAPH_ROW_LINE_READ
+#define GRASU_REGRAPH_ROW_LINE_READ 0
+#endif
+
+#if GRASU_REGRAPH_ROW_LINE_READ != 0 && GRASU_REGRAPH_ROW_LINE_READ != 1
+#error "GRASU_REGRAPH_ROW_LINE_READ must be 0 or 1"
+#endif
+
+#if GRASU_REGRAPH_ROW_LINE_READ && !GRASU_REGRAPH_ROW_PREFETCH
+#error "row-line reads require the bounded eight-row prefetch cache"
+#endif
+
 #ifndef GRASU_REGRAPH_STOP_AFTER_LAST
 #define GRASU_REGRAPH_STOP_AFTER_LAST 0
 #endif
@@ -63,6 +75,9 @@ static constexpr unsigned kWeightShift = 19;
 
 #if GRASU_REGRAPH_ROW_PREFETCH
 #include "row_prefetch.hpp"
+#endif
+#if GRASU_REGRAPH_ROW_LINE_READ
+#include "row_line.hpp"
 #endif
 
 #if GRASU_REGRAPH_WEIGHTED_PMA != 0 && GRASU_REGRAPH_WEIGHTED_PMA != 1
@@ -238,7 +253,11 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
                             const ap_uint<512> *pma1,
                             const ap_uint<512> *pma2,
                             const ap_uint<512> *pma3,
+#if GRASU_REGRAPH_ROW_LINE_READ
+                            const ap_uint<512> *row_offset,
+#else
                             const ap_uint<64> *row_offset,
+#endif
                             unsigned node_count,
                             unsigned pma_slot_count,
                             unsigned max_cache_segment,
@@ -294,7 +313,12 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
     const unsigned last_source = node_count == 0 ? 0 : node_count - 1;
     if (node_count != 0) {
         ap_uint<64> last_begin = 0;
+#if GRASU_REGRAPH_ROW_LINE_READ
+        unpack_row_bounds(read_row_line_entry(row_offset, last_source),
+                          last_begin, total_slots);
+#else
         unpack_row_bounds(row_offset[last_source], last_begin, total_slots);
+#endif
         if (total_slots > pma_slot_count) {
             total_slots = pma_slot_count;
         }
@@ -318,7 +342,10 @@ source_loop:
 #endif
         ap_uint<64> begin = 0;
         ap_uint<64> end = 0;
-#if GRASU_REGRAPH_ROW_PREFETCH
+#if GRASU_REGRAPH_ROW_LINE_READ
+        unpack_row_bounds(read_cached_row_line(row_offset, src, row_cache),
+                          begin, end);
+#elif GRASU_REGRAPH_ROW_PREFETCH
         unpack_row_bounds(
             read_prefetched_row(row_offset, src, node_count, row_cache),
             begin, end);

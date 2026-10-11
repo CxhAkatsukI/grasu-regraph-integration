@@ -84,7 +84,8 @@ inline WeightedPmaRuntimePlan build_weighted_pma_runtime_plan(
     std::size_t channels = kWeightedPmaRuntimeChannels,
     std::size_t channel_capacity_bytes = kU55cHbmPseudoChannelBytes,
     WeightedPmaChannelPolicy channel_policy =
-        WeightedPmaChannelPolicy::unrestricted)
+        WeightedPmaChannelPolicy::unrestricted,
+    bool row_line_read = false)
 {
     if (graph.vertices == 0 || graph.shards.empty() ||
         max_cache_segments == 0 || channels == 0 ||
@@ -164,6 +165,10 @@ inline WeightedPmaRuntimePlan build_weighted_pma_runtime_plan(
                  : 1) *
             kWeightedPmaSegmentSlots;
         plan.row_words = shard.row_bounds.size();
+        if (row_line_read) {
+            plan.row_words = align_weighted_pma_runtime_bytes(
+                plan.row_words * sizeof(std::uint64_t), 64) / sizeof(std::uint64_t);
+        }
         plan.binary_words = std::max<std::size_t>(shard.binary_heads.size(), 1);
 
         for (std::size_t lane = 0; lane < 4; ++lane) {
@@ -289,6 +294,10 @@ pack_weighted_pma_runtime_buffers(
                         buffers.pma_words[port].begin() + output_slot);
         }
         buffers.row_bounds = shard.row_bounds;
+        if (shard_plan.row_words < buffers.row_bounds.size()) {
+            throw std::logic_error("weighted PMA row plan truncates logical rows");
+        }
+        buffers.row_bounds.resize(shard_plan.row_words, 0);
         buffers.binary_heads.assign(shard_plan.binary_words, 0);
         std::copy(shard.binary_heads.begin(), shard.binary_heads.end(),
                   buffers.binary_heads.begin());

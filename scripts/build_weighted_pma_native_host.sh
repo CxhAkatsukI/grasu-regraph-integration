@@ -9,6 +9,8 @@ OUT_BIN="${OUT_BIN:-}"
 VITIS_HLS="${VITIS_HLS:-/data/yxx/tools/xilinx/Vitis_HLS/2024.1}"
 ALGORITHM="weighted_sssp"
 PIPELINE_MODE="weighted-axis"
+ROW_LINE_READ=0
+ROW_LINE_DEFINE=()
 
 usage() {
   cat <<USAGE
@@ -23,6 +25,7 @@ Options:
                     residual_pagerank.
   --pipeline-mode MODE
                     weighted-axis or sharded-k4.
+  --row-line-read    Pad row buffers for a ROW_LINE_READ sharded-k4 adapter.
   -h, --help        Show this help.
 USAGE
 }
@@ -40,6 +43,7 @@ while [[ $# -gt 0 ]]; do
     --out-bin) OUT_BIN="$(abs_path "$2")"; shift 2 ;;
     --algorithm) ALGORITHM="$2"; shift 2 ;;
     --pipeline-mode) PIPELINE_MODE="$2"; shift 2 ;;
+    --row-line-read) ROW_LINE_READ=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -89,6 +93,14 @@ case "${PIPELINE_MODE}" in
   *) echo "Invalid --pipeline-mode: ${PIPELINE_MODE}" >&2; exit 2 ;;
 esac
 
+if [[ "${ROW_LINE_READ}" == 1 ]]; then
+  if [[ "${PIPELINE_MODE}" != sharded-k4 ]]; then
+    echo "--row-line-read requires --pipeline-mode sharded-k4" >&2
+    exit 2
+  fi
+  ROW_LINE_DEFINE=(-DGRASU_REGRAPH_HOST_ROW_LINE_READ=1)
+fi
+
 mkdir -p "${OUT_DIR}"
 if [[ -z "${OUT_BIN}" ]]; then
   OUT_BIN="${OUT_DIR}/${DEFAULT_BIN}"
@@ -97,6 +109,7 @@ fi
 g++ -std=c++17 -O2 -Wall -Wextra -Werror \
   -DGRASU_MAX_CACHE_SEGMENT=131072 \
   "${ALGORITHM_DEFINE[@]}" \
+  "${ROW_LINE_DEFINE[@]}" \
   -I"${XILINX_XRT}/include" \
   -I"${VITIS_HLS}/include" \
   -I"${VITIS_HLS}/include/etc" \
@@ -120,6 +133,7 @@ PIPELINE_MODE=${PIPELINE_MODE}
 HANDOFF=${HANDOFF}
 CONVERSION_COST=absent
 MAX_CACHE_SEGMENT=131072
+ROW_LINE_READ=${ROW_LINE_READ}
 HOST=${OUT_BIN}
 MANIFEST
 printf 'built %s\n' "${OUT_BIN}"

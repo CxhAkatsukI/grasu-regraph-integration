@@ -19,6 +19,9 @@
 #ifndef PMA_ADAPTER_TEST_SKIP_EMPTY
 #define PMA_ADAPTER_TEST_SKIP_EMPTY 0
 #endif
+#ifndef PMA_ADAPTER_TEST_ROW_LINE
+#define PMA_ADAPTER_TEST_ROW_LINE 0
+#endif
 
 namespace baseline {
 #define pma_to_regraph_adapter baseline_adapter
@@ -33,6 +36,8 @@ namespace candidate {
 #define GRASU_REGRAPH_STOP_AFTER_LAST 1
 #undef GRASU_REGRAPH_SKIP_EMPTY_SEGMENT
 #define GRASU_REGRAPH_SKIP_EMPTY_SEGMENT PMA_ADAPTER_TEST_SKIP_EMPTY
+#undef GRASU_REGRAPH_ROW_LINE_READ
+#define GRASU_REGRAPH_ROW_LINE_READ PMA_ADAPTER_TEST_ROW_LINE
 #define pma_to_regraph_adapter prefetched_adapter
 #include "../kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
 #undef pma_to_regraph_adapter
@@ -42,6 +47,22 @@ int main()
 {
     unsigned cases = 0;
     unsigned packets = 0;
+    const auto run_candidate = [](const std::vector<ap_uint<512>> (&pma)[4],
+                                  const std::vector<ap_uint<64>> &rows,
+                                  unsigned capacity,
+                                  hls::stream<candidate::edge_burst_pkt_t> &out) {
+#if PMA_ADAPTER_TEST_ROW_LINE
+        std::vector<ap_uint<512>> lines((rows.size() + 7) / 8 + (rows.empty() ? 1 : 0));
+        for (auto &line : lines) line = -1;
+        for (unsigned row = 0; row < rows.size(); ++row)
+            lines[row / 8].range((row % 8) * 64 + 63, (row % 8) * 64) = rows[row];
+        const auto *row_data = lines.data();
+#else
+        const auto *row_data = rows.data();
+#endif
+        candidate::prefetched_adapter(pma[0].data(), pma[1].data(), pma[2].data(),
+            pma[3].data(), row_data, rows.size(), capacity, 2, 65536, 32, out);
+    };
     for (unsigned vertices : {0U, 1U, 7U, 8U, 9U, 15U, 16U, 17U, 65U}) {
         for (unsigned density : {0U, 1U, 3U}) {
           for (unsigned placement : {0U, 1U, 2U}) {
@@ -74,8 +95,7 @@ int main()
                 hls::stream<candidate::edge_burst_pkt_t> after;
                 baseline::baseline_adapter(pma[0].data(), pma[1].data(), pma[2].data(),
                     pma[3].data(), rows.data(), vertices, capacity, 2, 65536, 32, before);
-                candidate::prefetched_adapter(pma[0].data(), pma[1].data(), pma[2].data(),
-                    pma[3].data(), rows.data(), vertices, capacity, 2, 65536, 32, after);
+                run_candidate(pma, rows, capacity, after);
                 while (!before.empty()) {
                     assert(!after.empty());
                     const auto left = before.read();
@@ -105,8 +125,7 @@ int main()
         hls::stream<candidate::edge_burst_pkt_t> after;
         baseline::baseline_adapter(pma[0].data(), pma[1].data(), pma[2].data(),
             pma[3].data(), rows.data(), rows.size(), capacity, 2, 65536, 32, before);
-        candidate::prefetched_adapter(pma[0].data(), pma[1].data(), pma[2].data(),
-            pma[3].data(), rows.data(), rows.size(), capacity, 2, 65536, 32, after);
+        run_candidate(pma, rows, capacity, after);
         unsigned seen = 0;
         while (!before.empty()) {
             assert(!after.empty());
@@ -140,5 +159,9 @@ int main()
     check_boundary({bounds(32, 48)}, 16, 0, 0);
     std::cout << "ROW_PREFETCH_EQUIVALENCE status=PASS cases=" << cases
               << " packets=" << packets
-              << " skip_empty=" << PMA_ADAPTER_TEST_SKIP_EMPTY << '\n';
+              << " skip_empty=" << PMA_ADAPTER_TEST_SKIP_EMPTY;
+#if PMA_ADAPTER_TEST_ROW_LINE
+    std::cout << " row_line=1";
+#endif
+    std::cout << '\n';
 }

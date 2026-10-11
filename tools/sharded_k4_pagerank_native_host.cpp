@@ -149,7 +149,8 @@ int main(int argc, char **argv)
                 graph, kMaxCacheSegment,
                 grasu::integration::kWeightedPmaRuntimeChannels,
                 grasu::integration::kU55cHbmPseudoChannelBytes,
-                WeightedPmaChannelPolicy::lane_aware_u55c);
+                WeightedPmaChannelPolicy::lane_aware_u55c,
+                GRASU_REGRAPH_HOST_ROW_LINE_READ);
 
         FullPageRankOracleResult warm_oracle;
         if (!update_only) {

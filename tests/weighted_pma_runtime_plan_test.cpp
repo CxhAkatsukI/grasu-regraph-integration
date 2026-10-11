@@ -50,12 +50,27 @@ int main()
            26 * sizeof(std::uint64_t));
 
     const auto packed = pack_weighted_pma_runtime_buffers(graph, plan);
+    const auto line_plan = build_weighted_pma_runtime_plan(
+        graph, 32, 4, 1ULL << 20, WeightedPmaChannelPolicy::unrestricted, true);
+    const auto line_packed = pack_weighted_pma_runtime_buffers(graph, line_plan);
+    assert(line_plan.total_allocated_bytes == plan.total_allocated_bytes);
     assert(packed.size() == graph.shards.size());
     for (std::size_t shard_index = 0; shard_index < graph.shards.size();
          ++shard_index) {
         const auto &shard = graph.shards[shard_index];
         const auto &buffers = packed[shard_index];
         assert(buffers.row_bounds == shard.row_bounds);
+        assert(line_plan.shards[shard_index].row_words == 32);
+        assert(line_packed[shard_index].row_bounds.size() == 32);
+        assert(find_weighted_pma_region(line_plan, shard_index, "row").logical_bytes == 256);
+        assert(std::equal(shard.row_bounds.begin(), shard.row_bounds.end(),
+                          line_packed[shard_index].row_bounds.begin()));
+        assert(std::all_of(line_packed[shard_index].row_bounds.begin() + 26,
+                           line_packed[shard_index].row_bounds.end(),
+                           [](auto row) { return row == 0; }));
+        assert(line_packed[shard_index].pma_words == buffers.pma_words);
+        assert(line_packed[shard_index].updates == buffers.updates);
+        assert(line_packed[shard_index].binary_heads == buffers.binary_heads);
         assert(std::equal(shard.binary_heads.begin(), shard.binary_heads.end(),
                           buffers.binary_heads.begin()));
         for (std::size_t slot = 0; slot < shard.initial_pma_words.size();
