@@ -1,0 +1,73 @@
+{
+  "attempts": [
+    {
+      "resources": {
+        "available_before_bytes": 54587842560,
+        "command": [
+          "bash",
+          "scripts/build_weighted_pma_native_host.sh",
+          "--pipeline-mode",
+          "sharded-k4",
+          "--algorithm",
+          "cc",
+          "--out-dir",
+          "/data/chuxiao/experiments/sharded_k4_residency_cc_compile_20261011/host"
+        ],
+        "cwd": "/home/chuxiao/grasu-regraph-integration",
+        "exit_code": 2,
+        "memory_limit_gib": 8,
+        "peak_rss_kib": 15824,
+        "reserve_gib": 16,
+        "rss_scope": "wait4_maximum_process_RSS_not_simultaneous_tree_sum",
+        "stderr": "/data/chuxiao/experiments/sharded_k4_residency_cc_compile_20261011/build.stderr.txt",
+        "stdout": "/data/chuxiao/experiments/sharded_k4_residency_cc_compile_20261011/build.stdout.txt",
+        "timed_out": false,
+        "wall_seconds": 0.054087488912045956
+      },
+      "stderr": "Invalid --algorithm: cc\n",
+      "stdout": ""
+    },
+    {
+      "resources": {
+        "available_before_bytes": 54550933504,
+        "command": [
+          "bash",
+          "scripts/build_weighted_pma_native_host.sh",
+          "--pipeline-mode",
+          "sharded-k4",
+          "--algorithm",
+          "connected_components",
+          "--out-dir",
+          "/data/chuxiao/experiments/sharded_k4_residency_cc_compile_retry_20261011/host"
+        ],
+        "cwd": "/home/chuxiao/grasu-regraph-integration",
+        "exit_code": 0,
+        "memory_limit_gib": 8,
+        "peak_rss_kib": 346520,
+        "reserve_gib": 16,
+        "rss_scope": "wait4_maximum_process_RSS_not_simultaneous_tree_sum",
+        "stderr": "/data/chuxiao/experiments/sharded_k4_residency_cc_compile_retry_20261011/build.stderr.txt",
+        "stdout": "/data/chuxiao/experiments/sharded_k4_residency_cc_compile_retry_20261011/build.stdout.txt",
+        "timed_out": false,
+        "wall_seconds": 5.016403261572123
+      },
+      "stderr": "In file included from /home/chuxiao/grasu-regraph-integration/tools/weighted_pma_native_host.cpp:6,\n                 from /home/chuxiao/grasu-regraph-integration/tools/sharded_k4_native_host.cpp:3:\n/usr/include/CL/cl2.hpp:18:151: note: \u2018#pragma message: cl2.hpp has been renamed to opencl.hpp to make it clear that it supports all versions of OpenCL. Please include opencl.hpp directly.\u2019\n   18 | #pragma message(\"cl2.hpp has been renamed to opencl.hpp to make it clear that it supports all versions of OpenCL. Please include opencl.hpp directly.\")\n      |                                                                                                                                                       ^\n",
+      "stdout": "c1dd11dd0d7a531fdd3bae9404459bc7700776372ce41f1b1515f62fdf830040  /home/chuxiao/grasu-regraph-integration/tools/sharded_k4_native_host.cpp\ncf1acaef2d68ea2f80d8342df7c25c4369c67a4fd5a147b0ea805b3b25f6d488  /home/chuxiao/grasu-regraph-integration/tools/weighted_pma_native_host.cpp\ne246456d9bce914d079b8e8dad62700c75289db9406655ef5a73801d63ecb514  /home/chuxiao/grasu-regraph-integration/include/weighted_pma_graph.hpp\n583755fd8e5c4ccfe28dfa3b77870bc09f1725bd610c583ffe251197faffebd0  /home/chuxiao/grasu-regraph-integration/include/weighted_pma_runtime_plan.hpp\n103122b02d166f500907322a227dccbd630a68c4efacbd54002e6669e50ea625  /home/chuxiao/grasu-regraph-integration/include/weighted_pma_update_reference.hpp\ne476ea8c9a895bd17748aec50c2c4af2864dfcce34ff17c4467b6e19f6d935c2  /data/chuxiao/experiments/sharded_k4_residency_cc_compile_retry_20261011/host/sharded_k4_cc_native_host\nbuilt /data/chuxiao/experiments/sharded_k4_residency_cc_compile_retry_20261011/host/sharded_k4_cc_native_host\n"
+    }
+  ],
+  "binary": {
+    "path": "/data/chuxiao/experiments/sharded_k4_residency_cc_compile_retry_20261011/host/sharded_k4_cc_native_host",
+    "sha256": "e476ea8c9a895bd17748aec50c2c4af2864dfcce34ff17c4467b6e19f6d935c2"
+  },
+  "limits": [
+    "first invocation rejected shorthand cc; retried with connected_components in fresh directory",
+    "compile gate only; no CC hardware or performance claim"
+  ],
+  "sources": [
+    {
+      "path": "/home/chuxiao/grasu-regraph-integration/tools/sharded_k4_native_host.cpp",
+      "sha256": "c1dd11dd0d7a531fdd3bae9404459bc7700776372ce41f1b1515f62fdf830040"
+    }
+  ],
+  "status": "COMPILE_ONLY_PASS_NOT_BOARD_EVIDENCE"
+}

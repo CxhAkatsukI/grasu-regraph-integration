@@ -604,6 +604,43 @@ int main(int argc, char **argv)
         }
         transfer_queue.finish();
 
+        const char *premigrate = std::getenv("GRASU_SHARDED_PREMIGRATE_INPUTS");
+        if (premigrate && std::string(premigrate) != "0" &&
+            std::string(premigrate) != "1") {
+            fail("GRASU_SHARDED_PREMIGRATE_INPUTS must be 0 or 1");
+        }
+        if (premigrate && std::string(premigrate) == "1") {
+            std::vector<cl::Memory> initial_inputs;
+            std::size_t input_bytes = 0;
+            for (const auto &buffers : device_shards) {
+                for (std::size_t lane = 0; lane < 4; ++lane) {
+                    initial_inputs.push_back(buffers.update_dev[lane]);
+                    initial_inputs.push_back(buffers.pma_dev[lane]);
+                }
+                initial_inputs.push_back(buffers.row_dev);
+                initial_inputs.push_back(buffers.binary_dev);
+            }
+            for (const auto &buffer : initial_inputs) {
+                input_bytes += buffer.getInfo<CL_MEM_SIZE>();
+            }
+            // Complete initial DMA before updates; migrating PMA afterward
+            // could overwrite device updates with its stale host copy.
+            const auto begin = std::chrono::steady_clock::now();
+            cl::Event migration;
+            check_cl(transfer_queue.enqueueMigrateMemObjects(
+                         initial_inputs, 0, nullptr, &migration),
+                     "premigrate initial sharded inputs");
+            transfer_queue.finish();
+            const double wall_ms = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - begin).count();
+            std::cout << "SHARDED_INPUT_RESIDENCY policy=premigrate"
+                      << " buffers=" << initial_inputs.size()
+                      << " bytes=" << input_bytes
+                      << " wall_ms=" << wall_ms
+                      << " event_ms=" << event_duration_ms(migration)
+                      << " boundary=initial_setup_before_updates" << std::endl;
+        }
+
         const unsigned destination_partitions =
             static_cast<unsigned>(graph.shards.size());
         const std::size_t state_capacity =
