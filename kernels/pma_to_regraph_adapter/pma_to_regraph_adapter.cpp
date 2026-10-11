@@ -45,6 +45,14 @@ static constexpr unsigned kWeightShift = 19;
 #define GRASU_REGRAPH_STOP_AFTER_LAST 0
 #endif
 
+#ifndef GRASU_REGRAPH_SKIP_EMPTY_SEGMENT
+#define GRASU_REGRAPH_SKIP_EMPTY_SEGMENT 0
+#endif
+
+#if GRASU_REGRAPH_SKIP_EMPTY_SEGMENT != 0 && GRASU_REGRAPH_SKIP_EMPTY_SEGMENT != 1
+#error "GRASU_REGRAPH_SKIP_EMPTY_SEGMENT must be 0 or 1"
+#endif
+
 #if GRASU_REGRAPH_STOP_AFTER_LAST != 0 && GRASU_REGRAPH_STOP_AFTER_LAST != 1
 #error "GRASU_REGRAPH_STOP_AFTER_LAST must be 0 or 1"
 #endif
@@ -140,6 +148,91 @@ static void write_edge_burst(edge_burst_pkt_t &pkt,
     pkt.data.range(base + 63, base + 32) = dst;
 }
 
+static void emit_row_segments(const ap_uint<512> *pma0,
+                              const ap_uint<512> *pma1,
+                              const ap_uint<512> *pma2,
+                              const ap_uint<512> *pma3,
+                              unsigned max_cache_segment,
+                              unsigned part_dst_offset,
+                              unsigned part_vertex_count,
+                              unsigned src,
+                              ap_uint<64> begin,
+                              ap_uint<64> end,
+                              ap_uint<64> total_slots,
+                              ap_uint<64> &emitted_slots,
+                              unsigned &emitted_bursts,
+                              hls::stream<edge_burst_pkt_t> &edge_burst_out)
+{
+#if GRASU_REGRAPH_SKIP_EMPTY_SEGMENT
+// Keep the empty-row decision in the caller, outside the pipelined helper.
+#pragma HLS INLINE off
+#else
+#pragma HLS INLINE
+#endif
+    edge_burst_pkt_t out;
+    const ap_uint<64> begin_segment = begin >> 4;
+    const ap_uint<64> end_segment = (end + (kSegmentSize - 1)) >> 4;
+segment_loop:
+    for (ap_uint<64> segment = begin_segment; segment < end_segment; ++segment) {
+#pragma HLS PIPELINE II=1
+        const ap_uint<512> pma_segment =
+            read_pma_segment(pma0, pma1, pma2, pma3, segment, max_cache_segment);
+
+    half_segment_loop:
+        for (unsigned half = 0; half < 2; ++half) {
+            out.data = 0;
+            out.keep = -1;
+            out.strb = -1;
+            out.last = 0;
+
+        lane_loop:
+            for (unsigned lane = 0; lane < 8; ++lane) {
+#pragma HLS UNROLL
+                const ap_uint<64> slot = (segment << 4) + (half << 3) + lane;
+                const unsigned pma_lane = half * 8 + lane;
+                ap_uint<32> raw_dst = pma_segment.range(pma_lane * 32 + 31,
+                                                        pma_lane * 32);
+                const ap_uint<32> local_dst = raw_dst & kDstLocalMask;
+#if GRASU_REGRAPH_SHARDED_PMA
+                const bool in_partition = local_dst < part_vertex_count;
+                ap_uint<32> adapter_dst = raw_dst;
+#if GRASU_REGRAPH_DESTINATION_ONLY
+                adapter_dst = ap_uint<32>(part_dst_offset) + local_dst;
+#endif
+#else
+                const ap_uint<33> partition_end =
+                    ap_uint<33>(part_dst_offset) + part_vertex_count;
+                const ap_uint<32> global_dst = local_dst;
+                const bool in_partition =
+                    global_dst >= part_dst_offset &&
+                    ap_uint<33>(global_dst) < partition_end;
+#endif
+                bool dummy = raw_dst[31] || slot < begin || slot >= end ||
+                             slot >= total_slots || !in_partition;
+                const ap_uint<32> out_src = dummy ? (ap_uint<32>(src) | kPmaEmptyMask)
+                                                  : ap_uint<32>(src);
+#if GRASU_REGRAPH_SHARDED_PMA
+                const ap_uint<32> out_dst = pack_regraph_dst(adapter_dst, dummy);
+#else
+                const ap_uint<32> out_dst = pack_regraph_dst(raw_dst, dummy);
+#endif
+                write_edge_burst(out, lane, out_src, out_dst);
+            }
+
+            emitted_slots += 8;
+            out.last = (emitted_slots >= total_slots);
+            edge_burst_out.write(out);
+            emitted_bursts++;
+            if (emitted_bursts <= 4 || (emitted_bursts & 0xf) == 0) {
+                ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: emitted burst=%u slots=%u last=%u\n",
+                                     emitted_bursts,
+                                     static_cast<unsigned>(emitted_slots),
+                                     static_cast<unsigned>(out.last));
+            }
+        }
+    }
+}
+
 extern "C" {
 void pma_to_regraph_adapter(const ap_uint<512> *pma0,
                             const ap_uint<512> *pma1,
@@ -196,12 +289,6 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
         node_count, pma_slot_count, part_dst_offset,
         part_dst_offset + part_vertex_count);
 
-    edge_burst_pkt_t out;
-    out.data = 0;
-    out.keep = -1;
-    out.strb = -1;
-    out.last = 0;
-
     ap_uint<64> total_slots = 0;
     // HLS may issue this read speculatively even when the value is discarded.
     const unsigned last_source = node_count == 0 ? 0 : node_count - 1;
@@ -246,65 +333,15 @@ slot_loop:
         const ap_uint<64> begin_segment = begin >> 4;
         const ap_uint<64> end_segment = (end + (kSegmentSize - 1)) >> 4;
 
-segment_loop:
-        for (ap_uint<64> segment = begin_segment; segment < end_segment; ++segment) {
-#pragma HLS PIPELINE II=1
-            const ap_uint<512> pma_segment =
-                read_pma_segment(pma0, pma1, pma2, pma3, segment, max_cache_segment);
-
-        half_segment_loop:
-            for (unsigned half = 0; half < 2; ++half) {
-                out.data = 0;
-                out.keep = -1;
-                out.strb = -1;
-                out.last = 0;
-
-            lane_loop:
-                for (unsigned lane = 0; lane < 8; ++lane) {
-#pragma HLS UNROLL
-                    const ap_uint<64> slot = (segment << 4) + (half << 3) + lane;
-                    const unsigned pma_lane = half * 8 + lane;
-                    ap_uint<32> raw_dst = pma_segment.range(pma_lane * 32 + 31,
-                                                            pma_lane * 32);
-                    const ap_uint<32> local_dst = raw_dst & kDstLocalMask;
-#if GRASU_REGRAPH_SHARDED_PMA
-                    const bool in_partition = local_dst < part_vertex_count;
-                    ap_uint<32> adapter_dst = raw_dst;
-#if GRASU_REGRAPH_DESTINATION_ONLY
-                    adapter_dst = ap_uint<32>(part_dst_offset) + local_dst;
+#if GRASU_REGRAPH_SKIP_EMPTY_SEGMENT
+        // Avoid starting the pipelined helper when it cannot emit a packet.
+        // Compare segment bounds so partial, unaligned rows retain their ABI.
+        if (begin_segment >= end_segment) continue;
 #endif
-#else
-                    const ap_uint<33> partition_end =
-                        ap_uint<33>(part_dst_offset) + part_vertex_count;
-                    const ap_uint<32> global_dst = local_dst;
-                    const bool in_partition =
-                        global_dst >= part_dst_offset &&
-                        ap_uint<33>(global_dst) < partition_end;
-#endif
-                    bool dummy = raw_dst[31] || slot < begin || slot >= end ||
-                                 slot >= total_slots || !in_partition;
-                    const ap_uint<32> out_src = dummy ? (ap_uint<32>(src) | kPmaEmptyMask)
-                                                      : ap_uint<32>(src);
-#if GRASU_REGRAPH_SHARDED_PMA
-                    const ap_uint<32> out_dst = pack_regraph_dst(adapter_dst, dummy);
-#else
-                    const ap_uint<32> out_dst = pack_regraph_dst(raw_dst, dummy);
-#endif
-                    write_edge_burst(out, lane, out_src, out_dst);
-                }
 
-                emitted_slots += 8;
-                out.last = (emitted_slots >= total_slots);
-                edge_burst_out.write(out);
-                emitted_bursts++;
-                if (emitted_bursts <= 4 || (emitted_bursts & 0xf) == 0) {
-                    ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: emitted burst=%u slots=%u last=%u\n",
-                                         emitted_bursts,
-                                         static_cast<unsigned>(emitted_slots),
-                                         static_cast<unsigned>(out.last));
-                }
-            }
-        }
+        emit_row_segments(pma0, pma1, pma2, pma3, max_cache_segment,
+                          part_dst_offset, part_vertex_count, src, begin, end,
+                          total_slots, emitted_slots, emitted_bursts, edge_burst_out);
     }
     ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: done bursts=%u slots=%u\n",
                          emitted_bursts, static_cast<unsigned>(emitted_slots));

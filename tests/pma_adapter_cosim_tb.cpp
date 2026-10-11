@@ -16,8 +16,10 @@ extern "C" void pma_to_regraph_adapter(
 namespace reference {
 #undef GRASU_REGRAPH_ROW_PREFETCH
 #undef GRASU_REGRAPH_STOP_AFTER_LAST
+#undef GRASU_REGRAPH_SKIP_EMPTY_SEGMENT
 #define GRASU_REGRAPH_ROW_PREFETCH 0
 #define GRASU_REGRAPH_STOP_AFTER_LAST 0
+#define GRASU_REGRAPH_SKIP_EMPTY_SEGMENT 0
 #define pma_to_regraph_adapter reference_adapter
 #include "../kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
 #undef pma_to_regraph_adapter

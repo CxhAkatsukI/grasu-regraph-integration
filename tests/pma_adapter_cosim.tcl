@@ -3,7 +3,12 @@ set out [file normalize $::env(PMA_COSIM_OUT)]
 set mode $::env(PMA_COSIM_MODE)
 set prefetch $::env(PMA_COSIM_PREFETCH)
 set stop $::env(PMA_COSIM_STOP)
+set skip_empty 0
+if {[info exists ::env(PMA_COSIM_SKIP_EMPTY)]} {
+    set skip_empty $::env(PMA_COSIM_SKIP_EMPTY)
+}
 set flags "-D_GTHREAD_USE_COND_INIT_FUNC -DGRASU_REGRAPH_COSIM_DEPTH=1 -DGRASU_REGRAPH_SHARDED_PMA=1 -DGRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS=1 -DGRASU_REGRAPH_ROW_PREFETCH=$prefetch -DGRASU_REGRAPH_STOP_AFTER_LAST=$stop -I/data/yxx/tools/xilinx/Vitis_HLS/2024.1/include/etc"
+append flags " -DGRASU_REGRAPH_SKIP_EMPTY_SEGMENT=$skip_empty"
 if {$mode eq "weighted"} {
     append flags " -DGRASU_REGRAPH_WEIGHTED_PMA=1"
 } elseif {$mode eq "destination"} {

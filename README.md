@@ -112,6 +112,10 @@ For initial input residency in the sharded-K4 SSSP/CC host, see
 [the opt-in migration contract and validation limits](docs/sharded_k4_initial_residency.md).
 Its separately timed initialization must not be omitted from startup claims.
 
+The subsequent default-off adapter candidate and its C/RTL evidence are
+documented in [the empty-segment helper guide](docs/sharded_k4_empty_segment/README.md).
+It has not yet replaced the routed production adapter.
+
 The `codex/weighted-pma-native-hls` branch adds an opt-in weighted PMA ABI
 to the direct PMA-to-ReGraph AXIS adapter while preserving the legacy unit-
 weight default. Its integration-owned host preprocessor lowers weight changes

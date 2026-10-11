@@ -135,6 +135,12 @@ if ! {
       "${GRI_ROOT}/tests/pma_adapter_row_prefetch_tb.cpp" \
       -o "${OUT_DIR}/row_prefetch_${mode}_test"
     "${OUT_DIR}/row_prefetch_${mode}_test"
+    g++ -std=c++17 -w "${row_defines[@]}" \
+      -DPMA_ADAPTER_TEST_SKIP_EMPTY=1 \
+      -I"${HLS_INCLUDE}" -I"${HLS_INCLUDE_ETC}" \
+      "${GRI_ROOT}/tests/pma_adapter_row_prefetch_tb.cpp" \
+      -o "${OUT_DIR}/skip_empty_${mode}_test"
+    "${OUT_DIR}/skip_empty_${mode}_test"
   done
 } > "${LOG}" 2>&1; then
   cat "${LOG}" >&2
@@ -153,6 +159,7 @@ fi
   sha256sum "${GRI_ROOT}/kernels/pma_to_regraph_adapter/row_prefetch.hpp"
   sha256sum "${GRI_ROOT}/tests/pma_adapter_row_prefetch_tb.cpp"
   sha256sum "${OUT_DIR}"/row_prefetch_*_test
+  sha256sum "${OUT_DIR}"/skip_empty_*_test
   sha256sum "${LOG}"
 } > "${OUT_DIR}/SHA256SUMS"
 

@@ -16,6 +16,9 @@
 #ifndef GRASU_REGRAPH_WEIGHTED_PMA
 #define GRASU_REGRAPH_WEIGHTED_PMA 1
 #endif
+#ifndef PMA_ADAPTER_TEST_SKIP_EMPTY
+#define PMA_ADAPTER_TEST_SKIP_EMPTY 0
+#endif
 
 namespace baseline {
 #define pma_to_regraph_adapter baseline_adapter
@@ -28,6 +31,8 @@ namespace candidate {
 #define GRASU_REGRAPH_ROW_PREFETCH 1
 #undef GRASU_REGRAPH_STOP_AFTER_LAST
 #define GRASU_REGRAPH_STOP_AFTER_LAST 1
+#undef GRASU_REGRAPH_SKIP_EMPTY_SEGMENT
+#define GRASU_REGRAPH_SKIP_EMPTY_SEGMENT PMA_ADAPTER_TEST_SKIP_EMPTY
 #define pma_to_regraph_adapter prefetched_adapter
 #include "../kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
 #undef pma_to_regraph_adapter
@@ -85,6 +90,55 @@ int main()
           }
         }
     }
+    const auto check_boundary = [&](const std::vector<ap_uint<64>> &rows,
+                                     unsigned capacity, unsigned expected_packets,
+                                     unsigned dummy_prefix) {
+        std::vector<ap_uint<512>> pma[4];
+        ap_uint<512> dummy_word = 0;
+        for (unsigned lane = 0; lane < 16; ++lane)
+            dummy_word.range(lane * 32 + 31, lane * 32) = 0x80000000U;
+        for (auto &bank : pma) bank.assign(8, dummy_word);
+        // The first allocated segment is an all-dummy source-zero reservation.
+        // Later segments carry live lanes, even when row bounds mask them out.
+        pma[2][0] = 1;
+        hls::stream<baseline::edge_burst_pkt_t> before;
+        hls::stream<candidate::edge_burst_pkt_t> after;
+        baseline::baseline_adapter(pma[0].data(), pma[1].data(), pma[2].data(),
+            pma[3].data(), rows.data(), rows.size(), capacity, 2, 65536, 32, before);
+        candidate::prefetched_adapter(pma[0].data(), pma[1].data(), pma[2].data(),
+            pma[3].data(), rows.data(), rows.size(), capacity, 2, 65536, 32, after);
+        unsigned seen = 0;
+        while (!before.empty()) {
+            assert(!after.empty());
+            const auto left = before.read();
+            const auto right = after.read();
+            assert(left.data == right.data && left.keep == right.keep &&
+                   left.strb == right.strb && left.last == right.last);
+            if (seen < dummy_prefix) {
+                for (unsigned lane = 0; lane < 8; ++lane) {
+                    assert(left.data[lane * 64 + 31]);
+                    assert(left.data[lane * 64 + 63]);
+                }
+            }
+            ++seen;
+        }
+        assert(after.empty() && seen == expected_packets);
+        packets += seen;
+        ++cases;
+    };
+    const auto bounds = [](unsigned begin, unsigned end) -> ap_uint<64> {
+        return (ap_uint<64>(begin) << 32) | end;
+    };
+    // Unaligned begin==end still emits masked packets in the legacy ABI.
+    for (unsigned offset : {1U, 7U, 15U, 17U})
+        check_boundary({bounds(offset, offset)}, 64, 2, 2);
+    for (unsigned offset : {0U, 16U, 32U})
+        check_boundary({bounds(offset, offset)}, 64, 0, 0);
+    check_boundary({bounds(0, 16)}, 16, 2, 2);
+    check_boundary({bounds(0, 16), bounds(16, 32)}, 32, 4, 2);
+    check_boundary({bounds(3, 19)}, 64, 4, 2);
+    check_boundary({bounds(32, 48)}, 16, 0, 0);
     std::cout << "ROW_PREFETCH_EQUIVALENCE status=PASS cases=" << cases
-              << " packets=" << packets << '\n';
+              << " packets=" << packets
+              << " skip_empty=" << PMA_ADAPTER_TEST_SKIP_EMPTY << '\n';
 }
