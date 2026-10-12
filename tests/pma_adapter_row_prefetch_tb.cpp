@@ -25,6 +25,9 @@
 #ifndef PMA_ADAPTER_TEST_CROSS_ROW
 #define PMA_ADAPTER_TEST_CROSS_ROW 0
 #endif
+#ifndef PMA_ADAPTER_TEST_CONTINUOUS_DIRECTORY
+#define PMA_ADAPTER_TEST_CONTINUOUS_DIRECTORY 0
+#endif
 
 namespace baseline {
 #define pma_to_regraph_adapter baseline_adapter
@@ -43,6 +46,8 @@ namespace candidate {
 #define GRASU_REGRAPH_ROW_LINE_READ PMA_ADAPTER_TEST_ROW_LINE
 #undef GRASU_REGRAPH_CROSS_ROW_PIPELINE
 #define GRASU_REGRAPH_CROSS_ROW_PIPELINE PMA_ADAPTER_TEST_CROSS_ROW
+#undef GRASU_REGRAPH_CONTINUOUS_DIRECTORY
+#define GRASU_REGRAPH_CONTINUOUS_DIRECTORY PMA_ADAPTER_TEST_CONTINUOUS_DIRECTORY
 #define pma_to_regraph_adapter prefetched_adapter
 #include "../kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
 #undef pma_to_regraph_adapter

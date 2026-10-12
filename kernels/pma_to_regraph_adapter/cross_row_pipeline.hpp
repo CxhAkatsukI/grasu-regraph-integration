@@ -17,6 +17,10 @@ struct loaded_row_segment {
     ap_uint<512> data;
 };
 
+#if GRASU_REGRAPH_CONTINUOUS_DIRECTORY
+#include "continuous_directory.hpp"
+#endif
+
 static void read_row_segments(const ap_uint<512> *pma0,
                               const ap_uint<512> *pma1,
                               const ap_uint<512> *pma2,
@@ -150,8 +154,13 @@ static void cross_row_pipeline(const ap_uint<512> *pma0,
 #pragma HLS DATAFLOW
     hls::stream<loaded_row_segment> loaded("loaded_row_segments");
 #pragma HLS STREAM variable=loaded depth=16
+#if GRASU_REGRAPH_CONTINUOUS_DIRECTORY
+    read_continuous_row_segments(pma0, pma1, pma2, pma3, rows, node_count, capacity,
+                                 max_cache_segment, loaded);
+#else
     read_row_segments(pma0, pma1, pma2, pma3, rows, node_count, capacity,
                       max_cache_segment, loaded);
+#endif
     publish_row_segments(loaded, part_dst_offset, part_vertex_count, output);
 }
 
