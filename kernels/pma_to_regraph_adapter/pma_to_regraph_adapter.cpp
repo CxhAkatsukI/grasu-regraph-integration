@@ -61,6 +61,20 @@ static constexpr unsigned kWeightShift = 19;
 #define GRASU_REGRAPH_SKIP_EMPTY_SEGMENT 0
 #endif
 
+#ifndef GRASU_REGRAPH_CROSS_ROW_PIPELINE
+#define GRASU_REGRAPH_CROSS_ROW_PIPELINE 0
+#endif
+
+#if GRASU_REGRAPH_CROSS_ROW_PIPELINE != 0 && GRASU_REGRAPH_CROSS_ROW_PIPELINE != 1
+#error "GRASU_REGRAPH_CROSS_ROW_PIPELINE must be 0 or 1"
+#endif
+
+#if GRASU_REGRAPH_CROSS_ROW_PIPELINE && \
+    !(GRASU_REGRAPH_ROW_LINE_READ && GRASU_REGRAPH_STOP_AFTER_LAST && \
+      GRASU_REGRAPH_SKIP_EMPTY_SEGMENT)
+#error "cross-row pipeline requires whole-line reads, stop-after-last and skip-empty"
+#endif
+
 #if GRASU_REGRAPH_SKIP_EMPTY_SEGMENT != 0 && GRASU_REGRAPH_SKIP_EMPTY_SEGMENT != 1
 #error "GRASU_REGRAPH_SKIP_EMPTY_SEGMENT must be 0 or 1"
 #endif
@@ -248,6 +262,10 @@ segment_loop:
     }
 }
 
+#if GRASU_REGRAPH_CROSS_ROW_PIPELINE
+#include "cross_row_pipeline.hpp"
+#endif
+
 extern "C" {
 void pma_to_regraph_adapter(const ap_uint<512> *pma0,
                             const ap_uint<512> *pma1,
@@ -302,6 +320,11 @@ void pma_to_regraph_adapter(const ap_uint<512> *pma0,
 #pragma HLS INTERFACE s_axilite port=part_vertex_count bundle=control
 #pragma HLS INTERFACE s_axilite port=return bundle=control
 #pragma HLS INTERFACE axis port=edge_burst_out
+#if GRASU_REGRAPH_CROSS_ROW_PIPELINE
+    cross_row_pipeline(pma0, pma1, pma2, pma3, row_offset, node_count,
+                       pma_slot_count, max_cache_segment, part_dst_offset,
+                       part_vertex_count, edge_burst_out);
+#else
 
     ADAPTER_DEBUG_PRINTF(
         "[KDEBUG] adapter: begin nodes=%u pma_slots=%u dst=[%u,%u)\n",
@@ -372,5 +395,6 @@ slot_loop:
     }
     ADAPTER_DEBUG_PRINTF("[KDEBUG] adapter: done bursts=%u slots=%u\n",
                          emitted_bursts, static_cast<unsigned>(emitted_slots));
+#endif
 }
 }

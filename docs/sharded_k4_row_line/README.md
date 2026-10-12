@@ -53,4 +53,6 @@ No new route or FPGA measurement is admitted. The previously measured
 bitstream, production simulator and paper figures are not replaced. Next
 gates are route/connectivity timing, padded-host board equivalence, explicit
 simulator-version synchronization and the separately matched original-A4
-versus actual adapter+K4 comparison.
+versus actual adapter+K4 comparison. The separate default-off
+[cross-row pipeline candidate](CROSS_ROW.md) tests overlap within cached
+directory lines; it retains the same host-padding and external ABI contract.

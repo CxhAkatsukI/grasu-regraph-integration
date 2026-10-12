@@ -22,6 +22,9 @@
 #ifndef PMA_ADAPTER_TEST_ROW_LINE
 #define PMA_ADAPTER_TEST_ROW_LINE 0
 #endif
+#ifndef PMA_ADAPTER_TEST_CROSS_ROW
+#define PMA_ADAPTER_TEST_CROSS_ROW 0
+#endif
 
 namespace baseline {
 #define pma_to_regraph_adapter baseline_adapter
@@ -38,6 +41,8 @@ namespace candidate {
 #define GRASU_REGRAPH_SKIP_EMPTY_SEGMENT PMA_ADAPTER_TEST_SKIP_EMPTY
 #undef GRASU_REGRAPH_ROW_LINE_READ
 #define GRASU_REGRAPH_ROW_LINE_READ PMA_ADAPTER_TEST_ROW_LINE
+#undef GRASU_REGRAPH_CROSS_ROW_PIPELINE
+#define GRASU_REGRAPH_CROSS_ROW_PIPELINE PMA_ADAPTER_TEST_CROSS_ROW
 #define pma_to_regraph_adapter prefetched_adapter
 #include "../kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
 #undef pma_to_regraph_adapter
@@ -162,6 +167,9 @@ int main()
               << " skip_empty=" << PMA_ADAPTER_TEST_SKIP_EMPTY;
 #if PMA_ADAPTER_TEST_ROW_LINE
     std::cout << " row_line=1";
+#endif
+#if PMA_ADAPTER_TEST_CROSS_ROW
+    std::cout << " cross_row=1";
 #endif
     std::cout << '\n';
 }
