@@ -52,11 +52,22 @@ packets. Weighted production RTL passes response-latency and sink-stall checks.
 
 Dense 17-source tests improve from 1735 to 588 clocks at synthetic L=64,
 and from 3079 to 1036 at L=128. Maximum outstanding rises from 1 to 8.
-The last-only test regresses from 439 to 564 clocks; empty cached blocks
-still enter the deep inner pipeline. Preserve this regression when evaluating
-follow-ups. Do not infer real-HBM speedup from these ordered-memory tests.
+V2's last-only test regresses from 439 to 564 clocks; this regression remains
+in its frozen archive. V3 bypasses wholly empty cached blocks before entering
+the inner pipeline, reducing that case to 402 clocks. The other eleven rows,
+including complete traffic and start-relative timestamps, remain equal to v2. The check uses
+segment bounds, not just nonempty slot intervals, to retain historical
+masking semantics for unaligned intervals. No sparse-source index is added.
+Do not infer real-HBM speedup from these ordered-memory tests.
 
-The production read loop achieves II=1/depth=75; the publisher half loop II=1.
+The production read loop achieves II=1/depth=74; the publisher half loop II=1/depth=2.
 At requested 150 MHz, estimates are 30,466 LUT, 12,850 FF, 15 BRAM_18K,
 no DSP/URAM and 4.867 ns. LUT usage is approximately twice the whole-line
 reference. No route or board timing is admitted for this candidate.
+
+The current v3 XO is SHA-256
+`7d1785677ca7b54861688d7670d813ca2a4cfdc1e2c83cbc53151cd03ad02b6b`.
+It passes the same C++, ABI, reference-replay and complete RTL gates, with
+31,913 LUT, 13,726 FF, 15 BRAM_18K, no DSP/URAM and estimated 4.867 ns.
+The additional bypass logic is not resource-free. The simulator handoff keeps
+v3 in `row_line/cross_row/evidence_v3/` without rewriting `evidence/` (v2).

@@ -40,6 +40,20 @@ read_line_loop:
     for (unsigned base = 0; base < node_count; base += 8) {
         if (emitted >= total) break;
         read_cached_row_line(rows, base, cache);
+        // Test segment bounds, not begin != end: an unaligned empty interval
+        // can still occupy a masked segment under the historical packet ABI.
+        bool has_segments = false;
+check_cached_row_line:
+        for (unsigned lane = 0; lane < 8; ++lane) {
+#pragma HLS UNROLL
+            ap_uint<64> row_begin = 0, row_end = 0;
+            unpack_row_bounds(cache[lane], row_begin, row_end);
+            if (row_end > capacity) row_end = capacity;
+            if (lane < node_count - base &&
+                (row_begin >> 4) < ((row_end + (kSegmentSize - 1)) >> 4))
+                has_segments = true;
+        }
+        if (!has_segments) continue;
         unsigned source = base;
         ap_uint<64> begin = 0, end = 0;
         unpack_row_bounds(cache[0], begin, end);
