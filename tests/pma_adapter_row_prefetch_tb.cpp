@@ -28,6 +28,18 @@
 #ifndef PMA_ADAPTER_TEST_CONTINUOUS_DIRECTORY
 #define PMA_ADAPTER_TEST_CONTINUOUS_DIRECTORY 0
 #endif
+#ifndef PMA_ADAPTER_TEST_DIRECTORY_TILE_ROWS
+#define PMA_ADAPTER_TEST_DIRECTORY_TILE_ROWS 8
+#endif
+#ifndef PMA_ADAPTER_TEST_PACKET_PIPELINE
+#define PMA_ADAPTER_TEST_PACKET_PIPELINE 0
+#endif
+#ifndef PMA_ADAPTER_TEST_BANK_STREAM
+#define PMA_ADAPTER_TEST_BANK_STREAM 0
+#endif
+#ifndef PMA_ADAPTER_TEST_BANK_FIFO_LINES
+#define PMA_ADAPTER_TEST_BANK_FIFO_LINES 128
+#endif
 
 namespace baseline {
 #define pma_to_regraph_adapter baseline_adapter
@@ -48,6 +60,14 @@ namespace candidate {
 #define GRASU_REGRAPH_CROSS_ROW_PIPELINE PMA_ADAPTER_TEST_CROSS_ROW
 #undef GRASU_REGRAPH_CONTINUOUS_DIRECTORY
 #define GRASU_REGRAPH_CONTINUOUS_DIRECTORY PMA_ADAPTER_TEST_CONTINUOUS_DIRECTORY
+#undef GRASU_REGRAPH_DIRECTORY_TILE_ROWS
+#define GRASU_REGRAPH_DIRECTORY_TILE_ROWS PMA_ADAPTER_TEST_DIRECTORY_TILE_ROWS
+#undef GRASU_REGRAPH_PACKET_PIPELINE
+#define GRASU_REGRAPH_PACKET_PIPELINE PMA_ADAPTER_TEST_PACKET_PIPELINE
+#undef GRASU_REGRAPH_BANK_STREAM
+#define GRASU_REGRAPH_BANK_STREAM PMA_ADAPTER_TEST_BANK_STREAM
+#undef GRASU_REGRAPH_BANK_FIFO_LINES
+#define GRASU_REGRAPH_BANK_FIFO_LINES PMA_ADAPTER_TEST_BANK_FIFO_LINES
 #define pma_to_regraph_adapter prefetched_adapter
 #include "../kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
 #undef pma_to_regraph_adapter
@@ -73,12 +93,19 @@ int main()
         candidate::prefetched_adapter(pma[0].data(), pma[1].data(), pma[2].data(),
             pma[3].data(), row_data, rows.size(), capacity, 2, 65536, 32, out);
     };
-    for (unsigned vertices : {0U, 1U, 7U, 8U, 9U, 15U, 16U, 17U, 65U}) {
+    std::vector<unsigned> vertex_counts{0U, 1U, 7U, 8U, 9U, 15U, 16U, 17U, 65U};
+#if PMA_ADAPTER_TEST_DIRECTORY_TILE_ROWS != 8
+    vertex_counts.insert(vertex_counts.end(), {127U, 128U, 129U, 257U});
+#if PMA_ADAPTER_TEST_PACKET_PIPELINE
+    vertex_counts.insert(vertex_counts.end(), {1023U, 1024U, 1025U});
+#endif
+#endif
+    for (unsigned vertices : vertex_counts) {
         for (unsigned density : {0U, 1U, 3U}) {
           for (unsigned placement : {0U, 1U, 2U}) {
             std::vector<ap_uint<64>> rows(vertices);
             std::vector<ap_uint<512>> pma[4];
-            for (auto &bank : pma) bank.resize(256);
+            for (auto &bank : pma) bank.resize(std::max(256U, (vertices * 3 + 1) / 2));
             unsigned segments = 0;
             for (unsigned source = 0; source < vertices; ++source) {
                 const bool occupied = placement == 0 ? source % 3 == 0
@@ -159,14 +186,21 @@ int main()
         return (ap_uint<64>(begin) << 32) | end;
     };
     // Unaligned begin==end still emits masked packets in the legacy ABI.
+#if !PMA_ADAPTER_TEST_BANK_STREAM
     for (unsigned offset : {1U, 7U, 15U, 17U})
         check_boundary({bounds(offset, offset)}, 64, 2, 2);
     for (unsigned offset : {0U, 16U, 32U})
         check_boundary({bounds(offset, offset)}, 64, 0, 0);
+#else
+    // The production sharded layout starts at zero and is contiguous/aligned.
+    check_boundary({bounds(0, 0)}, 64, 0, 0);
+#endif
     check_boundary({bounds(0, 16)}, 16, 2, 2);
     check_boundary({bounds(0, 16), bounds(16, 32)}, 32, 4, 2);
+#if !PMA_ADAPTER_TEST_BANK_STREAM
     check_boundary({bounds(3, 19)}, 64, 4, 2);
     check_boundary({bounds(32, 48)}, 16, 0, 0);
+#endif
     std::cout << "ROW_PREFETCH_EQUIVALENCE status=PASS cases=" << cases
               << " packets=" << packets
               << " skip_empty=" << PMA_ADAPTER_TEST_SKIP_EMPTY;

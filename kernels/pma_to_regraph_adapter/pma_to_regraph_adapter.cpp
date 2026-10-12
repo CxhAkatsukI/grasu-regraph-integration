@@ -69,6 +69,41 @@ static constexpr unsigned kWeightShift = 19;
 #define GRASU_REGRAPH_CONTINUOUS_DIRECTORY 0
 #endif
 
+#ifndef GRASU_REGRAPH_DIRECTORY_TILE_ROWS
+#define GRASU_REGRAPH_DIRECTORY_TILE_ROWS 8
+#endif
+
+#if GRASU_REGRAPH_DIRECTORY_TILE_ROWS != 8 && GRASU_REGRAPH_DIRECTORY_TILE_ROWS != 128 && GRASU_REGRAPH_DIRECTORY_TILE_ROWS != 1024
+#error "directory tile must contain 8, 128 or 1024 rows"
+#endif
+
+#ifndef GRASU_REGRAPH_PACKET_PIPELINE
+#define GRASU_REGRAPH_PACKET_PIPELINE 0
+#endif
+#if GRASU_REGRAPH_PACKET_PIPELINE != 0 && GRASU_REGRAPH_PACKET_PIPELINE != 1
+#error "packet pipeline must be 0 or 1"
+#endif
+#if GRASU_REGRAPH_PACKET_PIPELINE && GRASU_REGRAPH_DIRECTORY_TILE_ROWS != 1024
+#error "packet pipeline requires the explicit 1024-row candidate"
+#endif
+
+#ifndef GRASU_REGRAPH_BANK_STREAM
+#define GRASU_REGRAPH_BANK_STREAM 0
+#endif
+#ifndef GRASU_REGRAPH_BANK_FIFO_LINES
+#define GRASU_REGRAPH_BANK_FIFO_LINES 128
+#endif
+#if GRASU_REGRAPH_BANK_FIFO_LINES != 128 && GRASU_REGRAPH_BANK_FIFO_LINES != 256
+#error "Bank FIFO must hold 128 or 256 lines"
+#endif
+#if GRASU_REGRAPH_BANK_STREAM && !GRASU_REGRAPH_PACKET_PIPELINE
+#error "bank streaming requires the explicit packet-pipeline candidate"
+#endif
+
+#if GRASU_REGRAPH_DIRECTORY_TILE_ROWS != 8 && (!GRASU_REGRAPH_CROSS_ROW_PIPELINE || GRASU_REGRAPH_CONTINUOUS_DIRECTORY)
+#error "directory tile requires cross-row mode without the rejected continuous reader"
+#endif
+
 #if GRASU_REGRAPH_CONTINUOUS_DIRECTORY != 0 && GRASU_REGRAPH_CONTINUOUS_DIRECTORY != 1
 #error "GRASU_REGRAPH_CONTINUOUS_DIRECTORY must be 0 or 1"
 #endif

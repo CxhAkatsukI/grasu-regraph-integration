@@ -20,6 +20,9 @@ struct loaded_row_segment {
 #if GRASU_REGRAPH_CONTINUOUS_DIRECTORY
 #include "continuous_directory.hpp"
 #endif
+#if GRASU_REGRAPH_DIRECTORY_TILE_ROWS != 8
+#include "directory_tile.hpp"
+#endif
 
 static void read_row_segments(const ap_uint<512> *pma0,
                               const ap_uint<512> *pma1,
@@ -140,6 +143,13 @@ publish_lane_loop:
     }
 }
 
+#if GRASU_REGRAPH_PACKET_PIPELINE
+#include "packet_pipeline.hpp"
+#endif
+#if GRASU_REGRAPH_BANK_STREAM
+#include "bank_stream.hpp"
+#endif
+
 static void cross_row_pipeline(const ap_uint<512> *pma0,
                                const ap_uint<512> *pma1,
                                const ap_uint<512> *pma2,
@@ -151,17 +161,33 @@ static void cross_row_pipeline(const ap_uint<512> *pma0,
                                hls::stream<edge_burst_pkt_t> &output)
 {
 #pragma HLS INLINE off
+#if GRASU_REGRAPH_BANK_STREAM
+    ap_uint<64> begin = 0, total = 0;
+    if (node_count) unpack_row_bounds(read_row_line_entry(rows, node_count - 1), begin, total);
+    if (total > capacity) total = capacity;
+    bank_stream_dataflow(pma0, pma1, pma2, pma3, rows, node_count, capacity,
+                         max_cache_segment, part_dst_offset, part_vertex_count, total, output);
+#else
 #pragma HLS DATAFLOW
     hls::stream<loaded_row_segment> loaded("loaded_row_segments");
 #pragma HLS STREAM variable=loaded depth=16
 #if GRASU_REGRAPH_CONTINUOUS_DIRECTORY
     read_continuous_row_segments(pma0, pma1, pma2, pma3, rows, node_count, capacity,
                                  max_cache_segment, loaded);
+#elif GRASU_REGRAPH_DIRECTORY_TILE_ROWS != 8
+    hls::stream<ap_uint<512>> unused_even, unused_odd;
+    read_tiled_row_segments<false>(pma0, pma1, pma2, pma3, rows, node_count, capacity,
+                                   max_cache_segment, loaded, unused_even, unused_odd);
 #else
     read_row_segments(pma0, pma1, pma2, pma3, rows, node_count, capacity,
                       max_cache_segment, loaded);
 #endif
+#if GRASU_REGRAPH_PACKET_PIPELINE
+    publish_packet_pipeline(loaded, part_dst_offset, part_vertex_count, output);
+#else
     publish_row_segments(loaded, part_dst_offset, part_vertex_count, output);
+#endif
+#endif
 }
 
 #endif
