@@ -1,8 +1,9 @@
 # Complete GraSU Search/Cache Source Candidate
 
 This directory owns the production-source candidate for the reviewed 64-context
-search and full-capacity registered URAM cache. It is **not yet a newly
-synthesized, RTL-validated, routed, or board-validated production build**.
+search and full-capacity registered URAM cache. Fresh source-based HLS synthesis
+and XO export pass for search and both cache bindings; **full exported-interface
+review, production RTL, routing and board validation remain open**.
 The ongoing diagnostic route uses frozen exported XOs, not these relocated
 sources. Keep those evidence classes separate.
 
@@ -84,6 +85,12 @@ The cache includes the configured upstream `kernel_config.h`, not a
 fixture-relative `upstream/` path.
 
 ## Verification Gates
+
+Fresh executable functional tests and real HLS-driver export are owned by
+[`validation/grasu_complete/`](../../validation/README.md). That guide defines
+the two independent acceptance stages, frozen source-reference checks, explicit
+external search fixture and concurrent memory admission. Source selection alone
+does not admit the production candidate to routing or board experiments.
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_grasu_kernel_selection.py' -v
