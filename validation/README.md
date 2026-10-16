@@ -17,6 +17,7 @@ worktree; it does not invoke a simulator timing model.
 | --- | --- | --- |
 | `source` | Owned production cores, explicit external search fixture, upstream config, installed vendor headers | Eighteen ordered search oracle checks and six full-cache state checks for **each** token/plain binding |
 | `hls` | Same inputs plus passing fresh source campaign and real HLS settings | Source-based csynth and XO export for search/token cache/plain cache; argument names/order checked, full ABI and RTL still pending |
+| `rtl` | Passing production HLS campaign, frozen search/token-cache reference interfaces and real HLS settings | Same-core C simulation, synthesis, Verilog co-simulation and full interface review for all three components; still not integrated G or routing |
 
 The search fixture executes both generations at the same metadata addresses,
 including 0, 1, 63, 64, 65, 127, 128, 129 and 257 updates. Its host-only finite
@@ -24,7 +25,7 @@ internal FIFOs are not a hardware timing model. The fixture does not stall the
 top-level output. It does **not** establish integrated device metadata refresh
 or integrated backpressure correctness. The cache oracle checks all 131072 words
 after each case, input drain, and completion token payload/sidebands when enabled.
-Neither stage establishes G+R correctness, routing, board timing, publication
+None of these stages establishes G+R correctness, routing, board timing, publication
 matching or simulator performance calibration.
 
 Use the **actual production integration** `kernel_config.h`, including its
@@ -50,10 +51,17 @@ python3 -m validation.grasu_complete.study --stage hls \
   --config /path/to/integration/repos/GraSU/GraSU/GraSU_kernels/src/kernel_config.h \
   --include /path/to/Vitis_HLS/2024.1/include \
   --hls-settings /path/to/Vitis_HLS/2024.1/settings64.sh
+
+python3 -m validation.grasu_complete.rtl \
+  --baseline /data/fresh-hls-campaign \
+  --search-reference /path/to/frozen/search-reference-xml-directory \
+  --cache-reference /path/to/frozen/token-cache-reference-xml-directory \
+  --hls-settings /path/to/Vitis_HLS/2024.1/settings64.sh \
+  --output /data/fresh-rtl-campaign
 ```
 
 Containment is mandatory: source uses exactly 1-GiB `MemoryMax` and at most
-768-MiB `MemoryHigh`; HLS uses exactly 8-GiB max and at most 7-GiB high. Both
+768-MiB `MemoryHigh`; HLS/RTL use exactly 8-GiB max and at most 7-GiB high. All
 require zero swap and group OOM kill. Admission sums full finite peer budgets
 and a 24-GiB reserve under the shared short atomic lease lock. It **does not**
 wait for all FPGA tools to exit if those budgets fit. Unknown/unbounded peers
@@ -86,3 +94,26 @@ header selection, and v2 rejected the report's rounded clock after successful
 search export. The clock parser now accepts only the requested period rounded
 to the report's declared precision. It does not relax the target or treat an
 estimate as physical timing closure.
+
+The complete exported search and token-cache interfaces match their frozen
+hardware references: argument registers, memory/control ports, control protocol
+and AXIS payload/sidebands. The plain cache has a separate **derived** contract:
+the token-cache interface with only its completion port removed. It is not
+claimed to be the same interface as the routed token-cache reference.
+
+`g-production-rtl-v1` passed source freezing, full ABI review and concurrent
+memory admission, then failed at C-simulation compilation: HLS stripped the
+quotes from a header-name `-D` flag. No RTL transaction ran. The retained result
+is a test-launch failure, not a hardware or numerical failure. The new launcher
+freezes a host-only preinclude header instead; synthesis sees no harness macro.
+Thirteen focused tests pass, including actual preprocessing in both modes.
+`g-production-rtl-v2` has started in a new directory, admitted alongside both
+40-GiB routes under its 8-GiB limit and the 24-GiB reserve. Its final RTL outcome
+is pending; do not infer a pass from a running service.
+
+The RTL continuation keeps input freezing (`rtl_preparation.py`), interface
+inspection (`abi.py`), functional/transaction analysis (`rtl_analysis.py`) and
+execution (`rtl.py`) separate. It hashes the original and frozen source members,
+requires the earlier complete HLS matrix, and checks the exported interfaces
+again after co-simulation. Isolated tests do not stall the top-level output and
+do not close integrated-G backpressure or metadata-refresh gates.
