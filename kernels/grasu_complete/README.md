@@ -8,6 +8,10 @@ refresh/backpressure, full resource/timing, production routing and board
 validation remain open**.
 The ongoing diagnostic route uses frozen exported XOs, not these relocated
 sources. Keep those evidence classes separate.
+The [production-source routing entry](../../validation/README.md#production-source-experimental-route)
+now independently rechecks this owner's exported cores and connected state
+before preparing a separate experimental route. It does not promote the old
+diagnostic bitstream or admit integrated RTL and board performance.
 
 ## Code Map
 

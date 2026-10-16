@@ -19,6 +19,7 @@ worktree; it does not invoke a simulator timing model.
 | `hls` | Same inputs plus passing fresh source campaign and real HLS settings | Source-based csynth and XO export for search/token cache/plain cache; argument names/order checked, full ABI and RTL still pending |
 | `rtl` | Passing production HLS campaign, frozen search/token-cache reference interfaces and real HLS settings | Same-core C simulation, synthesis, Verilog co-simulation and full interface review for all three components; still not integrated G or routing |
 | `integration.study` | Actual production search/cache, upstream dispatch/cold kernels, external finite host fixture and installed vendor headers | Eighteen connected host transactions, full intermediate PMA state, finite external stalls and a stale-metadata rejection; not integrated RTL or device BO refresh |
+| `routing.study` | Independently rechecked production RTL, connected host state, same-export storage ledger and frozen eleven-XO basis | Experimental same-source link packet, then bounded routing when admitted; not integrated RTL, board correctness or performance agreement |
 
 The search fixture executes both generations at the same metadata addresses,
 including 0, 1, 63, 64, 65, 127, 128, 129 and 257 updates. Its host-only finite
@@ -192,3 +193,56 @@ Internal cache/cold streams remain unbounded in C simulation. The fixture
 neither calls XRT nor checks real device BO refresh, RTL scheduling, adapter/R
 handoff, routing, board timing or publication agreement. The diagnostic route
 still uses older frozen exports and must not be promoted to this source version.
+
+## Production-Source Experimental Route
+
+`grasu_complete/routing/` keeps upstream reuse checks, candidate gates, packet
+freezing and the thin CLI separate. It reuses the simulator's tested eleven-XO
+freezer and atomic memory supervisor; it does not copy their orchestration or
+change an algorithm, clock, request budget, stream connection or timing factor.
+Only search and token cache are replaced with `g-production-rtl-v2` exports.
+The other nine XOs retain the adapter-route basis. Only the fourth Little CU's
+placement moves from SLR0 to SLR1, as screened against platform URAM capacity.
+
+```bash
+export PYTHONPATH=/path/to/frozen/integration:/path/to/frozen/spine-cycle-sim
+python3 -m validation.grasu_complete.routing.study \
+  --build /path/to/historical/sharded-k4-build \
+  --basis /data/frozen-adapter-route-basis \
+  --rtl /data/g-production-rtl-v2 \
+  --connected /data/g-production-connected-functional-v2 \
+  --fit /data/g-production-resource-fit-v1 \
+  --config /path/to/actual/upstream/kernel_config.h \
+  --output /data/fresh-production-source-route --link-timeout-seconds 43200 \
+  --execute
+```
+
+Use a 40-GiB hard / 36-GiB high / zero-swap / group-OOM-kill service with
+two synthesis/implementation jobs. Allow the 24-hour memory queue plus the
+12-hour link deadline and cleanup in its finite service lifetime. Admission
+requires all finite peer caps plus 40 GiB own, 24 GiB reserve and 8 GiB
+background, under the shared lease. It starts alongside other tools when
+that budget fits; unknown or unbounded peers prevent admission.
+
+The gates replay production component RTL/ABI, connected full-state results
+and the storage screen, and compare all eleven owned cores plus provenance
+and upstream configuration. Isolated and connected host-only fixtures have
+different purposes and separate hashes; they are not synthesis inputs. The
+initial input-review v1 incorrectly compared a host fixture as an owned core
+and stopped before packet creation. Its journal is retained. Corrected v2
+checks all thirteen owned/configuration members and 2,308 pins successfully,
+with a 24.7-MiB cgroup peak and zero memory events. Tests still reject any
+owned-source mismatch, missing member or changed frozen runner.
+
+Reused dispatch/cold XOs must match their historical compile flags, target,
+150-MHz clock, original/current source hashes and embedded source. The
+connected CPU fixture defines `GRASU_SHARE_HBM_PORTS`; the reused cold hardware
+XO does not. That flag changes AXI pragmas, not CPU operations. This difference
+is explicitly recorded: CPU agreement cannot verify four-master device aliasing.
+
+Preparation freezes every imported validation/experiment runner and Python
+identity. The manifest records `candidate_owner=production-source-grasu-complete`
+and keeps integrated RTL, device metadata refresh, production baseline and
+publication matching unadmitted. A link exit code still requires strict routed
+timing/topology review and actual continuous-batch state, PMA handoff and host
+window tests. The earlier diagnostic route remains separate and unchanged.
