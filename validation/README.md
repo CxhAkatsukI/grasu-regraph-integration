@@ -18,6 +18,7 @@ worktree; it does not invoke a simulator timing model.
 | `source` | Owned production cores, explicit external search fixture, upstream config, installed vendor headers | Eighteen ordered search oracle checks and six full-cache state checks for **each** token/plain binding |
 | `hls` | Same inputs plus passing fresh source campaign and real HLS settings | Source-based csynth and XO export for search/token cache/plain cache; argument names/order checked, full ABI and RTL still pending |
 | `rtl` | Passing production HLS campaign, frozen search/token-cache reference interfaces and real HLS settings | Same-core C simulation, synthesis, Verilog co-simulation and full interface review for all three components; still not integrated G or routing |
+| `integration.study` | Actual production search/cache, upstream dispatch/cold kernels, external finite host fixture and installed vendor headers | Eighteen connected host transactions, full intermediate PMA state, finite external stalls and a stale-metadata rejection; not integrated RTL or device BO refresh |
 
 The search fixture executes both generations at the same metadata addresses,
 including 0, 1, 63, 64, 65, 127, 128, 129 and 257 updates. Its host-only finite
@@ -146,3 +147,48 @@ configuration exceeds SLR0 URAM capacity (384 versus 320). Moving only
 the device total is 768 versus 960. This is a storage-placement screen, not
 complete resource fit or timing closure. A fresh integrated route still needs
 its own same-version composition, metadata/backpressure and physical gates.
+
+## Connected Production Host Check
+
+`grasu_complete/integration/` owns input freezing, execution, result admission
+and evidence delivery separately. Its fixture connects four actual production
+search cores, upstream dispatch, two full-capacity registered cache halves and
+two upstream cold-DDR kernels. All six PMA buffers are checked in full after
+every transaction. Counts 0, 1, 63, 64, 65, 127, 128, 129 and 257 each run with
+two metadata generations, reusing the same allocations and persistent PMA state.
+External FIFOs have depth two (completion depth one); delayed consumers force
+backpressure for every count at least 63. Search's internal finite metadata
+credit and update/END conservation checks remain enabled.
+
+```bash
+python3 -m validation.grasu_complete.integration.study \
+  --output /data/fresh-connected-host-campaign \
+  --fixture /path/to/frozen/common_g/hls \
+  --upstream /path/to/integration/repos/GraSU/GraSU/GraSU_kernels/src \
+  --include /path/to/Vitis_HLS/2024.1/include
+
+python3 -m validation.grasu_complete.integration.delivery \
+  --output /data/fresh-connected-host-capsule \
+  --attempt /data/retained-connected-host-failure \
+  --attempt /data/fresh-connected-host-campaign
+```
+
+Use the same mandatory 1-GiB hard / 768-MiB high / zero-swap source containment,
+atomic admission and 24-GiB reserve as above. Cache C simulation gets an explicit
+32-MiB host stack; search workers retain their 1-MiB host stacks. These are host
+execution limits, not proposed FPGA storage or performance parameters.
+
+`g-production-connected-functional-v2` passes all eighteen transactions and
+rejects the deliberate stale-metadata run at one update, generation one. It
+retains exactly 417 independently counted pairs of the upstream cold insertion
+width warnings and rejects any unknown diagnostic. v1 completed the functional
+rows but its analyzer rejected those warnings; it remains `FAILED_RETAINED`.
+The v2 service invocation is `eb4580e16cde4cedbf9e763ca98db3e2`; all cgroup memory
+event counters are zero. Compilation took 6.41 s and the positive host check
+23.31 s, not device latency. This is a new check of the promoted production
+owner, not the first connected source test in the simulator campaign.
+
+Internal cache/cold streams remain unbounded in C simulation. The fixture
+neither calls XRT nor checks real device BO refresh, RTL scheduling, adapter/R
+handoff, routing, board timing or publication agreement. The diagnostic route
+still uses older frozen exports and must not be promoted to this source version.
