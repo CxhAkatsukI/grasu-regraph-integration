@@ -1,5 +1,8 @@
 # GraSU + ReGraph Integration Workspace
 
+Current complete-G source candidate: [source map, build selection and evidence gates](kernels/grasu_complete/README.md).
+It is opt-in and does not replace the frozen routed baseline or constitute new board evidence.
+
 This repository is a lightweight integration workspace for comparing:
 
 ```text

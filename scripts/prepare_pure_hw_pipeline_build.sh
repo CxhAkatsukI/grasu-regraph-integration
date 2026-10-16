@@ -3,10 +3,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/env.sh"
+source "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh"
 
 TARGET="sw_emu"
 PIPELINE_MODE="compactor"
 ALGORITHM="weighted_sssp"
+GRASU_IMPLEMENTATION="legacy-direct-cache"
 PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
 PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
 KERNEL_FREQ=200
@@ -30,6 +32,7 @@ Options:
   --pipeline-mode MODE           compactor, weighted-axis, or sharded-k4.
                                  Default: ${PIPELINE_MODE}
   --algorithm NAME               weighted_sssp or connected_components.
+  --grasu-implementation NAME    legacy-direct-cache (default) or complete-search-cache.
   --platform NAME                Platform name. Default: ${PLATFORM}
   --platform-xpfm PATH           Platform xpfm. Default: ${PLATFORM_XPFM}
   --kernel-frequency MHz         Link frequency. Default: ${KERNEL_FREQ}
@@ -63,6 +66,7 @@ while [[ $# -gt 0 ]]; do
     --target) TARGET="$2"; shift 2 ;;
     --pipeline-mode) PIPELINE_MODE="$2"; shift 2 ;;
     --algorithm) ALGORITHM="$2"; shift 2 ;;
+    --grasu-implementation) GRASU_IMPLEMENTATION="$2"; shift 2 ;;
     --platform) PLATFORM="$2"; PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"; shift 2 ;;
     --platform-xpfm) PLATFORM_XPFM="$(abs_path "$2")"; shift 2 ;;
     --kernel-frequency) KERNEL_FREQ="$2"; shift 2 ;;
@@ -94,6 +98,9 @@ if [[ "${ALGORITHM}" == "connected_components" &&
   echo "connected_components requires --pipeline-mode weighted-axis or sharded-k4" >&2
   exit 2
 fi
+
+select_grasu_kernels "${GRASU_IMPLEMENTATION}" "${TARGET}" \
+  "${PIPELINE_MODE}" "${MAX_CACHE_SEGMENT}"
 
 if [[ -z "${BUILD_ROOT}" ]]; then
   if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
@@ -583,7 +590,7 @@ fi
   emit_grasu_compile_command \
     "${CFG_DIR}/bin_search_compile.cfg" \
     "${BUILD_DIR}/bin_search.${TARGET}.xo" \
-    "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_bin_search.cpp"
+    "${GRASU_SEARCH_SOURCE}"
   emit_grasu_compile_command \
     "${CFG_DIR}/dispatch_compile.cfg" \
     "${BUILD_DIR}/dispatch.${TARGET}.xo" \
@@ -591,9 +598,9 @@ fi
   emit_grasu_compile_command \
     "${CFG_DIR}/process_cache_token_compile.cfg" \
     "${BUILD_DIR}/process_cache.${TARGET}.xo" \
-    "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_process_cache.cpp" \
+    "${GRASU_CACHE_SOURCE}" \
     "-DGRASU_ENABLE_COMPLETION_TOKEN" \
-    "-DGRASU_PURE_PIPELINE_DIRECT_CACHE"
+    "${GRASU_CACHE_IMPLEMENTATION_FLAGS[@]}"
   emit_grasu_compile_command \
     "${CFG_DIR}/process_ddr_token_compile.cfg" \
     "${BUILD_DIR}/process_ddr.${TARGET}.xo" \
@@ -725,6 +732,11 @@ chmod +x "${LINK_COMMAND}"
   echo "PLATFORM_XPFM=${PLATFORM_XPFM}"
   echo "KERNEL_FREQ=${KERNEL_FREQ}"
   echo "MAX_CACHE_SEGMENT=${MAX_CACHE_SEGMENT}"
+  echo "GRASU_IMPLEMENTATION=${GRASU_IMPLEMENTATION}"
+  echo "GRASU_SEARCH_SOURCE=${GRASU_SEARCH_SOURCE}"
+  echo "GRASU_CACHE_SOURCE=${GRASU_CACHE_SOURCE}"
+  echo "GRASU_CACHE_COMPLETION_TOKEN=1"
+  echo "GRASU_SOURCE_SELECTION_IS_HARDWARE_EVIDENCE=0"
   echo "HLS_INCLUDE=${HLS_INCLUDE}"
   echo "HLS_INCLUDE_ETC=${HLS_INCLUDE_ETC}"
   echo "SW_EMU_GTHREAD_DEFINE=${SW_EMU_GTHREAD_DEFINE}"
@@ -759,19 +771,23 @@ chmod +x "${LINK_COMMAND}"
 {
   printf 'role\tstatus\tsha256\tbytes\tpath\n'
   emit_input_record generator_source "${GRI_ROOT}/scripts/prepare_pure_hw_pipeline_build.sh"
+  emit_input_record generator_source "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh"
   emit_input_record config_input "${GRASU_LINK_CFG}"
   emit_input_record config_input "${GRASU_STREAM_CFG}"
   emit_input_record config_input "${REGRAPH_CONNECTIVITY_CFG}"
   for source in \
-    "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_bin_search.cpp" \
+    "${GRASU_SEARCH_SOURCE}" \
     "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_dispatch.cpp" \
-    "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_process_cache.cpp" \
+    "${GRASU_CACHE_SOURCE}" \
     "${GRASU_ROOT}/GraSU/GraSU_kernels/src/kernel_process_ddr.cpp" \
     "${GRI_ROOT}/kernels/regraph_sssp_apply_status/kernel_apply.cpp" \
     "${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper/kernel_hbm_wrapper.cpp" \
     "${REGRAPH_ROOT}/acc_template/kernel_little_gs_merger/kernel_little_gs_merger.cpp" \
     "${GRI_ROOT}/kernels/pma_completion_barrier/pma_completion_barrier.cpp"; do
     emit_input_record kernel_source "${source}"
+  done
+  for header in "${GRASU_IMPLEMENTATION_HEADERS[@]}"; do
+    emit_input_record kernel_header "${header}"
   done
   if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
     emit_input_record kernel_source \

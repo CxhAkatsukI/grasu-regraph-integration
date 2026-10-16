@@ -1,0 +1,106 @@
+{
+  "schema": 1,
+  "origin_repository": "https://github.com/CxhAkatsukI/spine-cycle-sim",
+  "origin_commit": "bb14f05",
+  "origin_root": "cpp/tests/evaluation_impact/common_g/hls",
+  "scope": "Source promotion only; no new synthesis, RTL, route, board, publication-match, or performance claim.",
+  "files": [
+    {
+      "origin": "search_binding/top.cpp",
+      "path": "search_binding/top.cpp",
+      "origin_sha256": "2ddb81575086fc0923d13129a4a8f3bd2cca125874c4210051ad30bfe4bd7424",
+      "transforms": []
+    },
+    {
+      "origin": "search_binding/top.hpp",
+      "path": "search_binding/top.hpp",
+      "origin_sha256": "28ccff9fa2c6692022a649d6b3ad8262f9f8101c0f268b2ff2cdb77ceb34d460",
+      "transforms": []
+    },
+    {
+      "origin": "search_pipeline/types.hpp",
+      "path": "search_pipeline/types.hpp",
+      "origin_sha256": "2f7aadf1268cb2ee8263b4c18dfff0740414668a18bef6ff7c8172e8b1195f69",
+      "transforms": []
+    },
+    {
+      "origin": "search_pipeline/search_worker.hpp",
+      "path": "search_pipeline/search_worker.hpp",
+      "origin_sha256": "8a26b8cb62ba0576d263e90489e2142e18486be45641c3bb7957ebe391fc62fc",
+      "transforms": []
+    },
+    {
+      "origin": "search_pipeline/workers.hpp",
+      "path": "search_pipeline/workers.hpp",
+      "origin_sha256": "7a10f7e28289b7ef8501eead27a939e997228ef8946438061164b8d18b39365b",
+      "transforms": []
+    },
+    {
+      "origin": "search_pipeline/transport.hpp",
+      "path": "search_pipeline/transport.hpp",
+      "origin_sha256": "6db4a594cbdbb4554ba6b7e5cb6189304bdcdf73a4705989b1516b842eb4af4e",
+      "transforms": []
+    },
+    {
+      "origin": "search_pipeline/network.hpp",
+      "path": "search_pipeline/network.hpp",
+      "origin_sha256": "545bded414f719178ebd3a58fd72d42b830aac14ce1b65fb84130712227b0aec",
+      "transforms": [
+        {
+          "before": "#include \"finite_host.hpp\"",
+          "after": "#ifndef GRASU_SEARCH_HOST_HARNESS\n#error \"Non-synthesis search requires an explicit finite host harness\"\n#else\n#include GRASU_SEARCH_HOST_HARNESS\n#endif"
+        }
+      ]
+    },
+    {
+      "origin": "cache_bank.hpp",
+      "path": "cache_bank.hpp",
+      "origin_sha256": "cdeb74dbe831f8157f844d43552c572e74bd5c05b305c2542c499da82b4cf4c0",
+      "transforms": []
+    },
+    {
+      "origin": "cache_lane.hpp",
+      "path": "cache_lane.hpp",
+      "origin_sha256": "c2f17ac29807cb61e212ab1e3cc6c0edc25ddf7a717261bf0a6fe9bb77750ef9",
+      "transforms": [
+        {
+          "before": "#include \"upstream/kernel_config.h\"",
+          "after": "#include \"kernel_config.h\""
+        }
+      ]
+    },
+    {
+      "origin": "cache_pipeline.hpp",
+      "path": "cache_pipeline.hpp",
+      "origin_sha256": "d0e22039439b18a9454edcf994bd41ed4be8f4f246674c1b6347818a07963cde",
+      "transforms": []
+    },
+    {
+      "origin": "cache_binding.cpp",
+      "path": "process_cache.cpp",
+      "origin_sha256": "6d91894919e50c0aa5c32e926f77f9c8047b102c908585e1e855a57a682aa38b",
+      "transforms": [
+        {
+          "before": "#ifndef GRASU_ENABLE_COMPLETION_TOKEN\n#error \"Production cache binding requires the existing completion-token ABI\"\n#endif\n",
+          "after": ""
+        },
+        {
+          "before": "#ifndef CACHE_BANK_REGISTERED",
+          "after": "#ifdef GRASU_PURE_PIPELINE_DIRECT_CACHE\n#error \"Complete cache cannot be compiled as the legacy direct-cache shortcut\"\n#endif\n#ifndef CACHE_BANK_REGISTERED"
+        },
+        {
+          "before": "hls::stream<pipe_type_96>& update_stream,\n                               hls::stream<grasu_done_pkt_t>& completion_token)",
+          "after": "hls::stream<pipe_type_96>& update_stream\n#ifdef GRASU_ENABLE_COMPLETION_TOKEN\n                               , hls::stream<grasu_done_pkt_t>& completion_token\n#endif\n                               )"
+        },
+        {
+          "before": "#pragma HLS INTERFACE axis port=completion_token",
+          "after": "#ifdef GRASU_ENABLE_COMPLETION_TOKEN\n#pragma HLS INTERFACE axis port=completion_token\n#endif"
+        },
+        {
+          "before": "  write_grasu_completion_token(completion_token, 1);",
+          "after": "#ifdef GRASU_ENABLE_COMPLETION_TOKEN\n  write_grasu_completion_token(completion_token, 1);\n#endif"
+        }
+      ]
+    }
+  ]
+}

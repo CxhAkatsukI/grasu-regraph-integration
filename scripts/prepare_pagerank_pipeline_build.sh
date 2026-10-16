@@ -3,9 +3,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/env.sh"
+source "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh"
 
 TARGET="sw_emu"
 ALGORITHM="full_pagerank"
+GRASU_IMPLEMENTATION="legacy-direct-cache"
 PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
 PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
 KERNEL_FREQ=150
@@ -28,6 +30,7 @@ PageRank Vitis compile/link packet.
 Options:
   --target sw_emu|hw_emu|hw
   --algorithm full_pagerank|residual_pagerank
+  --grasu-implementation legacy-direct-cache|complete-search-cache
   --platform NAME
   --platform-xpfm PATH
   --kernel-frequency MHz
@@ -53,6 +56,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
     --algorithm) ALGORITHM="$2"; shift 2 ;;
+    --grasu-implementation) GRASU_IMPLEMENTATION="$2"; shift 2 ;;
     --platform)
       PLATFORM="$2"
       PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
@@ -104,6 +108,8 @@ if [[ ! "${PLATFORM_MASTER_BUDGET}" =~ ^[1-9][0-9]*$ ]]; then
   echo "--platform-master-budget must be positive" >&2
   exit 2
 fi
+select_grasu_kernels "${GRASU_IMPLEMENTATION}" "${TARGET}" \
+  "${PIPELINE_MODE}" "${MAX_CACHE_SEGMENT}"
 if [[ -z "${BUILD_ROOT}" ]]; then
   BUILD_ROOT="${GRI_ROOT}/.tmp_build/${ALGORITHM}_${TARGET}_$(date +%Y%m%d_%H%M%S)"
 fi
@@ -134,8 +140,8 @@ REGRAPH_HBM="${REGRAPH_ROOT}/acc_template/kernel_hbm_wrapper"
 REGRAPH_MERGER="${REGRAPH_ROOT}/acc_template/kernel_little_gs_merger"
 
 required_sources=(
-  "${GRASU_KERNEL_DIR}/kernel_bin_search.cpp"
-  "${GRASU_KERNEL_DIR}/kernel_process_cache.cpp"
+  "${GRASU_SEARCH_SOURCE}"
+  "${GRASU_CACHE_SOURCE}"
   "${GRASU_KERNEL_DIR}/kernel_process_ddr.cpp"
   "${GRI_ROOT}/kernels/grasu_dispatch_degree/grasu_dispatch_degree.cpp"
   "${GRI_ROOT}/kernels/grasu_degree_update/grasu_degree_update.cpp"
@@ -437,9 +443,9 @@ COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
   printf 'export CPLUS_INCLUDE_PATH=%q${CPLUS_INCLUDE_PATH:+:${CPLUS_INCLUDE_PATH}}\n' "${GCC_COMPAT_INCLUDE}"
   printf 'export LIBRARY_PATH=%q${LIBRARY_PATH:+:${LIBRARY_PATH}}\n' "/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu"
   printf 'export COMPILER_PATH=%q${COMPILER_PATH:+:${COMPILER_PATH}}\n' "/usr/bin"
-  emit_compile bin_search "${GRASU_KERNEL_DIR}/kernel_bin_search.cpp" "${GRASU_FLAGS[@]}"
+  emit_compile bin_search "${GRASU_SEARCH_SOURCE}" "${GRASU_FLAGS[@]}"
   emit_compile dispatch_degree "${GRI_ROOT}/kernels/grasu_dispatch_degree/grasu_dispatch_degree.cpp" "${GRASU_FLAGS[@]}"
-  emit_compile process_cache "${GRASU_KERNEL_DIR}/kernel_process_cache.cpp" "${GRASU_FLAGS[@]}" -DGRASU_PURE_PIPELINE_DIRECT_CACHE
+  emit_compile process_cache "${GRASU_CACHE_SOURCE}" "${GRASU_FLAGS[@]}" "${GRASU_CACHE_IMPLEMENTATION_FLAGS[@]}"
   if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
     # The sharded adapter saves twelve AXI masters relative to the replicated
     # baseline. Keep PMA DDR read/write ports independent so HLS can sustain
@@ -545,6 +551,12 @@ fi
     echo "PIPELINE_TOPOLOGY=direct_complete_worker_replication"
   fi
   echo "PIPELINE_MODE=${PIPELINE_MODE}"
+  echo "GRASU_IMPLEMENTATION=${GRASU_IMPLEMENTATION}"
+  echo "GRASU_SEARCH_SOURCE=${GRASU_SEARCH_SOURCE}"
+  echo "GRASU_CACHE_SOURCE=${GRASU_CACHE_SOURCE}"
+  echo "MAX_CACHE_SEGMENT=${MAX_CACHE_SEGMENT}"
+  echo "GRASU_CACHE_COMPLETION_TOKEN=0"
+  echo "GRASU_SOURCE_SELECTION_IS_HARDWARE_EVIDENCE=0"
   echo "PLATFORM_MASTER_BUDGET=${PLATFORM_MASTER_BUDGET}"
   echo "PLATFORM=${PLATFORM}"
   echo "PLATFORM_XPFM=${PLATFORM_XPFM}"
@@ -584,6 +596,10 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
 {
   printf 'role\tstatus\tsha256\tbytes\tpath\n'
   for source in "${required_sources[@]}" "${GRI_ROOT}/include/grasu_degree_delta.hpp" \
+      "${GRASU_KERNEL_DIR}/kernel_config.h" \
+      "${GRI_ROOT}/scripts/prepare_pagerank_pipeline_build.sh" \
+      "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh" \
+      "${GRASU_IMPLEMENTATION_HEADERS[@]}" \
       "${GRI_ROOT}/include/regraph_pagerank_apply.hpp" \
       "${GRI_ROOT}/include/regraph_pagerank/l2.h"; do
     printf 'source\tpresent\t'
