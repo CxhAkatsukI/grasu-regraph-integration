@@ -107,9 +107,14 @@ quotes from a header-name `-D` flag. No RTL transaction ran. The retained result
 is a test-launch failure, not a hardware or numerical failure. The new launcher
 freezes a host-only preinclude header instead; synthesis sees no harness macro.
 Thirteen focused tests pass, including actual preprocessing in both modes.
-`g-production-rtl-v2` has started in a new directory, admitted alongside both
-40-GiB routes under its 8-GiB limit and the 24-GiB reserve. Its final RTL outcome
-is pending; do not infer a pass from a running service.
+`g-production-rtl-v2` completed alongside both 40-GiB routes under its 8-GiB
+limit and the 24-GiB reserve. Its final result is
+`PRODUCTION_COMPONENT_RTL_ABI_PASS_NOT_INTEGRATED_OR_ROUTED`: eighteen search,
+six token-cache and six plain-cache Verilog transactions pass, as do all three
+full exported-interface checks. Every cgroup memory-event counter is zero.
+Service `spine-g-production-rtl-20261016-v2.service`, invocation
+`42c27a70bef64799868a738cddcb3929`, owns this run. The original diagnostic
+route still uses its frozen older exports, not these new production outputs.
 
 The RTL continuation keeps input freezing (`rtl_preparation.py`), interface
 inspection (`abi.py`), functional/transaction analysis (`rtl_analysis.py`) and

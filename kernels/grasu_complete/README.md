@@ -88,7 +88,7 @@ fixture-relative `upstream/` path.
 
 Fresh executable functional tests and real HLS-driver export are owned by
 [`validation/grasu_complete/`](../../validation/README.md). That guide defines
-the two independent acceptance stages, frozen source-reference checks, explicit
+the three independent acceptance stages, frozen source-reference checks, explicit
 external search fixture and concurrent memory admission. Source selection alone
 does not admit the production candidate to routing or board experiments.
 
@@ -136,8 +136,11 @@ Campaign records live outside source in
   `memory_events.json` preserves containment observations. These are source
   checks, not performance or hardware evidence.
 
-The next acceptance gates are fresh functional execution, source-based HLS
-export and interface review, integrated finite-stream/backpressure RTL,
+Fresh `g-production-functional-v5`, `g-production-hls-v3` and
+`g-production-rtl-v2` now pass isolated functional execution, synthesis/export
+and component Verilog/interface checks. The RTL matrix includes eighteen
+search transactions and six full-state transactions for each cache binding.
+The next acceptance gates are integrated finite-stream/backpressure RTL,
 timing/utilization review, then resident-state continuous-batch board tests.
 Metadata contents changing at the same device address need an explicit test;
 switching between prebuilt metadata buffers does not establish that behavior.
