@@ -1,9 +1,11 @@
 # Complete GraSU Search/Cache Source Candidate
 
 This directory owns the production-source candidate for the reviewed 64-context
-search and full-capacity registered URAM cache. Fresh source-based HLS synthesis
-and XO export pass for search and both cache bindings; **full exported-interface
-review, production RTL, routing and board validation remain open**.
+search and full-capacity registered URAM cache. Fresh functional execution,
+HLS synthesis/XO export, full exported-interface review and component Verilog
+co-simulation pass for search and both cache bindings. **Integrated metadata
+refresh/backpressure, full resource/timing, production routing and board
+validation remain open**.
 The ongoing diagnostic route uses frozen exported XOs, not these relocated
 sources. Keep those evidence classes separate.
 
@@ -61,9 +63,10 @@ any compiler. Memory admission and cgroup containment remain required.
 
 SSSP/CC retain the existing cache completion token and completion barrier.
 PageRank retains its existing two-argument cache ABI: no token is emitted into
-an unconnected stream. This PageRank binding variant has source/type checks,
-not new PageRank RTL or hardware evidence. Both variants run the same full
-registered cache pipeline; neither may define the direct-cache shortcut.
+an unconnected stream. This plain-cache variant now also has fresh isolated
+component Verilog/interface checks; those are not integrated PageRank or
+PageRank board evidence. Both variants run the same full registered cache
+pipeline; neither may define the direct-cache shortcut.
 
 `manifest.env` records the implementation, both source paths, capacity and
 completion-token selection. `inputs.tsv` hashes the selected sources, all nine
@@ -145,3 +148,6 @@ timing/utilization review, then resident-state continuous-batch board tests.
 Metadata contents changing at the same device address need an explicit test;
 switching between prebuilt metadata buffers does not establish that behavior.
 Only accepted fresh outputs may replace the frozen diagnostic exports.
+The independent component re-admission and separate production storage screen
+are described in the [validation guide](../../validation/README.md). Neither
+promotes isolated component success to complete-G or board admission.
