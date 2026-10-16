@@ -58,6 +58,12 @@ python3 -m validation.grasu_complete.rtl \
   --cache-reference /path/to/frozen/token-cache-reference-xml-directory \
   --hls-settings /path/to/Vitis_HLS/2024.1/settings64.sh \
   --output /data/fresh-rtl-campaign
+
+# Read-only recheck in a separate finite-memory job; never edits the RTL result.
+python3 -m validation.grasu_complete.admission \
+  --attempt /data/fresh-rtl-campaign \
+  --config /path/to/integration/repos/GraSU/GraSU/GraSU_kernels/src/kernel_config.h \
+  --output /data/fresh-component-recheck
 ```
 
 Containment is mandatory: source uses exactly 1-GiB `MemoryMax` and at most
@@ -122,3 +128,21 @@ execution (`rtl.py`) separate. It hashes the original and frozen source members,
 requires the earlier complete HLS matrix, and checks the exported interfaces
 again after co-simulation. Isolated tests do not stall the top-level output and
 do not close integrated-G backpressure or metadata-refresh gates.
+
+`admission.py` independently rechecks the complete successful RTL matrix, raw
+execution records, current owned source/config, frozen source and all exported
+interfaces. It refuses partial, changed or promoted evidence. Its output is
+`PRODUCTION_COMPONENT_RTL_RECHECK_PASS_NOT_COMPLETE_G`; it does not admit an
+integrated route, external RTL backpressure, board timing or publication match.
+Run this read-only command in a 1-GiB hard / 768-MiB high / zero-swap job.
+`g-production-readmission-v1` passed in 0.760 seconds with a 23.7-MiB cgroup
+peak, without modifying the original component report. Six focused negative
+and preservation tests accompany the reviewer.
+
+The separate `g-production-resource-fit-v1` storage screen uses these production
+search/token-cache HLS reports and the reviewed bank-wide adapter. Its unrelocated
+configuration exceeds SLR0 URAM capacity (384 versus 320). Moving only
+`lksg_stream_4` from SLR0 to SLR1 gives 320/128/320 URAM across the three SLRs;
+the device total is 768 versus 960. This is a storage-placement screen, not
+complete resource fit or timing closure. A fresh integrated route still needs
+its own same-version composition, metadata/backpressure and physical gates.
