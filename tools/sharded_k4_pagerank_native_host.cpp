@@ -1,5 +1,6 @@
 #define GRASU_REGRAPH_SHARDED_K4_NO_MAIN 1
 #include "sharded_k4_native_host.cpp"
+#include "resident_full_pagerank.hpp"
 
 #if !defined(GRASU_REGRAPH_FULL_PAGERANK) && \
     !defined(GRASU_REGRAPH_RESIDUAL_PAGERANK)
@@ -41,6 +42,7 @@ void pagerank_usage(const char *program)
               << " --prepare-only <graph_file> <result_file>\n"
               << "       " << program
               << " --update-only <xclbin> <graph_file> <result_file>\n";
+    std::cerr << "FullPR convergence mode: append --resident-fullpr (not with --update-only)\n";
 }
 
 std::vector<DeviceShard> allocate_page_rank_shards(
@@ -120,13 +122,19 @@ std::vector<DeviceShard> allocate_page_rank_shards(
 int main(int argc, char **argv)
 {
     try {
+        const bool resident_fullpr = argc > 1 &&
+            std::string(argv[argc - 1]) == "--resident-fullpr";
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        if (resident_fullpr) fail("--resident-fullpr requires the FullPR host");
+#endif
+        const int positional_argc = argc - (resident_fullpr ? 1 : 0);
         const bool prepare_only =
             argc >= 2 && std::string(argv[1]) == "--prepare-only";
         const bool update_only =
             argc >= 2 && std::string(argv[1]) == "--update-only";
-        if ((prepare_only && argc != 4) ||
-            (update_only && argc != 5) ||
-            (!prepare_only && !update_only && argc != 4)) {
+        if ((prepare_only && positional_argc != 4) ||
+            (update_only && (positional_argc != 5 || resident_fullpr)) ||
+            (!prepare_only && !update_only && positional_argc != 4)) {
             pagerank_usage(argv[0]);
             return EXIT_FAILURE;
         }
@@ -158,6 +166,11 @@ int main(int argc, char **argv)
                 build_static_external_edges(dataset);
             warm_oracle = run_full_pagerank_oracle(
                 dataset.node_size, static_edges, 128, kPageRankDamping);
+            if (resident_fullpr && !grasu::integration::resident_pr::converge(
+                    dataset.node_size, static_edges, warm_oracle.rank,
+                    kPageRankDamping, kPageRankEpsilon, 1).converged) {
+                fail("FullPR old rank did not converge after 128 sweeps");
+            }
         }
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
         ResidualPageRankOracleResult oracle;
@@ -174,9 +187,18 @@ int main(int argc, char **argv)
                 kResidualPageRankMaxRounds, kPageRankDamping,
                 kPageRankEpsilon);
 #else
-            oracle = run_full_pagerank_oracle(
-                dataset.node_size, final_edges, kFullPageRankRounds,
-                kPageRankDamping);
+            if (resident_fullpr) {
+                auto reference = grasu::integration::resident_pr::converge(
+                    dataset.node_size, final_edges, warm_oracle.rank,
+                    kPageRankDamping, kPageRankEpsilon, 256);
+                if (!reference.converged) fail("FullPR reference did not converge");
+                oracle.rank = std::move(reference.rank);
+                oracle.out_degree = std::move(reference.out_degree);
+            } else {
+                oracle = run_full_pagerank_oracle(
+                    dataset.node_size, final_edges, kFullPageRankRounds,
+                    kPageRankDamping);
+            }
 #endif
         }
         const std::vector<WeightedPmaPackedShardBuffers> packed =
@@ -218,7 +240,10 @@ int main(int argc, char **argv)
                   << (update_only ? 0 : oracle.propagation_rounds)
                   << " oracle_converged=" << (oracle.converged ? 1 : 0)
 #else
-                  << " rounds=" << kFullPageRankRounds
+                  << " rounds=" << (resident_fullpr ? 256 : kFullPageRankRounds)
+                  << " convergence=" << (resident_fullpr ? "global_l1" : "fixed_rounds")
+                  << " epsilon=" << kPageRankEpsilon
+                  << " warm_residual_checked=" << (resident_fullpr ? 1 : 0)
 #endif
                   << std::endl;
 
@@ -342,7 +367,9 @@ int main(int argc, char **argv)
             rank[internal] = update_only ? 0.0F
                                          : warm_oracle.rank.at(external);
 #else
-            rank[internal] = 1.0F / static_cast<float>(dataset.node_size);
+            rank[internal] = resident_fullpr
+                ? warm_oracle.rank.at(graph.internal_to_external.at(internal))
+                : 1.0F / static_cast<float>(dataset.node_size);
 #endif
         }
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
@@ -684,7 +711,8 @@ int main(int argc, char **argv)
         bool hardware_converged = false;
         unsigned executed_propagation_rounds = 0;
 #else
-        const unsigned execution_limit = kFullPageRankRounds;
+        const unsigned execution_limit = resident_fullpr ? 256 : kFullPageRankRounds;
+        bool hardware_converged = false;
 #endif
         unsigned pipeline_executions = 0;
         for (unsigned round = 0; round < execution_limit; ++round) {
@@ -864,6 +892,18 @@ int main(int argc, char **argv)
                 hardware_converged = true;
                 break;
             }
+#else
+            if (resident_fullpr) {
+                const float delta = word_to_float(round_stats[2]);
+                if (!std::isfinite(delta) || delta < 0.0F ||
+                    !std::isfinite(dangling) || dangling < 0.0F) {
+                    fail("FullPR device convergence statistics are invalid");
+                }
+                if (delta <= kPageRankEpsilon) {
+                    hardware_converged = true;
+                    break;
+                }
+            }
 #endif
         }
 
@@ -891,6 +931,8 @@ int main(int argc, char **argv)
         std::size_t rank_mismatches = 0;
         std::size_t degree_mismatches = 0;
         float max_abs_error = 0.0F;
+        double final_l1_error = 0.0;
+        double probability_mass = 0.0;
         for (std::size_t internal = 0; internal < dataset.node_size;
              ++internal) {
             const std::size_t external =
@@ -898,8 +940,15 @@ int main(int argc, char **argv)
             const float expected = oracle.rank.at(external);
             const float actual = rank[internal];
             const float error = std::abs(actual - expected);
+            if (!std::isfinite(actual) || actual < 0.0F) {
+                fail("PageRank final rank is nonfinite or negative");
+            }
+            final_l1_error += error;
+            probability_mass += actual;
             max_abs_error = std::max(max_abs_error, error);
-            if (error > 1.0e-4F + 1.0e-3F * std::abs(expected)) {
+            const float tolerance = resident_fullpr ? 2.0e-5F
+                : 1.0e-4F + 1.0e-3F * std::abs(expected);
+            if (error > tolerance) {
                 if (rank_mismatches < 20) {
                     std::cerr << "rank mismatch external=" << external
                               << " expected=" << expected
@@ -926,6 +975,11 @@ int main(int argc, char **argv)
         bool pass = rank_mismatches == 0 && degree_mismatches == 0;
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
         pass = pass && hardware_converged && oracle.converged;
+#else
+        if (resident_fullpr) {
+            pass = pass && hardware_converged && final_l1_error <= 2.0e-4 &&
+                std::fabs(probability_mass - 1.0) <= 1.0e-3;
+        }
 #endif
         std::cout << kShardedPageRankPrefix << "_TIMING"
                   << " update_ms=" << std::fixed << std::setprecision(6)
@@ -956,7 +1010,12 @@ int main(int argc, char **argv)
                   << " epsilon=" << kPageRankEpsilon
                   << " threshold_semantics=direct_per_vertex"
 #else
-                  << " rounds=" << kFullPageRankRounds
+                  << " rounds=" << pipeline_executions
+                  << " convergence=" << (resident_fullpr ? "global_l1" : "fixed_rounds")
+                  << " hardware_converged=" << (hardware_converged ? 1 : 0)
+                  << " final_l1_error=" << final_l1_error
+                  << " probability_mass=" << probability_mass
+                  << " epsilon=" << kPageRankEpsilon
 #endif
                   << " vertices=" << dataset.node_size
                   << " final_edges=" << final_edge_count
@@ -968,7 +1027,13 @@ int main(int argc, char **argv)
                   << " pma_slots_total=" << total_pma_slots(graph)
                   << " processed_edge_slots_per_execution="
                   << total_pma_slots(graph)
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
                   << " resident_state=old_graph_converged"
+#else
+                  << " resident_state=" << (resident_fullpr
+                      ? "old_graph_converged" : "uniform_fixed_rounds")
+                  << " boundary=resident_update_to_final_readback_wall_including_host_relaunch"
+#endif
                   << " conversion_cost=absent"
                   << std::endl;
         return pass ? EXIT_SUCCESS : EXIT_FAILURE;
