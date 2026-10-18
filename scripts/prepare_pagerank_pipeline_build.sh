@@ -4,10 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/env.sh"
 source "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh"
+source "${SCRIPT_DIR}/lib/pma_adapter_selection.sh"
 
 TARGET="sw_emu"
 ALGORITHM="full_pagerank"
 GRASU_IMPLEMENTATION="legacy-direct-cache"
+ADAPTER_POLICY="legacy"
 PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
 PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
 KERNEL_FREQ=150
@@ -31,6 +33,7 @@ Options:
   --target sw_emu|hw_emu|hw
   --algorithm full_pagerank|residual_pagerank
   --grasu-implementation legacy-direct-cache|complete-search-cache
+  --adapter-policy legacy|bank-stream (512-bit row ABI)
   --platform NAME
   --platform-xpfm PATH
   --kernel-frequency MHz
@@ -57,6 +60,7 @@ while [[ $# -gt 0 ]]; do
     --target) TARGET="$2"; shift 2 ;;
     --algorithm) ALGORITHM="$2"; shift 2 ;;
     --grasu-implementation) GRASU_IMPLEMENTATION="$2"; shift 2 ;;
+    --adapter-policy) ADAPTER_POLICY="$2"; shift 2 ;;
     --platform)
       PLATFORM="$2"
       PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
@@ -110,6 +114,7 @@ if [[ ! "${PLATFORM_MASTER_BUDGET}" =~ ^[1-9][0-9]*$ ]]; then
 fi
 select_grasu_kernels "${GRASU_IMPLEMENTATION}" "${TARGET}" \
   "${PIPELINE_MODE}" "${MAX_CACHE_SEGMENT}"
+select_pma_adapter "${ADAPTER_POLICY}" "${PIPELINE_MODE}"
 if [[ -z "${BUILD_ROOT}" ]]; then
   BUILD_ROOT="${GRI_ROOT}/.tmp_build/${ALGORITHM}_${TARGET}_$(date +%Y%m%d_%H%M%S)"
 fi
@@ -462,7 +467,7 @@ COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
       -DGRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS=1
     )
   fi
-  emit_compile pma_to_regraph_adapter "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp" "${REGRAPH_FLAGS[@]}" "${adapter_flags[@]}"
+  emit_compile pma_to_regraph_adapter "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp" "${REGRAPH_FLAGS[@]}" "${adapter_flags[@]}" "${PMA_ADAPTER_FLAGS[@]}"
   emit_compile lksg_stream "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp" "${REGRAPH_FLAGS[@]}" "-I${REGRAPH_ROOT}/acc_template/kernel_little_gs"
   emit_compile kernelLittleGSMerger "${REGRAPH_MERGER}/kernel_little_gs_merger.cpp" "${REGRAPH_FLAGS[@]}" "-I${REGRAPH_MERGER}"
   emit_compile regraph_pagerank_apply "${GRI_ROOT}/kernels/regraph_pagerank_apply/regraph_pagerank_apply.cpp" "${COMMON_ENV}" "-DGRASU_REGRAPH_PAGERANK_MODE=${MODE}" "-I${GRI_ROOT}/include" "-I${HLS_INCLUDE_ETC}" ${TARGET_DEFINE:+"${TARGET_DEFINE}"}
@@ -532,7 +537,12 @@ RUN_BUILD="${BUILD_ROOT}/run_build.sh"
 chmod +x "${RUN_BUILD}"
 
 MANIFEST="${BUILD_ROOT}/manifest.env"
-if git -C "${GRI_ROOT}" diff --quiet &&
+git_head_or_unavailable() {
+  git -C "$1" rev-parse HEAD 2>/dev/null || printf 'not_available\n'
+}
+if ! git -C "${GRI_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  GRI_TRACKED_DIRTY=not_available
+elif git -C "${GRI_ROOT}" diff --quiet &&
    git -C "${GRI_ROOT}" diff --cached --quiet; then
   GRI_TRACKED_DIRTY=0
 else
@@ -552,6 +562,9 @@ fi
   fi
   echo "PIPELINE_MODE=${PIPELINE_MODE}"
   echo "GRASU_IMPLEMENTATION=${GRASU_IMPLEMENTATION}"
+  echo "ADAPTER_POLICY=${ADAPTER_POLICY}"
+  echo "ADAPTER_ROW_LINE_READ=${PMA_ADAPTER_ROW_LINE_READ}"
+  echo "ADAPTER_POLICY_IS_HARDWARE_EVIDENCE=0"
   echo "GRASU_SEARCH_SOURCE=${GRASU_SEARCH_SOURCE}"
   echo "GRASU_CACHE_SOURCE=${GRASU_CACHE_SOURCE}"
   echo "MAX_CACHE_SEGMENT=${MAX_CACHE_SEGMENT}"
@@ -560,9 +573,9 @@ fi
   echo "PLATFORM_MASTER_BUDGET=${PLATFORM_MASTER_BUDGET}"
   echo "PLATFORM=${PLATFORM}"
   echo "PLATFORM_XPFM=${PLATFORM_XPFM}"
-  echo "GRI_GIT_HEAD=$(git -C "${GRI_ROOT}" rev-parse HEAD)"
+  echo "GRI_GIT_HEAD=$(git_head_or_unavailable "${GRI_ROOT}")"
   echo "GRI_GIT_TRACKED_DIRTY=${GRI_TRACKED_DIRTY}"
-  echo "GRASU_GIT_HEAD=$(git -C "${GRASU_ROOT}" rev-parse HEAD)"
+  echo "GRASU_GIT_HEAD=$(git_head_or_unavailable "${GRASU_ROOT}")"
   echo "REGRAPH_GIT_HEAD=not_a_git_repository"
   echo "HANDOFF=pma_native_axis_no_edge_array_conversion"
   echo "DEGREE_SIDEBAND=dispatch_ordered_projected_optimization"
@@ -599,6 +612,7 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
       "${GRASU_KERNEL_DIR}/kernel_config.h" \
       "${GRI_ROOT}/scripts/prepare_pagerank_pipeline_build.sh" \
       "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh" \
+      "${SCRIPT_DIR}/lib/pma_adapter_selection.sh" \
       "${GRASU_IMPLEMENTATION_HEADERS[@]}" \
       "${GRI_ROOT}/include/regraph_pagerank_apply.hpp" \
       "${GRI_ROOT}/include/regraph_pagerank/l2.h"; do

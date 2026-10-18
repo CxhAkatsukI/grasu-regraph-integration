@@ -4,11 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/env.sh"
 source "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh"
+source "${SCRIPT_DIR}/lib/pma_adapter_selection.sh"
 
 TARGET="sw_emu"
 PIPELINE_MODE="compactor"
 ALGORITHM="weighted_sssp"
 GRASU_IMPLEMENTATION="legacy-direct-cache"
+ADAPTER_POLICY="legacy"
 PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
 PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
 KERNEL_FREQ=200
@@ -33,6 +35,7 @@ Options:
                                  Default: ${PIPELINE_MODE}
   --algorithm NAME               weighted_sssp or connected_components.
   --grasu-implementation NAME    legacy-direct-cache (default) or complete-search-cache.
+  --adapter-policy NAME          legacy (default) or bank-stream (512-bit row ABI).
   --platform NAME                Platform name. Default: ${PLATFORM}
   --platform-xpfm PATH           Platform xpfm. Default: ${PLATFORM_XPFM}
   --kernel-frequency MHz         Link frequency. Default: ${KERNEL_FREQ}
@@ -67,6 +70,7 @@ while [[ $# -gt 0 ]]; do
     --pipeline-mode) PIPELINE_MODE="$2"; shift 2 ;;
     --algorithm) ALGORITHM="$2"; shift 2 ;;
     --grasu-implementation) GRASU_IMPLEMENTATION="$2"; shift 2 ;;
+    --adapter-policy) ADAPTER_POLICY="$2"; shift 2 ;;
     --platform) PLATFORM="$2"; PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"; shift 2 ;;
     --platform-xpfm) PLATFORM_XPFM="$(abs_path "$2")"; shift 2 ;;
     --kernel-frequency) KERNEL_FREQ="$2"; shift 2 ;;
@@ -101,6 +105,7 @@ fi
 
 select_grasu_kernels "${GRASU_IMPLEMENTATION}" "${TARGET}" \
   "${PIPELINE_MODE}" "${MAX_CACHE_SEGMENT}"
+select_pma_adapter "${ADAPTER_POLICY}" "${PIPELINE_MODE}"
 
 if [[ -z "${BUILD_ROOT}" ]]; then
   if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
@@ -649,8 +654,11 @@ fi
       if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
         adapter_memory_define="-DGRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS=1"
       fi
-      printf 'v++ --target %q --compile --kernel_frequency %q %s %s %s %s %s --config %q -I%q -o %q %q\n' \
-        "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${ADAPTER_MODE_DEFINE}" "${SHARDED_PMA_DEFINE}" "${adapter_memory_define}" "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
+      printf 'v++ --target %q --compile --kernel_frequency %q %s %s %s %s %s' \
+        "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" "${ADAPTER_MODE_DEFINE}" "${SHARDED_PMA_DEFINE}" "${adapter_memory_define}"
+      for flag in "${PMA_ADAPTER_FLAGS[@]}"; do printf ' %q' "${flag}"; done
+      printf ' --config %q -I%q -o %q %q\n' \
+      "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
       "${HLS_INCLUDE_ETC}" \
       "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo" \
       "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
@@ -747,6 +755,9 @@ chmod +x "${LINK_COMMAND}"
   echo "REGRAPH_UDF_INCLUDE=${REGRAPH_UDF_INCLUDE}"
   echo "REGRAPH_EDGE_PROP=${REGRAPH_EDGE_PROP}"
   echo "ADAPTER_MODE_DEFINE=${ADAPTER_MODE_DEFINE}"
+  echo "ADAPTER_POLICY=${ADAPTER_POLICY}"
+  echo "ADAPTER_ROW_LINE_READ=${PMA_ADAPTER_ROW_LINE_READ}"
+  echo "ADAPTER_POLICY_IS_HARDWARE_EVIDENCE=0"
   echo "SHARDED_PMA_DEFINE=${SHARDED_PMA_DEFINE}"
   echo "PMA_FRONTEND_CUS=$([[ "${PIPELINE_MODE}" == "sharded-k4" ]] && echo 4 || echo 1)"
   echo "SHARED_REGRAPH_DOWNSTREAM=1"
@@ -772,6 +783,7 @@ chmod +x "${LINK_COMMAND}"
   printf 'role\tstatus\tsha256\tbytes\tpath\n'
   emit_input_record generator_source "${GRI_ROOT}/scripts/prepare_pure_hw_pipeline_build.sh"
   emit_input_record generator_source "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh"
+  emit_input_record generator_source "${SCRIPT_DIR}/lib/pma_adapter_selection.sh"
   emit_input_record config_input "${GRASU_LINK_CFG}"
   emit_input_record config_input "${GRASU_STREAM_CFG}"
   emit_input_record config_input "${REGRAPH_CONNECTIVITY_CFG}"

@@ -37,6 +37,17 @@ The final candidate also sets `GRASU_REGRAPH_BANK_FIFO_LINES=256`; only 128
 and 256 are accepted. All new selections default off. The external kernel
 ABI is unchanged.
 
+Both production packet generators accept `--adapter-policy bank-stream` with
+`--pipeline-mode sharded-k4`. This selects the full row-prefetch, last-row,
+empty-segment, cross-row, 1024-row directory, packet pipeline and 256-line
+bank-stream flag set explicitly. Defaults remain `--adapter-policy legacy`;
+legacy compile commands and connectivity have a byte-for-byte regression.
+The bank-stream choice uses the existing **512-bit row-line ABI**, so board
+hosts must also enable `GRASU_REGRAPH_ROW_LINE_READ=1`. The unchanged-ABI
+statement above is relative to the existing cross-row/row-line candidate,
+not the original 64-bit scalar-row build. Manifests record the policy and
+required host row-line setting; generation is not hardware qualification.
+
 ```bash
 bash scripts/check_pma_adapter_cross_row.sh \
   --out-dir /path/to/fresh-functional-check --bank-stream-wide
