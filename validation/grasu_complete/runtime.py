@@ -11,6 +11,14 @@ from spine_cycle_sim.experiments.upstream_controls.execution import available_me
 from .preparation import unchanged
 
 
+def environment(output):
+    temporary = output / "temporary"
+    temporary.mkdir(exist_ok=False)
+    return {"PATH": "/usr/bin:/bin", "HOME": str(Path.home()),
+            "LANG": "C", "LC_ALL": "C", "MALLOC_ARENA_MAX": "2",
+            "TMPDIR": str(temporary.resolve())}
+
+
 def bounds(stage):
     memory = 1 if stage == "source" else 8
     group = current()

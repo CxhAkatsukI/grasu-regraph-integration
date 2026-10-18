@@ -3,7 +3,8 @@
 This directory owns the production-source candidate for the reviewed 64-context
 search and full-capacity registered URAM cache. Fresh functional execution,
 HLS synthesis/XO export, full exported-interface review and component Verilog
-co-simulation pass for search and both cache bindings. **Integrated metadata
+co-simulation pass for the prior search and both cache bindings. The current
+cache comparison-stage candidate needs its own fresh checks below. **Integrated metadata
 refresh/backpressure, full resource/timing, production routing and board
 validation remain open**.
 The ongoing diagnostic route uses frozen exported XOs, not these relocated
@@ -35,6 +36,30 @@ and preload/writeback loops were not retuned during promotion. The wrapper
 changes are enumerated in `provenance.json`; the source-identity test reverses
 them and checks the original hashes without depending on a live simulator tree.
 Any later algorithm change needs a new identity and functional/RTL evidence.
+
+## Cache Comparison-Stage Candidate
+
+The ResPR physical route misses 150-MHz setup timing by 0.107 ns. Its longest
+reported path runs from a URAM read through comparison and lane selection;
+the 1.334-ns HLS estimate did not establish closure of this physical path.
+`cache_lane.hpp` now gives the sixteen unsigned comparisons an explicit
+one-cycle, non-inlined pipelined helper before lane selection. The requested
+whole-edit latency remains three cycles with II=1, but a fresh HLS report
+must establish the actual schedule. Cache capacity, sorting/insertion/deletion
+semantics, bank assignment, AXI/AXIS ABI and completion token are unchanged.
+The exact reversible source changes are recorded in `provenance.json`.
+
+This candidate does not inherit the previous component RTL or physical-timing
+approval. The ongoing routes still consume frozen earlier sources. First check
+the segment oracle, both full-state cache bindings and fresh HLS scheduling;
+then obtain fresh component RTL before integrating new exports into a route.
+Neither a requested register stage nor a passing oracle proves routed timing.
+
+`tests/grasu_complete_cache_segment_tb.cpp` checks all occupancy counts 0--16,
+unsigned key boundaries and deterministic random segments/keys against a
+`std::lower_bound` insertion/deletion oracle. It also checks every comparison
+bit independently. This supplements the existing repeated/conflicting-bank
+full-capacity fixture; it is not an FPGA performance test.
 
 ## Explicit Selection
 

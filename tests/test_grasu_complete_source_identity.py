@@ -1,4 +1,4 @@
-"""Check promotion against frozen source hashes, not numerical or RTL equivalence."""
+"""Check documented source changes, not numerical or RTL equivalence."""
 
 import hashlib
 import json
@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1] / "kernels/grasu_complete"
 
 
 class SourceIdentityTests(unittest.TestCase):
-    def test_only_documented_binding_changes(self):
+    def test_only_documented_source_changes(self):
         provenance = json.loads((ROOT / "provenance.json").read_text())
         self.assertEqual(len(provenance["files"]), 11)
         for record in provenance["files"]:

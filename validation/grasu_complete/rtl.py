@@ -27,8 +27,7 @@ def run(output, baseline, search_reference, cache_reference, hls_settings, wait_
     save()
     try:
         runtime.admit(report, output, lease, wait_seconds)
-        environment = {"PATH": "/usr/bin:/bin", "HOME": str(Path.home()),
-                       "LANG": "C", "LC_ALL": "C", "MALLOC_ARENA_MAX": "2"}
+        environment = runtime.environment(output)
         report["environment"] = environment
         for variant in commands.VARIANTS:
             directory = output / variant

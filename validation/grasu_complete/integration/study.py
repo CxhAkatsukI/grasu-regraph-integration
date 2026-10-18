@@ -20,8 +20,7 @@ def run(output, fixture, upstream, include, *, wait_seconds=86400):
     compiler = Path(shutil.which("g++") or "/missing/compiler").resolve()
     pins, sources = preparation.prepare(output, fixture, upstream, include)
     pins += [common.pin(compiler), common.pin(Path(sys.executable).resolve())]
-    environment = {"PATH": "/usr/bin:/bin", "HOME": str(Path.home()),
-                   "LANG": "C", "LC_ALL": "C", "MALLOC_ARENA_MAX": "2"}
+    environment = runtime.environment(output)
     report = {"schema": 1, "status": "PREPARED", "pins": pins, "sources": sources,
               "steps": [], "errors": [], "containment": containment, "policy": policy,
               "environment": environment, "python_version": sys.version,

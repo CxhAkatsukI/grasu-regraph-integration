@@ -3,7 +3,7 @@
   "origin_repository": "https://github.com/CxhAkatsukI/spine-cycle-sim",
   "origin_commit": "bb14f05",
   "origin_root": "cpp/tests/evaluation_impact/common_g/hls",
-  "scope": "Source promotion only; no new synthesis, RTL, route, board, publication-match, or performance claim.",
+  "scope": "Reviewed source promotion plus an explicit registered comparison-stage candidate. The cache comparison/selection arithmetic and requested edit latency remain unchanged. New source needs fresh functional, HLS, RTL, route and board gates; no inherited timing or performance claim.",
   "files": [
     {
       "origin": "search_binding/top.cpp",
@@ -66,6 +66,21 @@
         {
           "before": "#include \"upstream/kernel_config.h\"",
           "after": "#include \"kernel_config.h\""
+        },
+        {
+          "kind": "registered-comparison-stage",
+          "before": "namespace cache_probe_detail {\n",
+          "after": "namespace cache_probe_detail {\ninline ap_uint<16> compare_lanes(CacheWord before, ap_uint<32> key) {\n#ifdef CACHE_BANK_REGISTERED\n#pragma HLS INLINE off\n#pragma HLS PIPELINE II=1\n#pragma HLS LATENCY min=1 max=1\n#else\n#pragma HLS INLINE\n#endif\n  ap_uint<16> less = 0;\n  for (unsigned i = 0; i < 16; ++i) {\n#pragma HLS UNROLL\n    const ap_uint<32> word = before.range(i * 32 + 31, i * 32);\n    less[i] = word < key;\n  }\n  return less;\n}\n\n"
+        },
+        {
+          "kind": "registered-comparison-stage",
+          "before": "#pragma HLS ARRAY_PARTITION variable=less complete\n",
+          "after": "#pragma HLS ARRAY_PARTITION variable=less complete\n  // Keep comparison and lane selection on separate registered HLS stages.\n  const ap_uint<16> comparisons = compare_lanes(before, key);\n"
+        },
+        {
+          "kind": "registered-comparison-stage",
+          "before": "    less[i] = words[i] < key;",
+          "after": "    less[i] = comparisons[i];"
         }
       ]
     },

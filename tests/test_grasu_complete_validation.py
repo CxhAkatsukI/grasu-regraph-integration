@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from zipfile import ZipFile
 
-from validation.grasu_complete import analysis, commands, preparation, reference
+from validation.grasu_complete import analysis, commands, preparation, reference, runtime
 
 
 def source_stdout(variant):
@@ -25,6 +25,14 @@ class CompleteValidationTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+
+    def test_compiler_temporaries_are_campaign_owned_not_global_tmp(self):
+        environment = runtime.environment(self.root)
+        self.assertEqual(environment["TMPDIR"], str(self.root / "temporary"))
+        self.assertTrue(Path(environment["TMPDIR"]).is_dir())
+        self.assertEqual(environment["PATH"], "/usr/bin:/bin")
+        with self.assertRaises(FileExistsError):
+            runtime.environment(self.root)
 
     def test_rows_are_ordered_complete_and_variant_specific(self):
         for variant in commands.VARIANTS:

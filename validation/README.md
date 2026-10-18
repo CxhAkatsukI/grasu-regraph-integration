@@ -80,7 +80,9 @@ compiler descendants are gone.
 `results.json` records identities, commands, affinity, containment, observations
 and failures. `source/` freezes cores, fixtures, config and vendor headers;
 `runner/` freezes imported experiment code; `raw/` retains per-step logs and
-watchdog resources. Host compilation includes the actual core and testbench in
+watchdog resources. Source/HLS/RTL children use a fresh campaign-owned
+`temporary/` as `TMPDIR`; they never silently fall back to a full global `/tmp`.
+Host compilation includes the actual core and testbench in
 one translation unit, recording both as dependencies. This avoids duplicate
 non-inline globals in vendor stream headers, without a linker waiver or kernel
 change. HLS checks the source reference's complete command matrix and replays its
@@ -88,6 +90,33 @@ functional log analysis, rather than trusting only a PASS string. Compiler
 warnings and HLS estimates remain raw observations, not timing closure.
 
 ## Current Evidence
+
+The cache comparison-stage candidate in the source guide is newer than the
+component campaigns listed below. Those retained passes do not admit that
+new cache source. Its fresh campaigns and physical timing must be evaluated
+separately; no frozen campaign or running route is edited in place.
+
+Fresh comparison-stage results use the same external experiment root below.
+`g-cache-comparison-functional-v1` passes all eighteen search and six full-state
+checks for each cache binding; result SHA-256 is
+`1f75d3fc32e5b8f96ab98ab4f018827030da228146561411b2e66c9786f501f5`.
+Its 1-GiB, zero-swap service invocation is
+`6beb82374f0b447ca1c8e30b52e1bb1d`; every memory-event counter is zero.
+The separately compiled `g-cache-segment-comparison-v1/probe` passes all 26112
+segment/key cases, checking both insertion and deletion. Binary SHA-256 is
+`80c7cf8de897b5a302e16510ee94e16af8110f24c8c85ad9dea03b930f1ee1dc`;
+service invocation `3f836942f0ec47968230ab8e08a07049` exits zero. The dependency
+file and systemd journal retain this supplemental host check; it is not a
+component RTL campaign or latency measurement.
+
+Fresh `g-cache-comparison-hls-v1` is owned by
+`spine-g-compare-hls-20261018-v1.service`, invocation
+`9a1dfa6f6b3348bcba3de7d0fdedb4b0`, with 8/7-GiB max/high, zero swap and
+CPU affinity 123. HLS scheduling/export, fresh RTL and physical timing remain
+pending at this checkpoint. Forty-one focused Python tests pass; these validate
+the source/evidence runners, not FPGA performance. Connected host testing is
+separate in `g-cache-comparison-connected-v1`, invocation
+`1215e3c3341548f6a831d273ea1f922b`, under the 1-GiB source containment.
 
 Under `/data/chuxiao/experiments/baseline_hardware_validation_20261015/`,
 `g-production-functional-v5` passes all eighteen search and twelve cache checks.

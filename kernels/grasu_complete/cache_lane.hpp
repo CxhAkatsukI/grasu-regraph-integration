@@ -4,6 +4,23 @@
 #include "kernel_config.h"
 
 namespace cache_probe_detail {
+inline ap_uint<16> compare_lanes(CacheWord before, ap_uint<32> key) {
+#ifdef CACHE_BANK_REGISTERED
+#pragma HLS INLINE off
+#pragma HLS PIPELINE II=1
+#pragma HLS LATENCY min=1 max=1
+#else
+#pragma HLS INLINE
+#endif
+  ap_uint<16> less = 0;
+  for (unsigned i = 0; i < 16; ++i) {
+#pragma HLS UNROLL
+    const ap_uint<32> word = before.range(i * 32 + 31, i * 32);
+    less[i] = word < key;
+  }
+  return less;
+}
+
 inline CacheWord edit_segment(CacheWord before, ap_uint<32> key, bool erase) {
 #ifdef CACHE_BANK_REGISTERED
 #pragma HLS INLINE off
@@ -16,10 +33,12 @@ inline CacheWord edit_segment(CacheWord before, ap_uint<32> key, bool erase) {
   ap_uint<1> less[16];
 #pragma HLS ARRAY_PARTITION variable=words complete
 #pragma HLS ARRAY_PARTITION variable=less complete
+  // Keep comparison and lane selection on separate registered HLS stages.
+  const ap_uint<16> comparisons = compare_lanes(before, key);
   for (unsigned i = 0; i < 16; ++i) {
 #pragma HLS UNROLL
     words[i] = before.range(i * 32 + 31, i * 32);
-    less[i] = words[i] < key;
+    less[i] = comparisons[i];
   }
   // Sorted inputs make the insertion boundary local. Static lane wiring
   // avoids the original data-dependent 512-bit shifts and prefix sum.
