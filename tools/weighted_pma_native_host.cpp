@@ -5,6 +5,7 @@
 
 #include <CL/cl2.hpp>
 #include <CL/cl_ext.h>
+#include <CL/cl_ext_xilinx.h>
 
 #include <algorithm>
 #include <array>
@@ -773,8 +774,20 @@ cl::Device select_xilinx_device()
             }
             device_index = static_cast<std::size_t>(parsed);
         }
+        const cl::Device device = devices[device_index];
+        if (const char *expected = std::getenv("GRASU_REGRAPH_EXPECT_BDF")) {
+            std::array<char, 128> address{};
+            check_cl(clGetDeviceInfo(device(), CL_DEVICE_PCIE_BDF,
+                                     address.size(), address.data(), nullptr),
+                     "query selected device BDF");
+            if (address.back() != '\0' || std::string(address.data()) != expected) {
+                fail("selected device BDF differs from exclusive board lease");
+            }
+            std::cout << "GRASU_REGRAPH_DEVICE bdf=" << address.data()
+                      << std::endl;
+        }
         std::cout << "Using XCL_DEVICE_INDEX=" << device_index << std::endl;
-        return devices[device_index];
+        return device;
     }
     fail("unable to find a Xilinx accelerator device");
 }
