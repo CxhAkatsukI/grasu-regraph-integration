@@ -44,8 +44,11 @@ reported path runs from a URAM read through comparison and lane selection;
 the 1.334-ns HLS estimate did not establish closure of this physical path.
 `cache_lane.hpp` now gives the sixteen unsigned comparisons an explicit
 one-cycle, non-inlined pipelined helper before lane selection. The requested
-whole-edit latency remains three cycles with II=1, but a fresh HLS report
-must establish the actual schedule. Cache capacity, sorting/insertion/deletion
+whole-edit latency remains three cycles with II=1. Fresh HLS confirms a
+one-cycle comparison helper and three-cycle edit, both with II=1; the edit
+estimate is 0.880 ns versus 1.334 ns before. The top estimate remains 4.867 ns.
+This schedule is not evidence that the physical path now meets timing.
+Cache capacity, sorting/insertion/deletion
 semantics, bank assignment, AXI/AXIS ABI and completion token are unchanged.
 The exact reversible source changes are recorded in `provenance.json`.
 

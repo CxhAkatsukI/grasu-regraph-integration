@@ -112,11 +112,24 @@ component RTL campaign or latency measurement.
 Fresh `g-cache-comparison-hls-v1` is owned by
 `spine-g-compare-hls-20261018-v1.service`, invocation
 `9a1dfa6f6b3348bcba3de7d0fdedb4b0`, with 8/7-GiB max/high, zero swap and
-CPU affinity 123. HLS scheduling/export, fresh RTL and physical timing remain
-pending at this checkpoint. Forty-one focused Python tests pass; these validate
-the source/evidence runners, not FPGA performance. Connected host testing is
-separate in `g-cache-comparison-connected-v1`, invocation
-`1215e3c3341548f6a831d273ea1f922b`, under the 1-GiB source containment.
+CPU affinity 123. All three fresh synthesis/export steps pass; result SHA-256
+is `7889f664850912d3f3983f0c14705927fa861969e43d7fd22691e09ab0ed02be`.
+The comparison helper schedules at one cycle with II=1, and the complete edit
+at three cycles with II=1. Its edit estimate changes from 1.334 to 0.880 ns;
+the top estimate remains 4.867 ns. These are HLS estimates, not routed timing.
+Forty-one focused Python tests pass; these validate the source/evidence runners,
+not FPGA performance.
+
+`g-cache-comparison-connected-v1` also passes its eighteen connected host
+transactions and deliberate stale-metadata rejection, under the 1-GiB source
+containment. Invocation is `1215e3c3341548f6a831d273ea1f922b`; result SHA-256
+is `9ebad37c03ed121bc00647676420cac7a44772e7c65ccec8952d1149936041b4`.
+The separately frozen `g-cache-comparison-rtl-v1` is still running, service
+`spine-g-compare-rtl-20261018-v1.service`, invocation
+`2951326ed39245a2924f4d2f97022ec7`, with 8/7-GiB max/high and zero swap.
+Search co-simulation and its interface check pass; token and plain cache are
+not yet a completed RTL matrix. Fresh re-admission and physical timing remain
+open. None of these host/HLS passes admits a board-performance comparison.
 
 Under `/data/chuxiao/experiments/baseline_hardware_validation_20261015/`,
 `g-production-functional-v5` passes all eighteen search and twelve cache checks.
