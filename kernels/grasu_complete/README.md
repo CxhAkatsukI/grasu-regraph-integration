@@ -58,6 +58,15 @@ the segment oracle, both full-state cache bindings and fresh HLS scheduling;
 then obtain fresh component RTL before integrating new exports into a route.
 Neither a requested register stage nor a passing oracle proves routed timing.
 
+Fresh checks for this candidate now pass: 26112 segment-oracle cases, both
+full-state host cache bindings, HLS, eighteen search plus six transactions per
+cache binding in component Verilog, independent RTL/interface re-admission
+and connected host state. The fresh SSSP link packet uses these exact exports;
+CC/ResPR/FullPR have their own v4 source compilation. These checks still do not
+establish integrated finite-stream RTL, physical timing or board performance.
+See the [latest validation checkpoint](../../validation/README.md#latest-registered-comparison-candidate)
+for raw evidence and exact result/service identities.
+
 `tests/grasu_complete_cache_segment_tb.cpp` checks all occupancy counts 0--16,
 unsigned key boundaries and deterministic random segments/keys against a
 `std::lower_bound` insertion/deletion oracle. It also checks every comparison

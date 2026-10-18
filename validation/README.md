@@ -4,6 +4,30 @@ Each validation package owns one experiment contract. Raw logs, binaries,
 exported XOs and compiler projects belong in a fresh external campaign directory,
 not in this source tree. Never reuse a passing output path for a new run.
 
+## Latest Registered Comparison Candidate
+
+Integration `87a0a2c` adds one explicit registered cache-comparison stage without
+changing capacity, update arithmetic, banking or AXI/AXIS ABI. Under
+`/data/chuxiao/experiments/baseline_hardware_validation_20261015/`, the fresh
+`g-cache-comparison-rtl-v1` now passes eighteen search plus six token-cache and
+six plain-cache Verilog transactions and full exported-interface checks.
+Its result SHA-256 is
+`4857095ca87d208b8ecadd80b99e53392f98a84e213ba07f6601ac05d2ed0559`.
+Service `spine-g-compare-rtl-20261018-v1.service`, invocation
+`2951326ed39245a2924f4d2f97022ec7`, exited zero; its cgroup peak was
+4158562304 bytes under 8/7-GiB max/high and zero swap. Independent component
+re-admission, `g-cache-comparison-readmission-v1`, also passes.
+
+The fresh full-state connected host check passes eighteen transactions and
+rejects stale metadata. The separate resource screen estimates 906023 LUT,
+612886 FF, 1132 BRAM18 and 768 URAM. Moving only `lksg_stream_4` to SLR1
+gives 320/128/320 URAM; this is a storage screen, not physical timing closure.
+`g-cache-comparison-route-v2` prepares a new exact-source SSSP link packet.
+The fresh CC/ResPR compilations have completed and FullPR is compiling from
+the same v4 portable source closure. None of these is a successful new route,
+integrated RTL result, board comparison or publication-performance match.
+Earlier checkpoints below retain their own source identities.
+
 ## Complete GraSU Components
 
 `grasu_complete/` validates `kernels/grasu_complete/` without changing its
