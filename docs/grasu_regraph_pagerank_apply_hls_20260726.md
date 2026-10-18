@@ -125,6 +125,35 @@ The three C-sim tests cover:
 The script emits hashes and the claim class
 `functional_policy_path_not_synthesized_hardware`.
 
+### Lane-packing resource investigation
+
+The fresh production residual-PR synthesis on 2026-10-18 estimated 6,019,300
+FF for apply, including 5,919,616 FF classified as loop phi registers. That
+estimate exceeds the U55C's entire 2,607,360-FF capacity; it is not an admitted
+hardware implementation. The original source and synthesis remain frozen.
+
+The new candidate computes fully partitioned 32-bit output lanes and packs
+each 512-bit output once, after all lane computations. It avoids conditional
+updates to successive 512-bit values without changing float arithmetic order,
+the 16-lane width, eight reduction banks, memory/stream ABI, or requested II.
+Whether this removes the resource explosion requires a new synthesis; C++
+equivalence alone does not establish resource fit or timing.
+
+`regraph_pagerank_apply_lanes_tb.cpp` checks both modes bitwise against a scalar
+reference for 0/1/2/9/17 bursts, partial/padded/capacity-exceeded inputs, signed
+residuals, threshold boundaries, correction, all state/statistic words and
+stream payload/sideband/end markers. The same test can compile the frozen old
+source as a separate executable:
+
+```bash
+scripts/check_regraph_pagerank_apply.sh --out-dir /data/chuxiao/new-apply-check \
+  --reference-source /data/chuxiao/frozen-original/regraph_pagerank_apply.cpp
+```
+
+The original five checks and all four old/new lane-test executables passed in
+`/data/chuxiao/experiments/baseline_hardware_validation_20261015/pagerank-apply-lane-packing-v1/candidate/`.
+This is functional evidence, not RTL, routed timing or FPGA performance.
+
 ## Complete build packets
 
 The generator prepares compile and link commands without running `v++`:

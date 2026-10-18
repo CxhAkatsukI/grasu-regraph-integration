@@ -129,12 +129,19 @@ apply_bursts:
     for (unsigned burst = 0; burst < burst_count; ++burst) {
 #pragma HLS PIPELINE II=1
         const regraph_write_burst_pkt_t incoming_packet = merged_prop.read();
-        ap_uint<512> rank_beat = rank_state[burst];
+        const ap_uint<512> old_rank_beat = rank_state[burst];
 #if GRASU_REGRAPH_PAGERANK_MODE == 2
-        ap_uint<512> residual_beat = residual_state[burst];
+        const ap_uint<512> old_residual_beat = residual_state[burst];
 #endif
         const ap_uint<512> degree_beat = out_degree[burst];
-        ap_uint<512> source_payload = 0;
+        ap_uint<32> rank_words[kVerticesPerBurst];
+        ap_uint<32> source_words[kVerticesPerBurst];
+#pragma HLS ARRAY_PARTITION variable=rank_words complete
+#pragma HLS ARRAY_PARTITION variable=source_words complete
+#if GRASU_REGRAPH_PAGERANK_MODE == 2
+        ap_uint<32> residual_words[kVerticesPerBurst];
+#pragma HLS ARRAY_PARTITION variable=residual_words complete
+#endif
         const unsigned reduction_bank = burst & (kReductionBanks - 1);
 
     apply_lanes:
@@ -142,14 +149,18 @@ apply_bursts:
              ++lane_index) {
 #pragma HLS UNROLL
             const unsigned vertex = burst * kVerticesPerBurst + lane_index;
+            rank_words[lane_index] = lane(old_rank_beat, lane_index);
+            source_words[lane_index] = 0;
+#if GRASU_REGRAPH_PAGERANK_MODE == 2
+            residual_words[lane_index] = lane(old_residual_beat, lane_index);
+#endif
             if (vertex >= vertices) {
-                set_lane(source_payload, lane_index, 0);
                 continue;
             }
 
             const float incoming =
                 word_to_float(lane(incoming_packet.data, lane_index));
-            const float old_rank = word_to_float(lane(rank_beat, lane_index));
+            const float old_rank = word_to_float(lane(old_rank_beat, lane_index));
             const unsigned degree = lane(degree_beat, lane_index).to_uint();
             float next_rank = old_rank;
             float next_value = 0.0F;
@@ -162,7 +173,7 @@ apply_bursts:
                 float_abs(next_rank - old_rank);
 #else
             const float old_residual =
-                word_to_float(lane(residual_beat, lane_index));
+                word_to_float(lane(old_residual_beat, lane_index));
             if (correction_mode) {
                 next_value = base + dangling_share + incoming - old_rank;
             } else {
@@ -177,14 +188,14 @@ apply_bursts:
             active = float_abs(next_value) > threshold;
             error_partials[lane_index][reduction_bank] +=
                 float_abs(next_value);
-            set_lane(residual_beat, lane_index, float_to_word(next_value));
+            residual_words[lane_index] = float_to_word(next_value);
 #endif
 
-            set_lane(rank_beat, lane_index, float_to_word(next_rank));
+            rank_words[lane_index] = float_to_word(next_rank);
             const float payload = active && degree != 0
                                       ? damping * next_value / degree
                                       : 0.0F;
-            set_lane(source_payload, lane_index, float_to_word(payload));
+            source_words[lane_index] = float_to_word(payload);
             if (active) {
                 active_partials[lane_index][reduction_bank]++;
                 if (degree == 0) {
@@ -193,6 +204,21 @@ apply_bursts:
             }
         }
 
+        // Pack once after all lanes, avoiding conditional 512-bit phi chains.
+        ap_uint<512> rank_beat = 0, source_payload = 0;
+#if GRASU_REGRAPH_PAGERANK_MODE == 2
+        ap_uint<512> residual_beat = 0;
+#endif
+    pack_lanes:
+        for (unsigned lane_index = 0; lane_index < kVerticesPerBurst;
+             ++lane_index) {
+#pragma HLS UNROLL
+            set_lane(rank_beat, lane_index, rank_words[lane_index]);
+            set_lane(source_payload, lane_index, source_words[lane_index]);
+#if GRASU_REGRAPH_PAGERANK_MODE == 2
+            set_lane(residual_beat, lane_index, residual_words[lane_index]);
+#endif
+        }
         rank_state[burst] = rank_beat;
 #if GRASU_REGRAPH_PAGERANK_MODE == 2
         residual_state[burst] = residual_beat;
