@@ -5,7 +5,6 @@ namespace pma_compact {
 static ap_uint<5> select_lanes(const Segment &value, unsigned destinations,
                                ap_uint<64> compacted[16]) {
 #pragma HLS INLINE
-#pragma HLS EXPRESSION_BALANCE off
     bool valid[16];
     ap_uint<5> prefix[5][16];
     ap_uint<64> items[16];
@@ -71,6 +70,7 @@ static Packet packet(const ap_uint<64> lanes[32], unsigned count,
 static void compact(unsigned destinations, hls::stream<Segment> &input,
                      hls::stream<Packet> &output) {
 #pragma HLS INLINE OFF
+#pragma HLS EXPRESSION_BALANCE off
     ap_uint<64> lanes[32];
 #pragma HLS ARRAY_PARTITION variable=lanes complete
     ap_uint<6> count = 0;

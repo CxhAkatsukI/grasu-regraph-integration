@@ -48,6 +48,12 @@ The earlier `...-prefix-20261024/` attempt failed before Vitis invocation
 because dependency-root environment variables were absent. Neither attempt
 is a route or board test. No OOM was recorded.
 
+The first split-bank compile stops at HLS 214-272: expression balancing
+cannot be attached to the same function as `INLINE`. The retry puts that
+directive on the non-inlined compactor owner. This is a pragma-scope repair,
+not a functional pass or a timing result. Failed raw evidence is retained at
+`/data/chuxiao/builds/gr-prefetch-compact-trif-split-bank-20261024/`.
+
 Subsequent work targets join/segment registration, compactor feedback timing,
 integer Apply timing and explicit physical sharing.
 Any changed timing or arbitration contract must be documented and propagated
