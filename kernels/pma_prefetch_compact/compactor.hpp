@@ -6,12 +6,11 @@ static ap_uint<5> select_lanes(const Segment &value, unsigned destinations,
                                ap_uint<64> compacted[16]) {
 #pragma HLS INLINE
     bool valid[16];
-    ap_uint<5> position[16];
+    ap_uint<5> prefix[5][16];
     ap_uint<64> items[16];
 #pragma HLS ARRAY_PARTITION variable=valid complete
-#pragma HLS ARRAY_PARTITION variable=position complete
+#pragma HLS ARRAY_PARTITION variable=prefix complete dim=0
 #pragma HLS ARRAY_PARTITION variable=items complete
-    ap_uint<5> selected = 0;
     for (unsigned lane = 0; lane < 16; ++lane) {
 #pragma HLS UNROLL
         ap_uint<32> dst = value.data.range(lane * 32 + 31, lane * 32);
@@ -21,10 +20,19 @@ static ap_uint<5> select_lanes(const Segment &value, unsigned destinations,
 #elif !GRASU_REGRAPH_DESTINATION_ONLY
         dst = (dst & 0x7ffffu) | (1u << 19);
 #endif
-        position[lane] = selected;
-        selected += valid[lane];
+        prefix[0][lane] = valid[lane];
         items[lane].range(31, 0) = value.source;
         items[lane].range(63, 32) = dst;
+    }
+    // Four parallel prefix levels replace the serial sixteen-lane sum.
+    for (unsigned level = 0; level < 4; ++level) {
+#pragma HLS UNROLL
+        for (unsigned lane = 0; lane < 16; ++lane) {
+#pragma HLS UNROLL
+            prefix[level + 1][lane] = prefix[level][lane];
+            if (lane >= (1u << level))
+                prefix[level + 1][lane] += prefix[level][lane - (1u << level)];
+        }
     }
     // Prefix ranks are unique for valid inputs. Fixed destinations avoid
     // unrolled runtime-index writes and their array dependence scheduling.
@@ -33,11 +41,11 @@ static ap_uint<5> select_lanes(const Segment &value, unsigned destinations,
         ap_uint<64> item = 0;
         for (unsigned lane = 0; lane < 16; ++lane) {
 #pragma HLS UNROLL
-            if (valid[lane] && position[lane] == slot) item |= items[lane];
+            if (valid[lane] && prefix[4][lane] == slot + 1) item |= items[lane];
         }
         compacted[slot] = item;
     }
-    return selected;
+    return prefix[4][15];
 }
 
 static Packet packet(const ap_uint<64> lanes[32], unsigned count,
