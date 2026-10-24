@@ -14,8 +14,8 @@ The paper and frozen simulator predictions are not being changed.
 | Apply scheduling | Split request/response integer Apply XO estimates 205.47 MHz at requested 150 MHz; not post-route timing |
 | Finite channels and stalls | Three formats each pass all eight output comparisons with zero UVM errors; earlier failures remain retained |
 | Physical integration | Fresh SSSP and CC eleven-XO sets and ResPR twelve-XO set pass; actual master audits are respectively 26/32, 26/32 and 32/32; all three complete Vitis system-link |
-| Complete hardware | A local URAM over-allocation is repaired in fresh relink configs; SSSP implementation is running, CC/ResPR await full-budget admission; no fresh routed or FPGA result yet |
-| PR correctness gate | Both PR hosts rebuild with finite-value and global L1-error checks; six-partition CPU prepare checks and all 93 repository tests pass; not a board result |
+| Complete hardware | SSSP routing and packaging complete, but Vitis auto-scales HBM 450 to 440.1 MHz after a -0.050-ns setup violation; fixed-clock physical repair remains pending, CC/ResPR await full-budget admission; no fresh board pass |
+| PR correctness gate | Both PR hosts rebuild with finite-value and global L1-error checks; six-partition CPU prepare checks and all 111 repository tests pass; not a board result |
 | Spine comparison host | Corrected continuous resident timer passes six board checks on historical owner-FIFO bitstreams; latest sparse-selector hardware and repeated comparison remain pending |
 
 The [resident comparison protocol](COMPARISON.md) defines the next-stage paired

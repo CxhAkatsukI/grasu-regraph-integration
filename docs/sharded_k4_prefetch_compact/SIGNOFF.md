@@ -92,6 +92,10 @@ checkpoint and an isolated output directory. It records pre/post timing,
 route status and clocks, runs `phys_opt_design -directive ExploreWithHoldFix`,
 reports bus-skew, and writes a separate candidate checkpoint. It asserts the
 150/500/450-MHz platform clock periods both before and after optimization.
+Vivado exposes these periods rounded to 1 ps (for example, 6.667 ns for
+150 MHz), so the expected-period check allows rounding by half a picosecond.
+The exact observed period dictionary must nevertheless remain identical
+before and after optimization; even a smaller change is rejected.
 Existing outputs
 are rejected. It does not change frequencies or constraints, overwrite the
 input, or declare signoff. This is a physical implementation optimization,
@@ -135,3 +139,12 @@ check. All XO inputs, connectivity and requested frequencies remain unchanged.
 Packaging must again pass the fixed-clock metadata check; no implicit HBM
 downclock is accepted. See AMD's
 [2024.1 checkpoint-reuse tutorial](https://docs.amd.com/r/2024.1-English/Vitis-Tutorials-Hardware-Acceleration/Reuse-the-Optimized-Checkpoint-to-Create-the-Device-Binary).
+
+The first real checkpoint-repair attempt rejected the rounded 6.667-ns period
+before running physical optimization. This was a guard precision bug, not
+a failed optimization or a device-capacity result. The corrected guard and
+an additional test for sub-picosecond clock changes pass the full 111-test
+regression (`source-regression-v7/`, 2026-10-24): 29.298 seconds of tests,
+272.5 MiB peak cgroup memory, 4/3-GiB no-swap limits, and zero OOM events.
+The separate repair-v2 attempt retains the original failed attempt. Source
+tests do not establish that the physical candidate meets timing.

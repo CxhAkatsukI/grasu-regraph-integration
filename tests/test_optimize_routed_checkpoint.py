@@ -12,7 +12,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts/optimize_routed_checkpoi
 @unittest.skipUnless(shutil.which("tclsh"), "tclsh required")
 class RoutedRepairTests(unittest.TestCase):
     def invoke(self, root, *, version="2024.1", routed=1, collision=False,
-               hbm_period="2.222222222222222", missing_clock=False):
+               hbm_period="2.222", missing_clock=False, changed_after=False):
         checkpoint = root / "input.dcp"
         checkpoint.touch()
         output = root / "candidate"
@@ -27,14 +27,24 @@ class RoutedRepairTests(unittest.TestCase):
             + ("  return {}\n" if missing_clock else "  return [lindex $args end]\n")
             + "}\n"
             "proc get_property {property clock} {\n"
+            "  global optimized\n"
             "  puts [list CLOCK $property $clock]\n"
+            + ('  if {$optimized && $clock eq "hbm_aclk"} {return 2.2221}\n'
+               if changed_after else '')
+            +
             f"  if {{$clock eq \"hbm_aclk\"}} {{return {hbm_period}}}\n"
-            "  if {$clock eq \"clk_kernel_00_unbuffered_net\"} {return 6.666666666666667}\n"
+            "  if {$clock eq \"clk_kernel_00_unbuffered_net\"} {return 6.667}\n"
             "  return 2.0\n"
             "}\n"
             "foreach name {set_param open_checkpoint report_clocks report_timing_summary "
-            "phys_opt_design report_bus_skew write_checkpoint close_design} {\n"
+            "report_bus_skew write_checkpoint close_design} {\n"
             "  proc $name {args} {puts [list CALL [lindex [info level 0] 0] {*}$args]}\n"
+            "}\n"
+            "set optimized 0\n"
+            "proc phys_opt_design {args} {\n"
+            "  global optimized\n"
+            "  set optimized 1\n"
+            "  puts [list CALL phys_opt_design {*}$args]\n"
             "}\n"
             "set argv [lrange $argv 1 end]\n"
             "set argc [llength $argv]\n"
@@ -74,6 +84,14 @@ class RoutedRepairTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertNotIn("CALL phys_opt_design", result.stdout)
                 self.assertNotIn("CALL write_checkpoint", result.stdout)
+
+    def test_even_sub_picosecond_clock_changes_during_repair_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.invoke(Path(directory), changed_after=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("CALL phys_opt_design", result.stdout)
+        self.assertIn("clock periods changed", result.stderr)
+        self.assertNotIn("CALL write_checkpoint", result.stdout)
 
 
 if __name__ == "__main__":

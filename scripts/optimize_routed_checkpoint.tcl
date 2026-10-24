@@ -18,6 +18,7 @@ foreach name {timing_before.rpt route_before.rpt clocks_before.rpt timing_after.
 }
 set_param general.maxThreads 4
 proc require_fixed_clocks {} {
+    set periods [dict create]
     foreach {name frequency} {clk_kernel_00_unbuffered_net 150.0
                               clk_kernel_01_unbuffered_net 500.0 hbm_aclk 450.0} {
         set clocks [get_clocks -quiet $name]
@@ -26,13 +27,16 @@ proc require_fixed_clocks {} {
         }
         set period [get_property PERIOD $clocks]
         if {![string is double -strict $period] ||
-            abs($period - 1000.0 / $frequency) > 0.00001} {
+            abs($period - 1000.0 / $frequency) > 0.000501} {
             error "unexpected frozen platform clock period: $name $period"
         }
+        # Vivado exposes periods rounded to 1 ps; retain the exact observed values.
+        dict set periods $name $period
     }
+    return $periods
 }
 open_checkpoint $checkpoint
-require_fixed_clocks
+set frozen_periods [require_fixed_clocks]
 if {![report_route_status -boolean_check ROUTED_FULLY]} {
     error "repair requires a fully routed input checkpoint"
 }
@@ -41,7 +45,9 @@ report_clocks -file [file join $output clocks_before.rpt]
 report_timing_summary -max_paths 20 -file [file join $output timing_before.rpt] -warn_on_violation
 
 phys_opt_design -directive ExploreWithHoldFix
-require_fixed_clocks
+if {[require_fixed_clocks] ne $frozen_periods} {
+    error "clock periods changed during physical optimization"
+}
 
 if {![report_route_status -boolean_check ROUTED_FULLY]} {
     error "optimized candidate is not fully routed"
