@@ -338,6 +338,14 @@ selector. They are host-compatibility gates, not latest-architecture timing
 calibration or repeated performance results. The complete G+R routes and
 their own board gates remain prerequisites to a new comparison.
 
+Spine commit `e6a7503` also matches the resident PR global L1/finite-value
+guard to the G+R host. Four v7 hosts compile and three offboard tests pass,
+including rejection of small per-vertex errors that accumulate beyond the
+global limit. This changes only post-timing host validation, not kernel inputs.
+The fresh sparse-ResPR Spine build is queued behind the three G+R smoke gates;
+its own timing/clock and tiny/six-partition/AU/DDR board checks are queued
+separately. These are pending gates, not fresh hardware or speedup results.
+
 ## Prediction Boundary
 
 Failure to realize a simulator topology in this FPGA does not by itself make
