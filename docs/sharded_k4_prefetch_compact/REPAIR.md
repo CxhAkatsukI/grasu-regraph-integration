@@ -14,7 +14,7 @@ The paper and frozen simulator predictions are not being changed.
 | Apply scheduling | Split request/response integer Apply XO estimates 205.47 MHz at requested 150 MHz; not post-route timing |
 | Finite channels and stalls | Three formats each pass all eight output comparisons with zero UVM errors; earlier failures remain retained |
 | Physical integration | Fresh SSSP and CC eleven-XO sets and ResPR twelve-XO set pass; actual master audits are respectively 26/32, 26/32 and 32/32; all three complete Vitis system-link |
-| Complete hardware | SSSP/CC 40-GiB route attempts hit the RSS watchdog, without OOM; fresh 96/88-GiB route attempts are admitted by full-budget reservation; no fresh routed or FPGA result yet |
+| Complete hardware | A local URAM over-allocation is repaired in fresh relink configs; SSSP implementation is running, CC/ResPR await full-budget admission; no fresh routed or FPGA result yet |
 | PR correctness gate | Both PR hosts rebuild with finite-value and global L1-error checks; six-partition CPU prepare checks and all 93 repository tests pass; not a board result |
 
 Do not promote an unmet gate to a pass. HLS frequency estimates are not
@@ -237,6 +237,59 @@ resetting external users. PR uses the new checked host binaries. FullPR has
 an independent component compile; its current host computes three fixed
 rounds, **not convergence**. Neither that packet nor a successful CPU prepare
 check is routed or board evidence.
+
+## Local URAM Placement Repair
+
+The sharded packet generators place `process_cache_1/2` in SLR0/2 and
+Little CUs 1/2/3/4 in SLR0/1/2/0. Their own top-level HLS XML reports give
+256 URAM per cache CU and 64 per Little CU. Thus the old placement requests
+384/64/320 URAM across SLR0/1/2, exceeding SLR0's 320-URAM capacity even
+though the whole-device total is only 768/960. This is a local placement
+problem, not evidence that the modeled algorithm cannot be realized.
+
+The fresh relink changes only `lksg_stream_4` from SLR0 to SLR1, giving
+320/128/320. It retains the accepted XOs, all memory/stream connections,
+cache capacities, clock and algorithms. `uram-screen.json` records the
+actual HLS XML hashes; Vivado's generated fourth-Little SLR XDC independently
+confirms SLR1. This screen covers those URAM consumers, not all resources,
+shell capacity, routing congestion or timing.
+
+Evidence is isolated in `route-slr-v2/{sssp,cc,respr}/` beneath
+`/data/chuxiao/builds/gr-prefetch-blocking-axis-trif-20261024/`.
+The corresponding `board-slr-v2/` workers require routed timing and smoke
+correctness before any result can be called a board pass. Older `route96/`
+jobs are deliberately interrupted with their logs retained, not reported as
+device-fit failures. The finite 96/88-GiB policy remains unchanged.
+
+An attempted generator edit during a concurrent FullPR component compile
+triggered its final source-pin check. That run remains `FAILED_RETAINED`;
+its unaccepted cache XO is not promoted. The generator edits were restored
+to the exact pinned version. `route-slr/` also retains its before-Vitis pin
+rejections. Current repairs change only independently pinned relink configs;
+the default generator correction must wait until no active run pins it.
+FullPR restarts all twelve components from a fresh `fullpr-retry/fullpr/`
+packet and `fullpr-retry/algorithm-evidence/fullpr/` evidence root. Its route
+and board gates accept only that retry's own component results.
+
+## Additional CPU Preflight Coverage
+
+The unchanged AU matrix inputs pass all four host capacity/oracle prepare
+checks. They have 515,281 vertices and eight destination partitions:
+390,847 initial SSSP edges, 679,246 CC edges, and 826,848 PR edges. SSSP
+performs two resident propagation rounds, CC one, and residual PR zero at
+the fixed per-vertex `1e-6` threshold. FullPR still means three fixed rounds,
+not convergence. These checks are CPU-only, not speedup or FPGA evidence.
+
+Those sparse AU updates all hit the cache path. A separate deterministic
+reciprocal-star input has 131,076 vertices, 262,150 initial edges and
+262,149 updates. Its SSSP/CC layout counters each identify 4,100 DDR-path
+updates beyond the unchanged 131,072-segment cache boundary. All four CPU
+oracles/capacity checks pass in `ddr-preflight-v2/`, with zero OOM events.
+PR hosts do not expose this layout counter, so their DDR count is not
+inferred from the integer-host logs. This is a functional stress input,
+not a performance workload or a board test. An earlier `ddr-preflight/`
+attempt rejected a finite 96-GiB peer through an older 40-GiB-only check;
+the retry validates both the 8-GiB host limit and finite peer budgets.
 
 ## PR Validation Strengthening
 
