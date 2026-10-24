@@ -18,6 +18,11 @@ The paper and frozen simulator predictions are not being changed.
 | PR correctness gate | Both PR hosts rebuild with finite-value and global L1-error checks; six-partition CPU prepare checks and all 93 repository tests pass; not a board result |
 | Spine comparison host | Corrected continuous resident timer passes six board checks on historical owner-FIFO bitstreams; latest sparse-selector hardware and repeated comparison remain pending |
 
+The [resident comparison protocol](COMPARISON.md) defines the next-stage paired
+wall measurements and repetition/provenance gates. Its fail-closed log checker
+passes synthetic tests for all three dynamic algorithms. This is offboard
+validation of result extraction, not a completed FPGA comparison.
+
 Do not promote an unmet gate to a pass. HLS frequency estimates are not
 post-route timing. Full-system acceptance requires the actual interfaces,
 clock, state semantics, completion boundary and correctness-checked output.
