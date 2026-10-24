@@ -36,13 +36,43 @@ Actual interfaces must be read from the newly exported XOs before linking.
 Projection is not a substitute for that check, nor for resource utilization,
 routed timing, bounded-channel correctness and FPGA output verification.
 
-The shared-ingress SSSP packet now has all eleven XOs. The actual-interface
-audit counts 26 master instances: four search, two cache, eight external PMA,
-eight adapter, two Apply and two HBM-wrapper instances. Its audit artifact is
-`/data/chuxiao/builds/gr-prefetch-blocking-axis-trif-20261024/sssp/pipeline_master_budget.json`
-for the fresh blocking-write repair. Vitis also completes the system-link
-check for that packet. Neither is a routed timing or board pass; PR needs its
-own actual-XO audit.
+The fresh blocking-write repair has eleven XOs for each integer algorithm
+and twelve for residual PageRank. The actual-interface audits and Vitis
+system-link checks pass for all three:
+
+| Algorithm | Actual master instances | Direct-ingress budget |
+| --- | --- | --- |
+| Weighted SSSP | 26 | 32 |
+| Connected components | 26 | 32 |
+| Residual PageRank | 32 | 32 |
+
+Each audit is retained under
+`/data/chuxiao/builds/gr-prefetch-blocking-axis-trif-20261024/<algorithm>/pipeline_master_budget.json`,
+where `<algorithm>` is `sssp`, `cc` or `respr`. The integer count comprises
+four search, two cache, eight external PMA, eight adapter, two Apply and two
+HBM-wrapper instances. Passing these checks is not a routed timing or board
+pass.
+
+## Placed Resource Check
+
+At 17:48 CST on 2026-10-24, the fresh SSSP relink has completed
+`place_design` with zero errors. The fourth Little CU moved from SLR0 to
+SLR1; no XO, clock or cache capacity changed. The actual fully placed report
+confirms the previously screened URAM distribution:
+
+| Resource | SLR0 | SLR1 | SLR2 |
+| --- | --- | --- | --- |
+| URAM used / available | 320 / 320 | 128 / 320 | 320 / 320 |
+| Occupied CLB sites | 88.61% | 80.40% | 86.18% |
+| CLB LUT utilization | 43.95% | 39.99% | 45.11% |
+
+The SLR0/SLR1 crossing uses 64.05% of available SLLs; SLR1/SLR2 uses 40.80%.
+The raw report is
+`/data/chuxiao/builds/gr-prefetch-blocking-axis-trif-20261024/route-slr-v2/sssp/work/link/vivado/vpl/prj/prj.runs/impl_1/slr_util_placed.rpt`.
+The adjacent `runme.log` also retains the high-congestion warning. This
+milestone establishes local resource placement, not routed connectivity or
+150-MHz timing closure. Physical optimization and routing are still pending
+at this timestamp, and no fresh board performance result is claimed.
 
 ## Evidence Boundary
 
