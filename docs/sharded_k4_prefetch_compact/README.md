@@ -12,6 +12,8 @@ blocker before running a build. The simulator repository owns the cross-repo
 handoff in `docs/implementation/hls_simulator_alignment/`.
 The [repair log](REPAIR.md) tracks newer scheduling attempts and unmet gates;
 the historical run descriptions below are not the latest acceptance status.
+The [routed signoff policy](SIGNOFF.md) describes the independent bus-skew
+gate before any new board programming.
 
 ## Source Map And Contract
 
