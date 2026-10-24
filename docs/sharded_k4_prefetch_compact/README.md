@@ -2,6 +2,10 @@
 
 ## Status And Reading Order
 
+For the current actual-frequency FPGA tests and parallel CC/ResPR builds, read
+[board campaign progress](BOARD_PROGRESS.md). The older source-only and signoff
+limits below remain historical evidence, not a prohibition on these tests.
+
 This default-off source candidate ports the frozen simulator profile at
 `567a37a406dddea8917cbdc8ba8c59d8cee87198`, including its
 `prefetch_gather_reuse` input/Gather path. It does not replace the previously
