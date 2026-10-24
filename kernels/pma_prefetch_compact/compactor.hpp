@@ -5,6 +5,7 @@ namespace pma_compact {
 static ap_uint<5> select_lanes(const Segment &value, unsigned destinations,
                                ap_uint<64> compacted[16]) {
 #pragma HLS INLINE
+#pragma HLS EXPRESSION_BALANCE off
     bool valid[16];
     ap_uint<5> prefix[5][16];
     ap_uint<64> items[16];

@@ -10,6 +10,8 @@ routed design, reproduce publication performance, or establish FPGA timing.
 Read the source map below, the validation scope, then the full-system budget
 blocker before running a build. The simulator repository owns the cross-repo
 handoff in `docs/implementation/hls_simulator_alignment/`.
+The [repair log](REPAIR.md) tracks newer scheduling attempts and unmet gates;
+the historical run descriptions below are not the latest acceptance status.
 
 ## Source Map And Contract
 
@@ -17,6 +19,7 @@ handoff in `docs/implementation/hls_simulator_alignment/`.
 | --- | --- |
 | [Adapter types](../../kernels/pma_prefetch_compact/types.hpp) | Word, segment and directory-tile formats; explicit capacities |
 | [Readers](../../kernels/pma_prefetch_compact/readers.hpp) | Two 1024-row directory tiles; independent even/odd readers; 512 returned-or-reserved lines per bank; at most 16 parents of at most 16 beats |
+| [Bank request/response](../../kernels/pma_prefetch_compact/bank.hpp) | Separate request and receive DATAFLOW processes, explicit parent and line credits |
 | [Join](../../kernels/pma_prefetch_compact/join.hpp) | Source-order traversal, up to eight consecutive empty rows skipped, explicit release credits and requested two-cycle segment register |
 | [Compactor](../../kernels/pma_prefetch_compact/compactor.hpp) | Stable 16-lane selection into 32 lanes, eight edges per packet, no mixed 4096-source windows, finite three-packet publisher |
 | [Adapter top](../../kernels/pma_prefetch_compact/top.cpp) | Three AXI masters per frontend: directory, even PMA and odd PMA; finite DATAFLOW channels |

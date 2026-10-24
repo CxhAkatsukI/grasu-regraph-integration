@@ -9,8 +9,8 @@ The paper and frozen simulator predictions are not being changed.
 
 | Gate | Current state |
 | --- | --- |
-| Functional equivalence | Existing three-format adapter, exhaustive compactor, connected Gather and integer Apply tests pass at `bc3dc06`; rerun after each functional change |
-| Adapter scheduling | XO exported, but estimated 62.91 MHz vs requested 150 MHz; directory fill II=4 and bank readers II=36 vs requested 1 |
+| Functional equivalence | Three-format adapter (396 cases) and exhaustive compactor tests pass after packed-directory and split-bank changes; connected Gather and integer Apply need fresh reruns |
+| Adapter scheduling | Prefix retry exports XO in 75.66 seconds, estimates 78.31 MHz; directory fill II=4 and bank readers II=36 remain; split-bank retry pending |
 | Apply scheduling | Earlier integer Apply XO estimates 144.82 MHz vs requested 150 MHz |
 | Finite channels and stalls | Unbounded vendor C streams are insufficient; bounded protocol tests and RTL evidence required |
 | Physical integration | Direct-ingress projection exceeds 32; choose and account for actual sharing rather than raising the audit limit |
@@ -22,13 +22,34 @@ clock, state semantics, completion boundary and correctness-checked output.
 
 ## Current Iteration
 
-The first repair targets the compactor's reported sixteen-addition serial
-prefix chain. A four-level parallel prefix computes the same stable ranks
-without changing capacity, filtering, output order or publication credits.
-Functional and synthesis results are pending for this edit.
+The four-level prefix retry (`7876b8a`) passes all adapter/compactor checks and
+exports the XO. Estimated clock improves from 62.91 to 78.31 MHz, but still
+fails the 150-MHz gate. HLS reassociates prefix arithmetic and reports a
+12.770-ns compactor path. The next attempt disables expression rebalancing
+in that function rather than declaring this solved.
 
-Subsequent work targets bank request/response independence, directory banking,
-join/segment registration, integer Apply timing and explicit physical sharing.
+The bank reader now separates requests and responses into DATAFLOW processes,
+as supported by [Vitis HLS 2024.1 manual burst](https://docs.amd.com/r/2024.1-English/ug1399-vitis-hls/Using-Manual-Burst).
+Explicit parent and returned-or-reserved line limits remain 16 and 512.
+Parent credit returns after response consumption; line credit returns only
+after the join consumes that line. Finite internal descriptor/credit FIFOs
+are depth 16. C-only locking protects the vendor model's shared pointer map.
+
+Directory tiles now hold 128 packed 512-bit words rather than 1024 individual
+64-bit rows. This retains two 8-KiB tiles and row contents, while replacing
+eight writes per response with one. The join extracts at most two packed
+words for eight consecutive rows. The ignored array partition is removed.
+Three-format independent adapter and exhaustive compactor tests pass in
+`/data/chuxiao/checks/adapter-split-bank-20261024/`; synthesis is pending.
+
+Raw prefix evidence is retained in
+`/data/chuxiao/builds/gr-prefetch-compact-trif-prefix-valid-20261024/`.
+The earlier `...-prefix-20261024/` attempt failed before Vitis invocation
+because dependency-root environment variables were absent. Neither attempt
+is a route or board test. No OOM was recorded.
+
+Subsequent work targets join/segment registration, compactor feedback timing,
+integer Apply timing and explicit physical sharing.
 Any changed timing or arbitration contract must be documented and propagated
 to a separate simulator profile before claiming matching behavior.
 

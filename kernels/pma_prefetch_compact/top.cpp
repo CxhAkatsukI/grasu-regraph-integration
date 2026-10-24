@@ -32,9 +32,9 @@ extern "C" void pma_to_regraph_adapter(
 #pragma HLS INTERFACE s_axilite port=dst_count bundle=control
 #pragma HLS INTERFACE s_axilite port=return bundle=control
 #pragma HLS INTERFACE axis port=edge_burst_out
-#pragma HLS DATAFLOW
     using namespace pma_compact;
     (void)dst_base; // Shards already store partition-local destinations.
+#pragma HLS DATAFLOW
     hls::stream<unsigned> even_extent, odd_extent, join_extent;
 #pragma HLS STREAM variable=even_extent depth=1
 #pragma HLS STREAM variable=odd_extent depth=1
