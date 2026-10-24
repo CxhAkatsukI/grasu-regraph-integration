@@ -15,10 +15,10 @@ extern "C" void pma_to_regraph_adapter(
     unsigned node_num, unsigned slot_count, unsigned max_cache_segment,
     unsigned dst_base, unsigned dst_count,
     hls::stream<pma_compact::Packet> &edge_burst_out) {
-#pragma HLS INTERFACE m_axi port=pma0 bundle=even offset=slave num_read_outstanding=16 max_read_burst_length=16
-#pragma HLS INTERFACE m_axi port=pma1 bundle=even offset=slave num_read_outstanding=16 max_read_burst_length=16
-#pragma HLS INTERFACE m_axi port=pma2 bundle=odd offset=slave num_read_outstanding=16 max_read_burst_length=16
-#pragma HLS INTERFACE m_axi port=pma3 bundle=odd offset=slave num_read_outstanding=16 max_read_burst_length=16
+#pragma HLS INTERFACE m_axi port=pma0 bundle=even channel=0 offset=slave num_read_outstanding=16 max_read_burst_length=16
+#pragma HLS INTERFACE m_axi port=pma1 bundle=even channel=1 offset=slave num_read_outstanding=16 max_read_burst_length=16
+#pragma HLS INTERFACE m_axi port=pma2 bundle=odd channel=0 offset=slave num_read_outstanding=16 max_read_burst_length=16
+#pragma HLS INTERFACE m_axi port=pma3 bundle=odd channel=1 offset=slave num_read_outstanding=16 max_read_burst_length=16
 #pragma HLS INTERFACE m_axi port=row_offset bundle=directory offset=slave num_read_outstanding=16 max_read_burst_length=16
 #pragma HLS INTERFACE s_axilite port=pma0 bundle=control
 #pragma HLS INTERFACE s_axilite port=pma1 bundle=control

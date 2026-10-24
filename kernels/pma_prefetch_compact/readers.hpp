@@ -32,7 +32,7 @@ static void read_directory(hls::burst_maxi<Word> &memory, unsigned vertices,
         {
         hls::write_lock<DirectoryTile> lock(tiles);
         DirectoryTile &tile = lock;
-#pragma HLS ARRAY_PARTITION variable=tile.rows cyclic factor=8
+#pragma HLS ARRAY_PARTITION variable=tile cyclic factor=8
         unsigned rows = vertices - base;
         if (rows > 1024) rows = 1024;
         unsigned lines = (rows + 7) / 8;
@@ -48,7 +48,7 @@ static void read_directory(hls::burst_maxi<Word> &memory, unsigned vertices,
             Word value = memory.read();
             for (unsigned lane = 0; lane < 8; ++lane) {
 #pragma HLS UNROLL
-                tile.rows[line * 8 + lane] = value.range(lane * 64 + 63, lane * 64);
+                tile[line * 8 + lane] = value.range(lane * 64 + 63, lane * 64);
             }
         }
         }

@@ -31,7 +31,7 @@ static void join_segments(unsigned vertices,
         {
         hls::read_lock<DirectoryTile> lock(tiles);
         DirectoryTile &tile = lock;
-#pragma HLS ARRAY_PARTITION variable=tile.rows cyclic factor=8
+#pragma HLS ARRAY_PARTITION variable=tile cyclic factor=8
         unsigned row = 0;
         while (row < 1024 && base + row < vertices) {
 #pragma HLS PIPELINE II=1
@@ -43,13 +43,13 @@ static void join_segments(unsigned vertices,
                 unsigned index = row + lane;
                 if (index >= 1024 || base + index >= vertices) stop = true;
                 if (!stop) {
-                    ap_uint<64> bounds = tile.rows[index];
+                    ap_uint<64> bounds = tile[index];
                     if (bounds.range(63, 32) == bounds.range(31, 0)) ++skipped;
                     else stop = true;
                 }
             }
             if (skipped) { row += skipped; continue; }
-            ap_uint<64> bounds = tile.rows[row];
+            ap_uint<64> bounds = tile[row];
             unsigned begin = (unsigned)bounds.range(63, 32) / 16;
             unsigned end = (unsigned)bounds.range(31, 0) / 16;
             for (unsigned segment = begin; segment < end; ++segment) {

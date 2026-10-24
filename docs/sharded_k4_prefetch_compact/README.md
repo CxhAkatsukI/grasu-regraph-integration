@@ -77,7 +77,20 @@ and credit checks do not prove finite-channel RTL liveness or achieved II.
 Likewise, `LATENCY` directives and publisher countdown iterations are requests,
 not measured two-cycle hardware schedules.
 
-## Full-System Link Is Not Admitted
+## Direct Full-System Link Is Not Admitted
+
+The `32` below is the current platform's kernel-to-HMSS direct-ingress
+budget, not a limit on synthesizable AXI masters or a synonym for the number
+of HBM channels. The installed AMD 2024.1 HMSS source confirms this:
+`Vivado/2024.1/data/ip/xilinx/hbm_memory_subsystem_v2_0/bd/resource_util.tcl`
+declares "Up to 33 ports allowed - 32 kernels + host"; the corresponding
+`component.xml` caps `NUM_SI` at 33. Multiple fabric masters can instead share
+an ingress through an explicitly integrated arbiter/interconnect. That needs
+its own connectivity, resource, timing and simulator-arbitration evidence;
+mapping multiple ports to the same HBM bank is not by itself such evidence.
+The current audit counts XO master instances, not an arbitrary future
+interconnect topology. Independent component synthesis is not blocked by
+this full-system direct-connection count.
 
 | Source-derived projection | SSSP/CC | FullPR | ResPR |
 | --- | ---: | ---: | ---: |
@@ -87,7 +100,7 @@ not measured two-cycle hardware schedules.
 | Apply | 2 | 2 | 3 |
 | Degree update and PR source preparation | 0 | 5 | 5 |
 | Total AXI master instances | **34** | **39** | **40** |
-| Current U55C user budget | 32 | 32 | 32 |
+| Current U55C kernel direct-ingress budget | 32 | 32 | 32 |
 
 These are source/interface estimates, not newly compiled XO counts. Integer R
 alone uses 16 masters and three full-state copies; original A4 uses 13 masters
@@ -103,6 +116,66 @@ decision, matching simulator arbitration, finite RTL checks, synthesis/interface
 inspection, routing and common-state resident FPGA comparisons. PR-specific
 Apply/source-prepare schedules have not been newly ported to explicit-burst
 owners here. No source candidate is promoted to calibrated hardware evidence.
+
+## Trif Component Compilation
+
+On 2026-10-24, three compile-only jobs were started on `trifoliate` from HLS
+source commit `8a46817c102a411d70f43f05fa530e32be0806df`: the weighted adapter,
+framed SSSP Little GS, and integer Apply. These are candidate component XOs,
+not a full-system link or routed FPGA result. No AXI gate was relaxed.
+
+The fresh run folder is
+`/data/chuxiao/builds/gr-prefetch-compact-trif-20261024/`; its README explains
+the run-local supervisor and evidence paths. Each independently supervised
+systemd service has a 40-GiB cgroup hard limit, a 36-GiB high watermark,
+zero swap, and group OOM kill. Admission uses atomic full-budget reservations
+plus 40 GiB of system/background headroom; the live watchdog enforces a
+40-GiB available-memory floor and a two-hour component timeout. About 221 GiB
+was available before launch. All three jobs passed admission and entered
+Vitis 2024.1 hardware compilation.
+
+```bash
+systemctl --user status gr-prefetch-trif-adapter gr-prefetch-trif-gather gr-prefetch-trif-apply
+```
+
+Inspect `evidence/<kernel>/execution.json`, `compile.progress.json`, and
+`compile.stdout.txt` in that folder for current status. The original frozen
+source-handoff packets were not modified.
+
+The first run exported `lksg_stream` and `kernelApply` XOs, with zero and two
+memory masters respectively, as checked from XO metadata. Their HLS frequency
+estimates were 170.65 and 144.82 MHz. The latter is below the requested 150 MHz;
+XO export does **not** establish target-frequency closure. Gather also reports
+an auto-rewind/dataflow warning; neither component has passed finite RTL
+co-simulation or full-system routing in this run.
+
+The adapter first failed HLS 214-360: the two burst pointers in each shared
+bundle need distinct channel IDs. Named IDs were rejected as undeclared C
+identifiers, so the source uses numeric IDs `0` (cache) and `1` (external).
+That exposed HLS 214-256: a structure wrapping the directory array was
+aggregated into a 65,536-bit word. `DirectoryTile` now directly aliases the
+1024-entry array, with cyclic-eight partitioning on the array itself. This
+preserves two directory tiles, row contents and traversal order. No external
+master is added and no timing coefficient is changed.
+
+Each retry uses a fresh run folder; failed logs and manifests are retained:
+
+| Folder under `/data/chuxiao/builds/` | Adapter disposition |
+| --- | --- |
+| `gr-prefetch-compact-trif-20261024/` | Missing channel IDs rejected |
+| `gr-prefetch-compact-trif-channels-20261024/` | Named channel identifiers rejected |
+| `gr-prefetch-compact-trif-channel-ids-20261024/` | Structure-aggregated directory rejected |
+| `gr-prefetch-compact-trif-array-20261024/` | Array-block retry; inspect its `execution.json` for completion |
+
+The array-block retry runs in `gr-prefetch-trif-adapter-array.service` with
+the same containment and watchdog policy. Its source/configuration identities
+are pinned before and checked after compilation. The revised source passes
+396 independent adapter checks, 36 framed Gather checks, and 12 integer Apply
+checks; fresh logs are in `/data/chuxiao/checks/adapter-array-20261024/` and
+`/data/chuxiao/checks/framed-array-20261024/`. The build-selection suite passes
+11 tests, and the master-budget suite passes five. Requested pipeline IIs
+remain synthesis goals, not measured throughput; adapter scheduling warnings
+must be reviewed before any simulator-equivalence claim.
 
 ## Reproduce Functional Checks
 
