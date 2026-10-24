@@ -13,6 +13,7 @@ ROW_LINE_READ=0
 ROW_LINE_DEFINE=()
 PROFILE_DEFINE=()
 PREFETCH_COMPACT=0
+HOST_EXTRA_INPUTS=()
 
 usage() {
   cat <<USAGE
@@ -89,6 +90,8 @@ case "${PIPELINE_MODE}" in
     case "${ALGORITHM}" in
       full_pagerank|residual_pagerank)
         HOST_SOURCE="${GRI_ROOT}/tools/sharded_k4_pagerank_native_host.cpp"
+        HOST_EXTRA_INPUTS=("${GRI_ROOT}/tools/sharded_k4_native_host.cpp"
+                           "${GRI_ROOT}/tools/pagerank_rank_validation.hpp")
         ;;
       *) HOST_SOURCE="${GRI_ROOT}/tools/sharded_k4_native_host.cpp" ;;
     esac
@@ -129,6 +132,7 @@ g++ -std=c++17 -O2 -Wall -Wextra -Werror \
   -o "${OUT_BIN}"
 
 sha256sum "${HOST_SOURCE}" \
+          "${HOST_EXTRA_INPUTS[@]}" \
           "${GRI_ROOT}/tools/weighted_pma_native_host.cpp" \
           "${GRI_ROOT}/include/weighted_pma_graph.hpp" \
           "${GRI_ROOT}/include/weighted_pma_runtime_plan.hpp" \

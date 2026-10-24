@@ -1,5 +1,6 @@
 #define GRASU_REGRAPH_SHARDED_K4_NO_MAIN 1
 #include "sharded_k4_native_host.cpp"
+#include "pagerank_rank_validation.hpp"
 
 #if !defined(GRASU_REGRAPH_FULL_PAGERANK) && \
     !defined(GRASU_REGRAPH_RESIDUAL_PAGERANK)
@@ -899,6 +900,7 @@ int main(int argc, char **argv)
         std::size_t rank_mismatches = 0;
         std::size_t degree_mismatches = 0;
         float max_abs_error = 0.0F;
+        grasu_regraph::PageRankValidation rank_validation;
         for (std::size_t internal = 0; internal < dataset.node_size;
              ++internal) {
             const std::size_t external =
@@ -906,8 +908,10 @@ int main(int argc, char **argv)
             const float expected = oracle.rank.at(external);
             const float actual = rank[internal];
             const float error = std::abs(actual - expected);
+            rank_validation.observe(expected, actual);
             max_abs_error = std::max(max_abs_error, error);
-            if (error > 1.0e-4F + 1.0e-3F * std::abs(expected)) {
+            if (!std::isfinite(actual) ||
+                error > 1.0e-4F + 1.0e-3F * std::abs(expected)) {
                 if (rank_mismatches < 20) {
                     std::cerr << "rank mismatch external=" << external
                               << " expected=" << expected
@@ -931,7 +935,8 @@ int main(int argc, char **argv)
         }
         if (!result_out) fail("failed while writing PageRank result");
 
-        bool pass = rank_mismatches == 0 && degree_mismatches == 0;
+        bool pass = rank_mismatches == 0 && degree_mismatches == 0 &&
+                    rank_validation.passes();
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
         pass = pass && hardware_converged && oracle.converged;
 #endif
@@ -952,6 +957,10 @@ int main(int argc, char **argv)
                   << " rank_mismatches=" << rank_mismatches
                   << " degree_mismatches=" << degree_mismatches
                   << " max_abs_error=" << max_abs_error
+                  << " rank_error_l1=" << rank_validation.error_l1
+                  << " rank_expected_l1=" << rank_validation.expected_l1
+                  << " rank_error_l1_limit=" << rank_validation.error_limit()
+                  << " rank_nonfinite=" << rank_validation.nonfinite
                   << " pipeline_executions=" << pipeline_executions
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
                   << " propagation_rounds="

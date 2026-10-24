@@ -13,8 +13,9 @@ The paper and frozen simulator predictions are not being changed.
 | Adapter scheduling | Held-input retry estimates 199.01 MHz at requested 150 MHz, with directory fill and bank request II=1; not post-route timing |
 | Apply scheduling | Split request/response integer Apply XO estimates 205.47 MHz at requested 150 MHz; not post-route timing |
 | Finite channels and stalls | Three formats each pass all eight output comparisons with zero UVM errors; earlier failures remain retained |
-| Physical integration | All eleven fresh SSSP XOs pass; actual master audit is 26/32 and Vitis system-link completes |
-| Complete hardware | Fresh SSSP Vivado implementation is running; CC and ResPR components are compiling; no fresh routed or FPGA result yet |
+| Physical integration | Fresh SSSP and CC eleven-XO sets and ResPR twelve-XO set pass; actual master audits are respectively 26/32, 26/32 and 32/32; all three complete Vitis system-link |
+| Complete hardware | SSSP/CC 40-GiB route attempts hit the RSS watchdog, without OOM; fresh 96/88-GiB route attempts are admitted by full-budget reservation; no fresh routed or FPGA result yet |
+| PR correctness gate | Both PR hosts rebuild with finite-value and global L1-error checks; six-partition CPU prepare checks and all 93 repository tests pass; not a board result |
 
 Do not promote an unmet gate to a pass. HLS frequency estimates are not
 post-route timing. Full-system acceptance requires the actual interfaces,
@@ -207,6 +208,49 @@ convergence behavior on tiny and six-partition SSSP graphs against CPU oracles.
 Passing these four tests would establish bring-up correctness only, not the
 full performance matrix, simulator cycle agreement or a speedup over Spine.
 The replacement board evidence is `board-sssp-retry/` under the campaign root.
+
+## Finite Route-Budget Retry
+
+The SSSP and CC implementations stop at `tree_rss_budget`, at sampled
+process-tree RSS totals of 42,616,696 and 42,386,496 KiB respectively. The
+watchdog sums each process's RSS, including shared pages per process; it is
+not the same quantity as cgroup charged memory. SSSP's cgroup peak is
+38,601,826,304 bytes. Both attempts record zero OOM events and over 120 GiB
+of available host memory at their lowest sample. These are containment
+stops, not failed device fit or timing. ResPR's 40-GiB attempt is deliberately
+interrupted before hitting the same ceiling; its raw output remains retained.
+
+Fresh `route96/{sssp,cc,respr}/` attempts consistently use a 96-GiB cgroup
+hard limit, 88-GiB high watermark, zero swap, group OOM termination, and a
+96-GiB process-tree RSS watchdog. Both the direct containment check and the
+atomic lease validate that finite profile, including peer reservations.
+The 40-GiB live-memory floor and 8-GiB background reserve remain. Admission
+counts each complete competing budget, so queued services do not imply
+simultaneous compiler execution. Old generated build outputs are not reused
+as successful results or overwritten: new configuration changes only build
+output locations, retaining the same XOs, connectivity and requested clock.
+
+`board96/<algorithm>/` waits for the corresponding fresh routed artifact,
+requires the actual routed setup/hold/pulse-width timing summary to pass,
+checks the DATA clock, and serializes our tests on device one without
+resetting external users. PR uses the new checked host binaries. FullPR has
+an independent component compile; its current host computes three fixed
+rounds, **not convergence**. Neither that packet nor a successful CPU prepare
+check is routed or board evidence.
+
+## PR Validation Strengthening
+
+The original per-vertex absolute tolerance could admit a badly wrong global
+rank vector when each rank is small. The existing per-vertex condition is
+retained, but both PR hosts now additionally require finite expected/actual
+values and total L1 error no greater than `1e-4 + 1e-3 * expected_l1`.
+The allowance is not multiplied by the number of vertices. Regression checks
+reject an all-zero vector, systematic bias, NaN and infinities while accepting
+the oracle and small floating-point noise. This strengthens correctness
+admission only; it does not alter epsilon, algorithm work or timing windows.
+Host manifests also hash the included shared native-host source and new
+validation header. New PR binaries and six-partition CPU preflights are in
+`hosts-rankguard/{respr,fullpr}/` under the blocking-write campaign root.
 
 ## Prediction Boundary
 
