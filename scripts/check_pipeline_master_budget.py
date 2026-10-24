@@ -45,20 +45,37 @@ SHARDED_K4_CUS = {
     "kernelHBMWrapper": 1,
 }
 
+SHARDED_K4_INTEGER_CUS = {
+    kernel: cus
+    for kernel, cus in SHARDED_K4_CUS.items()
+    if kernel not in {
+        "dispatch_degree", "grasu_degree_update",
+        "regraph_pagerank_source_prepare", "regraph_pagerank_apply",
+    }
+} | {"dispatch": 1, "pma_completion_barrier": 1, "kernelApply": 1}
+
 
 def project_master_count(
     build_dir: Path,
     compute_pipelines: int,
     pipeline_mode: str = "weighted-axis",
+    algorithm: str = "fullpr",
 ) -> tuple[int, dict[str, dict[str, int]]]:
     if compute_pipelines <= 0:
         raise ValueError("compute_pipelines must be positive")
     if pipeline_mode not in {"weighted-axis", "sharded-k4"}:
         raise ValueError(f"unsupported pipeline mode: {pipeline_mode}")
+    if algorithm not in {"sssp", "cc", "fullpr", "respr"}:
+        raise ValueError(f"unsupported algorithm: {algorithm}")
+    if algorithm in {"sssp", "cc"} and pipeline_mode != "sharded-k4":
+        raise ValueError("integer Apply audit requires sharded-k4")
     breakdown: dict[str, dict[str, int]] = {}
     total = 0
     if pipeline_mode == "sharded-k4":
-        topology = SHARDED_K4_CUS
+        topology = (
+            SHARDED_K4_INTEGER_CUS
+            if algorithm in {"sssp", "cc"} else SHARDED_K4_CUS
+        )
     else:
         topology = {
             **SHARED_CUS,
@@ -92,6 +109,10 @@ def main() -> int:
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--compute-pipelines", type=int, required=True)
     parser.add_argument(
+        "--algorithm", choices=("sssp", "cc", "fullpr", "respr"),
+        default="fullpr",
+    )
+    parser.add_argument(
         "--pipeline-mode",
         choices=("weighted-axis", "sharded-k4"),
         default="weighted-axis",
@@ -105,7 +126,8 @@ def main() -> int:
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     total, breakdown = project_master_count(
-        args.build_dir.resolve(), args.compute_pipelines, args.pipeline_mode
+        args.build_dir.resolve(), args.compute_pipelines, args.pipeline_mode,
+        args.algorithm,
     )
     passed = total <= args.platform_master_budget
     result = {
@@ -116,6 +138,7 @@ def main() -> int:
             else "direct_complete_worker_replication"
         ),
         "pipeline_mode": args.pipeline_mode,
+        "algorithm": args.algorithm,
         "compute_pipelines": args.compute_pipelines,
         "platform_master_budget": args.platform_master_budget,
         "projected_axi_master_instances": total,

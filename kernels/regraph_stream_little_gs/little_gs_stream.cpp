@@ -11,8 +11,12 @@
 #include "acc_data_types.h"
 #include "l1_api.h"
 #include "acc_config.h"
+#if GRASU_REGRAPH_PREFETCH_COMPACT
+#include "framed/run.hpp"
+#else
 #include "acc_scatter.h"
 #include "acc_gather.h"
+#endif
 
 typedef ap_axiu<512, 0, 0, 0> edge_burst_pkt_t;
 
@@ -57,6 +61,13 @@ void lksg_stream(
 #pragma HLS INTERFACE s_axilite port=return bundle=control
 
     (void)compressed_group_count;
+
+#if GRASU_REGRAPH_PREFETCH_COMPACT
+    (void)part_edge_num;  // This profile terminates on TLAST, not padded slots.
+    (void)part_dst_offset; // Adapter destinations are already shard-local.
+    framed_regraph::run(edge_burst_in, reset_tmp_prop, l_ppb_request_stm,
+                        l_ppb_response_stm, l_tmp_prop_stm);
+#else
 
     hls::stream<edge_burst_dt> edge_burst_stm;
 #pragma HLS stream variable=edge_burst_stm depth=large_stream_depth
@@ -121,5 +132,6 @@ read_stream_edges:
     LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: mergeWriteResults begin\n");
     mergeWriteResults(tmp_prop_stm, part_dst_offset, l_tmp_prop_stm);
     LKSG_DEBUG_PRINTF("[KDEBUG] lksg_stream: mergeWriteResults done\n");
+#endif
 }
 }

@@ -11,6 +11,8 @@ ALGORITHM="weighted_sssp"
 PIPELINE_MODE="weighted-axis"
 ROW_LINE_READ=0
 ROW_LINE_DEFINE=()
+PROFILE_DEFINE=()
+PREFETCH_COMPACT=0
 
 usage() {
   cat <<USAGE
@@ -26,6 +28,7 @@ Options:
   --pipeline-mode MODE
                     weighted-axis or sharded-k4.
   --row-line-read    Pad row buffers for a ROW_LINE_READ sharded-k4 adapter.
+  --prefetch-compact New framed adapter/Gather reuse/Apply split-master ABI.
   -h, --help        Show this help.
 USAGE
 }
@@ -44,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --algorithm) ALGORITHM="$2"; shift 2 ;;
     --pipeline-mode) PIPELINE_MODE="$2"; shift 2 ;;
     --row-line-read) ROW_LINE_READ=1; shift ;;
+    --prefetch-compact) PREFETCH_COMPACT=1; ROW_LINE_READ=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -100,6 +104,9 @@ if [[ "${ROW_LINE_READ}" == 1 ]]; then
   fi
   ROW_LINE_DEFINE=(-DGRASU_REGRAPH_HOST_ROW_LINE_READ=1)
 fi
+if [[ "${PREFETCH_COMPACT}" == 1 ]]; then
+  PROFILE_DEFINE=(-DGRASU_REGRAPH_PREFETCH_COMPACT=1)
+fi
 
 mkdir -p "${OUT_DIR}"
 if [[ -z "${OUT_BIN}" ]]; then
@@ -110,6 +117,7 @@ g++ -std=c++17 -O2 -Wall -Wextra -Werror \
   -DGRASU_MAX_CACHE_SEGMENT=131072 \
   "${ALGORITHM_DEFINE[@]}" \
   "${ROW_LINE_DEFINE[@]}" \
+  "${PROFILE_DEFINE[@]}" \
   -I"${XILINX_XRT}/include" \
   -I"${VITIS_HLS}/include" \
   -I"${VITIS_HLS}/include/etc" \
@@ -134,6 +142,7 @@ HANDOFF=${HANDOFF}
 CONVERSION_COST=absent
 MAX_CACHE_SEGMENT=131072
 ROW_LINE_READ=${ROW_LINE_READ}
+PREFETCH_COMPACT=${PREFETCH_COMPACT}
 HOST=${OUT_BIN}
 MANIFEST
 printf 'built %s\n' "${OUT_BIN}"

@@ -79,6 +79,32 @@ class PipelineMasterBudgetTests(unittest.TestCase):
                 breakdown["pma_to_regraph_adapter"]["master_instances"], 4
             )
 
+    def test_prefetch_compact_full_system_exceeds_u55c_budget(self) -> None:
+        for algorithm, expected in (("sssp", 34), ("cc", 34),
+                                    ("fullpr", 39), ("respr", 40)):
+            with self.subTest(algorithm=algorithm), tempfile.TemporaryDirectory() as tmp:
+                build_dir = Path(tmp)
+                counts = dict(MASTER_COUNTS, process_ddr=4,
+                              pma_to_regraph_adapter=3,
+                              regraph_pagerank_apply=3 if algorithm == "respr" else 2,
+                              dispatch=0, pma_completion_barrier=0, kernelApply=2)
+                for kernel, count in counts.items():
+                    write_xo(build_dir / f"{kernel}.hw.xo", count)
+                total, breakdown = project_master_count(
+                    build_dir, 4, "sharded-k4", algorithm
+                )
+                self.assertEqual(total, expected)
+                self.assertGreater(total, 32)
+                self.assertEqual(
+                    breakdown["pma_to_regraph_adapter"]["master_instances"], 12
+                )
+                self.assertEqual("kernelApply" in breakdown,
+                                 algorithm in {"sssp", "cc"})
+
+    def test_integer_nonsharded_topology_is_not_silently_assumed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "requires sharded-k4"):
+            project_master_count(Path("unused"), 4, algorithm="sssp")
+
 
 if __name__ == "__main__":
     unittest.main()

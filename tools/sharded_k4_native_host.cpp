@@ -538,6 +538,7 @@ int main(int argc, char **argv)
             make_kernel("lksg_stream:{lksg_stream_2}"),
             make_kernel("lksg_stream:{lksg_stream_3}"),
             make_kernel("lksg_stream:{lksg_stream_4}")};
+        std::array<bool, 4> gather_initialized{};
         cl::Kernel frontend_mux =
             make_kernel("regraph_frontend_mux:{regraph_frontend_mux_1}");
         cl::Kernel apply = make_kernel("kernelApply:{kernelApply_1}");
@@ -888,6 +889,10 @@ int main(int argc, char **argv)
                      "set apply dense partitions");
             check_cl(apply.setArg(3, num_sparse), "set apply sparse partitions");
             check_cl(apply.setArg(4, reg), "set apply reg");
+#if GRASU_REGRAPH_PREFETCH_COMPACT
+            // Same allocation, independent AXI read/write masters in this ABI.
+            check_cl(apply.setArg(7, apply_prop_dev), "set apply write alias");
+#endif
 
             cl::Event hbm_event;
             cl::Event apply_event;
@@ -940,7 +945,12 @@ int main(int argc, char **argv)
                          "set lksg compressed groups");
                 check_cl(lksg[worker].setArg(3, shard.destination_base),
                          "set lksg destination base");
-                check_cl(lksg[worker].setArg(4, true),
+                check_cl(lksg[worker].setArg(4,
+#if GRASU_REGRAPH_PREFETCH_COMPACT
+                                           !gather_initialized[worker]),
+#else
+                                           true),
+#endif
                          "set lksg reset");
                 check_cl(frontend_mux.setArg(4, worker),
                          "set frontend mux worker");
@@ -964,6 +974,9 @@ int main(int argc, char **argv)
                              lksg_wait.empty() ? nullptr : &lksg_wait,
                              &lksg_events[partition]),
                          "enqueue sharded lksg");
+                // Per-worker event dependencies serialize all reuse. A failed
+                // enqueue aborts the run before this initialization is recorded.
+                gather_initialized[worker] = true;
                 std::vector<cl::Event> mux_wait;
                 if (partition != 0) {
                     mux_wait.push_back(mux_events[partition - 1]);

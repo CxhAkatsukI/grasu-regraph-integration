@@ -33,7 +33,7 @@ Options:
   --target sw_emu|hw_emu|hw
   --algorithm full_pagerank|residual_pagerank
   --grasu-implementation legacy-direct-cache|complete-search-cache
-  --adapter-policy legacy|bank-stream (512-bit row ABI)
+  --adapter-policy legacy|bank-stream|prefetch-compact (latter two: 512-bit row ABI)
   --platform NAME
   --platform-xpfm PATH
   --kernel-frequency MHz
@@ -150,7 +150,7 @@ required_sources=(
   "${GRASU_KERNEL_DIR}/kernel_process_ddr.cpp"
   "${GRI_ROOT}/kernels/grasu_dispatch_degree/grasu_dispatch_degree.cpp"
   "${GRI_ROOT}/kernels/grasu_degree_update/grasu_degree_update.cpp"
-  "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
+  "${PMA_ADAPTER_SOURCE}"
   "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp"
   "${REGRAPH_ROOT}/acc_template/kernel_little_gs_merger/kernel_little_gs_merger.cpp"
   "${GRI_ROOT}/kernels/regraph_pagerank_apply/regraph_pagerank_apply.cpp"
@@ -285,6 +285,11 @@ OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${ALGORITHM}.${TARGET}.xclbin"
     echo "nk=regraph_pagerank_source_prepare:1:pr_source_1"
     for index in 1 2 3 4; do
       echo "sp=pma_to_regraph_adapter_${index}.pma0:HBM[0:22]"
+      if [[ "${ADAPTER_POLICY}" == prefetch-compact ]]; then
+        for port in pma1 pma2 pma3 row_offset; do
+          echo "sp=pma_to_regraph_adapter_${index}.${port}:HBM[0:22]"
+        done
+      fi
       echo "slr=pma_to_regraph_adapter_${index}:SLR$(((index - 1) % 3))"
       echo "slr=lksg_stream_${index}:SLR$(((index - 1) % 3))"
       echo "stream_connect=pma_to_regraph_adapter_${index}.edge_burst_out:lksg_stream_${index}.edge_burst_in:32"
@@ -405,6 +410,7 @@ else
   GRASU_FLAGS+=("-DGRASU_COMPACT_HBM_PORTS")
 fi
 REGRAPH_FLAGS=(
+  "${REGRAPH_PROFILE_FLAGS[@]}"
   "${COMMON_ENV}" -O3 "-DHAVE_EDGE_PROP=0" "-DHAVE_UNSIGNED_PROP=1"
   "-DHAVE_APPLY_OUTDEG=0" "-DHAVE_VERTEX_PROP=0"
   "-DPARTITION_SIZE=65536" "-DLITTLE_KERNEL_DST_BUFFER_SIZE=65536"
@@ -441,7 +447,7 @@ COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
 {
   echo "#!/usr/bin/env bash"
   echo "set -euo pipefail"
-  printf 'source %q\n' "/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh"
+  emit_profile_vitis_settings
   printf 'export TMPDIR=%q TMP=%q TEMP=%q\n' "${TMP_DIR}" "${TMP_DIR}" "${TMP_DIR}"
   printf 'export CPATH=%q${CPATH:+:${CPATH}}\n' "/usr/include/x86_64-linux-gnu:/usr/include"
   printf 'export C_INCLUDE_PATH=%q${C_INCLUDE_PATH:+:${C_INCLUDE_PATH}}\n' "/usr/include/x86_64-linux-gnu:/usr/include"
@@ -452,9 +458,9 @@ COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
   emit_compile dispatch_degree "${GRI_ROOT}/kernels/grasu_dispatch_degree/grasu_dispatch_degree.cpp" "${GRASU_FLAGS[@]}"
   emit_compile process_cache "${GRASU_CACHE_SOURCE}" "${GRASU_FLAGS[@]}" "${GRASU_CACHE_IMPLEMENTATION_FLAGS[@]}"
   if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
-    # The sharded adapter saves twelve AXI masters relative to the replicated
-    # baseline. Keep PMA DDR read/write ports independent so HLS can sustain
-    # the updater's II=1 pipeline instead of serializing same-bundle RAW work.
+    # Keep updater read/write independent. The new three-master adapter must
+    # pass the complete pipeline budget audit before link; sharding alone is
+    # not evidence that the combined design fits the platform.
     emit_compile process_ddr "${GRASU_KERNEL_DIR}/kernel_process_ddr.cpp" "${GRASU_FLAGS[@]}"
   else
     emit_compile process_ddr "${GRASU_KERNEL_DIR}/kernel_process_ddr.cpp" "${GRASU_FLAGS[@]}" -DGRASU_SHARE_HBM_PORTS
@@ -467,7 +473,7 @@ COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
       -DGRASU_REGRAPH_SHARE_ALL_MEMORY_PORTS=1
     )
   fi
-  emit_compile pma_to_regraph_adapter "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp" "${REGRAPH_FLAGS[@]}" "${adapter_flags[@]}" "${PMA_ADAPTER_FLAGS[@]}"
+  emit_compile pma_to_regraph_adapter "${PMA_ADAPTER_SOURCE}" "${REGRAPH_FLAGS[@]}" "${adapter_flags[@]}" "${PMA_ADAPTER_FLAGS[@]}"
   emit_compile lksg_stream "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp" "${REGRAPH_FLAGS[@]}" "-I${REGRAPH_ROOT}/acc_template/kernel_little_gs"
   emit_compile kernelLittleGSMerger "${REGRAPH_MERGER}/kernel_little_gs_merger.cpp" "${REGRAPH_FLAGS[@]}" "-I${REGRAPH_MERGER}"
   emit_compile regraph_pagerank_apply "${GRI_ROOT}/kernels/regraph_pagerank_apply/regraph_pagerank_apply.cpp" "${COMMON_ENV}" "-DGRASU_REGRAPH_PAGERANK_MODE=${MODE}" "-I${GRI_ROOT}/include" "-I${HLS_INCLUDE_ETC}" ${TARGET_DEFINE:+"${TARGET_DEFINE}"}
@@ -493,7 +499,16 @@ LINK_COMMAND="${BUILD_ROOT}/link_command.sh"
 {
   echo "#!/usr/bin/env bash"
   echo "set -euo pipefail"
-  printf 'source %q\n' "/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh"
+  if [[ "${ADAPTER_POLICY}" == prefetch-compact && "${TARGET}" == hw ]]; then
+    audit_algorithm=fullpr
+    if [[ "${MODE}" == 2 ]]; then audit_algorithm=respr; fi
+    printf 'python3 %q --build-dir %q --compute-pipelines %q --pipeline-mode %q --algorithm %q --platform-master-budget %q --out %q\n' \
+      "${GRI_ROOT}/scripts/check_pipeline_master_budget.py" \
+      "${BUILD_DIR}" "${COMPUTE_PIPELINES}" "${PIPELINE_MODE}" \
+      "${audit_algorithm}" "${PLATFORM_MASTER_BUDGET}" \
+      "${BUILD_ROOT}/pipeline_master_budget.json"
+  fi
+  emit_profile_vitis_settings
   printf 'export TMPDIR=%q TMP=%q TEMP=%q\n' "${TMP_DIR}" "${TMP_DIR}" "${TMP_DIR}"
   printf 'export CPATH=%q${CPATH:+:${CPATH}}\n' "/usr/include/x86_64-linux-gnu:/usr/include"
   printf 'export C_INCLUDE_PATH=%q${C_INCLUDE_PATH:+:${C_INCLUDE_PATH}}\n' "/usr/include/x86_64-linux-gnu:/usr/include"
@@ -588,7 +603,11 @@ fi
     echo "SOURCE_MIRROR_HBM_CHANNELS=23,24"
     echo "PMA_FRONTEND_CUS=4"
     echo "SHARED_REGRAPH_DOWNSTREAM=1"
-    echo "PMA_DDR_AXI_BUNDLES_PER_CU=4"
+    if [[ "${ADAPTER_POLICY}" == prefetch-compact ]]; then
+      echo "PMA_ADAPTER_AXI_BUNDLES_PER_CU=3"
+    else
+      echo "PMA_DDR_AXI_BUNDLES_PER_CU=4"
+    fi
     echo "SHARED_SOURCE_AXI_BUNDLES=2"
   else
     echo "PMA_HBM_CHANNELS=0,1,2,3"
@@ -615,7 +634,9 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
       "${SCRIPT_DIR}/lib/pma_adapter_selection.sh" \
       "${GRASU_IMPLEMENTATION_HEADERS[@]}" \
       "${GRI_ROOT}/include/regraph_pagerank_apply.hpp" \
-      "${GRI_ROOT}/include/regraph_pagerank/l2.h"; do
+      "${GRI_ROOT}/include/regraph_pagerank/l2.h" \
+      "${GRI_ROOT}"/kernels/pma_prefetch_compact/*.hpp \
+      "${GRI_ROOT}"/kernels/regraph_stream_little_gs/framed/*.hpp; do
     printf 'source\tpresent\t'
     sha256sum "${source}" | awk '{printf "%s\t", $1}'
     stat --printf '%s\t%n\n' "${source}"
@@ -623,6 +644,14 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
   for xo in "${xos[@]}"; do
     printf 'generated_xo\tpending\t-\t-\t%s\n' "${xo}"
   done
+  if [[ "${ADAPTER_POLICY}" == prefetch-compact ]]; then
+    for source in "${SCRIPT_DIR}/check_pipeline_master_budget.py" \
+        "${SCRIPT_DIR}/check_xo_master_budget.py"; do
+      printf 'audit_source\tpresent\t'
+      sha256sum "${source}" | awk '{printf "%s\t", $1}'
+      stat --printf '%s\t%n\n' "${source}"
+    done
+  fi
   printf 'xclbin\tpending\t-\t-\t%s\n' "${OUT_XCLBIN}"
 } > "${INPUTS}"
 

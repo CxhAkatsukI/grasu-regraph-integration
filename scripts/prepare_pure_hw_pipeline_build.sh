@@ -35,7 +35,7 @@ Options:
                                  Default: ${PIPELINE_MODE}
   --algorithm NAME               weighted_sssp or connected_components.
   --grasu-implementation NAME    legacy-direct-cache (default) or complete-search-cache.
-  --adapter-policy NAME          legacy (default) or bank-stream (512-bit row ABI).
+  --adapter-policy NAME          legacy (default), bank-stream, or prefetch-compact.
   --platform NAME                Platform name. Default: ${PLATFORM}
   --platform-xpfm PATH           Platform xpfm. Default: ${PLATFORM_XPFM}
   --kernel-frequency MHz         Link frequency. Default: ${KERNEL_FREQ}
@@ -208,6 +208,7 @@ if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
 fi
 
 declare -a REGRAPH_COMMON_FLAGS=(
+  "${REGRAPH_PROFILE_FLAGS[@]}"
   "${SW_EMU_GTHREAD_DEFINE}"
   "-O3"
   "-DHAVE_EDGE_PROP=${REGRAPH_EDGE_PROP}"
@@ -512,6 +513,11 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
     echo "nk=lksg_stream:4:lksg_stream_1.lksg_stream_2.lksg_stream_3.lksg_stream_4"
     for index in 1 2 3 4; do
       echo "sp=pma_to_regraph_adapter_${index}.pma0:HBM[0:22]"
+      if [[ "${ADAPTER_POLICY}" == prefetch-compact ]]; then
+        for port in pma1 pma2 pma3 row_offset; do
+          echo "sp=pma_to_regraph_adapter_${index}.${port}:HBM[0:22]"
+        done
+      fi
       echo "slr=pma_to_regraph_adapter_${index}:SLR$(((index - 1) % 3))"
       echo "slr=lksg_stream_${index}:SLR$(((index - 1) % 3))"
       echo "stream_connect=pma_to_regraph_adapter_${index}.edge_burst_out:lksg_stream_${index}.edge_burst_in:32"
@@ -534,6 +540,9 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
     echo "sp=kernelHBMWrapper_1.new_prop_2:HBM[24]"
     echo "sp=kernelApply_1.vertex_prop:HBM[30]"
     echo "sp=kernelApply_1.active_count:HBM[30]"
+    if [[ "${ADAPTER_POLICY}" == prefetch-compact ]]; then
+      echo "sp=kernelApply_1.vertex_prop_write:HBM[30]"
+    fi
   else
     echo "stream_connect=pma_to_regraph_adapter_1.edge_burst_out:lksg_stream_1.edge_burst_in:32"
     echo
@@ -582,7 +591,7 @@ fi
 {
   echo "#!/usr/bin/env bash"
   echo "set -euo pipefail"
-  printf 'source %q\n' "/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh"
+  emit_profile_vitis_settings
   printf 'export TMPDIR=%q\n' "${TMP_DIR}"
   printf 'export TMP=%q\n' "${TMP_DIR}"
   printf 'export TEMP=%q\n' "${TMP_DIR}"
@@ -661,7 +670,7 @@ fi
       "${CFG_DIR}/pma_to_regraph_adapter_compile.cfg" \
       "${HLS_INCLUDE_ETC}" \
       "${BUILD_DIR}/pma_to_regraph_adapter.${TARGET}.xo" \
-      "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
+      "${PMA_ADAPTER_SOURCE}"
     if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
       printf 'v++ --target %q --compile --kernel_frequency %q %s %s --config %q -I%q -o %q %q\n' \
         "${TARGET}" "${KERNEL_FREQ}" "${SW_EMU_GTHREAD_DEFINE}" "${REGRAPH_TARGET_DEFINE}" \
@@ -682,7 +691,14 @@ chmod +x "${COMPILE_COMMANDS}"
 {
   echo "#!/usr/bin/env bash"
   echo "set -euo pipefail"
-  printf 'source %q\n' "/data/yxx/tools/xilinx/Vitis/2024.1/settings64.sh"
+  if [[ "${ADAPTER_POLICY}" == prefetch-compact && "${TARGET}" == hw ]]; then
+    audit_algorithm=sssp
+    if [[ "${ALGORITHM}" == connected_components ]]; then audit_algorithm=cc; fi
+    printf 'python3 %q --build-dir %q --compute-pipelines 4 --pipeline-mode sharded-k4 --algorithm %q --out %q\n' \
+      "${GRI_ROOT}/scripts/check_pipeline_master_budget.py" "${BUILD_DIR}" \
+      "${audit_algorithm}" "${BUILD_ROOT}/pipeline_master_budget.json"
+  fi
+  emit_profile_vitis_settings
   printf 'export TMPDIR=%q\n' "${TMP_DIR}"
   printf 'export TMP=%q\n' "${TMP_DIR}"
   printf 'export TEMP=%q\n' "${TMP_DIR}"
@@ -784,6 +800,10 @@ chmod +x "${LINK_COMMAND}"
   emit_input_record generator_source "${GRI_ROOT}/scripts/prepare_pure_hw_pipeline_build.sh"
   emit_input_record generator_source "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh"
   emit_input_record generator_source "${SCRIPT_DIR}/lib/pma_adapter_selection.sh"
+  if [[ "${ADAPTER_POLICY}" == prefetch-compact ]]; then
+    emit_input_record audit_source "${SCRIPT_DIR}/check_pipeline_master_budget.py"
+    emit_input_record audit_source "${SCRIPT_DIR}/check_xo_master_budget.py"
+  fi
   emit_input_record config_input "${GRASU_LINK_CFG}"
   emit_input_record config_input "${GRASU_STREAM_CFG}"
   emit_input_record config_input "${REGRAPH_CONNECTIVITY_CFG}"
@@ -808,7 +828,7 @@ chmod +x "${LINK_COMMAND}"
       "${REGRAPH_ROOT}/acc_template/kernel_little_gs/kernel_scatter_gather.cpp"
   else
     emit_input_record kernel_source \
-      "${GRI_ROOT}/kernels/pma_to_regraph_adapter/pma_to_regraph_adapter.cpp"
+      "${PMA_ADAPTER_SOURCE}"
     emit_input_record kernel_source \
       "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp"
     if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
@@ -819,6 +839,9 @@ chmod +x "${LINK_COMMAND}"
     fi
   fi
   for header_dir in \
+    "${GRI_ROOT}/kernels/pma_prefetch_compact" \
+    "${GRI_ROOT}/kernels/regraph_sssp_apply_status" \
+    "${GRI_ROOT}/kernels/regraph_stream_little_gs/framed" \
     "${GRASU_ROOT}/GraSU/GraSU_kernels/src" \
     "${REGRAPH_ROOT}/acc_template/common" \
     "${REGRAPH_ROOT}/acc_template/kernel_apply" \

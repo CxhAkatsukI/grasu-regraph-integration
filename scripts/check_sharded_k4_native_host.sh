@@ -5,14 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/env.sh"
 
 ROW_LINE_READ=0
+PREFETCH_COMPACT=0
 BUILD_OPTIONS=()
 case "${1:-}" in
   "") ;;
   --row-line-read) ROW_LINE_READ=1; BUILD_OPTIONS=(--row-line-read); shift ;;
-  *) echo "Usage: $0 [--row-line-read]" >&2; exit 2 ;;
+  --prefetch-compact) ROW_LINE_READ=1; PREFETCH_COMPACT=1; BUILD_OPTIONS=(--prefetch-compact); shift ;;
+  *) echo "Usage: $0 [--row-line-read|--prefetch-compact]" >&2; exit 2 ;;
 esac
 if [[ $# != 0 ]]; then
-  echo "Usage: $0 [--row-line-read]" >&2
+  echo "Usage: $0 [--row-line-read|--prefetch-compact]" >&2
   exit 2
 fi
 
@@ -94,6 +96,7 @@ K4_FRONTENDS=4
 SHARED_REGRAPH_DOWNSTREAM=1
 CONVERSION_COST=absent
 ROW_LINE_READ=${ROW_LINE_READ}
+PREFETCH_COMPACT=${PREFETCH_COMPACT}
 ALGORITHMS=weighted_sssp,connected_components,full_pagerank,residual_pagerank
 MANIFEST
 

@@ -1,0 +1,110 @@
+#pragma once
+#include "types.hpp"
+
+namespace pma_compact {
+static Packet packet(const ap_uint<64> lanes[32], unsigned count,
+                      unsigned window, bool last) {
+#pragma HLS INLINE
+    Packet result;
+    result.data = 0;
+    for (unsigned lane = 0; lane < 8; ++lane) {
+#pragma HLS UNROLL
+        ap_uint<64> item = 0;
+        item.range(31, 0) = (window * kWindow) | 0x80000000u;
+        item.range(63, 32) = 0x80000000u;
+        if (lane < count) item = lanes[lane];
+        result.data.range(lane * 64 + 63, lane * 64) = item;
+    }
+    result.keep = -1;
+    result.strb = -1;
+    result.last = last;
+    return result;
+}
+
+static void compact(unsigned destinations, hls::stream<Segment> &input,
+                     hls::stream<Packet> &output) {
+#pragma HLS INLINE OFF
+    ap_uint<64> lanes[32];
+#pragma HLS ARRAY_PARTITION variable=lanes complete
+    unsigned count = 0, window = 0;
+    bool have_window = false, emitted = false;
+    Packet publishing[3];
+    ap_uint<2> delay[3] = {0, 0, 0};
+#pragma HLS ARRAY_PARTITION variable=publishing complete
+#pragma HLS ARRAY_PARTITION variable=delay complete
+    unsigned head = 0, tail = 0, pending = 0;
+    Segment value;
+    bool held = false, terminal = false, closed = false;
+    while (true) {
+#pragma HLS PIPELINE II=1
+        const unsigned previous_pending = pending;
+        for (unsigned slot = 0; slot < 3; ++slot) {
+#pragma HLS UNROLL
+            if (delay[slot]) --delay[slot];
+        }
+        if (pending && !delay[head] && output.write_nb(publishing[head])) {
+            bool last = publishing[head].last;
+            head = (head + 1) % 3;
+            --pending;
+            if (last) break;
+        }
+        if (!held && !terminal) held = input.read_nb(value);
+        bool boundary = have_window && held && value.source / kWindow != window;
+        bool flush = boundary || terminal;
+        const unsigned previous_count = count;
+        const bool accept = !boundary && !terminal && held && previous_count <= 16;
+        const bool switch_window = boundary && !count && emitted;
+        if (have_window && !closed && previous_pending < 3 && (count > 8 ||
+            (flush && (count || !emitted || terminal)))) {
+            unsigned take = count < 8 ? count : 8;
+            bool last = terminal && count <= 8;
+            publishing[tail] = packet(lanes, take, window, last);
+            delay[tail] = 2;
+            tail = (tail + 1) % 3;
+            ++pending;
+            for (unsigned lane = 0; lane < 24; ++lane) {
+#pragma HLS UNROLL
+                lanes[lane] = lanes[lane + 8];
+            }
+            count -= take;
+            emitted = true;
+            closed = last;
+        }
+        if (switch_window) {
+            have_window = false;
+            emitted = false;
+        }
+        // Selection and publication use independent finite storage and may
+        // advance together. A full publisher never borrows same-cycle credit.
+        if (accept) {
+            if (!have_window) { window = value.source / kWindow; have_window = true; }
+            unsigned selected = 0;
+            ap_uint<64> compacted[16];
+#pragma HLS ARRAY_PARTITION variable=compacted complete
+            for (unsigned lane = 0; lane < 16; ++lane) {
+#pragma HLS UNROLL
+                ap_uint<32> dst = value.data.range(lane * 32 + 31, lane * 32);
+                bool valid = !dst[31] && (unsigned)(dst & 0x7ffffu) < destinations;
+#if GRASU_REGRAPH_WEIGHTED_PMA
+                valid = valid && ((dst >> 19) & 0xfffu) != 0;
+#elif !GRASU_REGRAPH_DESTINATION_ONLY
+                dst = (dst & 0x7ffffu) | (1u << 19);
+#endif
+                if (valid) {
+                    ap_uint<64> item;
+                    item.range(31, 0) = value.source;
+                    item.range(63, 32) = dst;
+                    compacted[selected++] = item;
+                }
+            }
+            for (unsigned lane = 0; lane < 16; ++lane) {
+#pragma HLS UNROLL
+                if (lane < selected) lanes[count + lane] = compacted[lane];
+            }
+            count += selected;
+            terminal = value.last;
+            held = false;
+        }
+    }
+}
+}

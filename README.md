@@ -3,6 +3,10 @@
 Current complete-G source candidate: [source map, build selection and evidence gates](kernels/grasu_complete/README.md).
 It is opt-in and does not replace the frozen routed baseline or constitute new board evidence.
 
+Current simulator-to-HLS port: [prefetch/compact source candidate and build gates](docs/sharded_k4_prefetch_compact/README.md).
+Functional checks pass, but the complete candidate exceeds the U55C AXI-master
+budget. It is not an admitted full-system link or a new performance result.
+
 This repository is a lightweight integration workspace for comparing:
 
 ```text
