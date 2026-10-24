@@ -24,7 +24,7 @@ passes synthetic tests for all three dynamic algorithms. This is offboard
 validation of result extraction, not a completed FPGA comparison.
 
 An AU-only paired demo is now queued for each dynamic algorithm under
-`resident-au-demo-v1/` in the blocking-AXIS campaign. The run-local
+`resident-au-demo-v2/` in the blocking-AXIS campaign. The run-local
 `paired_inputs.py` handles source/artifact admission and `paired_measure.py`
 handles bounded execution; neither modifies the frozen simulator. Each waits
 for its own G+R extended board acceptance. Residual PR also waits for the
@@ -56,8 +56,18 @@ six-partition smoke gates. The followup uses the same board mutex and an
 atomic full 8-GiB host reservation, a finite process-tree RSS watchdog,
 40-GiB live-memory reserve and retained raw evidence. These queued tests
 are not board results or performance comparisons. Their run-local code is
-`board_followup.py`, with evidence in `board-extended-v1/<algorithm>/`, under
+`board_followup.py`, with evidence in `board-extended-v2/<algorithm>/`, under
 the blocking-AXIS campaign root linked below.
+
+The v1 extended/pair consumers were stopped while waiting, before any board
+execution, and retained. The v2 consumers share `routed_selection.py`: SSSP
+requires the repaired `reuse-impl-v3/sssp` artifact and `board-repaired-v2`
+smoke result; CC, ResPR and FullPR retain their own explicit route/smoke paths.
+All runners pin the selection and physical-checker sources. Six controller
+tests pass offboard; they do not establish timing or hardware correctness.
+The unstarted Spine build queue was similarly archived and restarted with
+the explicit repaired-SSSP board dependency. No passing gate is synthesized
+or copied from an older attempt.
 
 ## Current Iteration
 
