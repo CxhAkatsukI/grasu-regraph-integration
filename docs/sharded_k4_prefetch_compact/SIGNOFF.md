@@ -67,20 +67,40 @@ Setup/hold/pulse-width acceptance, actual DATA clocks, CPU-oracle correctness,
 resident convergence and repeated performance measurements remain distinct
 requirements. No helper success is labeled a full FPGA performance result.
 
+## Fixed Clock Configuration
+
+The platform's Vitis 2024.1 scripts enable automatic frequency scaling for
+both kernel and scalable system clocks, including `hbm_aclk`. A successful
+link and a 150-MHz DATA clock alone therefore do not prove that the original
+HBM frequency was retained. `scripts/check_vitis_clock_scaling.py` checks the
+complete `_new_clk_freq` metadata against DATA 150 MHz, the platform's auxiliary
+kernel clock 500 MHz, and HBM 450 MHz. Missing, duplicated, unknown or invalid
+rows fail closed; any frequency change is a configuration mismatch. Its tests
+include reduced HBM frequency while the DATA frequency is unchanged.
+
+This is a metadata check, not timing or board acceptance. Checkpoint clock
+reports, final setup/hold/pulse-width and independent bus-skew checks, xclbin
+clocks and board correctness remain required. A lower-frequency result may be
+retained as a different physical configuration, not substituted for the frozen
+configuration without disclosure. No timing constraint is weakened by this
+helper.
+
 ## Optional Post-Route Repair
 
 `scripts/optimize_routed_checkpoint.tcl` accepts a fully routed Vivado 2024.1
 checkpoint and an isolated output directory. It records pre/post timing,
 route status and clocks, runs `phys_opt_design -directive ExploreWithHoldFix`,
-reports bus-skew, and writes a separate candidate checkpoint. Existing outputs
+reports bus-skew, and writes a separate candidate checkpoint. It asserts the
+150/500/450-MHz platform clock periods both before and after optimization.
+Existing outputs
 are rejected. It does not change frequencies or constraints, overwrite the
 input, or declare signoff. This is a physical implementation optimization,
 not a kernel or simulator change. AMD documents the post-route operation in
 [UG835, phys_opt_design](https://docs.amd.com/r/2024.1-English/ug835-vivado-tcl-commands/phys_opt_design).
 
 The Tcl-stub tests in `tests/test_optimize_routed_checkpoint.py` check command
-sequencing and rejection of unsupported versions, unrouted inputs and output
-collisions. They are not hardware timing evidence. Any actual candidate must
+sequencing and rejection of unsupported versions, unrouted inputs, changed or
+missing clocks, and output collisions. They are not hardware timing evidence. Any actual candidate must
 still pass final setup/hold/pulse-width timing, an independent bus-skew audit,
 the original DATA clock requirement and the existing board correctness gates.
 
@@ -90,3 +110,10 @@ The full source regression including this helper passes 102 tests on
 Raw logs and unchanged tracked-source hashes are retained in the campaign's
 `source-regression-v4/`. This does not claim the repair has run on a checkpoint
 or that routed timing or board tests have passed.
+
+With the fixed-clock metadata checker and the before/after checkpoint-clock
+guards, the full source regression passes 106 tests (`gr-routed-source-tests-v5`,
+2026-10-24): 28.218 seconds of test execution, 277.6 MiB peak service memory,
+the same 4/3-GiB no-swap containment, and zero OOM events. Raw logs, environment
+and unchanged tracked-source hashes are retained in `source-regression-v5/`.
+This remains source-level evidence, not a routed or board acceptance result.

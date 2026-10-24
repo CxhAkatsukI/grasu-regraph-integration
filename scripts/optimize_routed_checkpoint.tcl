@@ -17,7 +17,22 @@ foreach name {timing_before.rpt route_before.rpt clocks_before.rpt timing_after.
     }
 }
 set_param general.maxThreads 4
+proc require_fixed_clocks {} {
+    foreach {name frequency} {clk_kernel_00_unbuffered_net 150.0
+                              clk_kernel_01_unbuffered_net 500.0 hbm_aclk 450.0} {
+        set clocks [get_clocks -quiet $name]
+        if {[llength $clocks] != 1} {
+            error "exactly one frozen platform clock required: $name"
+        }
+        set period [get_property PERIOD $clocks]
+        if {![string is double -strict $period] ||
+            abs($period - 1000.0 / $frequency) > 0.00001} {
+            error "unexpected frozen platform clock period: $name $period"
+        }
+    }
+}
 open_checkpoint $checkpoint
+require_fixed_clocks
 if {![report_route_status -boolean_check ROUTED_FULLY]} {
     error "repair requires a fully routed input checkpoint"
 }
@@ -26,6 +41,7 @@ report_clocks -file [file join $output clocks_before.rpt]
 report_timing_summary -max_paths 20 -file [file join $output timing_before.rpt] -warn_on_violation
 
 phys_opt_design -directive ExploreWithHoldFix
+require_fixed_clocks
 
 if {![report_route_status -boolean_check ROUTED_FULLY]} {
     error "optimized candidate is not fully routed"
