@@ -39,8 +39,10 @@ routed timing, bounded-channel correctness and FPGA output verification.
 The shared-ingress SSSP packet now has all eleven XOs. The actual-interface
 audit counts 26 master instances: four search, two cache, eight external PMA,
 eight adapter, two Apply and two HBM-wrapper instances. Its audit artifact is
-`/data/chuxiao/builds/gr-prefetch-shared-channels-trif-20261024/sssp/pipeline_master_budget.json`.
-This is an interface-budget pass only; PR needs its own actual-XO audit.
+`/data/chuxiao/builds/gr-prefetch-blocking-axis-trif-20261024/sssp/pipeline_master_budget.json`
+for the fresh blocking-write repair. Vitis also completes the system-link
+check for that packet. Neither is a routed timing or board pass; PR needs its
+own actual-XO audit.
 
 ## Evidence Boundary
 

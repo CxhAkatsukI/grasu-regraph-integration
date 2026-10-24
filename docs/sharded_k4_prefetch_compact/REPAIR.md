@@ -13,8 +13,8 @@ The paper and frozen simulator predictions are not being changed.
 | Adapter scheduling | Held-input retry estimates 199.01 MHz at requested 150 MHz, with directory fill and bank request II=1; not post-route timing |
 | Apply scheduling | Split request/response integer Apply XO estimates 205.47 MHz at requested 150 MHz; not post-route timing |
 | Finite channels and stalls | Three formats each pass all eight output comparisons with zero UVM errors; earlier failures remain retained |
-| Physical integration | Earlier shared-ingress XOs audit to 26/32 master instances; all eleven components are being rebuilt after the AXIS repair; full link remains gated |
-| Complete hardware | Not newly linked, routed or board tested; no performance result follows from component export |
+| Physical integration | All eleven fresh SSSP XOs pass; actual master audit is 26/32 and Vitis system-link completes |
+| Complete hardware | Fresh SSSP Vivado implementation is running; CC and ResPR components are compiling; no fresh routed or FPGA result yet |
 
 Do not promote an unmet gate to a pass. HLS frequency estimates are not
 post-route timing. Full-system acceptance requires the actual interfaces,
@@ -178,6 +178,35 @@ check, but inspection finds that the atomic lease also imports the original
 record retained. The replacement in `route-bounded40/` uses the supported
 40/36-GiB profile consistently for cgroup, reservation and watchdog, retaining
 40 GiB of system headroom and zero swap. No containment check is bypassed.
+
+## Full-System Implementation And Board Gates
+
+The blocking-write campaign now exports all eleven fresh SSSP XOs. Its own
+actual-interface audit passes at 26/32 master instances, and Vitis completes
+`system_link`, block-design creation and target generation. These are not
+place-and-route or timing passes. The active implementation evidence is
+`/data/chuxiao/builds/gr-prefetch-blocking-axis-trif-20261024/route-bounded40/route-sssp/`.
+Separate CC and ResPR builds use their own generated packets and XOs; neither
+inherits the SSSP component or port-audit result.
+
+Multiplying each SSSP top-level HLS XML resource estimate by its configured
+CU count gives 1,006,474 LUTs, 635,558 FFs, 1,434 BRAM18s and 768 URAMs before
+platform overhead. That is approximately 77% of whole-device LUTs and 80%
+of whole-device URAMs, not a post-synthesis or routed utilization report.
+Physical fit and congestion remain open gates.
+
+The queued board gate accepts only this campaign's successful routed artifact,
+checks input and executable hashes, rejects an occupied card, and verifies the
+150-MHz U55C `DATA_CLK`. The separate platform `KERNEL_CLK` control clock is
+not required to be 150 MHz. An earlier queued board supervisor was stopped
+before programming to correct that clock classification; its evidence is
+retained with a supersession record.
+
+Fresh board smoke tests check update-only and old-converged-state-to-new-
+convergence behavior on tiny and six-partition SSSP graphs against CPU oracles.
+Passing these four tests would establish bring-up correctness only, not the
+full performance matrix, simulator cycle agreement or a speedup over Spine.
+The replacement board evidence is `board-sssp-retry/` under the campaign root.
 
 ## Prediction Boundary
 
