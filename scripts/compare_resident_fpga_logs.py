@@ -9,6 +9,7 @@ import argparse
 import json
 import math
 from pathlib import Path
+import statistics
 
 
 PROFILES = {
@@ -97,6 +98,36 @@ def compare(algorithm, gr_text, spine_text, source):
                 gr_rounds=gr_rounds, spine_rounds=int(spine["iterations"]),
                 gr_wall_ms=gr_wall, spine_wall_ms=spine_wall,
                 speedup_gr_over_spine=speedup,
+                scope="log_semantics_only_not_provenance_or_hardware_acceptance")
+
+
+def summarize(samples):
+    """Exclude the single first warm-up; retain every subsequent paired run."""
+    if len(samples) < 4:
+        raise ValueError("one warm-up and at least three measured pairs required")
+    reference = samples[0]["pair"]
+    keys = ("algorithm", "boundary", "vertices", "logical_updates", "physical_updates")
+    for index, sample in enumerate(samples):
+        if sample["sample_index"] != index or sample["warmup"] is not (index == 0):
+            raise ValueError("ordered samples with exactly one first warm-up required")
+        pair = sample["pair"]
+        if any(pair[key] != reference[key] for key in keys):
+            raise ValueError("mixed workloads or boundaries in repeated comparison")
+        for key in ("gr_wall_ms", "spine_wall_ms"):
+            finite(pair, key, positive=True)
+    measured = [sample["pair"] for sample in samples[1:]]
+    walls = {}
+    for architecture in ("gr", "spine"):
+        values = [pair[architecture + "_wall_ms"] for pair in measured]
+        walls[architecture] = dict(samples_ms=values, median_ms=statistics.median(values),
+            min_ms=min(values), max_ms=max(values),
+            coefficient_of_variation=statistics.pstdev(values) / statistics.mean(values))
+    ratio = walls["gr"]["median_ms"] / walls["spine"]["median_ms"]
+    if not math.isfinite(ratio) or ratio <= 0:
+        raise ValueError("invalid ratio of median resident walls")
+    return dict(**{key: reference[key] for key in keys},
+                measured_pairs=len(measured), excluded_warmup_pairs=1, walls=walls,
+                speedup_ratio_of_median_walls=ratio,
                 scope="log_semantics_only_not_provenance_or_hardware_acceptance")
 
 

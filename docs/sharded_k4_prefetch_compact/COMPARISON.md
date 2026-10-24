@@ -67,6 +67,13 @@ The checker cannot infer source equivalence, matching graph hashes, successful
 routing or board identity from stdout. Those remain independent runner gates.
 Its synthetic unit fixtures are parser tests, not hardware measurements.
 
+The same module's `summarize(samples)` requires one first excluded warm-up
+and at least three subsequent matched pairs. It rejects mixed workloads,
+reordered samples, additional warm-ups and nonfinite walls. It retains all
+measured values and reports their medians, ranges, variation and the ratio
+of median walls, not the median/best of selected per-pair speedups. This
+aggregation still cannot establish artifact provenance or hardware acceptance.
+
 A failed FPGA realization also does not establish that the frozen simulator
 is a proven optimal-performance bound. An optimistic prediction needs stated
 assumptions and evidence that every omitted cost benefits the baseline; a

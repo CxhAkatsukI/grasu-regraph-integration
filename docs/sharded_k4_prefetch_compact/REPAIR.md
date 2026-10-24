@@ -23,6 +23,20 @@ wall measurements and repetition/provenance gates. Its fail-closed log checker
 passes synthetic tests for all three dynamic algorithms. This is offboard
 validation of result extraction, not a completed FPGA comparison.
 
+An AU-only paired demo is now queued for each dynamic algorithm under
+`resident-au-demo-v1/` in the blocking-AXIS campaign. The run-local
+`paired_inputs.py` handles source/artifact admission and `paired_measure.py`
+handles bounded execution; neither modifies the frozen simulator. Each waits
+for its own G+R extended board acceptance. Residual PR also waits for the
+fresh sparse-Spine build and board gates. Integer Spine bits are explicitly
+historical: CC has a clean direct build-commit record, whereas SSSP's recorded
+commit is a collector fallback, not equivalent direct build provenance.
+The unchanged integer-source inspection does not erase that limitation.
+The demo excludes one warm-up, alternates architecture order and retains
+three measured resident-wall pairs on the same four CPU cores. Queued workers
+are not new board or speedup evidence. Four repository parser/aggregation
+tests and three run-local admission tests pass offboard.
+
 Additional frozen SU/WK CPU preparation checks pass for all three dynamic
 algorithms (six inputs, respectively nine and eighteen destination partitions).
 The immutable evidence is `su-wk-preflight-v1/` under the blocking-AXIS campaign

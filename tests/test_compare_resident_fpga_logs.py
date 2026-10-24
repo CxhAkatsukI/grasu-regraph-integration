@@ -1,4 +1,5 @@
 import importlib.util
+import copy
 from pathlib import Path
 import unittest
 
@@ -33,6 +34,30 @@ def fixture(algorithm):
 
 
 class ResidentLogComparisonTest(unittest.TestCase):
+    def test_repeated_summary_uses_ratio_of_medians_not_best_pair(self):
+        pair = MODULE.compare("weighted_sssp", *fixture("weighted_sssp"), source=0)
+        samples = []
+        for index, (gr, spine) in enumerate(((1, 1000), (20, 10), (30, 1), (100, 20))):
+            row = dict(pair, gr_wall_ms=gr, spine_wall_ms=spine)
+            samples.append(dict(sample_index=index, warmup=index == 0, pair=row))
+        summary = MODULE.summarize(samples)
+        self.assertEqual(summary["walls"]["gr"]["samples_ms"], [20, 30, 100])
+        self.assertEqual(summary["speedup_ratio_of_median_walls"], 3)
+        for mutation in ("too_few", "second_warmup", "out_of_order", "mixed", "nan"):
+            invalid = copy.deepcopy(samples)
+            if mutation == "too_few":
+                invalid.pop()
+            elif mutation == "second_warmup":
+                invalid[1]["warmup"] = True
+            elif mutation == "out_of_order":
+                invalid[1]["sample_index"] = 2
+            elif mutation == "mixed":
+                invalid[1]["pair"]["vertices"] = 9
+            else:
+                invalid[1]["pair"]["spine_wall_ms"] = float("nan")
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                MODULE.summarize(invalid)
+
     def test_three_algorithms_use_continuous_wall(self):
         for algorithm in MODULE.PROFILES:
             with self.subTest(algorithm=algorithm):
