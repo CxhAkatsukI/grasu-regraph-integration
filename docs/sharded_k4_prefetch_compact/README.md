@@ -166,7 +166,7 @@ Each retry uses a fresh run folder; failed logs and manifests are retained:
 | `gr-prefetch-compact-trif-channels-20261024/` | Named channel identifiers rejected |
 | `gr-prefetch-compact-trif-channel-ids-20261024/` | Structure-aggregated directory rejected |
 | `gr-prefetch-compact-trif-array-20261024/` | Watchdog timeout at 7200 seconds during compactor scheduling; no OOM |
-| `gr-prefetch-compact-trif-static-20261024/` | Fixed-destination compactor retry; inspect its `execution.json` for actual status |
+| `gr-prefetch-compact-trif-static-20261024/` | Adapter XO exported in 77.76 seconds; HLS timing and throughput gates remain unmet |
 
 Each retry keeps the same containment and watchdog policy. Its source and
 configuration identities are pinned before and checked after compilation.
@@ -201,6 +201,25 @@ the manifest, execution status and raw logs.
 The timed-out attempt also reports read-bank II=36 (requested 1), directory
 fill II=4 (requested 1), and segment-register depth=3 (requested 2). Those
 scheduling gaps are not repaired or waived by this compactor-only edit.
+
+The static-destination retry completed from clean source commit
+`bc3dc0624d862cc4fedd98a206c25d4163e1fa0d`, with status
+`COMPONENT_XO_PASS_NOT_ROUTED`, exit code zero, 77.76 seconds elapsed,
+sampled peak tree RSS about 1.88 GiB, and zero cgroup OOM events. Source and
+configuration identity checks passed. The weighted adapter XO SHA-256 is
+`6c1d113d5c385fc565fff862006c6f2a10a805571467da87100770cc7a7d17f5`.
+This resolves the observed compile-timeout failure for this source and run,
+not the schedule or full-system integration gates.
+
+The new HLS report estimates only **62.91 MHz**, below the requested 150 MHz;
+the compactor critical path is estimated at 15.896 ns. Its loop reports II=1
+and depth=3, but that does not establish operation at the target frequency.
+Directory fill remains II=4 and both read-bank loops remain II=36; segment
+registration has depth=3. The join also has an unsatisfied pipeline directive,
+and HLS reports noncanonical DATAFLOW, ignored tile partition directives and
+channel-depth warnings. These need investigation and finite RTL verification,
+not suppressed warnings or a simulator coefficient adjustment. No full-system
+link, routing, board test or performance-alignment result follows from this XO.
 
 ## Reproduce Functional Checks
 
