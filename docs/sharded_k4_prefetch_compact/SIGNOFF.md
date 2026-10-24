@@ -66,3 +66,27 @@ tests check missing, altered, incomplete and duplicated review rejection.
 Setup/hold/pulse-width acceptance, actual DATA clocks, CPU-oracle correctness,
 resident convergence and repeated performance measurements remain distinct
 requirements. No helper success is labeled a full FPGA performance result.
+
+## Optional Post-Route Repair
+
+`scripts/optimize_routed_checkpoint.tcl` accepts a fully routed Vivado 2024.1
+checkpoint and an isolated output directory. It records pre/post timing,
+route status and clocks, runs `phys_opt_design -directive ExploreWithHoldFix`,
+reports bus-skew, and writes a separate candidate checkpoint. Existing outputs
+are rejected. It does not change frequencies or constraints, overwrite the
+input, or declare signoff. This is a physical implementation optimization,
+not a kernel or simulator change. AMD documents the post-route operation in
+[UG835, phys_opt_design](https://docs.amd.com/r/2024.1-English/ug835-vivado-tcl-commands/phys_opt_design).
+
+The Tcl-stub tests in `tests/test_optimize_routed_checkpoint.py` check command
+sequencing and rejection of unsupported versions, unrouted inputs and output
+collisions. They are not hardware timing evidence. Any actual candidate must
+still pass final setup/hold/pulse-width timing, an independent bus-skew audit,
+the original DATA clock requirement and the existing board correctness gates.
+
+The full source regression including this helper passes 102 tests on
+2026-10-24 (`gr-routed-source-tests-v4`): 24.291 seconds of test execution,
+273.5 MiB peak service memory, under the same 4/3-GiB, no-swap containment.
+Raw logs and unchanged tracked-source hashes are retained in the campaign's
+`source-regression-v4/`. This does not claim the repair has run on a checkpoint
+or that routed timing or board tests have passed.
