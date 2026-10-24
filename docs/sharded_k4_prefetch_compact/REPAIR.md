@@ -21,6 +21,17 @@ Do not promote an unmet gate to a pass. HLS frequency estimates are not
 post-route timing. Full-system acceptance requires the actual interfaces,
 clock, state semantics, completion boundary and correctness-checked output.
 
+The followup board gates additionally cover the frozen AU workloads and a
+CPU-checked DDR-update stress input. SSSP and CC each report 4,100 actual
+DDR updates in that input; PR does not expose the corresponding layout
+counter. Every algorithm must first pass its own routed timing and tiny/
+six-partition smoke gates. The followup uses the same board mutex and an
+atomic full 8-GiB host reservation, a finite process-tree RSS watchdog,
+40-GiB live-memory reserve and retained raw evidence. These queued tests
+are not board results or performance comparisons. Their run-local code is
+`board_followup.py`, with evidence in `board-extended-v1/<algorithm>/`, under
+the blocking-AXIS campaign root linked below.
+
 ## Current Iteration
 
 The four-level prefix retry (`7876b8a`) passes all adapter/compactor checks and
