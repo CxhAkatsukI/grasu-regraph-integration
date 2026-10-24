@@ -16,6 +16,7 @@ The paper and frozen simulator predictions are not being changed.
 | Physical integration | Fresh SSSP and CC eleven-XO sets and ResPR twelve-XO set pass; actual master audits are respectively 26/32, 26/32 and 32/32; all three complete Vitis system-link |
 | Complete hardware | A local URAM over-allocation is repaired in fresh relink configs; SSSP implementation is running, CC/ResPR await full-budget admission; no fresh routed or FPGA result yet |
 | PR correctness gate | Both PR hosts rebuild with finite-value and global L1-error checks; six-partition CPU prepare checks and all 93 repository tests pass; not a board result |
+| Spine comparison host | Corrected continuous resident timer passes six board checks on historical owner-FIFO bitstreams; latest sparse-selector hardware and repeated comparison remain pending |
 
 Do not promote an unmet gate to a pass. HLS frequency estimates are not
 post-route timing. Full-system acceptance requires the actual interfaces,
@@ -315,6 +316,27 @@ admission only; it does not alter epsilon, algorithm work or timing windows.
 Host manifests also hash the included shared native-host source and new
 validation header. New PR binaries and six-partition CPU preflights are in
 `hosts-rankguard/{respr,fullpr}/` under the blocking-write campaign root.
+
+## Spine Comparison Prerequisite
+
+The old Spine summed timing field is not the continuous resident wall used
+by the G+R host. A separate resident host mode includes maintenance,
+propagation, inter-round host relaunch, in-window transfers and final
+readback. Source review also finds per-round CPU reference edge counting
+inside that new timer; Spine commit `877ae3d` moves it after final readback
+while retaining each round's source frontier for validation.
+
+All four corrected hosts compile and the three injected-runtime tests pass.
+Six corrected-host tests then pass on real U55C hardware: SSSP, CC and
+residual PR, each on tiny and six-G+R-partition inputs. Residual PR performs
+22 and three propagation rounds. Evidence is under `spine-resident-host-v6/`
+and `spine-resident-legacy-smoke-v6/` in the blocking-write campaign root.
+The earlier twelve legacy/resident checks remain separately retained.
+
+These use fixed historical owner-FIFO bitstreams, not the latest sparse
+selector. They are host-compatibility gates, not latest-architecture timing
+calibration or repeated performance results. The complete G+R routes and
+their own board gates remain prerequisites to a new comparison.
 
 ## Prediction Boundary
 
