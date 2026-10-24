@@ -2,6 +2,44 @@
 #include "types.hpp"
 
 namespace pma_compact {
+static ap_uint<5> select_lanes(const Segment &value, unsigned destinations,
+                               ap_uint<64> compacted[16]) {
+#pragma HLS INLINE
+    bool valid[16];
+    ap_uint<5> position[16];
+    ap_uint<64> items[16];
+#pragma HLS ARRAY_PARTITION variable=valid complete
+#pragma HLS ARRAY_PARTITION variable=position complete
+#pragma HLS ARRAY_PARTITION variable=items complete
+    ap_uint<5> selected = 0;
+    for (unsigned lane = 0; lane < 16; ++lane) {
+#pragma HLS UNROLL
+        ap_uint<32> dst = value.data.range(lane * 32 + 31, lane * 32);
+        valid[lane] = !dst[31] && (unsigned)(dst & 0x7ffffu) < destinations;
+#if GRASU_REGRAPH_WEIGHTED_PMA
+        valid[lane] = valid[lane] && ((dst >> 19) & 0xfffu) != 0;
+#elif !GRASU_REGRAPH_DESTINATION_ONLY
+        dst = (dst & 0x7ffffu) | (1u << 19);
+#endif
+        position[lane] = selected;
+        selected += valid[lane];
+        items[lane].range(31, 0) = value.source;
+        items[lane].range(63, 32) = dst;
+    }
+    // Prefix ranks are unique for valid inputs. Fixed destinations avoid
+    // unrolled runtime-index writes and their array dependence scheduling.
+    for (unsigned slot = 0; slot < 16; ++slot) {
+#pragma HLS UNROLL
+        ap_uint<64> item = 0;
+        for (unsigned lane = 0; lane < 16; ++lane) {
+#pragma HLS UNROLL
+            if (valid[lane] && position[lane] == slot) item |= items[lane];
+        }
+        compacted[slot] = item;
+    }
+    return selected;
+}
+
 static Packet packet(const ap_uint<64> lanes[32], unsigned count,
                       unsigned window, bool last) {
 #pragma HLS INLINE
@@ -26,13 +64,14 @@ static void compact(unsigned destinations, hls::stream<Segment> &input,
 #pragma HLS INLINE OFF
     ap_uint<64> lanes[32];
 #pragma HLS ARRAY_PARTITION variable=lanes complete
-    unsigned count = 0, window = 0;
+    ap_uint<6> count = 0;
+    unsigned window = 0;
     bool have_window = false, emitted = false;
     Packet publishing[3];
     ap_uint<2> delay[3] = {0, 0, 0};
 #pragma HLS ARRAY_PARTITION variable=publishing complete
 #pragma HLS ARRAY_PARTITION variable=delay complete
-    unsigned head = 0, tail = 0, pending = 0;
+    ap_uint<2> head = 0, tail = 0, pending = 0;
     Segment value;
     bool held = false, terminal = false, closed = false;
     while (true) {
@@ -56,7 +95,7 @@ static void compact(unsigned destinations, hls::stream<Segment> &input,
         const bool switch_window = boundary && !count && emitted;
         if (have_window && !closed && previous_pending < 3 && (count > 8 ||
             (flush && (count || !emitted || terminal)))) {
-            unsigned take = count < 8 ? count : 8;
+            unsigned take = count < 8 ? (unsigned)count : 8u;
             bool last = terminal && count <= 8;
             publishing[tail] = packet(lanes, take, window, last);
             delay[tail] = 2;
@@ -78,28 +117,15 @@ static void compact(unsigned destinations, hls::stream<Segment> &input,
         // advance together. A full publisher never borrows same-cycle credit.
         if (accept) {
             if (!have_window) { window = value.source / kWindow; have_window = true; }
-            unsigned selected = 0;
             ap_uint<64> compacted[16];
 #pragma HLS ARRAY_PARTITION variable=compacted complete
-            for (unsigned lane = 0; lane < 16; ++lane) {
+            ap_uint<5> selected = select_lanes(value, destinations, compacted);
+            for (unsigned lane = 0; lane < 32; ++lane) {
 #pragma HLS UNROLL
-                ap_uint<32> dst = value.data.range(lane * 32 + 31, lane * 32);
-                bool valid = !dst[31] && (unsigned)(dst & 0x7ffffu) < destinations;
-#if GRASU_REGRAPH_WEIGHTED_PMA
-                valid = valid && ((dst >> 19) & 0xfffu) != 0;
-#elif !GRASU_REGRAPH_DESTINATION_ONLY
-                dst = (dst & 0x7ffffu) | (1u << 19);
-#endif
-                if (valid) {
-                    ap_uint<64> item;
-                    item.range(31, 0) = value.source;
-                    item.range(63, 32) = dst;
-                    compacted[selected++] = item;
+                if (lane >= count && lane < count + selected) {
+                    ap_uint<4> slot = lane - count;
+                    lanes[lane] = compacted[slot];
                 }
-            }
-            for (unsigned lane = 0; lane < 16; ++lane) {
-#pragma HLS UNROLL
-                if (lane < selected) lanes[count + lane] = compacted[lane];
             }
             count += selected;
             terminal = value.last;

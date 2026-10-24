@@ -14,9 +14,16 @@ for mode in weighted destination unit; do
     destination) flags=(-DGRASU_REGRAPH_DESTINATION_ONLY=1) ;;
     unit) flags=() ;;
   esac
-  g++ -std=c++17 -O1 -w -pthread "${flags[@]}" \
-    -I"$include" -I"$include/etc" "$root/tests/pma_prefetch_compact_tb.cpp" \
-    -o "$out/$mode" > "$out/$mode.build.log" 2>&1
-  timeout 180 "$out/$mode" > "$out/$mode.run.log" 2>&1
-  tail -n 2 "$out/$mode.run.log"
+  for check in adapter compactor; do
+    case "$check" in
+      adapter) test=pma_prefetch_compact_tb.cpp ;;
+      compactor) test=pma_compactor_tb.cpp ;;
+    esac
+    binary="$out/$mode-$check"
+    g++ -std=c++17 -O1 -w -pthread "${flags[@]}" \
+      -I"$include" -I"$include/etc" "$root/tests/$test" \
+      -o "$binary" > "$binary.build.log" 2>&1
+    timeout 180 "$binary" > "$binary.run.log" 2>&1
+    tail -n 2 "$binary.run.log"
+  done
 done

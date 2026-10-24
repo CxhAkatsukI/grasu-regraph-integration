@@ -165,17 +165,42 @@ Each retry uses a fresh run folder; failed logs and manifests are retained:
 | `gr-prefetch-compact-trif-20261024/` | Missing channel IDs rejected |
 | `gr-prefetch-compact-trif-channels-20261024/` | Named channel identifiers rejected |
 | `gr-prefetch-compact-trif-channel-ids-20261024/` | Structure-aggregated directory rejected |
-| `gr-prefetch-compact-trif-array-20261024/` | Array-block retry; inspect its `execution.json` for completion |
+| `gr-prefetch-compact-trif-array-20261024/` | Watchdog timeout at 7200 seconds during compactor scheduling; no OOM |
+| `gr-prefetch-compact-trif-static-20261024/` | Fixed-destination compactor retry; inspect its `execution.json` for actual status |
 
-The array-block retry runs in `gr-prefetch-trif-adapter-array.service` with
-the same containment and watchdog policy. Its source/configuration identities
-are pinned before and checked after compilation. The revised source passes
+Each retry keeps the same containment and watchdog policy. Its source and
+configuration identities are pinned before and checked after compilation.
+The array-block version passes
 396 independent adapter checks, 36 framed Gather checks, and 12 integer Apply
 checks; fresh logs are in `/data/chuxiao/checks/adapter-array-20261024/` and
 `/data/chuxiao/checks/framed-array-20261024/`. The build-selection suite passes
 11 tests, and the master-budget suite passes five. Requested pipeline IIs
 remain synthesis goals, not measured throughput; adapter scheduling warnings
 must be reviewed before any simulator-equivalence claim.
+
+The array-block attempt was stopped by the two-hour watchdog, not by an HLS
+error or memory pressure: `stop_reason=timeout`, elapsed 7201 seconds, sampled
+peak tree RSS about 3.35 GiB, and zero cgroup OOM events. Its last HLS message
+is compactor-loop pipelining. The retry replaces unrolled runtime-index
+compaction writes with static-destination selection using five-bit stable
+prefix ranks. Occupancy is six bits (0..32); publisher indices and occupancy
+are two bits. Buffer capacities, filtering, stable order, frame boundaries,
+publication credits, timeout and timing assumptions are unchanged. This
+tests a scheduling hypothesis; it is not evidence that the target II is met.
+
+The check script now also runs a standalone compactor oracle over all 65,536
+validity masks and 4,096 deterministic random segments in each of the three
+formats. Both old and new code pass; adapter packet counts are 48,244 per
+format, and compactor counts are 67,077 weighted / 67,595 destination and
+unit-weight. Logs are under `/data/chuxiao/checks/adapter-static-baseline-20261024/`
+and `/data/chuxiao/checks/adapter-static-fixed-20261024/`. These tests do not
+constitute finite-channel or cycle-equivalence evidence. The fresh retry
+service is `gr-prefetch-trif-adapter-static.service`; its run folder retains
+the manifest, execution status and raw logs.
+
+The timed-out attempt also reports read-bank II=36 (requested 1), directory
+fill II=4 (requested 1), and segment-register depth=3 (requested 2). Those
+scheduling gaps are not repaired or waived by this compactor-only edit.
 
 ## Reproduce Functional Checks
 
