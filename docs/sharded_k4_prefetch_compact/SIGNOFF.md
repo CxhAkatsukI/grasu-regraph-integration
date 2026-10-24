@@ -117,3 +117,21 @@ guards, the full source regression passes 106 tests (`gr-routed-source-tests-v5`
 the same 4/3-GiB no-swap containment, and zero OOM events. Raw logs, environment
 and unchanged tracked-source hashes are retained in `source-regression-v5/`.
 This remains source-level evidence, not a routed or board acceptance result.
+
+`scripts/check_routed_timing_summary.py` separately checks the twelve-column
+design timing summary: finite setup/hold/pulse-width slack, zero failing
+endpoints and zero total negative slack, nonempty coverage, routed design
+state and the passing Vivado 2024.1 summary. A passing caption alone cannot
+override failed numeric values. It deliberately does not replace the clock,
+bus-skew, constraint-coverage or board checks. The actual initial SSSP report
+is rejected (WNS -0.050 ns, TNS -1.639 ns, 59 setup-failing endpoints).
+
+The expanded source regression passes 110 tests (`gr-routed-source-tests-v6`,
+2026-10-24), with raw logs and unchanged source hashes in
+`source-regression-v6/`; service peak memory is 276.1 MiB under 4/3-GiB
+no-swap limits. An isolated campaign worker uses the documented Vitis
+`--reuse_impl` flow only after the repaired checkpoint passes this timing
+check. All XO inputs, connectivity and requested frequencies remain unchanged.
+Packaging must again pass the fixed-clock metadata check; no implicit HBM
+downclock is accepted. See AMD's
+[2024.1 checkpoint-reuse tutorial](https://docs.amd.com/r/2024.1-English/Vitis-Tutorials-Hardware-Acceleration/Reuse-the-Optimized-Checkpoint-to-Create-the-Device-Binary).
