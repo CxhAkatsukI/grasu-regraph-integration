@@ -1,5 +1,8 @@
 #pragma once
 #include "types.hpp"
+#ifndef __SYNTHESIS__
+#include <thread>
+#endif
 
 namespace pma_compact {
 static ap_uint<5> select_lanes(const Segment &value, unsigned destinations,
@@ -38,14 +41,47 @@ static ap_uint<5> select_lanes(const Segment &value, unsigned destinations,
     // unrolled runtime-index writes and their array dependence scheduling.
     for (unsigned slot = 0; slot < 16; ++slot) {
 #pragma HLS UNROLL
-        ap_uint<64> item = 0;
+        ap_uint<64> tree[5][16];
+#pragma HLS ARRAY_PARTITION variable=tree complete dim=0
         for (unsigned lane = 0; lane < 16; ++lane) {
 #pragma HLS UNROLL
-            if (valid[lane] && prefix[4][lane] == slot + 1) item |= items[lane];
+            tree[0][lane] = valid[lane] && prefix[4][lane] == slot + 1
+                                ? items[lane] : ap_uint<64>(0);
         }
-        compacted[slot] = item;
+        // Keep the reduction balanced even with expression reassociation off.
+        for (unsigned level = 0; level < 4; ++level) {
+#pragma HLS UNROLL
+            for (unsigned lane = 0; lane < (8u >> level); ++lane) {
+#pragma HLS UNROLL
+                tree[level + 1][lane] = tree[level][2 * lane] |
+                                        tree[level][2 * lane + 1];
+            }
+        }
+        compacted[slot] = tree[4][0];
     }
     return prefix[4][15];
+}
+
+static void select_segments(unsigned destinations, hls::stream<Segment> &input,
+                            hls::stream<Selected> &output) {
+#pragma HLS INLINE OFF
+#pragma HLS EXPRESSION_BALANCE off
+    while (true) {
+#pragma HLS PIPELINE II=1
+        Segment value = input.read();
+        ap_uint<64> compacted[16];
+#pragma HLS ARRAY_PARTITION variable=compacted complete
+        Selected selected;
+        selected.count = select_lanes(value, destinations, compacted);
+        selected.source = value.source;
+        selected.last = value.last;
+        for (unsigned lane = 0; lane < 16; ++lane) {
+#pragma HLS UNROLL
+            selected.data.range(lane * 64 + 63, lane * 64) = compacted[lane];
+        }
+        output.write(selected);
+        if (value.last) break;
+    }
 }
 
 static Packet packet(const ap_uint<64> lanes[32], unsigned count,
@@ -67,10 +103,9 @@ static Packet packet(const ap_uint<64> lanes[32], unsigned count,
     return result;
 }
 
-static void compact(unsigned destinations, hls::stream<Segment> &input,
-                     hls::stream<Packet> &output) {
+static void publish_selected(hls::stream<Selected> &input,
+                             hls::stream<Packet> &output) {
 #pragma HLS INLINE OFF
-#pragma HLS EXPRESSION_BALANCE off
     ap_uint<64> lanes[32];
 #pragma HLS ARRAY_PARTITION variable=lanes complete
     ap_uint<6> count = 0;
@@ -81,7 +116,7 @@ static void compact(unsigned destinations, hls::stream<Segment> &input,
 #pragma HLS ARRAY_PARTITION variable=publishing complete
 #pragma HLS ARRAY_PARTITION variable=delay complete
     ap_uint<2> head = 0, tail = 0, pending = 0;
-    Segment value;
+    Selected value;
     bool held = false, terminal = false, closed = false;
     while (true) {
 #pragma HLS PIPELINE II=1
@@ -96,7 +131,6 @@ static void compact(unsigned destinations, hls::stream<Segment> &input,
             --pending;
             if (last) break;
         }
-        if (!held && !terminal) held = input.read_nb(value);
         bool boundary = have_window && held && value.source / kWindow != window;
         bool flush = boundary || terminal;
         const unsigned previous_count = count;
@@ -126,20 +160,41 @@ static void compact(unsigned destinations, hls::stream<Segment> &input,
         // advance together. A full publisher never borrows same-cycle credit.
         if (accept) {
             if (!have_window) { window = value.source / kWindow; have_window = true; }
-            ap_uint<64> compacted[16];
-#pragma HLS ARRAY_PARTITION variable=compacted complete
-            ap_uint<5> selected = select_lanes(value, destinations, compacted);
+            ap_uint<64> selected[16];
+#pragma HLS ARRAY_PARTITION variable=selected complete
+            for (unsigned slot = 0; slot < 16; ++slot) {
+#pragma HLS UNROLL
+                selected[slot] = value.data.range(slot * 64 + 63, slot * 64);
+            }
             for (unsigned lane = 0; lane < 32; ++lane) {
 #pragma HLS UNROLL
-                if (lane >= count && lane < count + selected) {
+                if (lane >= count && lane < count + value.count) {
                     ap_uint<4> slot = lane - count;
-                    lanes[lane] = compacted[slot];
+                    lanes[lane] = selected[slot];
                 }
             }
-            count += selected;
+            count += value.count;
             terminal = value.last;
             held = false;
         }
+        // A newly fetched segment is only used on the following iteration.
+        if (!held && !terminal) held = input.read_nb(value);
     }
+}
+
+static void compact(unsigned destinations, hls::stream<Segment> &input,
+                     hls::stream<Packet> &output) {
+#pragma HLS INLINE OFF
+#pragma HLS DATAFLOW
+    hls::stream<Selected> selected;
+#pragma HLS STREAM variable=selected depth=3
+#ifdef __SYNTHESIS__
+    select_segments(destinations, input, selected);
+    publish_selected(selected, output);
+#else
+    std::thread selector([&] { select_segments(destinations, input, selected); });
+    publish_selected(selected, output);
+    selector.join();
+#endif
 }
 }

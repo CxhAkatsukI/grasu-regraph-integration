@@ -11,6 +11,12 @@ using Word = ap_uint<512>;
 using Packet = ap_axiu<512, 0, 0, 0>;
 using DirectoryTile = Word[128];
 struct Segment { Word data; unsigned source; bool last; };
+struct Selected {
+    ap_uint<1024> data;
+    unsigned source;
+    ap_uint<5> count;
+    bool last;
+};
 constexpr unsigned kRingLines = 512;
 constexpr unsigned kParents = 16;
 constexpr unsigned kBurst = 16;

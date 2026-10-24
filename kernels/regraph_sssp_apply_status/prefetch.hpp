@@ -3,6 +3,7 @@
 #include <hls_burst_maxi.h>
 #ifndef __SYNTHESIS__
 #include <mutex>
+#include <thread>
 #endif
 
 namespace prefetch_apply {
@@ -22,40 +23,65 @@ struct MemoryAccessGuard {
 std::mutex MemoryAccessGuard::mutex;
 #endif
 
-static void read_old(hls::burst_maxi<Word> &memory, unsigned total,
-                     hls::stream<Word> &output,
-                     hls::stream<bool> &read_complete) {
+static void request_old(hls::burst_maxi<Word> &memory, unsigned total,
+                        hls::stream<ap_uint<5>> &lengths,
+                        hls::stream<bool> &completed) {
 #pragma HLS INLINE OFF
-    unsigned issued = 0, received = 0, parents = 0, in_parent = 0;
-    unsigned lengths[kParents];
-#pragma HLS ARRAY_PARTITION variable=lengths complete
-    unsigned head = 0, tail = 0;
-    bool draining = false;
-    while (received < total) {
+    unsigned issued = 0;
+    ap_uint<5> parents = 0;
+    while (issued < total || parents) {
 #pragma HLS PIPELINE II=1
+        bool credit;
+        if (completed.read_nb(credit)) --parents;
         if (issued < total && parents < kParents) {
             unsigned length = total - issued;
             if (length > kBurst) length = kBurst;
             { MemoryAccessGuard guard; memory.read_request(issued, length); }
-            lengths[tail] = length;
-            tail = (tail + 1) % kParents;
+            lengths.write(length);
             ++parents;
             issued += length;
         }
-        draining = draining || parents == kParents || issued == total;
-        if (draining && parents && !output.full()) {
+    }
+    lengths.write(0);
+}
+
+static void receive_old(hls::burst_maxi<Word> &memory,
+                        hls::stream<ap_uint<5>> &lengths,
+                        hls::stream<bool> &completed,
+                        hls::stream<Word> &output,
+                        hls::stream<bool> &read_complete) {
+#pragma HLS INLINE OFF
+    while (true) {
+        unsigned length = lengths.read();
+        if (!length) break;
+        for (unsigned beat = 0; beat < length; ++beat) {
+#pragma HLS PIPELINE II=1
             Word value;
             { MemoryAccessGuard guard; value = memory.read(); }
             output.write(value);
-            ++received;
-            if (++in_parent == lengths[head]) {
-                in_parent = 0;
-                head = (head + 1) % kParents;
-                --parents;
-                read_complete.write(true);
-            }
         }
+        read_complete.write(true);
+        completed.write(true);
     }
+}
+
+static void read_old(hls::burst_maxi<Word> &memory, unsigned total,
+                     hls::stream<Word> &output,
+                     hls::stream<bool> &read_complete) {
+#pragma HLS INLINE OFF
+#pragma HLS DATAFLOW
+    hls::stream<ap_uint<5>> lengths;
+    hls::stream<bool> completed;
+#pragma HLS STREAM variable=lengths depth=16
+#pragma HLS STREAM variable=completed depth=16
+#ifdef __SYNTHESIS__
+    request_old(memory, total, lengths, completed);
+    receive_old(memory, lengths, completed, output, read_complete);
+#else
+    std::thread requester([&] { request_old(memory, total, lengths, completed); });
+    receive_old(memory, lengths, completed, output, read_complete);
+    requester.join();
+#endif
 }
 
 static void apply(unsigned arg_reg, hls::stream<Word> &old_state,

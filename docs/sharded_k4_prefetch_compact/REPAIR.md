@@ -9,10 +9,10 @@ The paper and frozen simulator predictions are not being changed.
 
 | Gate | Current state |
 | --- | --- |
-| Functional equivalence | Three-format adapter (396 cases) and exhaustive compactor tests pass after packed-directory and split-bank changes; connected Gather and integer Apply need fresh reruns |
-| Adapter scheduling | Prefix retry exports XO in 75.66 seconds, estimates 78.31 MHz; directory fill II=4 and bank readers II=36 remain; split-bank retry pending |
-| Apply scheduling | Earlier integer Apply XO estimates 144.82 MHz vs requested 150 MHz |
-| Finite channels and stalls | Unbounded vendor C streams are insufficient; bounded protocol tests and RTL evidence required |
+| Functional equivalence | Three-format adapter (396 cases), exhaustive valid-mask and random compactor tests pass; connected SSSP/CC/PR Gather and integer Apply pass; RTL validation pending |
+| Adapter scheduling | Held-input retry estimates 199.01 MHz at requested 150 MHz, with directory fill and bank request II=1; not post-route timing |
+| Apply scheduling | Split request/response integer Apply XO estimates 205.47 MHz at requested 150 MHz; not post-route timing |
+| Finite channels and stalls | Random-stall RTL validation in progress; the first attempt stopped before RTL for a missing interface depth and is retained |
 | Physical integration | Direct-ingress projection exceeds 32; choose and account for actual sharing rather than raising the audit limit |
 | Complete hardware | Not newly linked, routed or board tested; no performance result follows from component export |
 
@@ -58,6 +58,46 @@ Subsequent work targets join/segment registration, compactor feedback timing,
 integer Apply timing and explicit physical sharing.
 Any changed timing or arbitration contract must be documented and propagated
 to a separate simulator profile before claiming matching behavior.
+
+## Selector And Publisher Repair
+
+The split-bank retry exports an XO and changes the bank request II from 36
+to 1 and directory fill II from 4 to 1, but its estimate is only 80.43 MHz.
+Balancing the source-level OR tree alone does not prevent HLS from flattening
+the selection logic. The next implementation separates lane selection from
+the stateful publisher using a depth-three `Selected` FIFO. Its estimate is
+138.06 MHz. Splitting integer Apply's old-value requests and responses gives
+205.47 MHz without changing read-before-write protection for aliased buffers.
+
+The held-input retry moves publisher input acquisition to the end of the
+iteration, so a new selected segment is not used in the same iteration.
+A statically extracted, fully partitioned lane array replaces the variable
+1024-bit range shift. Bank reservation uses an explicit ten-bit count bounded
+by 512, retaining the separate 16-parent limit and consume-only line release.
+The resulting adapter estimate is 199.01 MHz; all requested loop IIs are met.
+These are HLS estimates, not proof of 150-MHz full-system routing.
+
+This adds a selector pipeline and input holding latency versus the frozen
+simulator contract. Capacities, edge order, filtering and TLAST semantics
+remain covered by the functional tests, but cycle identity is not claimed.
+Join registration is still scheduled at three cycles rather than the requested
+two. Any simulator/hardware timing comparison must account for both changes.
+
+Evidence roots (never overwrite):
+
+- `/data/chuxiao/builds/gr-prefetch-compact-trif-split-scope-20261024/`
+- `/data/chuxiao/builds/gr-prefetch-compact-trif-selector-valid-20261024/`
+- `/data/chuxiao/builds/gr-prefetch-compact-trif-held-20261024/`
+- `/data/chuxiao/checks/adapter-selector-pipeline-20261024/`
+- `/data/chuxiao/checks/adapter-held-20261024/`
+- `/data/chuxiao/checks/regraph-selector-split-20261024/`
+
+The selector-valid RTL attempt passes C simulation but stops before RTL
+execution because the generated `directory` interface has no cosimulation
+depth. Source interface depths now explicitly cover the 16384-word RTL bench;
+they do not allocate on-chip copies or impose a runtime graph-size limit.
+The replacement RTL attempt keeps all finite FIFO depths and enables random
+interface stalls. Its completion is a separate acceptance gate.
 
 ## Prediction Boundary
 

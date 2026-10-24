@@ -13,22 +13,26 @@ static void request_bank(hls::burst_maxi<Word> &cache,
 #pragma HLS INLINE OFF
     unsigned issued = 0, retired = 0;
     ap_uint<5> outstanding = 0;
+    ap_uint<10> reserved = 0;
     while (retired < total || outstanding) {
 #pragma HLS PIPELINE II=1
         bool credit;
-        if (released.read_nb(credit)) ++retired;
+        if (released.read_nb(credit)) { ++retired; --reserved; }
         if (completed.read_nb(credit)) --outstanding;
         unsigned length = total - issued;
         if (length > kBurst) length = kBurst;
-        if (issued < cache_lines && issued + length > cache_lines)
-            length = cache_lines - issued;
+        if (issued < cache_lines) {
+            const unsigned cached_remaining = cache_lines - issued;
+            if (length > cached_remaining) length = cached_remaining;
+        }
         if (length && outstanding < kParents &&
-            issued - retired + length <= kRingLines) {
+            reserved + ap_uint<10>(length) <= kRingLines) {
             const bool ext = issued >= cache_lines;
             if (ext) request(external, issued, length);
             else request(cache, issued, length);
             parents.write(Parent{ap_uint<5>(length), ext});
             ++outstanding;
+            reserved += length;
             issued += length;
         }
     }
