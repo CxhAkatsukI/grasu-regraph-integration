@@ -5,12 +5,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/env.sh"
 source "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh"
 source "${SCRIPT_DIR}/lib/pma_adapter_selection.sh"
+source "${SCRIPT_DIR}/lib/physical_port_policy.sh"
 
 TARGET="sw_emu"
 PIPELINE_MODE="compactor"
 ALGORITHM="weighted_sssp"
 GRASU_IMPLEMENTATION="legacy-direct-cache"
 ADAPTER_POLICY="legacy"
+PHYSICAL_PORT_POLICY="independent"
 PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
 PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
 KERNEL_FREQ=200
@@ -36,6 +38,7 @@ Options:
   --algorithm NAME               weighted_sssp or connected_components.
   --grasu-implementation NAME    legacy-direct-cache (default) or complete-search-cache.
   --adapter-policy NAME          legacy (default), bank-stream, or prefetch-compact.
+  --physical-port-policy NAME    independent (default) or shared-ingress.
   --platform NAME                Platform name. Default: ${PLATFORM}
   --platform-xpfm PATH           Platform xpfm. Default: ${PLATFORM_XPFM}
   --kernel-frequency MHz         Link frequency. Default: ${KERNEL_FREQ}
@@ -71,6 +74,7 @@ while [[ $# -gt 0 ]]; do
     --algorithm) ALGORITHM="$2"; shift 2 ;;
     --grasu-implementation) GRASU_IMPLEMENTATION="$2"; shift 2 ;;
     --adapter-policy) ADAPTER_POLICY="$2"; shift 2 ;;
+    --physical-port-policy) PHYSICAL_PORT_POLICY="$2"; shift 2 ;;
     --platform) PLATFORM="$2"; PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"; shift 2 ;;
     --platform-xpfm) PLATFORM_XPFM="$(abs_path "$2")"; shift 2 ;;
     --kernel-frequency) KERNEL_FREQ="$2"; shift 2 ;;
@@ -106,6 +110,9 @@ fi
 select_grasu_kernels "${GRASU_IMPLEMENTATION}" "${TARGET}" \
   "${PIPELINE_MODE}" "${MAX_CACHE_SEGMENT}"
 select_pma_adapter "${ADAPTER_POLICY}" "${PIPELINE_MODE}"
+select_physical_ports "${PHYSICAL_PORT_POLICY}" "${PIPELINE_MODE}" \
+  "${GRASU_IMPLEMENTATION}" "${ADAPTER_POLICY}" "${TARGET}"
+PMA_ADAPTER_FLAGS+=("${PHYSICAL_PORT_FLAGS[@]}")
 
 if [[ -z "${BUILD_ROOT}" ]]; then
   if [[ "${PIPELINE_MODE}" == "compactor" ]]; then
@@ -182,6 +189,7 @@ case "${TARGET}" in
 esac
 
 declare -a GRASU_BASE_FLAGS=(
+  "${PHYSICAL_PORT_FLAGS[@]}"
   "${SW_EMU_GTHREAD_DEFINE}"
   "-DGRASU_MAX_CACHE_SEGMENT=${MAX_CACHE_SEGMENT}"
   "-I${GRASU_ROOT}/GraSU/GraSU_kernels/src"
@@ -465,7 +473,11 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
     copy_connectivity_body_without_memory "${GRASU_LINK_CFG}"
     lane_ranges=("0:5" "6:11" "12:17" "18:22")
     for index in 1 2 3 4; do
-      echo "sp=bin_search_${index}.edges:HBM[${lane_ranges[$((index - 1))]}]"
+      if [[ "${PHYSICAL_PORT_POLICY}" == shared-ingress ]]; then
+        echo "sp=bin_search_${index}.edges:HBM[0:22]"
+      else
+        echo "sp=bin_search_${index}.edges:HBM[${lane_ranges[$((index - 1))]}]"
+      fi
       echo "sp=bin_search_${index}.binary_0:HBM[0:22]"
       echo "sp=bin_search_${index}.row_offset_0:HBM[0:22]"
     done
@@ -772,6 +784,11 @@ chmod +x "${LINK_COMMAND}"
   echo "REGRAPH_EDGE_PROP=${REGRAPH_EDGE_PROP}"
   echo "ADAPTER_MODE_DEFINE=${ADAPTER_MODE_DEFINE}"
   echo "ADAPTER_POLICY=${ADAPTER_POLICY}"
+  echo "PHYSICAL_PORT_POLICY=${PHYSICAL_PORT_POLICY}"
+  echo "PHYSICAL_PORT_POLICY_IS_HARDWARE_EVIDENCE=0"
+  if [[ "${ADAPTER_POLICY}" == prefetch-compact ]]; then
+    echo "PMA_ADAPTER_AXI_BUNDLES_PER_CU=${PHYSICAL_ADAPTER_BUNDLES}"
+  fi
   echo "ADAPTER_ROW_LINE_READ=${PMA_ADAPTER_ROW_LINE_READ}"
   echo "ADAPTER_POLICY_IS_HARDWARE_EVIDENCE=0"
   echo "SHARDED_PMA_DEFINE=${SHARDED_PMA_DEFINE}"
@@ -800,6 +817,7 @@ chmod +x "${LINK_COMMAND}"
   emit_input_record generator_source "${GRI_ROOT}/scripts/prepare_pure_hw_pipeline_build.sh"
   emit_input_record generator_source "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh"
   emit_input_record generator_source "${SCRIPT_DIR}/lib/pma_adapter_selection.sh"
+  emit_input_record generator_source "${SCRIPT_DIR}/lib/physical_port_policy.sh"
   if [[ "${ADAPTER_POLICY}" == prefetch-compact ]]; then
     emit_input_record audit_source "${SCRIPT_DIR}/check_pipeline_master_budget.py"
     emit_input_record audit_source "${SCRIPT_DIR}/check_xo_master_budget.py"

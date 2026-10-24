@@ -9,9 +9,18 @@ extern "C" void bin_search(
     const search_pipeline::Raw* row_offset_2, const search_pipeline::Raw* row_offset_3,
     unsigned edge_size, hls::stream<search_pipeline::Packet>& segment_head_stream_out) {
 // Match the production compact-HBM interface; depths bound only the RTL bench.
+#ifdef GRI_HMSS_SHARED_INGRESS
+#pragma HLS INTERFACE m_axi port=edges offset=slave bundle=gmem_binary channel=1 num_read_outstanding=32 depth=257
+#else
 #pragma HLS INTERFACE m_axi port=edges offset=slave bundle=gmem_edges num_read_outstanding=16 depth=257
+#endif
+#ifdef GRI_HMSS_SHARED_INGRESS
+#pragma HLS INTERFACE m_axi port=binary_0 offset=slave bundle=gmem_binary channel=0 num_read_outstanding=32 depth=255
+#pragma HLS INTERFACE m_axi port=row_offset_0 offset=slave bundle=gmem_binary channel=0 num_read_outstanding=32 depth=8
+#else
 #pragma HLS INTERFACE m_axi port=binary_0 offset=slave bundle=gmem_binary num_read_outstanding=32 depth=255
 #pragma HLS INTERFACE m_axi port=row_offset_0 offset=slave bundle=gmem_binary num_read_outstanding=32 depth=8
+#endif
 #pragma HLS INTERFACE s_axilite port=edges bundle=control
 #pragma HLS INTERFACE s_axilite port=binary_0 bundle=control
 #pragma HLS INTERFACE s_axilite port=binary_1 bundle=control

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 import unittest
 
 
 ROOT = Path(__file__).resolve().parent.parent
-HLS_INCLUDE = Path("/data/yxx/tools/xilinx/Vitis_HLS/2024.1/include")
+HLS_INCLUDE = Path(os.environ.get("HLS_INCLUDE", "/data/yxx/tools/xilinx/Vitis_HLS/2024.1/include"))
+REGRAPH_ROOT = Path(os.environ.get("REGRAPH_ROOT", ROOT / "repos/ReGraph"))
 
 
 class SharedHbmWrapperTests(unittest.TestCase):
@@ -19,8 +21,8 @@ class SharedHbmWrapperTests(unittest.TestCase):
                     "g++", "-std=c++17", "-O2", "-w",
                     f"-I{HLS_INCLUDE}",
                     f"-I{HLS_INCLUDE / 'etc'}",
-                    f"-I{ROOT / 'repos/ReGraph/acc_template/common'}",
-                    f"-I{ROOT / 'repos/ReGraph/acc_template/kernel_hbm_wrapper'}",
+                    f"-I{REGRAPH_ROOT / 'acc_template/common'}",
+                    f"-I{REGRAPH_ROOT / 'acc_template/kernel_hbm_wrapper'}",
                     "-DPARTITION_SIZE=65536",
                     "-DLITTLE_KERNEL_DST_BUFFER_SIZE=65536",
                     "-DBIG_KERNEL_DST_BUFFER_SIZE=524288",

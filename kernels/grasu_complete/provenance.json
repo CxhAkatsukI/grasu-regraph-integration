@@ -9,7 +9,18 @@
       "origin": "search_binding/top.cpp",
       "path": "search_binding/top.cpp",
       "origin_sha256": "2ddb81575086fc0923d13129a4a8f3bd2cca125874c4210051ad30bfe4bd7424",
-      "transforms": []
+      "transforms": [
+        {
+          "kind": "optional-shared-physical-ingress",
+          "before": "#pragma HLS INTERFACE m_axi port=edges offset=slave bundle=gmem_edges num_read_outstanding=16 depth=257",
+          "after": "#ifdef GRI_HMSS_SHARED_INGRESS\n#pragma HLS INTERFACE m_axi port=edges offset=slave bundle=gmem_binary channel=1 num_read_outstanding=32 depth=257\n#else\n#pragma HLS INTERFACE m_axi port=edges offset=slave bundle=gmem_edges num_read_outstanding=16 depth=257\n#endif\n#ifdef GRI_HMSS_SHARED_INGRESS\n#pragma HLS INTERFACE m_axi port=binary_0 offset=slave bundle=gmem_binary channel=0 num_read_outstanding=32 depth=255\n#pragma HLS INTERFACE m_axi port=row_offset_0 offset=slave bundle=gmem_binary channel=0 num_read_outstanding=32 depth=8\n#else"
+        },
+        {
+          "kind": "optional-shared-physical-ingress",
+          "before": "#pragma HLS INTERFACE s_axilite port=edges bundle=control",
+          "after": "#endif\n#pragma HLS INTERFACE s_axilite port=edges bundle=control"
+        }
+      ]
     },
     {
       "origin": "search_binding/top.hpp",

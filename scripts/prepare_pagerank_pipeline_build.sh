@@ -5,11 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/env.sh"
 source "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh"
 source "${SCRIPT_DIR}/lib/pma_adapter_selection.sh"
+source "${SCRIPT_DIR}/lib/physical_port_policy.sh"
 
 TARGET="sw_emu"
 ALGORITHM="full_pagerank"
 GRASU_IMPLEMENTATION="legacy-direct-cache"
 ADAPTER_POLICY="legacy"
+PHYSICAL_PORT_POLICY="independent"
 PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
 PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
 KERNEL_FREQ=150
@@ -34,6 +36,7 @@ Options:
   --algorithm full_pagerank|residual_pagerank
   --grasu-implementation legacy-direct-cache|complete-search-cache
   --adapter-policy legacy|bank-stream|prefetch-compact (latter two: 512-bit row ABI)
+  --physical-port-policy independent|shared-ingress
   --platform NAME
   --platform-xpfm PATH
   --kernel-frequency MHz
@@ -61,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --algorithm) ALGORITHM="$2"; shift 2 ;;
     --grasu-implementation) GRASU_IMPLEMENTATION="$2"; shift 2 ;;
     --adapter-policy) ADAPTER_POLICY="$2"; shift 2 ;;
+    --physical-port-policy) PHYSICAL_PORT_POLICY="$2"; shift 2 ;;
     --platform)
       PLATFORM="$2"
       PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
@@ -115,6 +119,9 @@ fi
 select_grasu_kernels "${GRASU_IMPLEMENTATION}" "${TARGET}" \
   "${PIPELINE_MODE}" "${MAX_CACHE_SEGMENT}"
 select_pma_adapter "${ADAPTER_POLICY}" "${PIPELINE_MODE}"
+select_physical_ports "${PHYSICAL_PORT_POLICY}" "${PIPELINE_MODE}" \
+  "${GRASU_IMPLEMENTATION}" "${ADAPTER_POLICY}" "${TARGET}"
+PMA_ADAPTER_FLAGS+=("${PHYSICAL_PORT_FLAGS[@]}")
 if [[ -z "${BUILD_ROOT}" ]]; then
   BUILD_ROOT="${GRI_ROOT}/.tmp_build/${ALGORITHM}_${TARGET}_$(date +%Y%m%d_%H%M%S)"
 fi
@@ -219,7 +226,11 @@ OUT_XCLBIN="${BUILD_DIR}/grasu_regraph_${ALGORITHM}.${TARGET}.xclbin"
   lane_ranges=("0:5" "6:11" "12:17" "18:22")
   for index in 1 2 3 4; do
     if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
-      echo "sp=bin_search_${index}.edges:HBM[${lane_ranges[$((index - 1))]}]"
+      if [[ "${PHYSICAL_PORT_POLICY}" == shared-ingress ]]; then
+        echo "sp=bin_search_${index}.edges:HBM[0:22]"
+      else
+        echo "sp=bin_search_${index}.edges:HBM[${lane_ranges[$((index - 1))]}]"
+      fi
       echo "sp=bin_search_${index}.binary_0:HBM[0:22]"
       echo "sp=bin_search_${index}.row_offset_0:HBM[0:22]"
     else
@@ -400,6 +411,7 @@ esac
 
 COMMON_ENV="-D_GTHREAD_USE_COND_INIT_FUNC"
 GRASU_FLAGS=(
+  "${PHYSICAL_PORT_FLAGS[@]}"
   "${COMMON_ENV}" "-DGRASU_MAX_CACHE_SEGMENT=${MAX_CACHE_SEGMENT}"
   "-I${GRASU_KERNEL_DIR}" "-I${GRASU_ROOT}/GraSU/GraSU/src"
   "-I${GRI_ROOT}/include" "-I${HLS_INCLUDE_ETC}"
@@ -578,6 +590,8 @@ fi
   echo "PIPELINE_MODE=${PIPELINE_MODE}"
   echo "GRASU_IMPLEMENTATION=${GRASU_IMPLEMENTATION}"
   echo "ADAPTER_POLICY=${ADAPTER_POLICY}"
+  echo "PHYSICAL_PORT_POLICY=${PHYSICAL_PORT_POLICY}"
+  echo "PHYSICAL_PORT_POLICY_IS_HARDWARE_EVIDENCE=0"
   echo "ADAPTER_ROW_LINE_READ=${PMA_ADAPTER_ROW_LINE_READ}"
   echo "ADAPTER_POLICY_IS_HARDWARE_EVIDENCE=0"
   echo "GRASU_SEARCH_SOURCE=${GRASU_SEARCH_SOURCE}"
@@ -604,7 +618,7 @@ fi
     echo "PMA_FRONTEND_CUS=4"
     echo "SHARED_REGRAPH_DOWNSTREAM=1"
     if [[ "${ADAPTER_POLICY}" == prefetch-compact ]]; then
-      echo "PMA_ADAPTER_AXI_BUNDLES_PER_CU=3"
+      echo "PMA_ADAPTER_AXI_BUNDLES_PER_CU=${PHYSICAL_ADAPTER_BUNDLES}"
     else
       echo "PMA_DDR_AXI_BUNDLES_PER_CU=4"
     fi
@@ -632,6 +646,7 @@ INPUTS="${BUILD_ROOT}/inputs.tsv"
       "${GRI_ROOT}/scripts/prepare_pagerank_pipeline_build.sh" \
       "${SCRIPT_DIR}/lib/grasu_kernel_selection.sh" \
       "${SCRIPT_DIR}/lib/pma_adapter_selection.sh" \
+      "${SCRIPT_DIR}/lib/physical_port_policy.sh" \
       "${GRASU_IMPLEMENTATION_HEADERS[@]}" \
       "${GRI_ROOT}/include/regraph_pagerank_apply.hpp" \
       "${GRI_ROOT}/include/regraph_pagerank/l2.h" \

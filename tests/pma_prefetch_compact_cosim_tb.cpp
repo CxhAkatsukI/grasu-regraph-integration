@@ -12,7 +12,7 @@ extern "C" void pma_to_regraph_adapter(
 
 namespace {
 using Edge = std::pair<unsigned, unsigned>;
-constexpr unsigned kDepth = 16384;
+constexpr unsigned kDepth = 2048;
 
 void check(unsigned vertices, unsigned placement, unsigned length,
            unsigned cache_lines, bool invalid) {

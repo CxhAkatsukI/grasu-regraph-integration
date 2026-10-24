@@ -125,7 +125,10 @@ static void publish_selected(hls::stream<Selected> &input,
 #pragma HLS UNROLL
             if (delay[slot]) --delay[slot];
         }
-        if (pending && !delay[head] && output.write_nb(publishing[head])) {
+        if (pending && !delay[head]) {
+            // AXIS supports blocking writes only. Commit queue credit after
+            // the packet has been accepted, including under output stalls.
+            output.write(publishing[head]);
             bool last = publishing[head].last;
             head = (head + 1) % 3;
             --pending;
