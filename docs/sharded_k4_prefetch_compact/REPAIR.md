@@ -23,6 +23,13 @@ wall measurements and repetition/provenance gates. Its fail-closed log checker
 passes synthetic tests for all three dynamic algorithms. This is offboard
 validation of result extraction, not a completed FPGA comparison.
 
+Additional frozen SU/WK CPU preparation checks pass for all three dynamic
+algorithms (six inputs, respectively nine and eighteen destination partitions).
+The immutable evidence is `su-wk-preflight-v1/` under the blocking-AXIS campaign
+root below. The worker reserves 8 GiB atomically, has 8/7-GiB hard/high limits
+and no swap, and records zero OOM events. These checks establish host-side PMA
+capacity and CPU-oracle acceptance only, not board correctness or timing.
+
 Do not promote an unmet gate to a pass. HLS frequency estimates are not
 post-route timing. Full-system acceptance requires the actual interfaces,
 clock, state semantics, completion boundary and correctness-checked output.
