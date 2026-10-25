@@ -11,11 +11,11 @@ not renamed a successful paper reproduction.
 | Gate | Status at this checkpoint |
 | --- | --- |
 | Cache state, valid-span boundaries, token/plain bindings | Passed |
-| Fresh HLS/XO and exact exported-interface review | Passed |
+| HLS/XO and exact exported-interface review | Fresh `hls-zfs-v3` export passed; new link ABI review passed |
 | Three native hosts, legacy/new ABI selection | Built |
 | Simulator bounded-span state and traffic regression | Passed |
-| Three revised G+R hardware links | Queued under finite memory admission |
-| Fresh sparse-apply Spine ResPR hardware | Memory-safe retry queued; previous attempt stopped at the live reserve |
+| Three revised G+R hardware links | `route-zfs-v2`: SSSP running; CC/ResPR waiting for finite memory admission |
+| Fresh sparse-apply Spine ResPR hardware | `spine-respr-zfs-v1` running with corrected memory accounting |
 | Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Pending, zero admitted pairs |
 
 This is a source/export checkpoint, not a completed board result. Live
@@ -65,29 +65,69 @@ defaults remain unchanged. The bounded candidate requires sharded K4, full
 
 Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
 
-- `source-v1/results.json`: executable source checks.
-- `hls-v1/results.json`: both fresh cache exports, not routed timing.
-- `route-v3/sssp/`: fresh SSSP link retry after a live-reserve stop.
-- `route-v3/{cc,respr}`: links to the unchanged, live `route-v2` jobs.
-- `spine-respr-v3/`: fresh sparse-apply Spine ResPR retry and source provenance.
-- `matrix-inputs-v5/plan.json`: 24 cases, actual binary/source/input pins.
-- `matrix-v4/{results.json,summary.csv}`: all-case status and eventual results.
+- `source-v1/results.json`, `hls-v1/results.json`: original passing component
+  checks and exports. Their runner hashes predate the corrected memory guard;
+  they are retained, not repinned or reused as a current validation gate.
+- `source-zfs-v3/results.json`: passing executable checks with the corrected guard.
+- `hls-zfs-v3/results.json`: both fresh passing cache exports; not routed timing.
+- `route-zfs-v2/{sssp,cc,respr}/`: new links with exact ABI reviews and bounded admission.
+- `spine-respr-zfs-v1/`: running sparse-apply Spine ResPR build and provenance.
+- `matrix-inputs-zfs-v2/plan.json`, `matrix-zfs-v2/`: current frozen 24-case plan
+  and runner, waiting for the exact new artifacts. No board pair yet.
+- `route-v1` through `route-v4`, `route-zfs-v1`: retained attempts, not live results.
+- `matrix-inputs-v1` through `matrix-inputs-v6`, `matrix-inputs-zfs-v1`:
+  historical plans; none establishes completed FPGA comparisons.
+- `matrix-v1` through `matrix-v5`: stopped/incomplete matrices, zero board pairs.
 - `host-control-au-v1/`: new host with an OLD G+R kernel, not the new matrix.
 
-The `spine-respr-v2` attempt completed three HLS XOs but was stopped during
-Vivado synthesis when system available memory fell below the 24-GiB live
-reserve (`stop_reason=live_memory_reserve`, minimum 24,889,225,216 bytes).
-This was a watchdog stop, not a reported RTL/synthesis error. Its sources,
-XOs and raw logs remain intact. The existing fresh-build entry point rejects
-reuse of a provenance directory, so `v3` uses a fresh directory rather than
-overwriting the failed attempt. `matrix-v2` was interrupted with zero board
-pairs. The later `route-v2/sssp` attempt was also stopped at the live reserve:
-minimum available memory was 24,537,829,376 bytes, with a process-tree peak
-of 5,192,324 KiB and no reported synthesis/routing error. Its logs remain
-intact. `route-v3/sssp` is a fresh retry; `route-v3/{cc,respr}` are explicit
-links to the unchanged `route-v2` jobs, not copies or old-kernel fallbacks.
-`matrix-v3` was interrupted before any board pair; `matrix-v4` now uses
-`matrix-inputs-v5` to require the SSSP retry and the `v3` Spine build.
+### Corrected ZFS Memory Accounting
+
+On trifoliate, Linux `MemAvailable` omits most reclaimable ZFS ARC data.
+The previous guard therefore stopped jobs prematurely: btop showed about
+137 GiB available while the raw Linux counter approached the 24-GiB reserve.
+Those stops are not evidence of physical memory exhaustion or RTL errors.
+
+The shared, source-pinned probe now estimates:
+
+```text
+allowance = min(mru_evictable_data + mfu_evictable_data,
+                max(0, ARC_size - ARC_c_min), MemTotal - MemAvailable)
+available = MemAvailable + allowance
+```
+
+It excludes ARC metadata and anonymous entries, preserves `c_min`, never
+exceeds physical RAM, and falls back to Linux-only accounting if ARC counters
+are missing or invalid. This is an admission estimate, not a guarantee that
+every byte is instantly allocatable. No ZFS parameters were changed. Both
+the watchdog and the Spine shell preflight use the same pinned probe.
+
+| Retained attempt | Stop or rejection |
+| --- | --- |
+| `spine-respr-v2` | Old raw-only reserve, minimum 24,889,225,216 bytes; three HLS XOs completed |
+| `spine-respr-v3` | Old raw-only reserve, minimum 25,444,921,344 bytes |
+| `route-v2/sssp` | Old raw-only reserve, minimum 24,537,829,376 bytes |
+| `route-v2/respr` | Old raw-only reserve, minimum 25,288,192,000 bytes; no cgroup OOM |
+| `route-v2/cc` | Old raw-only reserve, minimum 25,756,872,704 bytes |
+| `route-zfs-v1/*` | Rejected changed runner hashes in `hls-v1`; no link started |
+| `source-zfs-v2` | Small-stage peer validator rejected the existing bounded 56-GiB Spine job |
+
+The peer validator now accepts finite link jobs while retaining the source
+stage's exact 1-GiB and HLS stage's exact 8-GiB own limits. Fresh source and
+HLS validation must precede another link attempt; historical pins are never
+rewritten to pass. Revisions: simulator main `341ad41`, actual runtime branch
+`07f8863`, G+R guard `7975080` and peer fix `196060f`, Spine shell `9e5cb2b`.
+
+Three historical G+R outputs received independently copied Vivado IP caches from
+the corresponding completed old build. These are tool-validated compilation
+caches, not old bitstreams or substituted cache XOs. Each output's
+`ip-cache-seed.json` records the original directory and a byte-matched file
+inventory; the copies share no writable hardlinks with the original evidence:
+
+| New output | Original cache under `gr-prefetch-blocking-axis-trif-20261024` | Inventory SHA-256 |
+| --- | --- | --- |
+| `route-v3/sssp` | `route-slr-v2/sssp/ip_cache` | `67103cdd3d326d0df4213f142062edcef2e90ebe1271b142ab034346cf389006` |
+| `route-v2/cc` | `route-slr-v2/cc/ip_cache` | `1e298e57f60c171fb4ddf99aa54d49162a484f5993b71a25ba9466b5dc84104d` |
+| `route-v4/respr` | `route-live-v1/respr/ip_cache` | `95a4a97b7f06830eb713eb4fa7a243161918628475e650b2d7e403c6aaf5cb19` |
 
 Each compiler tree has a 56-GiB hard cap, 52-GiB high watermark, zero swap
 and group OOM termination. Admission preserves 24 GiB of system memory and
@@ -130,11 +170,13 @@ python3 -m validation.cache_extent.route --help
 python3 -m validation.cache_extent.spine --help
 python3 -m validation.cache_extent.matrix_inputs --help
 python3 -m validation.cache_extent.matrix --help
-systemctl --user status gr-cache-extent-sssp-20261025-v3.service \
-  gr-cache-extent-cc-20261025-v2.service \
-  gr-cache-extent-respr-20261025-v2.service \
-  spine-cache-study-respr-20261025-v3.service \
-  gr-cache-extent-matrix-20261025-v4.service
+python3 /home/chuxiao/spine-cycle-sim/spine-cycle-sim-production-board/spine_cycle_sim/experiments/host_memory.py
+systemctl --user status gr-cache-extent-source-zfs-20261025-v3.service \
+  spine-cache-study-respr-zfs-20261025-v1.service \
+  gr-cache-extent-sssp-zfs-20261025-v2.service \
+  gr-cache-extent-cc-zfs-20261025-v2.service \
+  gr-cache-extent-respr-zfs-20261025-v2.service \
+  gr-cache-extent-matrix-zfs-20261025-v2.service
 ```
 
 The simulator repository's companion guide is
@@ -147,7 +189,7 @@ After the matrix terminates, create one reviewable folder:
 
 ```bash
 python3 -m validation.cache_extent.delivery \
-  --matrix <matrix-v4/results.json> --output <fresh-delivery-directory>
+  --matrix <terminal-matrix/results.json> --output <fresh-delivery-directory>
 ```
 
 A running matrix is rejected. Both complete and
