@@ -61,6 +61,7 @@ defaults remain unchanged. The bounded candidate requires sharded K4, full
 | `route.py`, `spine.py` | Fresh cache links and sparse Spine ResPR build |
 | `matrix_inputs.py`, `configuration.py` | Immutable 24-case matrix and controls |
 | `board.py`, `matrix.py` | Board admission, correctness, repeated paired runs |
+| `delivery.py` | Revalidate and package terminal board evidence without replacing missing rows |
 
 Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
 
@@ -119,3 +120,23 @@ systemctl --user status 'gr-cache-extent-*-20261025-v2.service' \
 The simulator repository's companion guide is
 `docs/experiments/comparisons/grasu_regraph_stage_validation/evaluation_impact/cache_extent/README.md`.
 It separates source-grounded component predictions from hardware timing.
+
+## Terminal Delivery
+
+After the matrix terminates, create one reviewable folder:
+
+```bash
+python3 -m validation.cache_extent.delivery \
+  --matrix <matrix-v2/results.json> --output <fresh-delivery-directory>
+```
+
+A running matrix is rejected. Both complete and
+incomplete terminal matrices retain all 24 rows; only correctness-admitted
+board pairs receive speedups. The exporter rechecks source/binary/workload
+hashes, reparses all four paired raw logs, and recomputes medians before
+copying reports, manifests, clock dumps and bounded-size logs. Graphs,
+bitstreams and compiler trees are indexed by hash rather than copied.
+`summary.csv` includes actual data frequencies and `README.md` explains the
+resident boundary and outstanding limitations. An incomplete package does not
+complete the FPGA goal. Test with `python3 -m unittest discover -s tests -p
+'test_cache_extent_delivery.py'`.
