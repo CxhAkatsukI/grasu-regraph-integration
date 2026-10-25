@@ -16,7 +16,7 @@ not renamed a successful paper reproduction.
 | Simulator bounded-span state and traffic regression | Passed |
 | Three revised G+R hardware links | All `route-zfs-v2` artifacts complete; SSSP/CC pass final timing; ResPR uses automatically reduced clocks |
 | Fresh sparse-apply Spine ResPR hardware | Compiled and independently audited; independent AU board correctness passed; not a paired speedup |
-| Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Twenty admitted pairs: all eight SSSP, all eight CC and ResPR AU/SU/WK/SO; four ResPR cases unfinished |
+| Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Twenty-one admitted pairs: all eight SSSP, all eight CC and ResPR AU/SU/WK/SO/PK; three ResPR cases unfinished |
 
 This is a partial FPGA checkpoint, not a completed three-algorithm matrix. Live
 machine-readable results below supersede this snapshot as testing continues.
@@ -116,8 +116,8 @@ Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
   check of that audited binary while G+R links; `SPINE_AU_RESPR_SMOKE_PASS`.
   Its status is independent of the matrix and replaces no paired sample.
 - `matrix-inputs-zfs-v3/plan.json`, `matrix-zfs-v3/`: current frozen 24-case plan
-  and runner. Twenty pairs have passed; ResPR PK is running at this checkpoint.
-- `independent-pair-audit-v19/`: saved twenty-case checkpoint and independent
+  and runner. Twenty-one pairs have passed; ResPR LJ is running at this checkpoint.
+- `independent-pair-audit-v20/`: saved twenty-one-case checkpoint and independent
   verification of raw paired logs, medians, pins, clocks and memory containment.
   It does not promote the running matrix to a terminal delivery.
 - `matrix-inputs-zfs-v2/plan.json`, `matrix-zfs-v2/`: superseded, stopped before
@@ -256,28 +256,33 @@ metadata records 149/432 MHz. This is not closure at DATA 150/HBM 450 MHz.
 `respr-artifact-audit-v1/` independently verifies the compiler evidence,
 1396 unique pinned files, final binary and clock dump. Board measurements
 retain actual clocks, with no wall-time normalization to 150 MHz.
-ResPR AU, SU, WK and SO have now passed their warmups and three formal measured
+ResPR AU, SU, WK, SO and PK have now passed their warmups and three formal measured
 pairs. Their G+R/Spine median walls are 21.407410/53.835500 ms and
 27.242188/52.652600 ms for AU/SU (ratios 0.397645 and 0.517395), and
 52.660617/64.281500 ms for WK (ratio 0.819219), and 867.179300/193.487000 ms
 for SO (ratio 4.481848). SO's G+R samples are 867.179300, 872.318017 and
 866.263973 ms; Spine's are 178.376, 193.487 and 205.476 ms. No sample was
 discarded, and the 865.788892/198.431-ms warmup is excluded.
+PK's G+R/Spine medians are 332.676472/154.473000 ms (ratio 2.153622).
+Its G+R samples are 331.821451, 332.676472 and 332.954484 ms; Spine's are
+161.012, 154.473 and 152.551 ms. The excluded warmup is
+332.124027/155.495 ms (G+R/Spine), and no slow sample was removed.
 Both hardware paths and the CPU oracle report zero residual propagation
 rounds at the frozen direct per-vertex `epsilon=1e-6`, damping 0.85. These
 cases validate update/correction/completion, not nonzero iterative propagation
 performance. G+R still executes one update/correction pipeline. AU/SU/WK use
-16-GiB hard/14-GiB high limits; SO uses 32-GiB hard/30-GiB high limits. All four
+16-GiB hard/14-GiB high limits; SO uses 32-GiB hard/30-GiB high limits, and PK
+uses 24-GiB hard/22-GiB high limits. All five
 cases complete with zero swap and zero memory events;
 actual DATA/HBM clocks are 149/432 MHz for G+R and 150/448 MHz for Spine.
-The four other ResPR cases remain unfinished; PK is currently running.
+The three other ResPR cases remain unfinished; LJ is currently running.
 
-`independent-pair-audit-v19/results.json` validates the twenty completed cases,
-including all 80 paired samples with warmups, 1552 unique pinned files,
+`independent-pair-audit-v20/results.json` validates the twenty-one completed cases,
+including all 84 paired samples with warmups, 1553 unique pinned files,
 recomputed medians, actual clock dumps and saved memory containment evidence.
-Its propagation-aware verifier is revision `7acad8f` in this independent review
+Its propagation-aware verifier is revision `2a31e49` in this independent review
 worktree, not a change to the source-pinned live runner. The audit retains
-the three formal round counts per architecture and took 15.491 seconds with
+the three formal round counts per architecture and took 19.716 seconds with
 zero memory events under a 1-GiB hard/768-MiB high/zero-swap cap.
 The simulator companion guide below
 contains the per-case tables and full evidence paths. No terminal figure or
