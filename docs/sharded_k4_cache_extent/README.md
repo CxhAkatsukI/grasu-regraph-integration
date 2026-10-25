@@ -8,19 +8,23 @@ ReGraph publication-scale comparison remains about 2.47 times slower in our
 ported hardware configuration; that disclosed gap is accepted for this study,
 not renamed a successful paper reproduction.
 
-| Gate | Status at this checkpoint |
+| Gate | Final status |
 | --- | --- |
 | Cache state, valid-span boundaries, token/plain bindings | Passed |
 | HLS/XO and exact exported-interface review | Fresh `hls-zfs-v3` export passed; new link ABI review passed |
 | Three native hosts, legacy/new ABI selection | Built |
 | Simulator bounded-span state and traffic regression | Passed |
 | Three revised G+R hardware links | All `route-zfs-v2` artifacts complete; SSSP/CC pass final timing; ResPR uses automatically reduced clocks |
-| Fresh sparse-apply Spine ResPR hardware | Compiled and independently audited; independent AU board correctness passed; not a paired speedup |
-| Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Twenty-one admitted pairs: all eight SSSP, all eight CC and ResPR AU/SU/WK/SO/PK; three ResPR cases unfinished |
+| Fresh sparse-apply Spine ResPR hardware | Compiled and independently audited; subsequent paired matrix passed all eight workloads |
+| Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | All 24 cases pass, with one excluded warmup and three formal pairs each |
+| Terminal board delivery | Raw-log revalidation, portable archive, isolated plot/profile reproduction and visual review passed in the simulator repository |
 
-This is a partial FPGA checkpoint, not a completed three-algorithm matrix. Live
-machine-readable results below supersede this snapshot as testing continues.
-Failed or interrupted attempts remain in their own directories.
+The final three-algorithm matrix is complete. SSSP favors Spine on all eight
+graphs; CC and ResPR each favor Spine on four and G+R on four. All eight
+ResPR cases have zero propagation rounds on both systems and their CPU
+oracles: they measure update/correction/completion, not iterative propagation.
+Failed or interrupted attempts remain in their own directories. Historical
+checkpoint statuses below retain their original scope, not outstanding work.
 
 ## What Changes
 
@@ -116,7 +120,10 @@ Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
   check of that audited binary while G+R links; `SPINE_AU_RESPR_SMOKE_PASS`.
   Its status is independent of the matrix and replaces no paired sample.
 - `matrix-inputs-zfs-v3/plan.json`, `matrix-zfs-v3/`: current frozen 24-case plan
-  and runner. Twenty-one pairs have passed; ResPR LJ is running at this checkpoint.
+  and terminal `FPGA_MATRIX_PASS`: all 24 cases and 96 paired runs pass.
+- `terminal-delivery-v1/`: final raw-log and identity verification, measured
+  speedup figure and diagnostics. `final-roundtrip-review-v2/` separately
+  verifies the portable archive and reproduces the plot/profile outputs.
 - `independent-pair-audit-v20/`: saved twenty-one-case checkpoint and independent
   verification of raw paired logs, medians, pins, clocks and memory containment.
   It does not promote the running matrix to a terminal delivery.
@@ -256,7 +263,7 @@ metadata records 149/432 MHz. This is not closure at DATA 150/HBM 450 MHz.
 `respr-artifact-audit-v1/` independently verifies the compiler evidence,
 1396 unique pinned files, final binary and clock dump. Board measurements
 retain actual clocks, with no wall-time normalization to 150 MHz.
-ResPR AU, SU, WK, SO and PK have now passed their warmups and three formal measured
+ResPR AU, SU, WK, SO and PK passed their warmups and three formal measured
 pairs. Their G+R/Spine median walls are 21.407410/53.835500 ms and
 27.242188/52.652600 ms for AU/SU (ratios 0.397645 and 0.517395), and
 52.660617/64.281500 ms for WK (ratio 0.819219), and 867.179300/193.487000 ms
@@ -275,7 +282,11 @@ performance. G+R still executes one update/correction pipeline. AU/SU/WK use
 uses 24-GiB hard/22-GiB high limits. All five
 cases complete with zero swap and zero memory events;
 actual DATA/HBM clocks are 149/432 MHz for G+R and 150/448 MHz for Spine.
-The three other ResPR cases remain unfinished; LJ is currently running.
+LJ, LJ08 and R19 subsequently passed all four paired runs with the same
+clocks, threshold and zero propagation rounds. Their G+R/Spine medians are
+1020.831500/256.296000, 984.921509/279.133000 and 44.868496/86.630000 ms,
+respectively (ratios 3.983018, 3.528503 and 0.517933). All 24 final case
+resource records have zero memory pressure and OOM events.
 
 `independent-pair-audit-v20/results.json` validates the twenty-one completed cases,
 including all 84 paired samples with warmups, 1553 unique pinned files,
@@ -284,9 +295,9 @@ Its propagation-aware verifier is revision `2a31e49` in this independent review
 worktree, not a change to the source-pinned live runner. The audit retains
 the three formal round counts per architecture and took 19.716 seconds with
 zero memory events under a 1-GiB hard/768-MiB high/zero-swap cap.
-The simulator companion guide below
-contains the per-case tables and full evidence paths. No terminal figure or
-24-case delivery has been exported yet.
+That audit is a retained partial checkpoint. The subsequent terminal verifier
+reparses all 96 paired runs; the simulator companion guide below contains
+the full 24-case data, raw archive, figure and final review receipt.
 
 ### Spine Wrapper Failure And Artifact Audit
 
@@ -384,7 +395,21 @@ It separates source-grounded component predictions from hardware timing.
 
 ## Terminal Delivery
 
-After the matrix terminates, create one reviewable folder:
+The final reviewable package is in the simulator repository:
+`docs/experiments/comparisons/grasu_regraph_stage_validation/evaluation_impact/cache_extent/fpga_results_v1/`.
+It contains all 24 ratios, actual clocks and propagation counts; PNG/PDF;
+standalone byte-identical Python plot/profile modules; diagnostics; 615
+hash-verified archived records; and an isolated reproduction/visual receipt.
+No paper was edited. The original matrix, hosts, HLS sources, binaries,
+workloads and terminal package hashes remain unchanged.
+
+The first isolated reviewer stopped on a nonidentical PDF. Decompressed
+inspection found only the randomized TX Typewriter subset name. The second
+reviewer permits only that tag change, requires all other decompressed bytes
+and independent 300-dpi rasters to agree, and preserves the first attempt.
+It changes neither renderer nor numerical evidence.
+
+To regenerate terminal board evidence into a fresh directory:
 
 ```bash
 python3 -m validation.cache_extent.delivery \
