@@ -14,11 +14,11 @@ not renamed a successful paper reproduction.
 | HLS/XO and exact exported-interface review | Fresh `hls-zfs-v3` export passed; new link ABI review passed |
 | Three native hosts, legacy/new ABI selection | Built |
 | Simulator bounded-span state and traffic regression | Passed |
-| Three revised G+R hardware links | `route-zfs-v2`: SSSP and ResPR running; CC waiting for finite memory admission |
+| Three revised G+R hardware links | `route-zfs-v2`: SSSP routed with passing final timing; CC and ResPR links running |
 | Fresh sparse-apply Spine ResPR hardware | Compiled and independently audited; independent AU board correctness passed; not a paired speedup |
 | Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Pending, zero admitted pairs |
 
-This is a source/export checkpoint, not a completed board result. Live
+This is a source/export/SSSP-route checkpoint, not a completed board result. Live
 machine-readable results below supersede this snapshot when builds finish.
 Failed or interrupted attempts remain in their own directories.
 
@@ -80,7 +80,7 @@ Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
   check of that audited binary while G+R links; `SPINE_AU_RESPR_SMOKE_PASS`.
   Its status is independent of the matrix and replaces no paired sample.
 - `matrix-inputs-zfs-v3/plan.json`, `matrix-zfs-v3/`: current frozen 24-case plan
-  and runner, waiting for the exact new artifacts. No board pair yet.
+  and runner. The SSSP AU task has started; no board pair has passed yet.
 - `matrix-inputs-zfs-v2/plan.json`, `matrix-zfs-v2/`: superseded, stopped before
   any board pair after the old wrapper report blocked the eight ResPR rows.
 - `route-v1` through `route-v4`, `route-zfs-v1`: retained attempts, not live results.
@@ -169,6 +169,23 @@ trees peaked around 41--45 GiB. More than one compiler is allowed only when
 the live budget admits it; another FPGA tool merely existing is not a block.
 Board runs use separately bounded 16--32-GiB groups, the same reserve and a
 device lock. Interrupted `v1` attempts were never promoted to passing results.
+
+### Revised SSSP Route Evidence
+
+`route-zfs-v2/sssp/results.json` reached `ROUTED_NOT_BOARD_TESTED` on
+2026-10-25. The compiler exited zero with no watchdog stop or cgroup memory
+events. The new bounded-cache xclbin SHA-256 is
+`ed674b033c738506bd8ac32da9ab2b51e3e70e8925113aed048f50eb35dbf11e`.
+Its metadata records DATA 150 MHz and HBM 450 MHz; neither was reduced.
+
+The final `hw_bb_locked_timing_summary_routed.rpt` under
+`work/link/vivado/vpl/prj/prj.runs/impl_1/` reports setup WNS +0.002 ns,
+TNS zero and no setup-failing endpoints; hold WNS is +0.009 ns, THS zero
+and no hold-failing endpoints. All user-specified timing constraints are met.
+Earlier negative slack in intermediate route messages is not the final
+timing result. This gate proves routing, not FPGA correctness or speedup.
+The matrix started the SSSP AU task for this exact binary after separate
+board and finite-memory admission. No paired sample had passed at this checkpoint.
 
 ### Spine Wrapper Failure And Artifact Audit
 

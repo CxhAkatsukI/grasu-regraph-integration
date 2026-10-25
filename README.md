@@ -2,8 +2,9 @@
 
 Current hardware follow-up: [bounded cache transfers, initial residency and the
 three-algorithm FPGA comparison](docs/sharded_k4_cache_extent/README.md).
-Fresh source/HLS/ABI checks pass; routing and revised-kernel board results are
-separate pending gates. The guide identifies live runs and preserved controls.
+Fresh source/HLS/ABI checks pass. Revised SSSP routing passed; CC and ResPR
+links are running, and revised-kernel board results remain pending. The guide
+identifies live runs and preserved controls.
 
 Current complete-G source candidate: [source map, build selection and evidence gates](kernels/grasu_complete/README.md).
 It is opt-in and does not replace the frozen routed baseline or constitute new board evidence.
