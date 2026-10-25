@@ -14,12 +14,12 @@ not renamed a successful paper reproduction.
 | HLS/XO and exact exported-interface review | Fresh `hls-zfs-v3` export passed; new link ABI review passed |
 | Three native hosts, legacy/new ABI selection | Built |
 | Simulator bounded-span state and traffic regression | Passed |
-| Three revised G+R hardware links | `route-zfs-v2`: SSSP routed with passing final timing; CC and ResPR links running |
+| Three revised G+R hardware links | All `route-zfs-v2` artifacts complete; SSSP/CC pass final timing; ResPR uses automatically reduced clocks |
 | Fresh sparse-apply Spine ResPR hardware | Compiled and independently audited; independent AU board correctness passed; not a paired speedup |
-| Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Pending, zero admitted pairs |
+| Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Twelve admitted pairs: all eight SSSP and CC AU/SU/WK/SO; remaining cases unfinished |
 
-This is a source/export/SSSP-route checkpoint, not a completed board result. Live
-machine-readable results below supersede this snapshot when builds finish.
+This is a partial FPGA checkpoint, not a completed three-algorithm matrix. Live
+machine-readable results below supersede this snapshot as testing continues.
 Failed or interrupted attempts remain in their own directories.
 
 ## What Changes
@@ -103,7 +103,10 @@ Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
   check of that audited binary while G+R links; `SPINE_AU_RESPR_SMOKE_PASS`.
   Its status is independent of the matrix and replaces no paired sample.
 - `matrix-inputs-zfs-v3/plan.json`, `matrix-zfs-v3/`: current frozen 24-case plan
-  and runner. The SSSP AU task has started; no board pair has passed yet.
+  and runner. Twelve pairs have passed; CC PK is running at this checkpoint.
+- `independent-pair-audit-v10/`: saved twelve-case checkpoint and independent
+  verification of raw paired logs, medians, pins, clocks and memory containment.
+  It does not promote the running matrix to a terminal delivery.
 - `matrix-inputs-zfs-v2/plan.json`, `matrix-zfs-v2/`: superseded, stopped before
   any board pair after the old wrapper report blocked the eight ResPR rows.
 - `route-v1` through `route-v4`, `route-zfs-v1`: retained attempts, not live results.
@@ -207,8 +210,44 @@ TNS zero and no setup-failing endpoints; hold WNS is +0.009 ns, THS zero
 and no hold-failing endpoints. All user-specified timing constraints are met.
 Earlier negative slack in intermediate route messages is not the final
 timing result. This gate proves routing, not FPGA correctness or speedup.
-The matrix started the SSSP AU task for this exact binary after separate
-board and finite-memory admission. No paired sample had passed at this checkpoint.
+The matrix subsequently completed all eight SSSP workloads using this exact
+binary. Each passed one excluded warmup and three measured pairs, with
+zero state mismatches and both DATA clocks at 150 MHz. The measured ratio
+of median resident walls, G+R / Spine, ranges from 4.30 to 90.57. SO has a
+retained Spine outlier (15.5080, 18.0336 and 73.8605 ms); no sample was
+discarded. This is not proof of an isolated cache-optimization speedup.
+
+### CC And ResPR Artifacts And Board Progress
+
+The CC link completed with compiler exit zero, no watchdog stop and zero
+cgroup memory events. Its final routed timing report passes, and the exact
+binary records DATA 150/HBM 450 MHz. The xclbin SHA-256 is
+`3861b17a64de1b796feec4c230c89fb2f811492bd596819e315655804471f3e0`.
+CC AU/SU/WK/SO each passed their warmup and three measurements. Their G+R / Spine
+ratios are 0.144190, 0.185415, 0.569526 and 7.307870. Spine is slower in the
+first three cases and faster on SO; all remain in the declared matrix. The frozen CC host is
+`spine-resident-host-v7`, not SSSP's separately optimized scratch-v3 host;
+the current experiment must not replace its samples with another binary.
+
+The ResPR link also completed with compiler exit zero, no watchdog stop and
+zero cgroup memory events. Its xclbin SHA-256 is
+`c112e790c3cfd81c05b4059f1dc34fcee23bc36a94a995ba1c0d6d49280058c0`.
+The unscaled routed report fails requested timing: DATA has 18 failing
+endpoints with WNS -0.006 ns, and HBM has 34 with WNS -0.089 ns. Vivado
+records automatic scaling to DATA 149.8/HBM 432.7 MHz; packaged integer
+metadata records 149/432 MHz. This is not closure at DATA 150/HBM 450 MHz.
+`respr-artifact-audit-v1/` independently verifies the compiler evidence,
+1396 unique pinned files, final binary and clock dump. Board measurements
+will retain actual clocks, with no wall-time normalization to 150 MHz.
+ResPR still needs its AU correctness gate and all eight formal paired runs.
+
+`independent-pair-audit-v10/results.json` validates the twelve completed cases,
+including all 48 paired samples with warmups, 1509 unique pinned files,
+recomputed medians, actual clock dumps and saved memory containment evidence.
+Its verifier is commit `bca49d0` in this independent review worktree, not a
+change to the source-pinned live runner. The simulator companion guide below
+contains the per-case tables and full evidence paths. No terminal figure or
+24-case delivery has been exported yet.
 
 ### Spine Wrapper Failure And Artifact Audit
 
