@@ -14,8 +14,8 @@ not renamed a successful paper reproduction.
 | HLS/XO and exact exported-interface review | Fresh `hls-zfs-v3` export passed; new link ABI review passed |
 | Three native hosts, legacy/new ABI selection | Built |
 | Simulator bounded-span state and traffic regression | Passed |
-| Three revised G+R hardware links | `route-zfs-v2`: SSSP running; CC/ResPR waiting for finite memory admission |
-| Fresh sparse-apply Spine ResPR hardware | `spine-respr-zfs-v1` running with corrected memory accounting |
+| Three revised G+R hardware links | `route-zfs-v2`: SSSP and ResPR running; CC waiting for finite memory admission |
+| Fresh sparse-apply Spine ResPR hardware | Compiled and independently audited; 150-MHz DATA, 448-MHz HBM metadata; board correctness pending |
 | Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Pending, zero admitted pairs |
 
 This is a source/export checkpoint, not a completed board result. Live
@@ -59,6 +59,7 @@ defaults remain unchanged. The bounded candidate requires sharded K4, full
 | --- | --- |
 | `study.py`, `abi.py` | Frozen source checks, HLS export, exact ABI review |
 | `route.py`, `spine.py` | Fresh cache links and sparse Spine ResPR build |
+| `spine_recovery.py` | Audit a successful route rejected only by dependency postprocessing; preserve the failed attempt |
 | `matrix_inputs.py`, `configuration.py` | Immutable 24-case matrix and controls |
 | `board.py`, `matrix.py` | Board admission, correctness, repeated paired runs |
 | `delivery.py` | Revalidate and package terminal board evidence without replacing missing rows |
@@ -71,9 +72,13 @@ Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
 - `source-zfs-v3/results.json`: passing executable checks with the corrected guard.
 - `hls-zfs-v3/results.json`: both fresh passing cache exports; not routed timing.
 - `route-zfs-v2/{sssp,cc,respr}/`: new links with exact ABI reviews and bounded admission.
-- `spine-respr-zfs-v1/`: running sparse-apply Spine ResPR build and provenance.
-- `matrix-inputs-zfs-v2/plan.json`, `matrix-zfs-v2/`: current frozen 24-case plan
+- `spine-respr-zfs-v1/`: successful compiler output with a retained wrapper failure.
+- `spine-respr-zfs-audit-v1/`: independent artifact/provenance/clock audit;
+  `ROUTED_NOT_BOARD_TESTED`, not board correctness or a speedup.
+- `matrix-inputs-zfs-v3/plan.json`, `matrix-zfs-v3/`: current frozen 24-case plan
   and runner, waiting for the exact new artifacts. No board pair yet.
+- `matrix-inputs-zfs-v2/plan.json`, `matrix-zfs-v2/`: superseded, stopped before
+  any board pair after the old wrapper report blocked the eight ResPR rows.
 - `route-v1` through `route-v4`, `route-zfs-v1`: retained attempts, not live results.
 - `matrix-inputs-v1` through `matrix-inputs-v6`, `matrix-inputs-zfs-v1`:
   historical plans; none establishes completed FPGA comparisons.
@@ -161,6 +166,41 @@ the live budget admits it; another FPGA tool merely existing is not a block.
 Board runs use separately bounded 16--32-GiB groups, the same reserve and a
 device lock. Interrupted `v1` attempts were never promoted to passing results.
 
+### Spine Wrapper Failure And Artifact Audit
+
+The sparse ResPR compiler returned zero, generated its xclbin and printed the
+terminal `BUILD_PASS` marker. Only afterward, generic `runtime.execute`
+misclassified `compile-route` as a C++ dependency-producing command and tried
+to open the nonexistent `respr.d`. The original `FAILED_RETAINED` report,
+manifest and logs are unchanged. This is a wrapper failure, not a compiler
+failure or a passed board test; no dummy dependency file was created.
+
+`spine_recovery.py` checks the exact successful command, absence of watchdog
+or OOM failure, all original input hashes, clean source commit, sparse-apply
+selector, build provenance, terminal success marker, actual xclbin kernels
+and clock metadata. It writes a fresh audit that includes original evidence
+hashes. Four focused regression tests pass; together with the cache and
+export tests, the suite passes 18 tests. The real audit used a 2-GiB/zero-swap
+group and peaked at 125.5 MiB.
+
+The new xclbin SHA-256 is
+`b6cb210342029a77233740e7aeffea354d19757ebb68431b0fc993bef59bd15b`.
+Its unscaled routed summary has setup WNS -0.007 ns, TNS -0.014 ns and three
+failing endpoints; hold WNS is +0.009 ns with no failing hold endpoints.
+Vivado automatically scaled `hbm_aclk` from 450 to 448.6 MHz; xclbin metadata
+records 448 MHz. DATA remains 150 MHz. This is not timing closure at the
+requested HBM clock. The board matrix retains actual clocks and requires
+correctness independently. No timing constraints or live G+R runner pins
+were modified to obtain this audit. The dependency-phase bug itself remains
+in the frozen original runner and must be corrected before reusing that
+runner for another Spine build, after live builds release their source pins.
+
+```bash
+python3 -m validation.cache_extent.spine_recovery \
+  --source <retained-failed-wrapper-directory> \
+  --output <fresh-audit-directory>
+```
+
 ## Measurement Contract
 
 Every pair uses the same graph, old converged state, eight logical updates
@@ -199,7 +239,7 @@ systemctl --user status gr-cache-extent-source-zfs-20261025-v3.service \
   gr-cache-extent-sssp-zfs-20261025-v2.service \
   gr-cache-extent-cc-zfs-20261025-v2.service \
   gr-cache-extent-respr-zfs-20261025-v2.service \
-  gr-cache-extent-matrix-zfs-20261025-v2.service
+  gr-cache-extent-matrix-zfs-20261025-v3.service
 ```
 
 The simulator repository's companion guide is
