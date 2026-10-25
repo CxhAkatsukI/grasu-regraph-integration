@@ -4,11 +4,12 @@ from pathlib import Path
 import time
 
 from spine_cycle_sim.experiments.campaign_runtime import atomic_write_json
+from spine_cycle_sim.experiments import host_memory
 from spine_cycle_sim.experiments.sharded_k4_stages.link_runtime import run_link
 from spine_cycle_sim.experiments.sharded_k4_stages.row_line.directory_tile.hardware.concurrent import Lease
 from spine_cycle_sim.experiments.sharded_k4_stages.row_line.directory_tile.hardware.containment import current, other_builds, verify
 from spine_cycle_sim.experiments.upstream_controls.execution import available_memory_bytes, dependency_identities
-from .preparation import unchanged
+from .preparation import pin, unchanged
 
 
 def environment(output):
@@ -34,9 +35,14 @@ def bounds(stage):
 
 
 def admit(report, output, lease, wait_seconds):
+    source = pin(Path(host_memory.__file__).resolve())
+    if source not in report["pins"]:
+        report["pins"].append(source)
+    report["host_memory_accounting"] = {"policy": host_memory.POLICY, "source": source}
     deadline = time.monotonic() + wait_seconds
     while True:
         unchanged(report["pins"])
+        report["host_memory_snapshot"] = host_memory.sample_host_memory().record()
         report["admission"] = lease.sample(available_memory_bytes(), other_builds(), report["policy"], commit=True)
         report["status"] = "WAITING_FOR_MEMORY_NOT_OTHER_TOOLS"
         atomic_write_json(output / "results.json", report)

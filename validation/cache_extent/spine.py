@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 
 from spine_cycle_sim.experiments.campaign_runtime import atomic_write_json
+from spine_cycle_sim.experiments import host_memory
 from spine_cycle_sim.experiments.sharded_k4_stages.row_line.directory_tile.hardware import concurrent
 from spine_cycle_sim.experiments.sharded_k4_stages.row_line.directory_tile.hardware.containment import current
 from validation.grasu_complete import preparation, runtime
@@ -38,8 +39,9 @@ def run(args):
                                           "--untracked-files=no", "--", "src"], text=True, timeout=30)
         if dirty:
             raise ValueError("kernel sources must be committed before freezing")
+        memory_probe = Path(host_memory.__file__).resolve()
         report["pins"] = [preparation.pin(path) for path in
-            (*paths, Path(__file__), Path(__file__).with_name("route.py"), args.settings)]
+            (*paths, Path(__file__), Path(__file__).with_name("route.py"), args.settings, memory_probe)]
         argv = ["bash", str(build), "hw", str(args.output / "build"), "respr"]
         manifest = {"pins": report["pins"], "command": argv, "selector": "SPINE_RESIDUAL_SPARSE_APPLY=1",
             "source_commit": subprocess.check_output(["git", "-C", str(args.repository), "rev-parse", "HEAD"],
@@ -50,6 +52,7 @@ def run(args):
         report["pins"].append(preparation.pin(args.output / "manifest.json"))
         environment = runtime.environment(args.output)
         environment.update(SPINE_RESIDUAL_SPARSE_APPLY="1", SPINE_BUILD_JOBS="1",
+            SPINE_BUILD_MEMORY_PROBE=str(memory_probe),
             SPINE_BUILD_MIN_AVAILABLE_GIB=str(args.memory_gib + 24), SPINE_VITIS_SETTINGS=str(args.settings),
             VIVADO_SYNTH_JOBS="1", VIVADO_IMPL_JOBS="1")
         runtime.admit(report, args.output, lease, args.wait_seconds)
