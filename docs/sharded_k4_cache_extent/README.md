@@ -67,10 +67,11 @@ Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
 
 - `source-v1/results.json`: executable source checks.
 - `hls-v1/results.json`: both fresh cache exports, not routed timing.
-- `route-v2/{sssp,cc,respr}/`: isolated actual-XO link packets and raw logs.
+- `route-v3/sssp/`: fresh SSSP link retry after a live-reserve stop.
+- `route-v3/{cc,respr}`: links to the unchanged, live `route-v2` jobs.
 - `spine-respr-v3/`: fresh sparse-apply Spine ResPR retry and source provenance.
-- `matrix-inputs-v4/plan.json`: 24 cases, actual binary/source/input pins.
-- `matrix-v3/{results.json,summary.csv}`: all-case status and eventual results.
+- `matrix-inputs-v5/plan.json`: 24 cases, actual binary/source/input pins.
+- `matrix-v4/{results.json,summary.csv}`: all-case status and eventual results.
 - `host-control-au-v1/`: new host with an OLD G+R kernel, not the new matrix.
 
 The `spine-respr-v2` attempt completed three HLS XOs but was stopped during
@@ -80,8 +81,13 @@ This was a watchdog stop, not a reported RTL/synthesis error. Its sources,
 XOs and raw logs remain intact. The existing fresh-build entry point rejects
 reuse of a provenance directory, so `v3` uses a fresh directory rather than
 overwriting the failed attempt. `matrix-v2` was interrupted with zero board
-pairs; `matrix-v3` supersedes it and requires the `v3` Spine build. The three
-unchanged G+R `route-v2` jobs remain eligible when enough memory is available.
+pairs. The later `route-v2/sssp` attempt was also stopped at the live reserve:
+minimum available memory was 24,537,829,376 bytes, with a process-tree peak
+of 5,192,324 KiB and no reported synthesis/routing error. Its logs remain
+intact. `route-v3/sssp` is a fresh retry; `route-v3/{cc,respr}` are explicit
+links to the unchanged `route-v2` jobs, not copies or old-kernel fallbacks.
+`matrix-v3` was interrupted before any board pair; `matrix-v4` now uses
+`matrix-inputs-v5` to require the SSSP retry and the `v3` Spine build.
 
 Each compiler tree has a 56-GiB hard cap, 52-GiB high watermark, zero swap
 and group OOM termination. Admission preserves 24 GiB of system memory and
@@ -124,9 +130,11 @@ python3 -m validation.cache_extent.route --help
 python3 -m validation.cache_extent.spine --help
 python3 -m validation.cache_extent.matrix_inputs --help
 python3 -m validation.cache_extent.matrix --help
-systemctl --user status 'gr-cache-extent-*-20261025-v2.service' \
+systemctl --user status gr-cache-extent-sssp-20261025-v3.service \
+  gr-cache-extent-cc-20261025-v2.service \
+  gr-cache-extent-respr-20261025-v2.service \
   spine-cache-study-respr-20261025-v3.service \
-  gr-cache-extent-matrix-20261025-v3.service
+  gr-cache-extent-matrix-20261025-v4.service
 ```
 
 The simulator repository's companion guide is
@@ -139,7 +147,7 @@ After the matrix terminates, create one reviewable folder:
 
 ```bash
 python3 -m validation.cache_extent.delivery \
-  --matrix <matrix-v3/results.json> --output <fresh-delivery-directory>
+  --matrix <matrix-v4/results.json> --output <fresh-delivery-directory>
 ```
 
 A running matrix is rejected. Both complete and
