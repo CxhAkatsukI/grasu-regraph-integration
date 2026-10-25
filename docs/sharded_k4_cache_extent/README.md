@@ -16,7 +16,7 @@ not renamed a successful paper reproduction.
 | Simulator bounded-span state and traffic regression | Passed |
 | Three revised G+R hardware links | All `route-zfs-v2` artifacts complete; SSSP/CC pass final timing; ResPR uses automatically reduced clocks |
 | Fresh sparse-apply Spine ResPR hardware | Compiled and independently audited; independent AU board correctness passed; not a paired speedup |
-| Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Twelve admitted pairs: all eight SSSP and CC AU/SU/WK/SO; remaining cases unfinished |
+| Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Thirteen admitted pairs: all eight SSSP and CC AU/SU/WK/SO/PK; remaining cases unfinished |
 
 This is a partial FPGA checkpoint, not a completed three-algorithm matrix. Live
 machine-readable results below supersede this snapshot as testing continues.
@@ -103,8 +103,8 @@ Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
   check of that audited binary while G+R links; `SPINE_AU_RESPR_SMOKE_PASS`.
   Its status is independent of the matrix and replaces no paired sample.
 - `matrix-inputs-zfs-v3/plan.json`, `matrix-zfs-v3/`: current frozen 24-case plan
-  and runner. Twelve pairs have passed; CC PK is running at this checkpoint.
-- `independent-pair-audit-v10/`: saved twelve-case checkpoint and independent
+  and runner. Thirteen pairs have passed; CC LJ is running at this checkpoint.
+- `independent-pair-audit-v11/`: saved thirteen-case checkpoint and independent
   verification of raw paired logs, medians, pins, clocks and memory containment.
   It does not promote the running matrix to a terminal delivery.
 - `matrix-inputs-zfs-v2/plan.json`, `matrix-zfs-v2/`: superseded, stopped before
