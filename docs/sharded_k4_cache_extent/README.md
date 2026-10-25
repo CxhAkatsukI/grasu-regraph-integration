@@ -15,7 +15,7 @@ not renamed a successful paper reproduction.
 | Three native hosts, legacy/new ABI selection | Built |
 | Simulator bounded-span state and traffic regression | Passed |
 | Three revised G+R hardware links | `route-zfs-v2`: SSSP and ResPR running; CC waiting for finite memory admission |
-| Fresh sparse-apply Spine ResPR hardware | Compiled and independently audited; 150-MHz DATA, 448-MHz HBM metadata; board correctness pending |
+| Fresh sparse-apply Spine ResPR hardware | Compiled and independently audited; independent AU board correctness passed; not a paired speedup |
 | Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Pending, zero admitted pairs |
 
 This is a source/export checkpoint, not a completed board result. Live
@@ -60,6 +60,7 @@ defaults remain unchanged. The bounded candidate requires sharded K4, full
 | `study.py`, `abi.py` | Frozen source checks, HLS export, exact ABI review |
 | `route.py`, `spine.py` | Fresh cache links and sparse Spine ResPR build |
 | `spine_recovery.py` | Audit a successful route rejected only by dependency postprocessing; preserve the failed attempt |
+| `spine_smoke.py` | Check the audited Spine ResPR on the frozen AU input independently; never reuse it as a paired speedup sample |
 | `matrix_inputs.py`, `configuration.py` | Immutable 24-case matrix and controls |
 | `board.py`, `matrix.py` | Board admission, correctness, repeated paired runs |
 | `delivery.py` | Revalidate and package terminal board evidence without replacing missing rows |
@@ -75,6 +76,9 @@ Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
 - `spine-respr-zfs-v1/`: successful compiler output with a retained wrapper failure.
 - `spine-respr-zfs-audit-v1/`: independent artifact/provenance/clock audit;
   `ROUTED_NOT_BOARD_TESTED`, not board correctness or a speedup.
+- `spine-respr-au-smoke-v1/`: separately contained single-system correctness
+  check of that audited binary while G+R links; `SPINE_AU_RESPR_SMOKE_PASS`.
+  Its status is independent of the matrix and replaces no paired sample.
 - `matrix-inputs-zfs-v3/plan.json`, `matrix-zfs-v3/`: current frozen 24-case plan
   and runner, waiting for the exact new artifacts. No board pair yet.
 - `matrix-inputs-zfs-v2/plan.json`, `matrix-zfs-v2/`: superseded, stopped before
@@ -195,10 +199,24 @@ were modified to obtain this audit. The dependency-phase bug itself remains
 in the frozen original runner and must be corrected before reusing that
 runner for another Spine build, after live builds release their source pins.
 
+The independent AU board smoke passed using this exact binary, the frozen
+515281-vertex graph, eight insertions and the resident wall-time boundary.
+The checked log records 52.6317 ms and zero propagation iterations: correction
+and final-state validation completed, but this batch did not exercise a
+nonzero residual propagation. This single run establishes neither a speedup
+nor repeated timing or all-workload correctness. Actual DATA/HBM metadata
+remain 150/448 MHz. The 16-GiB/zero-swap group had no OOM events; the sampled
+host-tree RSS peak was 2472880 KiB. Three smoke-log rejection tests bring the
+cache/export/recovery/smoke suite to 21 passing tests.
+
 ```bash
 python3 -m validation.cache_extent.spine_recovery \
   --source <retained-failed-wrapper-directory> \
   --output <fresh-audit-directory>
+
+# In a 16-GiB max / 14-GiB high / zero-swap systemd group, with group OOM kill:
+python3 -m validation.cache_extent.spine_smoke \
+  --plan <current-frozen-matrix-plan> --output <fresh-smoke-directory>
 ```
 
 ## Measurement Contract
