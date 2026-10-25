@@ -15,7 +15,7 @@ not renamed a successful paper reproduction.
 | Three native hosts, legacy/new ABI selection | Built |
 | Simulator bounded-span state and traffic regression | Passed |
 | Three revised G+R hardware links | Queued under finite memory admission |
-| Fresh sparse-apply Spine ResPR hardware | Compiling |
+| Fresh sparse-apply Spine ResPR hardware | Memory-safe retry queued; previous attempt stopped at the live reserve |
 | Revised-kernel SSSP/CC/ResPR x eight FPGA pairs | Pending, zero admitted pairs |
 
 This is a source/export checkpoint, not a completed board result. Live
@@ -68,14 +68,25 @@ Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
 - `source-v1/results.json`: executable source checks.
 - `hls-v1/results.json`: both fresh cache exports, not routed timing.
 - `route-v2/{sssp,cc,respr}/`: isolated actual-XO link packets and raw logs.
-- `spine-respr-v2/`: fresh sparse-apply Spine ResPR build and source provenance.
-- `matrix-inputs-v3/plan.json`: 24 cases, actual binary/source/input pins.
-- `matrix-v2/{results.json,summary.csv}`: all-case status and eventual results.
+- `spine-respr-v3/`: fresh sparse-apply Spine ResPR retry and source provenance.
+- `matrix-inputs-v4/plan.json`: 24 cases, actual binary/source/input pins.
+- `matrix-v3/{results.json,summary.csv}`: all-case status and eventual results.
 - `host-control-au-v1/`: new host with an OLD G+R kernel, not the new matrix.
+
+The `spine-respr-v2` attempt completed three HLS XOs but was stopped during
+Vivado synthesis when system available memory fell below the 24-GiB live
+reserve (`stop_reason=live_memory_reserve`, minimum 24,889,225,216 bytes).
+This was a watchdog stop, not a reported RTL/synthesis error. Its sources,
+XOs and raw logs remain intact. The existing fresh-build entry point rejects
+reuse of a provenance directory, so `v3` uses a fresh directory rather than
+overwriting the failed attempt. `matrix-v2` was interrupted with zero board
+pairs; `matrix-v3` supersedes it and requires the `v3` Spine build. The three
+unchanged G+R `route-v2` jobs remain eligible when enough memory is available.
 
 Each compiler tree has a 56-GiB hard cap, 52-GiB high watermark, zero swap
 and group OOM termination. Admission preserves 24 GiB of system memory and
-counts unused reservations of other admitted builds. Historical G+R process
+counts the complete finite budgets of other admitted builds in addition to
+the new build's budget. Historical G+R process
 trees peaked around 41--45 GiB. More than one compiler is allowed only when
 the live budget admits it; another FPGA tool merely existing is not a block.
 Board runs use separately bounded 16--32-GiB groups, the same reserve and a
@@ -114,7 +125,8 @@ python3 -m validation.cache_extent.spine --help
 python3 -m validation.cache_extent.matrix_inputs --help
 python3 -m validation.cache_extent.matrix --help
 systemctl --user status 'gr-cache-extent-*-20261025-v2.service' \
-  spine-cache-study-respr-20261025-v2.service
+  spine-cache-study-respr-20261025-v3.service \
+  gr-cache-extent-matrix-20261025-v3.service
 ```
 
 The simulator repository's companion guide is
@@ -127,7 +139,7 @@ After the matrix terminates, create one reviewable folder:
 
 ```bash
 python3 -m validation.cache_extent.delivery \
-  --matrix <matrix-v2/results.json> --output <fresh-delivery-directory>
+  --matrix <matrix-v3/results.json> --output <fresh-delivery-directory>
 ```
 
 A running matrix is rejected. Both complete and
