@@ -95,6 +95,7 @@ case "${PIPELINE_MODE}" in
         ;;
       *) HOST_SOURCE="${GRI_ROOT}/tools/sharded_k4_native_host.cpp" ;;
     esac
+    HOST_EXTRA_INPUTS+=("${GRI_ROOT}/tools/sharded_cache_runtime.hpp")
     HANDOFF=four_sharded_pma_source_gather_frontends_to_one_regraph_downstream
     ;;
   *) echo "Invalid --pipeline-mode: ${PIPELINE_MODE}" >&2; exit 2 ;;

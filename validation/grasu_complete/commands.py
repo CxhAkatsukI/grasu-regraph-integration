@@ -6,7 +6,7 @@ from pathlib import Path
 VARIANTS = ("search", "cache-token", "cache-plain")
 
 
-def flags(source: Path, include: Path, variant: str) -> list[str]:
+def flags(source: Path, include: Path, variant: str, *, bounded: bool = False) -> list[str]:
     if variant not in VARIANTS:
         raise ValueError("unknown complete-G component")
     result = ["-std=c++14", "-D_GTHREAD_USE_COND_INIT_FUNC",
@@ -16,18 +16,20 @@ def flags(source: Path, include: Path, variant: str) -> list[str]:
         result += ['-DGRASU_SEARCH_HOST_HARNESS="finite_host.hpp"', "-pthread"]
     else:
         result.append("-DCACHE_BANK_REGISTERED")
+        if bounded:
+            result.append("-DGRASU_CACHE_VALID_EXTENT")
         if variant == "cache-token":
             result.append("-DGRASU_ENABLE_COMPLETION_TOKEN")
     return result
 
 
 def source_commands(source: Path, include: Path, compiler: str, directory: Path,
-                    variant: str) -> list[tuple[str, list[str]]]:
+                    variant: str, *, bounded: bool = False) -> list[tuple[str, list[str]]]:
     root = source / "grasu_complete"
     files = ([root / "search_binding/top.cpp", root / "search_binding/rtl_control.cpp"]
              if variant == "search" else
              [root / "process_cache.cpp", source / "grasu_complete_cache_tb.cpp"])
-    common = [compiler, *flags(source, include, variant), "-O1", "-g0",
+    common = [compiler, *flags(source, include, variant, bounded=bounded), "-O1", "-g0",
             "-D_GLIBCXX_ASSERTIONS", "-DDISABLE_MAX_HLS_STREAM_DEPTH_PRINT",
             "-Wno-unknown-pragmas", "-Wno-deprecated-declarations",
             "-isystem", str(include), "-isystem", str(include / "etc")]
@@ -42,11 +44,11 @@ def source_commands(source: Path, include: Path, compiler: str, directory: Path,
     return result
 
 
-def hls_script(source: Path, include: Path, variant: str) -> str:
+def hls_script(source: Path, include: Path, variant: str, *, bounded: bool = False) -> str:
     # Synthesis uses the real HLS driver, never a standalone frontend invocation.
     # The HLS driver selects its synthesis headers. Its public include/ tree is
     # for host simulation; adding that tree overrides the driver's stream model.
-    compile_flags = [flag for flag in flags(source, include, variant)
+    compile_flags = [flag for flag in flags(source, include, variant, bounded=bounded)
                      if not flag.startswith("-DGRASU_SEARCH_HOST_HARNESS")
                      and flag not in ("-I" + str(include), "-I" + str(include / "etc"), "-pthread")]
     top = "bin_search" if variant == "search" else "process_cache"

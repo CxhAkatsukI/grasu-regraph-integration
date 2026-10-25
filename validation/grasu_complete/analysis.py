@@ -47,7 +47,26 @@ def functional(stdout: str, variant: str) -> list[dict]:
             for count, conflict, token in rows]
 
 
-def exported(directory, variant):
+def bounded_functional(stdout: str, variant: str) -> list[dict]:
+    if variant not in ("cache-token", "cache-plain"):
+        raise ValueError("bounded cache binding required")
+    rows = [tuple(map(int, match)) for match in re.findall(
+        r"^PRODUCTION_CACHE_PASS updates=(\d+) conflict=(\d+) capacity=131072 "
+        r"token=(\d+) valid_segments=(\d+)$", stdout, re.M)]
+    token = int(variant == "cache-token")
+    expected = [(count, conflict, token, 131072) for count, conflict in CACHE_ROWS]
+    expected += [(0, 0, token, 0)]
+    expected += [(64, conflict, token, extent)
+                 for extent in (1, 15, 16, 17, 131071, 131072) for conflict in (1, 0)]
+    expected += [(16, 1, token, extent) for extent in (1, 131072)]
+    if rows != expected:
+        raise ValueError("bounded cache state/token checks are incomplete")
+    return [{"updates": count, "conflict": bool(conflict),
+             "completion_token": bool(present), "valid_segments": extent}
+            for count, conflict, present, extent in rows]
+
+
+def exported(directory, variant, *, bounded=False):
     top = "bin_search" if variant == "search" else "process_cache"
     xo = directory / "candidate.xo"
     report = directory / "project/solution/syn/report" / (top + "_csynth.xml")
@@ -67,7 +86,8 @@ def exported(directory, variant):
         expected = (["edges", *(f"binary_{i}" for i in range(4)),
                      *(f"row_offset_{i}" for i in range(4)), "edge_size", "segment_head_stream_out"]
                     if variant == "search" else ["pma_cache", "update_stream"] +
-                    (["completion_token"] if variant == "cache-token" else []))
+                    (["completion_token"] if variant == "cache-token" else []) +
+                    (["valid_segments"] if bounded else []))
         if arguments != expected:
             raise ValueError("exported top-level argument names/order changed")
     return {"xo": str(xo), "xo_sha256": digest(xo), "report": str(report),

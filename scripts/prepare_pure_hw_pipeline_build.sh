@@ -36,7 +36,8 @@ Options:
   --pipeline-mode MODE           compactor, weighted-axis, or sharded-k4.
                                  Default: ${PIPELINE_MODE}
   --algorithm NAME               weighted_sssp or connected_components.
-  --grasu-implementation NAME    legacy-direct-cache (default) or complete-search-cache.
+  --grasu-implementation NAME    legacy-direct-cache (default), complete-search-cache,
+                                 or complete-search-cache-bounded.
   --adapter-policy NAME          legacy (default), bank-stream, or prefetch-compact.
   --physical-port-policy NAME    independent (default) or shared-ingress.
   --platform NAME                Platform name. Default: ${PLATFORM}

@@ -1,8 +1,11 @@
 # Explicit Initial Residency For Sharded K4
 
-The SSSP/CC production host accepts the optional environment variable
-`GRASU_SHARDED_PREMIGRATE_INPUTS=0|1`. Default is off; values other than 0/1
-are rejected. HLS, kernel arguments, scheduling and bitstreams are unchanged.
+The SSSP/CC and separate PageRank production hosts accept the environment
+variable `GRASU_SHARDED_PREMIGRATE_INPUTS=0|1`. Default is now on; values other
+than 0/1 are rejected. Both hosts use the same residency helper. Residency
+alone does not change HLS, scheduling or bitstreams. The separate
+[bounded-cache study](sharded_k4_cache_extent/README.md) changes the cache ABI
+and requires fresh hardware; do not conflate the two changes.
 
 When enabled, the host explicitly migrates ten initial BOs per destination
 shard (four update, four PMA, row table and binary-source table) and waits
@@ -15,7 +18,7 @@ SHARDED_INPUT_RESIDENCY policy=premigrate buffers=... bytes=... wall_ms=... even
 This is initial graph/input setup, not free work or a per-batch graph copy.
 It deliberately precedes updates: migrating a stale host PMA afterward can
 overwrite the modified device state. State/source setup continues through
-the existing host path. The option is not added to the separate PR host.
+the existing host path.
 
 The change addresses an observed XRT 2.18.179 behavior: `enqueueWriteBuffer`
 and queue completion need not make a previously nonresident input BO
@@ -36,10 +39,12 @@ the separate initial migration costs 51.326 ms. Six fixed, unfitted v4 model
 predictions differ nominally from resident FPGA medians by -6.40% to +1.69%.
 This is not a setup-inclusive speedup or exclusive-stage calibration.
 
-SSSP build and FPGA correctness/timing are tested. CC shares this source;
+The following historical residency study predates default-on and PageRank
+support. SSSP build and FPGA correctness/timing were tested. CC shares this source;
 its [compile-only check](evidence/sharded_k4_input_residency/cc_compile.json)
-is separate and does not admit CC board timing. PR
-behavior, other workloads and matching original ReGraph A4 remain unverified.
+is separate and does not admit CC board timing. PR behavior, other workloads
+and matching original ReGraph A4 were unverified by that study. Current
+validation is reported in the bounded-cache guide.
 Keep original and option-off measurements; do not retroactively relabel them
 as already-resident compute.
 

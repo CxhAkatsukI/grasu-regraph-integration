@@ -1,5 +1,10 @@
 # GraSU + ReGraph Integration Workspace
 
+Current hardware follow-up: [bounded cache transfers, initial residency and the
+three-algorithm FPGA comparison](docs/sharded_k4_cache_extent/README.md).
+Fresh source/HLS/ABI checks pass; routing and revised-kernel board results are
+separate pending gates. The guide identifies live runs and preserved controls.
+
 Current complete-G source candidate: [source map, build selection and evidence gates](kernels/grasu_complete/README.md).
 It is opt-in and does not replace the frozen routed baseline or constitute new board evidence.
 
@@ -115,8 +120,8 @@ evidence and the current 150 MHz hardware packets, is documented in:
 docs/k4_shared_partition_hls_20260805.md
 ```
 
-For initial input residency in the sharded-K4 SSSP/CC host, see
-[the opt-in migration contract and validation limits](docs/sharded_k4_initial_residency.md).
+For initial input residency in the sharded-K4 native hosts, see
+[the migration contract and validation limits](docs/sharded_k4_initial_residency.md).
 Its separately timed initialization must not be omitted from startup claims.
 
 The subsequent default-off adapter candidate and its C/RTL evidence are

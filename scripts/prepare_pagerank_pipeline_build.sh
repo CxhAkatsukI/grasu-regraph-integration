@@ -34,7 +34,7 @@ PageRank Vitis compile/link packet.
 Options:
   --target sw_emu|hw_emu|hw
   --algorithm full_pagerank|residual_pagerank
-  --grasu-implementation legacy-direct-cache|complete-search-cache
+  --grasu-implementation legacy-direct-cache|complete-search-cache|complete-search-cache-bounded
   --adapter-policy legacy|bank-stream|prefetch-compact (latter two: 512-bit row ABI)
   --physical-port-policy independent|shared-ingress
   --platform NAME

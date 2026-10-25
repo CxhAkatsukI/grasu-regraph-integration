@@ -16,6 +16,27 @@ using grasu::integration::pack_weighted_pma_runtime_buffers;
 
 int main()
 {
+    {
+        grasu::integration::WeightedPmaShardRuntimePlan shard{};
+        shard.even_segments = 17;
+        shard.odd_segments = 15;
+        using grasu::integration::weighted_pma_cache_valid_segments;
+        assert(weighted_pma_cache_valid_segments(shard, 0, 32) == 17);
+        assert(weighted_pma_cache_valid_segments(shard, 1, 32) == 15);
+        assert(weighted_pma_cache_valid_segments(shard, 0, 16) == 16);
+        shard.even_segments = 0;
+        assert(weighted_pma_cache_valid_segments(shard, 0, 32) == 0);
+        for (const auto capacity : {0U, 15U, 17U}) {
+            bool rejected = false;
+            try { (void)weighted_pma_cache_valid_segments(shard, 0, capacity); }
+            catch (const std::invalid_argument &) { rejected = true; }
+            assert(rejected);
+        }
+        bool rejected = false;
+        try { (void)weighted_pma_cache_valid_segments(shard, 2, 32); }
+        catch (const std::invalid_argument &) { rejected = true; }
+        assert(rejected);
+    }
     const std::vector<WeightedEdgeRecord> initial = {
         {.source = 0, .destination = 1, .weight = 2},
         {.source = 1, .destination = 8, .weight = 3},

@@ -67,6 +67,18 @@ struct WeightedPmaPackedShardBuffers {
     std::vector<std::uint64_t> binary_heads;
 };
 
+inline unsigned weighted_pma_cache_valid_segments(
+    const WeightedPmaShardRuntimePlan &shard, std::size_t half,
+    std::size_t capacity)
+{
+    if (half > 1 || capacity == 0 || capacity % 16 != 0 ||
+        capacity > std::numeric_limits<unsigned>::max()) {
+        throw std::invalid_argument("invalid weighted PMA cache extent geometry");
+    }
+    return static_cast<unsigned>(std::min(
+        capacity, half == 0 ? shard.even_segments : shard.odd_segments));
+}
+
 inline std::size_t align_weighted_pma_runtime_bytes(
     std::size_t value,
     std::size_t alignment = kWeightedPmaRuntimeAlignment)

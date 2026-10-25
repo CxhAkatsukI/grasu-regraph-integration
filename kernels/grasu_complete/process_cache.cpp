@@ -12,6 +12,9 @@ extern "C" void process_cache(ap_uint<512>* pma_cache,
 #ifdef GRASU_ENABLE_COMPLETION_TOKEN
                                , hls::stream<grasu_done_pkt_t>& completion_token
 #endif
+#ifdef GRASU_CACHE_VALID_EXTENT
+                              , unsigned valid_segments
+#endif
                                ) {
 #pragma HLS INTERFACE m_axi port=pma_cache offset=slave bundle=gmem0 depth=131072
 #pragma HLS INTERFACE s_axilite port=pma_cache bundle=control
@@ -20,7 +23,12 @@ extern "C" void process_cache(ap_uint<512>* pma_cache,
 #ifdef GRASU_ENABLE_COMPLETION_TOKEN
 #pragma HLS INTERFACE axis port=completion_token
 #endif
+#ifdef GRASU_CACHE_VALID_EXTENT
+#pragma HLS INTERFACE s_axilite port=valid_segments bundle=control
+  cache_registered::candidate(pma_cache, update_stream, valid_segments);
+#else
   cache_registered::candidate(pma_cache, update_stream);
+#endif
 #ifdef GRASU_ENABLE_COMPLETION_TOKEN
   write_grasu_completion_token(completion_token, 1);
 #endif

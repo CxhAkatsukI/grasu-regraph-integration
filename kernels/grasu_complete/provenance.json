@@ -99,7 +99,33 @@
       "origin": "cache_pipeline.hpp",
       "path": "cache_pipeline.hpp",
       "origin_sha256": "d0e22039439b18a9454edcf994bd41ed4be8f4f246674c1b6347818a07963cde",
-      "transforms": []
+      "transforms": [
+        {
+          "kind": "optional-valid-cache-extent-full-capacity",
+          "before": "inline void cached_process(CacheWord* memory, hls::stream<CacheUpdate> updates[16]) {",
+          "after": "inline void cached_process(CacheWord* memory, hls::stream<CacheUpdate> updates[16],\n                           unsigned valid_segments = MAX_CACHE_SEGMENT) {"
+        },
+        {
+          "kind": "optional-valid-cache-extent-full-capacity",
+          "before": "  preload_all:\n  for (unsigned row = 0; row < cache_bank_depth; ++row) {",
+          "after": "  // Keep full physical capacity; transfer populated, bank-aligned rows only.\n  const unsigned bounded = valid_segments > MAX_CACHE_SEGMENT\n      ? MAX_CACHE_SEGMENT : valid_segments;\n  const unsigned rows = (bounded + 15) / 16;\n  preload_all:\n  for (unsigned row = 0; row < rows; ++row) {\n#pragma HLS LOOP_TRIPCOUNT min=0 max=8192"
+        },
+        {
+          "kind": "optional-valid-cache-extent-full-capacity",
+          "before": "  writeback_all:\n  for (unsigned row = 0; row < cache_bank_depth; ++row) {",
+          "after": "  writeback_all:\n  for (unsigned row = 0; row < rows; ++row) {\n#pragma HLS LOOP_TRIPCOUNT min=0 max=8192"
+        },
+        {
+          "kind": "optional-valid-cache-extent-full-capacity",
+          "before": "inline void candidate(CacheWord* memory, hls::stream<pipe_type_96>& input) {",
+          "after": "inline void candidate(CacheWord* memory, hls::stream<pipe_type_96>& input,\n                      unsigned valid_segments = MAX_CACHE_SEGMENT) {"
+        },
+        {
+          "kind": "optional-valid-cache-extent-full-capacity",
+          "before": "  cached_process(memory, updates);",
+          "after": "  cached_process(memory, updates, valid_segments);"
+        }
+      ]
     },
     {
       "origin": "cache_binding.cpp",
@@ -125,6 +151,16 @@
         {
           "before": "  write_grasu_completion_token(completion_token, 1);",
           "after": "#ifdef GRASU_ENABLE_COMPLETION_TOKEN\n  write_grasu_completion_token(completion_token, 1);\n#endif"
+        },
+        {
+          "kind": "optional-valid-cache-extent-abi",
+          "before": "#endif\n                               ) {",
+          "after": "#endif\n#ifdef GRASU_CACHE_VALID_EXTENT\n                              , unsigned valid_segments\n#endif\n                               ) {"
+        },
+        {
+          "kind": "optional-valid-cache-extent-abi",
+          "before": "  cache_registered::candidate(pma_cache, update_stream);",
+          "after": "#ifdef GRASU_CACHE_VALID_EXTENT\n#pragma HLS INTERFACE s_axilite port=valid_segments bundle=control\n  cache_registered::candidate(pma_cache, update_stream, valid_segments);\n#else\n  cache_registered::candidate(pma_cache, update_stream);\n#endif"
         }
       ]
     }

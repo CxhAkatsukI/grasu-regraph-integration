@@ -101,6 +101,23 @@ class SourceSelectionTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 2, result.stderr)
                     self.assertFalse(self.output.exists())
 
+    def test_bounded_cache_is_explicit_and_keeps_full_capacity(self):
+        for script, algorithm in ((PURE, "weighted_sssp"), (PURE, "connected_components"),
+                                  (PR, "residual_pagerank")):
+            with self.subTest(algorithm=algorithm):
+                self.generate(script, algorithm, "--grasu-implementation",
+                              "complete-search-cache-bounded", "--adapter-policy",
+                              "prefetch-compact", "--physical-port-policy", "shared-ingress")
+                commands = (self.output / "compile_commands.sh").read_text()
+                cache = next(line for line in commands.splitlines()
+                             if str(COMPLETE / "process_cache.cpp") in line)
+                self.assertIn("-DGRASU_CACHE_VALID_EXTENT", cache)
+                self.assertIn("-DGRASU_MAX_CACHE_SEGMENT=131072", cache)
+                self.assertEqual("-DGRASU_ENABLE_COMPLETION_TOKEN" in cache, script == PURE)
+                other = [line for line in commands.splitlines()
+                         if line.startswith("v++") and line != cache]
+                self.assertTrue(all("GRASU_CACHE_VALID_EXTENT" not in line for line in other))
+
     def test_legacy_compile_and_connectivity_are_unchanged(self):
         original_scripts = self.root / "original_scripts"
         for name in (PURE, PR, "env.sh"):

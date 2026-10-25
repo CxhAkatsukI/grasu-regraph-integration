@@ -321,6 +321,7 @@ int main(int argc, char **argv)
 
         std::vector<DeviceShard> device_shards = allocate_page_rank_shards(
             context, transfer_queue, graph, runtime_plan, packed);
+        premigrate_sharded_inputs(transfer_queue, device_shards);
         const unsigned destination_partitions =
             static_cast<unsigned>(graph.shards.size());
         const std::size_t state_capacity =
@@ -482,6 +483,8 @@ int main(int argc, char **argv)
                      "set PageRank cache0");
             check_cl(process_cache_2.setArg(0, buffers.pma_dev[2]),
                      "set PageRank cache1");
+            bind_sharded_cache_extent(process_cache_1, shard_plan, 0, 2);
+            bind_sharded_cache_extent(process_cache_2, shard_plan, 1, 2);
             for (int arg = 0; arg < 4; ++arg) {
                 check_cl(process_ddr_1.setArg(arg, buffers.pma_dev[1]),
                          "set PageRank ddr0");

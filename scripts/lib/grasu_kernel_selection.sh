@@ -10,7 +10,7 @@ select_grasu_kernels() {
   GRASU_IMPLEMENTATION_HEADERS=()
   case "${implementation}" in
     legacy-direct-cache) return 0 ;;
-    complete-search-cache) ;;
+    complete-search-cache|complete-search-cache-bounded) ;;
     *) echo "Invalid --grasu-implementation: ${implementation}" >&2; return 2 ;;
   esac
   if [[ "${target}" == sw_emu ]]; then
@@ -25,6 +25,9 @@ select_grasu_kernels() {
   GRASU_SEARCH_SOURCE="${root}/search_binding/top.cpp"
   GRASU_CACHE_SOURCE="${root}/process_cache.cpp"
   GRASU_CACHE_IMPLEMENTATION_FLAGS=(-DCACHE_BANK_REGISTERED)
+  if [[ "${implementation}" == complete-search-cache-bounded ]]; then
+    GRASU_CACHE_IMPLEMENTATION_FLAGS+=(-DGRASU_CACHE_VALID_EXTENT)
+  fi
   local header
   for header in search_binding/top.hpp search_pipeline/types.hpp \
       search_pipeline/search_worker.hpp search_pipeline/workers.hpp \

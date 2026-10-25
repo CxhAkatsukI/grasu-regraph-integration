@@ -10,7 +10,8 @@ select_physical_ports() {
     shared-ingress) ;;
     *) echo "Invalid --physical-port-policy: $1" >&2; return 2 ;;
   esac
-  if [[ "$2" != sharded-k4 || "$3" != complete-search-cache ||
+  if [[ "$2" != sharded-k4 ||
+        ( "$3" != complete-search-cache && "$3" != complete-search-cache-bounded ) ||
         "$4" != prefetch-compact || "$5" == sw_emu ]]; then
     echo "shared-ingress requires sharded-k4, complete-search-cache, prefetch-compact and hw/hw_emu" >&2
     return 2

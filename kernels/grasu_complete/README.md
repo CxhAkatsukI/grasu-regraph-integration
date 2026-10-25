@@ -1,5 +1,11 @@
 # Complete GraSU Search/Cache Source Candidate
 
+The current [bounded-transfer follow-up](../../docs/sharded_k4_cache_extent/README.md)
+adds an explicitly selected last `valid_segments` scalar while retaining the
+full cache capacity. Fresh functional/HLS/exported-ABI checks pass; its fresh
+routes and board matrix remain separate pending gates. The legacy candidates
+and historical evidence below retain their original scope.
+
 This directory owns the production-source candidate for the reviewed 64-context
 search and full-capacity registered URAM cache. Fresh functional execution,
 HLS synthesis/XO export, full exported-interface review and component Verilog
@@ -80,6 +86,7 @@ Both build generators accept:
 ```text
 --grasu-implementation legacy-direct-cache  # unchanged default
 --grasu-implementation complete-search-cache
+--grasu-implementation complete-search-cache-bounded  # explicit new scalar ABI
 ```
 
 The complete candidate requires `--target hw` or `hw_emu`,
@@ -103,11 +110,16 @@ Freeze the generated sources, flags, headers and dependencies before launching
 any compiler. Memory admission and cgroup containment remain required.
 
 SSSP/CC retain the existing cache completion token and completion barrier.
-PageRank retains its existing two-argument cache ABI: no token is emitted into
+Legacy PageRank retains its existing two-argument cache ABI: no token is emitted into
 an unconnected stream. This plain-cache variant now also has fresh isolated
 component Verilog/interface checks; those are not integrated PageRank or
 PageRank board evidence. Both variants run the same full registered cache
 pipeline; neither may define the direct-cache shortcut.
+
+The bounded variant adds `valid_segments` after the legacy arguments: index 3
+for SSSP/CC and index 2 for PageRank. Preload/writeback round the valid span
+to sixteen banks; zero-valid spans perform no cache transfers but still honor
+input completion. It does not reduce the 131072-word physical allocation.
 
 `manifest.env` records the implementation, both source paths, capacity and
 completion-token selection. `inputs.tsv` hashes the selected sources, all nine
