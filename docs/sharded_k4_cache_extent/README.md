@@ -82,6 +82,19 @@ Tests cover all three algorithms, reject matching host logs with the wrong
 record count, and reject altered batch contracts. No workload, raw log,
 saved measurement or timing summary is rewritten by this correction.
 
+The export also retains `gr_rounds_samples`, `spine_rounds_samples` and
+`propagation_scope` in the CSV. Counts come from reparsing formal samples
+1--3; the warmup stays excluded. `no_propagation_rounds` requires zero
+rounds on both sides in every formal sample. Such a ResPR row measures
+update/correction/completion, not iterative propagation performance. The
+generated README includes a per-dataset ResPR round-count table and this
+limitation. Failed cases keep blank counts rather than fabricated zeros.
+The expanded eleven-test delivery suite checks zero/nonzero rounds,
+warmup exclusion, malformed counts and the exported explanation. Its
+retained output is `propagation-scope-preflight-v1/tests.log` under the live
+root. Neither this addition nor the earlier record-count correction changes
+the frozen board runner, hosts, binaries, batch or direct per-vertex epsilon.
+
 During the live matrix, this correction is developed in the independent
 `codex/cache-extent-delivery-review` worktree. The hash-pinned source and
 runner worktree used by board jobs remains unchanged. Final delivery must

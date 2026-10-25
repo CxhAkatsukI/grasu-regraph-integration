@@ -86,6 +86,56 @@ def passing(root, report, plan, algorithm="sssp", records=None):
 
 
 class DeliveryTest(unittest.TestCase):
+    def test_round_scope_keeps_formal_counts_and_excludes_warmup(self):
+        samples = [{"warmup": index == 0, "pair": {"gr_rounds": gr, "spine_rounds": spine}}
+                   for index, (gr, spine) in enumerate(((7, 8), (0, 0), (0, 0), (0, 0)))]
+        expected = {"gr_rounds_samples": "0;0;0", "spine_rounds_samples": "0;0;0",
+                    "propagation_scope": "no_propagation_rounds"}
+        self.assertEqual(delivery.propagation_scope(samples), expected)
+        samples[2]["pair"]["gr_rounds"] = 2
+        expected.update(gr_rounds_samples="0;2;0", propagation_scope="includes_propagation_rounds")
+        self.assertEqual(delivery.propagation_scope(samples), expected)
+        for value in (-1, True, 0.0, "0"):
+            samples[2]["pair"]["gr_rounds"] = value
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "round counts"):
+                delivery.propagation_scope(samples)
+        with self.assertRaisesRegex(ValueError, "three formal"):
+            delivery.propagation_scope(samples[:2])
+
+    def test_respr_rounds_and_limitations_are_exported_from_reparsed_logs(self):
+        for rounds in (0, 3):
+            with self.subTest(rounds=rounds), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                matrix_path, report, plan = study(root)
+                path, captured = passing(root, report, plan, "respr")
+                parser = delivery.log_parser()
+                for index, sample in enumerate(captured["samples"]):
+                    gr_path = path.parent / f"sample-{index}/gr/run.log"
+                    spine_path = path.parent / f"sample-{index}/spine.stdout.txt"
+                    gr = gr_path.read_text().replace("propagation_rounds=3", f"propagation_rounds={rounds}")
+                    spine = spine_path.read_text().replace("iterations=3", f"iterations={rounds}")
+                    gr_path.write_text(gr)
+                    spine_path.write_text(spine)
+                    sample["pair"] = parser.compare("residual_pagerank", gr, spine, 0)
+                captured["summary"] = parser.summarize(captured["samples"])
+                measured = next(row for row in report["cases"] if row["algorithm"] == "respr" and row["dataset"] == "AU")
+                measured["summary"] = captured["summary"]
+                write(path, captured)
+                write(matrix_path, report)
+                output = root / "delivery"
+                delivery.package(matrix_path, output)
+                with (output / "summary.csv").open() as stream:
+                    rows = list(csv.DictReader(stream))
+                measured = next(row for row in rows if row["status"] == "RESIDENT_PAIR_PASS")
+                scope = "no_propagation_rounds" if rounds == 0 else "includes_propagation_rounds"
+                self.assertEqual(measured["gr_rounds_samples"], ";".join([str(rounds)] * 3))
+                self.assertEqual(measured["spine_rounds_samples"], measured["gr_rounds_samples"])
+                self.assertEqual(measured["propagation_scope"], scope)
+                self.assertTrue(all(row["propagation_scope"] == "" for row in rows if row["status"] != "RESIDENT_PAIR_PASS"))
+                text = (output / "README.md").read_text()
+                self.assertIn("not evidence of iterative", text)
+                self.assertIn(f"| AU | {measured['gr_rounds_samples']} | {measured['spine_rounds_samples']} | {scope} |", text)
+
     def test_failures_are_retained_without_fabricated_ratios(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

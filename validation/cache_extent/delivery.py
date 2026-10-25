@@ -86,6 +86,23 @@ def verify_memory(report, plan, dataset):
         raise ValueError("missing or nonzero saved OOM counters")
 
 
+def propagation_scope(samples):
+    """Retain formal round counts; a zero-round completion is not propagation."""
+    measured = [sample["pair"] for sample in samples if not sample["warmup"]]
+    if len(measured) != 3:
+        raise ValueError("three formal round-count samples required")
+    rounds = {}
+    for name in ("gr", "spine"):
+        values = [pair[name + "_rounds"] for pair in measured]
+        if any(type(value) is not int or value < 0 for value in values):
+            raise ValueError("nonnegative integer propagation round counts required")
+        rounds[name + "_rounds_samples"] = ";".join(map(str, values))
+    scope = "no_propagation_rounds" if all(
+        pair[name + "_rounds"] == 0 for pair in measured for name in ("gr", "spine")
+    ) else "includes_propagation_rounds"
+    return {**rounds, "propagation_scope": scope}
+
+
 def verify_case(row, plan, parser, pins):
     path = Path(row["results"])
     report, manifest = read(path), read(path.with_name("manifest.json"))
@@ -149,7 +166,8 @@ def verify_case(row, plan, parser, pins):
             "speedup_gr_over_spine": summary["speedup_ratio_of_median_walls"],
             "gr_data_mhz": clocks["gr"], "spine_data_mhz": clocks["spine"],
             "batch_size": workload["batch_size"], "input_update_records": workload["updates"],
-            "logical_updates": summary["logical_updates"], "physical_updates": summary["physical_updates"]}
+            "logical_updates": summary["logical_updates"], "physical_updates": summary["physical_updates"],
+            **propagation_scope(recomputed)}
 
 
 def inspect(matrix_path):
@@ -209,7 +227,8 @@ def package(matrix_path, output):
         index.append({"path": str(destination), "sha256": digest, "source": str(source)})
     columns = ("algorithm", "dataset", "status", "gr_ms", "spine_ms", "speedup_gr_over_spine",
                "gr_data_mhz", "spine_data_mhz", "batch_size", "input_update_records",
-               "logical_updates", "physical_updates", "source_results", "error")
+               "logical_updates", "physical_updates", "gr_rounds_samples", "spine_rounds_samples",
+               "propagation_scope", "source_results", "error")
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=columns)
     writer.writeheader()
@@ -240,7 +259,24 @@ def description(report, rows):
         "Source changes, HLS export, routed artifacts and FPGA measurement are separate gates.",
         "The bounded-cache simulator component passed regression, but this package does not claim",
         "new full-system simulator timing calibration or promotion of the production SST plugin.", "",
-        "## Results", "", "| Algorithm | Dataset | Status | G+R ms | Spine ms | G+R / Spine |",
+        "## Propagation Scope", "",
+        "The CSV round-count columns retain all three formal samples, in run order, separated by semicolons.",
+        "The excluded warmup remains in each copied raw report. Missing or failed cases have blank counts,",
+        "not zero. `no_propagation_rounds` means both systems performed zero propagation rounds in every",
+        "formal sample. These are update/correction/completion measurements, not evidence of iterative",
+        "propagation performance. `includes_propagation_rounds` means at least one formal sample propagated;",
+        "the individual counts, rather than that label alone, determine the workload's propagation coverage.", "",
+        "ResPR uses the correctness-checked direct per-vertex epsilon of 1e-6, not epsilon divided by V.",
+        "Zero-round cases are retained as measured; neither the threshold nor batch was changed to force work.", "",
+        "| ResPR dataset | G+R formal rounds | Spine formal rounds | Scope or status |",
+        "| --- | --- | --- | --- |"]
+    for row in rows:
+        if row["algorithm"] == "respr":
+            lines.append("| " + " | ".join([
+                row["dataset"], row.get("gr_rounds_samples", ""), row.get("spine_rounds_samples", ""),
+                row.get("propagation_scope", row["status"]),
+            ]) + " |")
+    lines += ["", "## Results", "", "| Algorithm | Dataset | Status | G+R ms | Spine ms | G+R / Spine |",
         "| --- | --- | --- | ---: | ---: | ---: |"]
     for row in rows:
         numbers = [format(row[key], ".6g") if key in row else "" for key in
