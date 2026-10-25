@@ -129,6 +129,29 @@ inventory; the copies share no writable hardlinks with the original evidence:
 | `route-v2/cc` | `route-slr-v2/cc/ip_cache` | `1e298e57f60c171fb4ddf99aa54d49162a484f5993b71a25ba9466b5dc84104d` |
 | `route-v4/respr` | `route-live-v1/respr/ip_cache` | `95a4a97b7f06830eb713eb4fa7a243161918628475e650b2d7e403c6aaf5cb19` |
 
+On 2026-10-25 the current, still-queued `route-zfs-v2` CC and ResPR outputs
+received private copies from the same original caches above. The retained
+helper, `seed-queued-ip-cache.py` under the live root, holds the supervisors'
+shared `compiler-reservations/admission.lock`. Before and after copying it
+checks the supervisor's live PID/start identity, waiting status, absent
+admission lease and absent compiler outputs. Thus it cannot seed a compiler
+that has already been admitted. It verifies the exact prior member set and
+each file's size/SHA-256, and rejects shared writable inodes.
+
+| Current output | Files | Logical bytes | New seed-report SHA-256 |
+| --- | ---: | ---: | --- |
+| `route-zfs-v2/cc` | 848 | 937262532 | `71da84390731441152ca71db2917b01345602f85fe0ea0bbf3b0f4e78be6245c` |
+| `route-zfs-v2/respr` | 909 | 1439763700 | `e14849683a398ff63bc29a1fdd40fb5f1f1a80f1c268f42e50ec5e661006867c` |
+
+Both `ip-cache-seed.json` reports retain the full initial file inventory,
+source-inventory hash and helper hash
+`8a74d96cda17e6af361ff5f04e35e6131eb920524cd8c61af4d4f35682e99a64`.
+The two finite 2-GiB/zero-swap copy jobs peaked below 12 MiB. No current
+kernel XO, configuration or pinned runner was changed, and neither running
+SSSP nor Spine project was touched. Vivado validates fingerprints and may
+update its private cache after admission; these inventories are the seed
+state, not claims about its eventual contents or FPGA timing.
+
 Each compiler tree has a 56-GiB hard cap, 52-GiB high watermark, zero swap
 and group OOM termination. Admission preserves 24 GiB of system memory and
 counts the complete finite budgets of other admitted builds in addition to
