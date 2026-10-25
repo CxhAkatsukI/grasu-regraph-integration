@@ -4,10 +4,11 @@ import copy
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from validation.cache_extent import abi, matrix, matrix_inputs, route
+from validation.cache_extent import abi, matrix, matrix_inputs, route, study
 from validation.grasu_complete import analysis
 
 
@@ -89,6 +90,37 @@ class CacheExtentTests(unittest.TestCase):
                 with self.subTest(key=key), self.assertRaises(ValueError):
                     route.verify(root, memory_gib=64)
                 (root / key).write_text(values[key])
+
+    def test_small_source_stage_accepts_large_bounded_peers_without_changing_own_bounds(self):
+        class BoundsReached(Exception):
+            pass
+
+        def check_stage(stage):
+            self.assertEqual(stage, "source")
+            self.assertIs(study.concurrent.verify, route.verify)
+            raise BoundsReached
+
+        with patch.object(study.concurrent, "verify"), \
+                patch.object(study.runtime, "bounds", side_effect=check_stage) as own_bounds:
+            with self.assertRaises(BoundsReached):
+                study.run(SimpleNamespace(stage="source"))
+            own_bounds.assert_called_once_with("source")
+
+    def test_source_and_hls_keep_exact_small_stage_limits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(study.runtime, "current", return_value=root), \
+                    patch.object(study.runtime, "Lease"):
+                for stage, cap, high in (("source", route.GIB, 768 * 1024**2),
+                                         ("hls", 8 * route.GIB, 7 * route.GIB)):
+                    values = {"memory.max": str(cap), "memory.high": str(high),
+                              "memory.swap.max": "0", "memory.oom.group": "1"}
+                    for key, value in values.items():
+                        (root / key).write_text(value)
+                    self.assertEqual(study.runtime.bounds(stage)[2]["tree_memory_gib"], cap // route.GIB)
+                    (root / "memory.max").write_text(str(2 * cap))
+                    with self.subTest(stage=stage), self.assertRaises(ValueError):
+                        study.runtime.bounds(stage)
 
     def test_bounded_functional_rows_cannot_be_replaced_by_legacy_success(self):
         for variant in ("cache-token", "cache-plain"):

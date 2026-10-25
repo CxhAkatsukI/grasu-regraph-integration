@@ -7,7 +7,9 @@ import shutil
 import sys
 
 from spine_cycle_sim.experiments.campaign_runtime import atomic_write_json
+from spine_cycle_sim.experiments.sharded_k4_stages.row_line.directory_tile.hardware import concurrent
 from validation.grasu_complete import analysis, commands, preparation, runtime
+from .route import verify
 
 
 VARIANTS = ("cache-token", "cache-plain")
@@ -44,6 +46,8 @@ def freeze_reference(output, reference, sources):
 
 
 def run(args):
+    # Peers may be full link jobs; bounds still enforces this stage's 1/8-GiB cap.
+    concurrent.verify = verify
     group, containment, policy, lease = runtime.bounds(args.stage)
     compiler = Path(shutil.which("g++")).resolve()
     pins, sources = preparation.prepare(args.output, args.fixture, args.config, args.include)
