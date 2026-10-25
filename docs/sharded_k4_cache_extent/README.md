@@ -65,6 +65,29 @@ defaults remain unchanged. The bounded candidate requires sharded K4, full
 | `board.py`, `matrix.py` | Board admission, correctness, repeated paired runs |
 | `delivery.py` | Revalidate and package terminal board evidence without replacing missing rows |
 
+### Delivery Record Counts
+
+The frozen matrix declares a batch size of eight. CC represents eight
+undirected insertions with sixteen directed reciprocal input records; SSSP
+and ResPR use eight directed records. The native hosts' `logical_updates`
+and `physical_updates` log fields count those input records, so a CC value
+of sixteen is not evidence that the hosts ran different workloads.
+
+The delivery verifier originally hardcoded eight for the raw log field,
+which would reject valid CC evidence after board testing. The corrected
+verifier checks both raw fields against the frozen workload's `updates`
+count, and separately checks the eight-edit batch contract. The CSV retains
+the original log fields and adds `batch_size` and `input_update_records`.
+Tests cover all three algorithms, reject matching host logs with the wrong
+record count, and reject altered batch contracts. No workload, raw log,
+saved measurement or timing summary is rewritten by this correction.
+
+During the live matrix, this correction is developed in the independent
+`codex/cache-extent-delivery-review` worktree. The hash-pinned source and
+runner worktree used by board jobs remains unchanged. Final delivery must
+identify the corrected verifier revision separately from the measured
+host/HLS revisions.
+
 Live root: `/data/chuxiao/builds/grasu-cache-extent-20261025`:
 
 - `source-v1/results.json`, `hls-v1/results.json`: original passing component

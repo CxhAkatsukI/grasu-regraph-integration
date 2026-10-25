@@ -62,6 +62,9 @@ def verify_case(row, plan, parser, pins):
     if config["kernel_variant"] != "complete-search-cache-bounded":
         raise ValueError("old full-cache control is not the revised FPGA matrix")
     workload = row["workload"]
+    expected_records = 16 if row["algorithm"] == "cc" else 8
+    if workload["batch_size"] != 8 or workload["updates"] != expected_records:
+        raise ValueError("expected eight batch edits, with reciprocal records for CC")
     if config["logical"] != ALGORITHMS[row["algorithm"]] or config["dataset"] != row["dataset"] or \
             any(config[key] != workload[key] for key in ("graph", "source")):
         raise ValueError("case does not match its declared workload")
@@ -90,8 +93,9 @@ def verify_case(row, plan, parser, pins):
         directory = path.parent / ("sample-" + str(index))
         pair = parser.compare(config["logical"], (directory / "gr/run.log").read_text(),
                               (directory / "spine.stdout.txt").read_text(), config["source"])
-        if pair != sample["pair"] or pair["logical_updates"] != 8:
-            raise ValueError("raw log or logical update count differs from the saved pair")
+        if pair != sample["pair"] or any(pair[key] != workload["updates"] for key in
+                                        ("logical_updates", "physical_updates")):
+            raise ValueError("raw log or input-record count differs from the frozen workload")
         recomputed.append({**sample, "pair": pair})
     summary = parser.summarize(recomputed)
     if summary != report["summary"] or summary != row["summary"]:
@@ -106,6 +110,7 @@ def verify_case(row, plan, parser, pins):
             "spine_ms": summary["walls"]["spine"]["median_ms"],
             "speedup_gr_over_spine": summary["speedup_ratio_of_median_walls"],
             "gr_data_mhz": clocks["gr"], "spine_data_mhz": clocks["spine"],
+            "batch_size": workload["batch_size"], "input_update_records": workload["updates"],
             "logical_updates": summary["logical_updates"], "physical_updates": summary["physical_updates"]}
 
 
@@ -165,7 +170,8 @@ def package(matrix_path, output):
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
         index.append({"path": str(destination), "sha256": digest, "source": str(source)})
     columns = ("algorithm", "dataset", "status", "gr_ms", "spine_ms", "speedup_gr_over_spine",
-               "gr_data_mhz", "spine_data_mhz", "logical_updates", "physical_updates", "source_results", "error")
+               "gr_data_mhz", "spine_data_mhz", "batch_size", "input_update_records",
+               "logical_updates", "physical_updates", "source_results", "error")
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=columns)
     writer.writeheader()
@@ -186,6 +192,11 @@ def description(report, rows):
         "relaunch and final readback. Initial graph/PMA creation, initial residency, old-state preload,",
         "batch preparation/upload and CPU oracles are excluded symmetrically. This is not application",
         "setup-inclusive latency. Actual DATA clocks are in the CSV; HBM/system clocks remain in each manifest.", "",
+        "The frozen batch size is eight. CC encodes eight undirected insertions as sixteen reciprocal",
+        "directed records; SSSP and ResPR each encode eight directed insertions. Both hosts' raw",
+        "`logical_updates` and `physical_updates` fields count input records in this matrix. Those",
+        "fields are preserved verbatim, not divided by two. `batch_size` and `input_update_records`",
+        "in the CSV distinguish the declared batch size from its encoded record count.", "",
         "The G+R hosts use GCC 15.2 -O2; Spine uses GCC 15.2 -O3. The earlier approximately 2.47x",
         "ReGraph publication-scale gap remains a limitation, not a successful reproduction claim.",
         "Source changes, HLS export, routed artifacts and FPGA measurement are separate gates.",
