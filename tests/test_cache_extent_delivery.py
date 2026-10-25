@@ -27,6 +27,7 @@ def study(root):
     report = {"status": "FPGA_MATRIX_INCOMPLETE_RETAINED", "passed_cases": 0,
               "cases": rows, "plan": str(root / "plan.json")}
     plan = {"boundary": delivery.BOUNDARY, "repeats": {"warmup_pairs": 1, "measured_pairs": 3},
+            "memory_gib": {dataset: 16 for dataset in delivery.DATASETS},
             "pins": [], "workloads": [row["workload"] for row in rows]}
     write(path, report)
     write(root / "plan.json", plan)
@@ -39,6 +40,7 @@ def passing(root, report, plan, algorithm="sssp", records=None):
     logical = row["workload"]["algorithm"]
     records = row["workload"]["updates"] if records is None else records
     config = {"logical": logical, "dataset": "AU", "source": 0,
+              "memory_gib": plan["memory_gib"]["AU"],
               "kernel_variant": "complete-search-cache-bounded"}
     pins = []
     for key in ("gr_host", "spine_host", "gr_binary", "spine_binary", "graph"):
@@ -58,12 +60,20 @@ def passing(root, report, plan, algorithm="sssp", records=None):
             "order": ["gr", "spine"] if index % 2 == 0 else ["spine", "gr"],
             "pair": parser.compare(logical, gr, spine, 0),
             "resources": {name: {"exit_code": 0, "stop_reason": "process_exit",
+                                 "tree_memory_gib": 16, "reserve_gib": 24,
                                  "cleanup_snapshot_error": None} for name in ("gr", "spine")}})
     clocks = {name: [{"m_type": "DATA", "m_freq_Mhz": "140" if name == "gr" else "150"}]
               for name in ("gr", "spine")}
     captured = {"status": "RESIDENT_PAIR_PASS", "board_tested": True, "config": config,
         "boundary": delivery.BOUNDARY, "clocks": clocks, "samples": samples,
         "summary": parser.summarize(samples)}
+    captured["containment"] = {"path": "/sys/fs/cgroup/test-board.service", "limits": {
+        "memory.max": str(16 * 1024**3), "memory.high": str(14 * 1024**3),
+        "memory.swap.max": "0", "memory.oom.group": "1"}}
+    captured["policy"] = {"tree_memory_gib": 16, "reserve_gib": 24, "allow_bounded_builds": True}
+    captured["admission"] = {"admitted": True, "cgroup": copy.deepcopy(captured["containment"]),
+                             "policy": "full_finite_budgets_plus_reserve_atomic_lease"}
+    captured["memory_events_after"] = "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n"
     write(path, captured)
     write(path.with_name("manifest.json"), {"config": config, "boundary": delivery.BOUNDARY,
                                             "clocks": clocks, "pins": pins})
@@ -190,6 +200,54 @@ class DeliveryTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     delivery.package(matrix_path, root / "delivery")
                 self.assertFalse((root / "delivery").exists())
+
+    def test_saved_memory_limits_and_admission_are_required(self):
+        mutations = ("budget", "policy", "max", "high", "swap", "oom_group", "unbounded",
+                     "admission", "cgroup", "events_missing", "events_oom", "events_duplicate",
+                     "events_negative", "events_malformed", "resource_policy")
+        for mutation in mutations:
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                matrix_path, report, plan = study(root)
+                path, captured = passing(root, report, plan)
+                if mutation == "budget":
+                    plan["memory_gib"]["AU"] = 24
+                    write(root / "plan.json", plan)
+                elif mutation == "policy":
+                    captured["policy"]["reserve_gib"] = 0
+                elif mutation in ("max", "high", "swap", "oom_group", "unbounded"):
+                    field, value = {"max": ("memory.max", str(32 * 1024**3)),
+                        "high": ("memory.high", str(15 * 1024**3)), "swap": ("memory.swap.max", "1"),
+                        "oom_group": ("memory.oom.group", "0"), "unbounded": ("memory.max", "max")}[mutation]
+                    captured["containment"]["limits"][field] = value
+                    captured["admission"]["cgroup"] = copy.deepcopy(captured["containment"])
+                elif mutation == "admission":
+                    captured["admission"]["admitted"] = False
+                elif mutation == "cgroup":
+                    captured["admission"]["cgroup"]["path"] = "/sys/fs/cgroup/other.service"
+                elif mutation == "resource_policy":
+                    captured["samples"][1]["resources"]["spine"]["reserve_gib"] = 0
+                else:
+                    captured["memory_events_after"] = {
+                        "events_missing": "", "events_oom": "oom 0\noom_kill 1\noom_group_kill 0\n",
+                        "events_duplicate": "oom 0\noom 0\n", "events_negative": "oom -1\n",
+                        "events_malformed": "oom\n"}[mutation]
+                write(path, captured)
+                with self.assertRaisesRegex(ValueError, "memory|OOM"):
+                    delivery.package(matrix_path, root / "delivery")
+                self.assertFalse((root / "delivery").exists())
+
+    def test_pressure_counters_are_preserved_without_being_called_oom(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            matrix_path, report, plan = study(root)
+            path, captured = passing(root, report, plan)
+            captured["memory_events_after"] = "low 0\nhigh 4\nmax 2\noom 0\noom_kill 0\noom_group_kill 0\n"
+            write(path, captured)
+            output = root / "delivery"
+            delivery.package(matrix_path, output)
+            copied = delivery.read(output / "cases/sssp-au/results.json")
+            self.assertEqual(copied["memory_events_after"], captured["memory_events_after"])
 
 
 if __name__ == "__main__":

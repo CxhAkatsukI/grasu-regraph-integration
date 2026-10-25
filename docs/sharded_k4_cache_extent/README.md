@@ -319,6 +319,12 @@ board pairs receive speedups. The exporter rechecks source/binary/workload
 hashes, reparses all four paired raw logs, and recomputes medians before
 copying reports, manifests, clock dumps and bounded-size logs. Graphs,
 bitstreams and compiler trees are indexed by hash rather than copied.
+Passing cases must also contain saved memory evidence: the frozen dataset's
+exact hard cap, a positive high watermark at least 2 GiB below the cap, zero
+swap, group OOM termination, matching admission and per-process budget/reserve
+records, and zero post-run OOM counters. The verifier reads saved records; it
+does not require an already-finished case's cgroup to remain alive. Nonzero
+`high`/`max` pressure events are retained, not misreported as OOM failures.
 `summary.csv` includes actual data frequencies and `README.md` explains the
 resident boundary and outstanding limitations. An incomplete package does not
 complete the FPGA goal. Test with `python3 -m unittest discover -s tests -p

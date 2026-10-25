@@ -51,6 +51,41 @@ def data_clocks(rows):
     return ";".join(format(value, "g") for value in values)
 
 
+def verify_memory(report, plan, dataset):
+    """Check saved containment evidence without depending on a still-live cgroup."""
+    budget = plan["memory_gib"][dataset]
+    if type(budget) is not int or budget not in (8, 16, 24, 32) or \
+            report["config"].get("memory_gib") != budget:
+        raise ValueError("case memory budget differs from the frozen plan")
+    policy = report.get("policy", {})
+    if policy.get("tree_memory_gib") != budget or policy.get("reserve_gib") != 24 or \
+            policy.get("allow_bounded_builds") is not True:
+        raise ValueError("missing finite-budget memory admission policy")
+    guard = report.get("containment", {})
+    limits = guard.get("limits", {})
+    fields = ("memory.max", "memory.high", "memory.swap.max", "memory.oom.group")
+    if any(not isinstance(limits.get(key), str) or not limits[key].isdecimal() for key in fields):
+        raise ValueError("missing or nonnumeric saved memory limits")
+    if int(limits["memory.max"]) != budget * 1024**3 or \
+            not 0 < int(limits["memory.high"]) <= (budget - 2) * 1024**3 or \
+            int(limits["memory.swap.max"]) != 0 or int(limits["memory.oom.group"]) != 1:
+        raise ValueError("saved memory limits do not enforce the board-run contract")
+    admission = report.get("admission", {})
+    if not guard.get("path", "").startswith("/sys/fs/cgroup/") or \
+            admission.get("admitted") is not True or admission.get("cgroup") != guard or \
+            admission.get("policy") != "full_finite_budgets_plus_reserve_atomic_lease":
+        raise ValueError("missing or inconsistent saved memory admission evidence")
+    events = {}
+    for line in report.get("memory_events_after", "").splitlines():
+        fields = line.split()
+        if len(fields) != 2 or fields[0] in events or not fields[1].isdecimal():
+            raise ValueError("malformed saved memory events")
+        events[fields[0]] = int(fields[1])
+    oom = ("oom", "oom_kill", "oom_group_kill")
+    if any(key not in events or events[key] != 0 for key in oom):
+        raise ValueError("missing or nonzero saved OOM counters")
+
+
 def verify_case(row, plan, parser, pins):
     path = Path(row["results"])
     report, manifest = read(path), read(path.with_name("manifest.json"))
@@ -72,6 +107,7 @@ def verify_case(row, plan, parser, pins):
               and item["dataset"] == row["dataset"]]
     if frozen != [workload] or manifest["config"] != config or manifest["clocks"] != report["clocks"]:
         raise ValueError("case manifest differs from the frozen plan or board report")
+    verify_memory(report, plan, row["dataset"])
     pins.verify(manifest["pins"])
     pinned = {item["path"] for item in manifest["pins"]}
     required = [config[key] for key in ("gr_host", "spine_host", "gr_binary", "spine_binary", "graph")]
@@ -90,6 +126,8 @@ def verify_case(row, plan, parser, pins):
             if resource["exit_code"] != 0 or resource["stop_reason"] != "process_exit" or \
                     resource["cleanup_snapshot_error"] is not None:
                 raise ValueError("unsuccessful raw execution cannot produce a speedup")
+            if resource.get("tree_memory_gib") != config["memory_gib"] or resource.get("reserve_gib") != 24:
+                raise ValueError("raw execution memory policy differs from the board contract")
         directory = path.parent / ("sample-" + str(index))
         pair = parser.compare(config["logical"], (directory / "gr/run.log").read_text(),
                               (directory / "spine.stdout.txt").read_text(), config["source"])
@@ -213,6 +251,10 @@ def description(report, rows):
         "and original locations. The frozen plan and case manifests identify hosts, bitstreams, workloads",
         "and source pins. Large binaries, graphs and compiler trees stay at those indexed locations.",
         "Passing rows were rechecked against raw logs, binary/source hashes and recomputed medians.",
+        "Their saved cgroup limits match the frozen per-dataset budgets, enforce zero swap and group",
+        "OOM termination, and agree with the recorded admission and per-process memory policies.",
+        "Post-run OOM counters must be present and zero. Pressure counters (`high`/`max`) remain in",
+        "the copied reports; nonzero pressure alone is not treated as an OOM or hidden from review.",
         "Incomplete rows are not speedups and may require another build or run. No paper was modified.", ""]
     return "\n".join(lines)
 
