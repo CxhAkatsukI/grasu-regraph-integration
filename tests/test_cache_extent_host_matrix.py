@@ -43,6 +43,14 @@ class HostMatrixTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     host_matrix.case_plan(plan, row, extra)
 
+    def test_optional_size_does_not_change_identical_hash_identity(self):
+        plan, row = self.fixture()
+        plan["pins"][0]["size"] = 123
+        scoped = host_matrix.case_plan(plan, row, [{"path": "a.graph", "sha256": "a.graph"}])
+        self.assertEqual(scoped["pins"][0], {"path": "a.graph", "sha256": "a.graph", "size": 123})
+        with self.assertRaisesRegex(ValueError, "conflicting evidence pins"):
+            host_matrix.case_plan(plan, row, [{"path": "a.graph", "sha256": "a.graph", "size": 124}])
+
     def test_full_runner_checks_parent_twice_and_preserves_failed_au_gate(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

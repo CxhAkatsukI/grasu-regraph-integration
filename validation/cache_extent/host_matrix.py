@@ -20,9 +20,14 @@ def case_plan(plan, row, extra_pins):
         path = pin["path"]
         if path in graphs and path != selected:
             continue
-        if path in pins and pins[path] != pin:
-            raise ValueError("conflicting evidence pins: " + path)
-        pins[path] = pin
+        if path in pins:
+            previous = pins[path]
+            if previous["sha256"] != pin["sha256"] or (
+                    "size" in previous and "size" in pin and previous["size"] != pin["size"]):
+                raise ValueError("conflicting evidence pins: " + path)
+            pins[path] = {**previous, **pin}
+        else:
+            pins[path] = pin
     scoped["pins"] = list(pins.values())
     return scoped
 
