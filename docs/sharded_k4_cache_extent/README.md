@@ -2,9 +2,12 @@
 
 ## Scope And Status
 
-For the subsequent CC/ResPR host-only optimization and fresh paired matrix,
-see the [host follow-up](host_followup.md). It reuses these exact bitstreams;
-the implementation and route checkpoints below remain historical records.
+For the completed CC/ResPR host-only optimization and fresh paired matrix,
+see the [host follow-up](host_followup.md). All 24 cases pass and favor Spine;
+all eight ResPR cases are zero-propagation update/correction/completion
+measurements. It reuses these exact bitstreams without new FPGA compilation.
+The implementation and route checkpoints below remain historical records,
+not pending work; the simulator repository holds the reviewed portable package.
 
 This study changes the GraSU input path used by the actual sharded K4 system.
 It does not retune ReGraph to reproduce a published number. The original

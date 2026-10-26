@@ -1,5 +1,50 @@
 # Spine CC/ResPR Host-Only Follow-Up
 
+## Final Status
+
+Complete: the full 24-case matrix passes, with 96 paired runs including
+excluded warmups. Every measured case favors Spine. Raw-log reparsing,
+source/binary/input/clock/memory checks, isolated plot/profile reproduction
+and visual review pass. No FPGA recompilation was needed for this follow-up.
+
+Speedup is `median G+R wall / median Spine wall`, with one excluded warmup
+and three formal pairs per case, alternating order. The fixed resident
+interval includes host launch/wait, relaunch and final full-state readback;
+initial preparation, residency, batch preparation/upload and CPU oracles
+remain excluded on both sides. There is no sample removal or timing fit.
+
+| Graph | SSSP | CC | ResPR |
+| --- | ---: | ---: | ---: |
+| AU | 4.355 | 3.868 | 3.083 |
+| SU | 6.252 | 5.391 | 3.465 |
+| WK | 7.099 | 9.991 | 4.069 |
+| SO | 45.991 | 32.647 | 5.589 |
+| PK | 74.174 | 57.562 | 3.327 |
+| LJ | 96.479 | 78.626 | 5.095 |
+| LJ08 | 91.021 | 76.674 | 4.494 |
+| R19 | 19.512 | 16.099 | 1.492 |
+
+**All eight ResPR cases have zero propagation rounds on both implementations
+and their CPU oracles.** Their speedups demonstrate update/correction/completion,
+not iterative PageRank propagation. SSSP and CC formal propagation counts
+match between systems. Thresholds, clocks, bitstreams and workload semantics
+are unchanged from the prior matrix. Actual ResPR clocks remain G+R DATA
+149/HBM 432 MHz and Spine DATA 150/HBM 448 MHz; walls are not normalized.
+
+The reviewed portable package is committed in `CxhAkatsukI/spine-cycle-sim`,
+under
+`docs/experiments/comparisons/grasu_regraph_stage_validation/evaluation_impact/cache_extent/fpga_results_v2/`.
+It contains the Python plot/profile code, PNG/PDF, exact measurements,
+old/new comparison, 638-file raw archive and independent review receipt.
+All 24 case memory-event records show zero pressure-limit and OOM events.
+
+For example, Spine CC AU changes from 82.3447 to 3.05053 ms; WK changes from
+132.312 to 7.54539 ms. The unchanged G+R CC medians vary by at most 1.3%.
+These campaigns were collected separately, not as a simultaneous per-change
+A/B test. SSSP's executable is unchanged and its variation is not a code gain.
+The earlier package and every failed attempt remain intact. The results do
+not establish new simulator timing calibration or original-publication matching.
+
 ## Scope
 
 The preceding bounded-cache FPGA matrix used the optimized Spine SSSP host,
@@ -81,7 +126,7 @@ Failed attempts remain evidence. Final export must reparse raw logs; a
 running job or a favorable warmup is not a completed result. The earlier
 matrix and simulator figure packages remain unchanged.
 
-## Independent AU Gate
+## Earlier Independent AU Gate
 
 Both algorithms pass correctness with one excluded warmup and three formal
 paired samples. Values below are the formal wall medians, not warmup results.
@@ -93,11 +138,12 @@ paired samples. Values below are the formal wall medians, not warmup results.
 
 The earlier frozen AU medians were 82.3447 ms for Spine CC and 53.8355 ms
 for Spine ResPR. The new independent gate is evidence that applying the
-existing host optimization removes a substantial cost on AU. It is not yet
-the complete eight-graph result or a simultaneous per-change A/B experiment.
+existing host optimization removes a substantial cost on AU. It is a separate
+gate, not a replacement for the completed eight-graph matrix above or a
+simultaneous per-change A/B experiment.
 ResPR here measures correction/completion without iterative propagation.
 
-The full matrix is running separately. Its terminal reparse and portable
+The separate full matrix and terminal review are complete. Its portable
 plot/profile package belong to the simulator repository, under
 `docs/experiments/comparisons/grasu_regraph_stage_validation/evaluation_impact/cache_extent/fpga_results_v2/`.
 No paper or frozen v1 package is changed.
