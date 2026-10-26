@@ -95,3 +95,64 @@ speedup. Do not substitute a new threshold or a different batch silently.
 The isolated G-only diagnostic's 9-17% comparison with the public HLS port is
 not automatically a claim about these eight-update full-system workloads, nor
 about agreement with the GraSU paper's unpublished implementation.
+
+## Completed Results: 2026-10-26
+
+All 24 pairs passed the retained correctness gates. Each cell below is the
+single observed ratio `G+R resident wall / Spine resident wall`; values above
+one favor Spine. There was exactly one execution per side per case, no warmup,
+no averaging and no successful sample replacement. These observations do not
+estimate run-to-run variability or establish statistical confidence.
+
+| Dataset | SSSP | CC | Residual PR |
+| --- | ---: | ---: | ---: |
+| AU | 3.23x | 3.59x | 3.29x |
+| SU | 6.17x | 5.79x | 3.89x |
+| WK | 5.60x | 9.34x | 3.55x |
+| SO | 48.57x | 33.56x | 5.86x |
+| PK | 64.49x | 57.77x | 3.15x |
+| LJ | 91.86x | 85.46x | 4.37x |
+| LJ08 | 90.07x | 72.62x | 4.44x |
+| R19 | 18.34x | 17.73x | 1.38x |
+
+SSSP and CC used measured data clocks of 150 MHz on both sides. Residual PR
+used G+R at 149 MHz and Spine at 150 MHz. These are raw wall-time ratios,
+without frequency normalization. Both sides use the same inherited graph,
+batch and algorithm policy, beginning with the old converged state; initial
+construction and residency are excluded as described above.
+
+**All eight residual-PR pairs recorded zero propagation rounds on both sides
+at the unchanged direct per-vertex threshold of `1e-6`.** Their ratios describe
+the update/correction/completion path for these particular batches. They do
+not demonstrate acceleration of a nonzero-propagation residual-PR workload.
+SSSP pairs recorded 1-3 propagation rounds and CC pairs 1-2, with equal round
+counts between systems in every pair.
+
+The portable [timing CSV](single_pass_20261026.csv) contains all 24 raw walls
+in milliseconds, unrounded ratios and round counts. The
+[audit JSON](single_pass_20261026.audit.json) records the independent reparse
+of all 48 raw host logs, original input/bitstream/Spine-host hash preservation,
+current G+R host/source hashes, measured clocks and memory outcomes. It found
+no board failures, watchdog stops or cgroup OOM/max events. Peak sampled
+process-tree RSS was 26.61 GiB; minimum observed available system memory was
+150.54 GiB under the documented memory probe. This is observed headroom, not
+a bound on unrelated users' future allocations.
+
+Full machine-local evidence is retained at:
+
+```text
+/data/chuxiao/checks/grasu-replicated-host-singlepass-20261026-v1/matrix/
+  summary.csv
+  results.json
+  single-pass-audit.json
+  <algorithm>-<dataset>/manifest.json
+  <algorithm>-<dataset>/{gr,spine}-clocks.json
+  <algorithm>-<dataset>/sample-1/{gr,spine}.stdout.txt
+  <algorithm>-<dataset>/sample-1/{gr,spine}.resources.json
+```
+
+The archived, unexecuted CC R19 admission interruption remains separate from
+the 24 measured pairs. No routing was performed for this campaign and no paper
+files were changed. The metadata-plan C++ test, 31 cache-extent Python tests,
+four resident-log parser tests and the standalone native-host preparation
+test passed before completion of the campaign.

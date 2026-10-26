@@ -2,9 +2,14 @@
 
 ## Scope And Status
 
-For the subsequent one-pair-per-case check with replicated G metadata, see
-the [single-pass protocol](single_pass.md). It reuses the existing three
-bitstreams and reports individual observations without warmups or averaging.
+The replicated-G-metadata single-pass check completed all 24 FPGA pairs;
+all passed correctness and favored Spine in this observation. See the
+[single-pass protocol and results](single_pass.md),
+[24-row raw timing CSV](single_pass_20261026.csv) and
+[execution audit](single_pass_20261026.audit.json). It reuses the existing
+bitstreams, with one execution per side, no warmups and no averaging.
+All eight ResPR cases have zero propagation rounds; these are
+update/correction/completion comparisons, not nonzero-propagation speedups.
 
 For the completed CC/ResPR host-only optimization and fresh paired matrix,
 see the [host follow-up](host_followup.md). All 24 cases pass and favor Spine;
