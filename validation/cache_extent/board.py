@@ -12,6 +12,7 @@ import time
 from spine_cycle_sim.experiments.campaign_runtime import atomic_write_json
 from validation.grasu_complete import preparation, runtime
 from .route import verify
+from . import board_memory
 from spine_cycle_sim.experiments.sharded_k4_stages.row_line.directory_tile.hardware import concurrent
 from spine_cycle_sim.experiments.sharded_k4_stages.row_line.directory_tile.hardware.containment import current, other_builds
 from spine_cycle_sim.experiments.upstream_controls.execution import available_memory_bytes
@@ -63,7 +64,7 @@ def admit(lock, lease, pins, report, save, policy):
             if users.returncode not in (0, 1):
                 raise ValueError("cannot inspect external board users")
             if users.returncode == 1 and not (users.stdout.strip() or users.stderr.strip()):
-                report["admission"] = lease.sample(available_memory_bytes(), other_builds(), policy, commit=True)
+                report["admission"] = board_memory.sample(lease, available_memory_bytes(), other_builds(), policy)
                 if report["admission"]["admitted"]:
                     return
             fcntl.flock(lock, fcntl.LOCK_UN)
@@ -104,7 +105,8 @@ def measure(index, config, output, pins, environment, logs):
                     "--source", str(config["source"]), "--resident-benchmark"]
             result_path = destination / "spine.stdout.txt"
         result = runtime.run_link(argv, destination, destination / architecture, timeout=1860,
-                                  tree_memory_gib=config["memory_gib"], reserve_gib=24,
+                                  tree_memory_gib=config["memory_gib"],
+                                  reserve_gib=64 if config.get("single_pass") else 24,
                                   environment=environment)
         resources[architecture] = result
         if result["exit_code"] or result["stop_reason"] != "process_exit" or result["cleanup_snapshot_error"]:
@@ -122,6 +124,8 @@ def run(args):
     if type(budget) is not int or budget not in (8, 16, 24, 32):
         raise ValueError("explicit 8/16/24/32-GiB board-host budget required")
     policy = {"tree_memory_gib": budget, "reserve_gib": 24, "allow_bounded_builds": True}
+    if config.get("single_pass"):
+        policy.update(reserve_gib=64, allow_observed_unbounded_builds=True)
     logs = load_logs()
     group = current()
     concurrent.verify = verify
@@ -156,16 +160,21 @@ def run(args):
                 GRASU_ROOT="/home/chuxiao/GraSU", REGRAPH_ROOT="/home/chuxiao/regraph/ReGraph",
                 LD_LIBRARY_PATH="/opt/xilinx/xrt/lib:/usr/lib/x86_64-linux-gnu",
                 GRASU_UPDATE_REPEATS="1", GRASU_SHARDED_PREMIGRATE_INPUTS="1")
+            if config.get("single_pass"):
+                environment["GRASU_SHARDED_METADATA_REPLICAS"] = "4"
             environment.pop("XCL_EMULATION_MODE", None)
             report["status"] = "RUNNING_FPGA_PAIRS"
             save()
-            for index in range(4):
+            for index in ([1] if config.get("single_pass") else range(4)):
                 report["current_sample"] = index
                 save()
                 report["samples"].append(measure(index, config, args.output, pins, environment, logs))
                 save()
             preparation.unchanged(pins)
-            report.update(summary=logs.summarize(report["samples"]),
+            summary = (dict(report["samples"][0]["pair"], measured_pairs=1,
+                            excluded_warmup_pairs=0, aggregation="none")
+                       if config.get("single_pass") else logs.summarize(report["samples"]))
+            report.update(summary=summary,
                           status="RESIDENT_PAIR_PASS", board_tested=True)
     except BaseException as error:
         report.update(status="FAILED_RETAINED", error=repr(error))

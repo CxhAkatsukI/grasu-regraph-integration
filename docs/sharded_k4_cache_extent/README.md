@@ -2,6 +2,10 @@
 
 ## Scope And Status
 
+For the subsequent one-pair-per-case check with replicated G metadata, see
+the [single-pass protocol](single_pass.md). It reuses the existing three
+bitstreams and reports individual observations without warmups or averaging.
+
 For the completed CC/ResPR host-only optimization and fresh paired matrix,
 see the [host follow-up](host_followup.md). All 24 cases pass and favor Spine;
 all eight ResPR cases are zero-propagation update/correction/completion

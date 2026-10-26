@@ -111,6 +111,8 @@ std::vector<DeviceShard> allocate_page_rank_shards(
             transfer_queue, device_shard.binary_dev,
             host.binary_heads.size() * sizeof(std::uint64_t),
             host.binary_heads.data(), "binary");
+        allocate_sharded_metadata_replicas(
+            context, transfer_queue, runtime_plan, shard, host, device_shard);
     }
     transfer_queue.finish();
     return device_shards;
@@ -145,13 +147,13 @@ int main(int argc, char **argv)
             build_weighted_partitioned_pma_graph(
                 dataset.node_size, kPartitionSize, dataset.static_edges,
                 dataset.update_edges);
-        const WeightedPmaRuntimePlan runtime_plan =
+        const WeightedPmaRuntimePlan runtime_plan = configure_sharded_metadata(
             build_weighted_pma_runtime_plan(
                 graph, kMaxCacheSegment,
                 grasu::integration::kWeightedPmaRuntimeChannels,
                 grasu::integration::kU55cHbmPseudoChannelBytes,
                 WeightedPmaChannelPolicy::lane_aware_u55c,
-                GRASU_REGRAPH_HOST_ROW_LINE_READ);
+                GRASU_REGRAPH_HOST_ROW_LINE_READ));
 
         FullPageRankOracleResult warm_oracle;
         if (!update_only) {
@@ -463,11 +465,11 @@ int main(int argc, char **argv)
                          "set PageRank bin_search edges");
                 for (int copy = 0; copy < 4; ++copy) {
                     check_cl(bin_search[lane].setArg(
-                                 arg++, buffers.binary_dev),
+                                 arg++, sharded_search_binary(buffers, lane)),
                              "set PageRank bin_search binary");
                 }
                 for (int copy = 0; copy < 4; ++copy) {
-                    check_cl(bin_search[lane].setArg(arg++, buffers.row_dev),
+                    check_cl(bin_search[lane].setArg(arg++, sharded_search_row(buffers, lane)),
                              "set PageRank bin_search row");
                 }
                 check_cl(bin_search[lane].setArg(

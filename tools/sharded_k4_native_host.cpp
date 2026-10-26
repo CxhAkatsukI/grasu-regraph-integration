@@ -4,6 +4,7 @@
 #include "sharded_event_trace.hpp"
 
 #include "weighted_pma_runtime_plan.hpp"
+#include "weighted_pma_metadata_plan.hpp"
 #include "weighted_pma_update_reference.hpp"
 
 #include <numeric>
@@ -39,9 +40,10 @@ struct DeviceShard {
     std::array<cl::Buffer, 4> pma_dev;
     cl::Buffer row_dev;
     cl::Buffer binary_dev;
+    std::array<cl_mem_ext_ptr_t, 3> row_replica_ext{}, binary_replica_ext{};
+    std::array<cl::Buffer, 3> row_replica_dev, binary_replica_dev;
+    bool metadata_replicated = false;
 };
-
-#include "sharded_cache_runtime.hpp"
 
 std::size_t total_pma_slots(const WeightedPartitionedPmaGraph &graph)
 {
@@ -215,6 +217,8 @@ void write_device_buffer(cl::CommandQueue &queue,
              "write buffer " + name);
 }
 
+#include "sharded_cache_runtime.hpp"
+
 unsigned update_repeat_count()
 {
     const char *raw = std::getenv("GRASU_UPDATE_REPEATS");
@@ -385,13 +389,13 @@ int main(int argc, char **argv)
             build_weighted_partitioned_pma_graph(
                 dataset.node_size, kPartitionSize, dataset.static_edges,
                 dataset.update_edges);
-        const WeightedPmaRuntimePlan runtime_plan =
+        const WeightedPmaRuntimePlan runtime_plan = configure_sharded_metadata(
             build_weighted_pma_runtime_plan(
                 graph, kMaxCacheSegment,
                 grasu::integration::kWeightedPmaRuntimeChannels,
                 grasu::integration::kU55cHbmPseudoChannelBytes,
                 WeightedPmaChannelPolicy::lane_aware_u55c,
-                GRASU_REGRAPH_HOST_ROW_LINE_READ);
+                GRASU_REGRAPH_HOST_ROW_LINE_READ));
         const unsigned source_internal =
             graph.external_to_internal.at(source_external);
 
@@ -612,6 +616,8 @@ int main(int argc, char **argv)
                 transfer_queue, device_shard.binary_dev,
                 host.binary_heads.size() * sizeof(std::uint64_t),
                 host.binary_heads.data(), "binary");
+            allocate_sharded_metadata_replicas(
+                context, transfer_queue, runtime_plan, shard, host, device_shard);
         }
         transfer_queue.finish();
 
@@ -718,11 +724,11 @@ int main(int argc, char **argv)
                 check_cl(bin_search[lane].setArg(arg++, buffers.update_dev[lane]),
                          "set sharded bin_search edges");
                 for (int copy = 0; copy < 4; ++copy) {
-                    check_cl(bin_search[lane].setArg(arg++, buffers.binary_dev),
+                    check_cl(bin_search[lane].setArg(arg++, sharded_search_binary(buffers, lane)),
                              "set sharded bin_search binary");
                 }
                 for (int copy = 0; copy < 4; ++copy) {
-                    check_cl(bin_search[lane].setArg(arg++, buffers.row_dev),
+                    check_cl(bin_search[lane].setArg(arg++, sharded_search_row(buffers, lane)),
                              "set sharded bin_search row");
                 }
                 check_cl(bin_search[lane].setArg(
