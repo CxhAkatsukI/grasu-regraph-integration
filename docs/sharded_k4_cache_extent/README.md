@@ -2,6 +2,10 @@
 
 ## Scope And Status
 
+For the subsequent CC/ResPR host-only optimization and fresh paired matrix,
+see the [host follow-up](host_followup.md). It reuses these exact bitstreams;
+the implementation and route checkpoints below remain historical records.
+
 This study changes the GraSU input path used by the actual sharded K4 system.
 It does not retune ReGraph to reproduce a published number. The original
 ReGraph publication-scale comparison remains about 2.47 times slower in our
