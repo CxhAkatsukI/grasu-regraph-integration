@@ -1,6 +1,7 @@
 #define GRASU_REGRAPH_NO_MAIN 1
 #define GRASU_REGRAPH_SHARDED_K4_HOST 1
 #include "weighted_pma_native_host.cpp"
+#include "sharded_active_min_fixture.hpp"
 #include "sharded_event_trace.hpp"
 
 #include "weighted_pma_runtime_plan.hpp"
@@ -8,6 +9,8 @@
 #include "weighted_pma_update_reference.hpp"
 
 #include <numeric>
+#include <sys/file.h>
+#include <sys/stat.h>
 
 #ifndef GRASU_REGRAPH_HOST_ROW_LINE_READ
 #define GRASU_REGRAPH_HOST_ROW_LINE_READ 0
@@ -343,15 +346,36 @@ PmaUpdateValidation validate_device_pma_updates(
 }  // namespace
 
 #ifndef GRASU_REGRAPH_SHARDED_K4_NO_MAIN
+static void require_active_min_lease()
+{
+    const auto *fd_env = std::getenv("ORIGINAL_R_LEASE_FD");
+    const auto *bdf = std::getenv("GRASU_REGRAPH_EXPECT_BDF");
+    const auto *index_env = std::getenv("XCL_DEVICE_INDEX");
+    if (!fd_env || !bdf || !*bdf || !index_env) fail("active-min board run requires an exclusive PCI lease");
+    const auto index = parse_unsigned_arg(index_env, "leased device index");
+    const auto fd = parse_unsigned_arg(fd_env, "lease fd");
+    struct stat descriptor{}, path{};
+    const auto lock = "/tmp/chuxiao-sharded-k4-board-" + std::to_string(index) + ".lock";
+    if (index >= 2 || fd > INT32_MAX || fstat(fd, &descriptor) || lstat(lock.c_str(), &path) ||
+        !S_ISREG(path.st_mode) || descriptor.st_dev != path.st_dev || descriptor.st_ino != path.st_ino ||
+        flock(fd, LOCK_EX | LOCK_NB)) {
+        fail("active-min descriptor does not exclusively lock the selected board");
+    }
+}
+
 int main(int argc, char **argv)
 {
     try {
-        const bool prepare_only =
-            argc >= 2 && std::string(argv[1]) == "--prepare-only";
-        const bool update_only =
-            argc >= 2 && std::string(argv[1]) == "--update-only";
+        namespace active_min = grasu_regraph::active_min;
+        const std::string mode = argc >= 2 ? argv[1] : "";
+        const bool fixture_offline = mode == "--active-min-prepare";
+        const bool fixture_board = mode == "--active-min-once";
+        const bool fixture_mode = fixture_offline || fixture_board;
+        const bool prepare_only = mode == "--prepare-only";
+        const bool update_only = mode == "--update-only";
         const bool invalid_arguments =
-            prepare_only ? (argc < 4 || argc > 6)
+            fixture_mode ? argc != (fixture_board ? 6 : 5)
+                         : prepare_only ? (argc < 4 || argc > 6)
                          : update_only ? (argc < 5 || argc > 7)
                                        : (argc < 4 || argc > 6);
         if (invalid_arguments) {
@@ -359,24 +383,37 @@ int main(int argc, char **argv)
             std::cerr << "       " << argv[0]
                       << " --update-only <xclbin> <graph_file> <result_file>"
                          " [source_external] [max_supersteps]\n";
+            std::cerr << "       " << argv[0]
+                      << " --active-min-prepare <fixture_dir> <reference_expected> <fresh_output_dir>\n"
+                      << "       " << argv[0]
+                      << " --active-min-once <xclbin> <fixture_dir> <reference_expected> <fresh_output_dir>\n";
             return EXIT_FAILURE;
         }
 
-        int arg_index = (prepare_only || update_only) ? 2 : 1;
-        const std::string xclbin_path = prepare_only ? "" : argv[arg_index++];
+        if (fixture_board) require_active_min_lease();
+        int arg_index = (fixture_mode || prepare_only || update_only) ? 2 : 1;
+        const std::string xclbin_path = (prepare_only || fixture_offline) ? "" : argv[arg_index++];
         const std::string graph_path = argv[arg_index++];
+        const std::string reference = fixture_mode ? argv[arg_index++] : "";
         const std::string result_path = argv[arg_index++];
         const unsigned source_external =
             argc > arg_index
                 ? parse_unsigned_arg(argv[arg_index], "source_external")
                 : 0;
-        const unsigned max_supersteps =
-            argc > arg_index + 1
-                ? parse_unsigned_arg(argv[arg_index + 1], "max_supersteps")
-                : 256;
+        const unsigned max_supersteps = fixture_mode ? 1 :
+            (argc > arg_index + 1 ? parse_unsigned_arg(argv[arg_index + 1], "max_supersteps") : 256);
         if (max_supersteps == 0) fail("max_supersteps must be >= 1");
 
-        Dataset dataset = read_dataset(graph_path);
+        active_min::Fixture fixture;
+        Dataset dataset;
+        if (fixture_mode) {
+            fixture = active_min::Fixture::load(graph_path, reference, kConnectedComponents);
+            dataset.node_size = fixture.vertices;
+            dataset.static_edges = std::move(fixture.edges);
+            if (!std::filesystem::create_directory(result_path)) fail("fresh active-min output directory required");
+        } else {
+            dataset = read_dataset(graph_path);
+        }
         if (source_external >= dataset.node_size) {
             fail("source vertex is outside the graph");
         }
@@ -401,7 +438,7 @@ int main(int argc, char **argv)
 
         bool resident_mode = false;
         AlgorithmOracleResult resident_oracle;
-        if (!update_only) {
+        if (!update_only && !fixture_mode) {
             const FinalEdgeMap static_edges =
                 build_static_external_edges(dataset);
             resident_mode = std::all_of(
@@ -425,7 +462,7 @@ int main(int argc, char **argv)
             update_source_vertices(dataset);
         AlgorithmOracleResult oracle;
         std::size_t final_edge_count = dataset.static_edges.size();
-        if (!update_only) {
+        if (!update_only && !fixture_mode) {
             const FinalEdgeMap final_edges = build_final_external_edges(dataset);
             final_edge_count = final_edges.size();
             oracle = resident_mode
@@ -481,6 +518,14 @@ int main(int argc, char **argv)
 
         print_shard_update_layout(graph, "GRASU_SHARDED_UPDATE_LAYOUT");
 
+        if (fixture_offline) {
+            fixture.write(std::filesystem::path(result_path) / "expected.u32le", fixture.expected);
+            std::cout << "ACTIVE_MIN_CANDIDATE_OFFLINE_PASS_NOT_FPGA"
+                      << " vertices=" << fixture.vertices << " logical_edges=" << final_edge_count
+                      << " active_outputs=" << fixture.active_outputs << " shards=" << graph.shards.size()
+                      << " algorithm=" << kAlgorithmName << '\n';
+            return EXIT_SUCCESS;
+        }
         if (prepare_only) {
             print_prepare_result(dataset, graph, runtime_plan, oracle,
                                  source_external, source_internal,
@@ -629,11 +674,12 @@ int main(int argc, char **argv)
             static_cast<std::size_t>(destination_partitions) * kPartitionSize;
         AlignedVector<uint32_t> prop_a(state_capacity, 0);
         AlignedVector<uint32_t> prop_b(state_capacity, 0);
+        AlignedVector<uint32_t> fixture_replica(fixture_board ? state_capacity : 0, 0);
         AlignedVector<uint32_t> apply_prop(state_capacity, 0);
         AlignedVector<uint32_t> active_count(1, 0);
         for (std::size_t internal = 0; internal < dataset.node_size; ++internal) {
             const std::size_t external = graph.internal_to_external.at(internal);
-            const uint32_t initial_value = resident_mode
+            const uint32_t initial_value = fixture_board ? fixture.initial.at(external) : resident_mode
                 ? resident_oracle.prop.at(kConnectedComponents ? internal
                                                                : external)
                 : (kConnectedComponents
@@ -646,7 +692,7 @@ int main(int argc, char **argv)
             for (const unsigned external : update_sources) {
                 prop_a[graph.external_to_internal.at(external)] |= kActiveMask;
             }
-        } else if (!kConnectedComponents) {
+        } else if (!fixture_board && !kConnectedComponents) {
             prop_a[source_internal] = kActiveMask;
             apply_prop[source_internal] = kActiveMask;
         }
@@ -654,7 +700,7 @@ int main(int argc, char **argv)
         cl_mem_ext_ptr_t prop_a0_ext = ext_ptr(23, prop_a.data());
         cl_mem_ext_ptr_t prop_a1_ext = ext_ptr(24, prop_a.data());
         cl_mem_ext_ptr_t prop_b0_ext = ext_ptr(23, prop_b.data());
-        cl_mem_ext_ptr_t prop_b1_ext = ext_ptr(24, prop_b.data());
+        cl_mem_ext_ptr_t prop_b1_ext = ext_ptr(24, fixture_board ? fixture_replica.data() : prop_b.data());
         cl_mem_ext_ptr_t apply_prop_ext = ext_ptr(30, apply_prop.data());
         cl_mem_ext_ptr_t active_count_ext = ext_ptr(30, active_count.data());
         cl::Buffer prop_a0_dev = make_buffer(
@@ -692,12 +738,12 @@ int main(int argc, char **argv)
 
         Timing timing;
         grasu_regraph::ShardedEventTrace<cl::Event> event_trace(
-            grasu_regraph::sharded_event_trace_enabled());
+            fixture_board || grasu_regraph::sharded_event_trace_enabled());
         const auto wall_begin = std::chrono::high_resolution_clock::now();
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> grasu_events;
         std::vector<cl::Event> barrier_events;
-        const unsigned update_repeats = update_repeat_count();
+        const unsigned update_repeats = fixture_board ? 0 : update_repeat_count();
         std::cout << "GRASU_SHARDED_UPDATE_REPEAT_CONFIG repeats="
                   << update_repeats << " restore_pma_between_repeats=1"
                   << std::endl;
@@ -1012,6 +1058,39 @@ int main(int argc, char **argv)
         timing.grasu_ms = event_union_ms(grasu_events);
         timing.barrier_ms = event_union_ms(barrier_events);
         timing.event_e2e_ms = event_union_ms(all_events);
+        const auto emit_timestamps = [&] {
+            event_trace.emit(std::cout, [](const cl::Event &event) {
+                return std::array<cl_ulong, 4>{
+                    event.getProfilingInfo<CL_PROFILING_COMMAND_QUEUED>(),
+                    event.getProfilingInfo<CL_PROFILING_COMMAND_SUBMIT>(),
+                    event.getProfilingInfo<CL_PROFILING_COMMAND_START>(),
+                    event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
+            });
+        };
+        if (fixture_board) {
+            check_cl(transfer_queue.enqueueMigrateMemObjects(
+                         {prop_b0_dev, prop_b1_dev, apply_prop_dev}, CL_MIGRATE_MEM_OBJECT_HOST),
+                     "migrate active-min state copies");
+            transfer_queue.finish();
+            emit_timestamps();
+            bool pass = active_count[0] == fixture.active_outputs;
+            const auto directory = std::filesystem::path(result_path);
+            const std::array<std::pair<const char *, const AlignedVector<uint32_t> *>, 3> copies{{
+                {"replica0.u32le", &prop_b}, {"replica1.u32le", &fixture_replica},
+                {"apply_property.u32le", &apply_prop}}};
+            for (const auto &copy : copies) {
+                const auto words = fixture.externalize(*copy.second, graph.external_to_internal);
+                fixture.write(directory / copy.first, words);
+                pass = pass && words == fixture.expected;
+            }
+            std::cout << "ACTIVE_MIN_CANDIDATE_BOARD_RESULT"
+                      << " status=" << (pass ? "PASS" : "FAIL")
+                      << " algorithm=" << kAlgorithmName << " supersteps=" << executed_supersteps
+                      << " vertices=" << fixture.vertices << " logical_edges=" << final_edge_count
+                      << " shards=" << destination_partitions << " active_outputs=" << active_count[0]
+                      << " grasu_launches=" << grasu_events.size() << '\n';
+            return pass ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
         check_cl(transfer_queue.enqueueMigrateMemObjects(
                      {*read_props[0]}, CL_MIGRATE_MEM_OBJECT_HOST),
                  "migrate final result");
@@ -1021,13 +1100,7 @@ int main(int argc, char **argv)
             std::chrono::duration<double, std::milli>(wall_end - wall_begin)
                 .count();
         timing.wall_ms = timing.setup_inclusive_ms;
-        event_trace.emit(std::cout, [](const cl::Event &event) {
-            return std::array<cl_ulong, 4>{
-                event.getProfilingInfo<CL_PROFILING_COMMAND_QUEUED>(),
-                event.getProfilingInfo<CL_PROFILING_COMMAND_SUBMIT>(),
-                event.getProfilingInfo<CL_PROFILING_COMMAND_START>(),
-                event.getProfilingInfo<CL_PROFILING_COMMAND_END>()};
-        });
+        emit_timestamps();
 
         std::size_t mismatch_count = 0;
         for (std::size_t internal = 0; internal < dataset.node_size;

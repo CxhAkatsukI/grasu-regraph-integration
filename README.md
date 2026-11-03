@@ -13,6 +13,8 @@ Current complete-G source candidate: [source map, build selection and evidence g
 It is opt-in and does not replace the frozen routed baseline or constitute new board evidence.
 
 Current simulator-to-HLS port: [prefetch/compact source candidate and build gates](docs/sharded_k4_prefetch_compact/README.md).
+
+For the same-input ReGraph control, see the [resident CC and weighted SSSP probe](docs/sharded_k4_prefetch_compact/active_min_retention.md).
 Functional checks pass, but the complete candidate exceeds the U55C AXI-master
 budget. It is not an admitted full-system link or a new performance result.
 
