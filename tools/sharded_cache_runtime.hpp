@@ -73,8 +73,58 @@ inline void bind_sharded_cache_extent(
     check_cl(kernel.setArg(legacy_arguments, extent), "set sharded cache valid extent");
 }
 
+inline bool resident_batch_wall_enabled()
+{
+    const char *policy = std::getenv("GRASU_SHARDED_RESIDENT_BATCH_WALL");
+    if (!policy || std::string(policy) == "0") return false;
+    if (std::string(policy) == "1") return true;
+    fail("GRASU_SHARDED_RESIDENT_BATCH_WALL must be 0 or 1");
+    return false;
+}
+
+inline void upload_sharded_update_lane(
+    cl::CommandQueue &queue, DeviceShard &shard,
+    const grasu::integration::WeightedPmaUpdateLanes &lanes, std::size_t lane)
+{
+    const auto &words = lanes[lane];
+    write_device_buffer(queue, shard.update_dev[lane],
+                        words.size() * sizeof(std::uint64_t),
+                        words.data(), "update" + std::to_string(lane));
+}
+
+inline void upload_sharded_batch(
+    cl::CommandQueue &queue, std::vector<DeviceShard> &shards,
+    const WeightedPartitionedPmaGraph &graph,
+    const WeightedPmaRuntimePlan &plan)
+{
+    std::vector<grasu::integration::WeightedPmaUpdateLanes> payload(shards.size());
+    std::vector<cl::Memory> inputs;
+    try {
+        for (std::size_t shard = 0; shard < shards.size(); ++shard) {
+            if (graph.shards[shard].physical_updates.empty()) continue;
+            payload[shard] = grasu::integration::pack_weighted_pma_update_lanes(
+                graph.shards[shard], plan.shards[shard]);
+            for (std::size_t lane = 0; lane < 4; ++lane) {
+                if (plan.shards[shard].update_counts[lane] == 0) continue;
+                upload_sharded_update_lane(queue, shards[shard], payload[shard], lane);
+                inputs.push_back(shards[shard].update_dev[lane]);
+            }
+        }
+        check_cl(queue.finish(), "complete sharded batch writes");
+        if (!inputs.empty()) {
+            check_cl(queue.enqueueMigrateMemObjects(inputs, 0),
+                     "migrate sharded batch inputs");
+            check_cl(queue.finish(), "complete sharded batch migration");
+        }
+    } catch (...) {
+        queue.finish();
+        throw;
+    }
+}
+
 inline void premigrate_sharded_inputs(
-    cl::CommandQueue &queue, const std::vector<DeviceShard> &shards)
+    cl::CommandQueue &queue, const std::vector<DeviceShard> &shards,
+    bool include_updates = true)
 {
     const char *policy = std::getenv("GRASU_SHARDED_PREMIGRATE_INPUTS");
     if (policy && std::string(policy) != "0" && std::string(policy) != "1") {
@@ -85,7 +135,7 @@ inline void premigrate_sharded_inputs(
     std::size_t bytes = 0;
     for (const auto &shard : shards) {
         for (std::size_t lane = 0; lane < 4; ++lane) {
-            inputs.push_back(shard.update_dev[lane]);
+            if (include_updates) inputs.push_back(shard.update_dev[lane]);
             inputs.push_back(shard.pma_dev[lane]);
         }
         inputs.push_back(shard.row_dev);
@@ -110,4 +160,18 @@ inline void premigrate_sharded_inputs(
               << " bytes=" << bytes << " wall_ms=" << wall_ms
               << " event_ms=" << event_duration_ms(event)
               << " boundary=initial_setup_before_updates" << std::endl;
+}
+
+template <typename TimePoint>
+inline void report_resident_batch_wall(
+    const char *algorithm, bool pass, TimePoint batch_begin,
+    TimePoint device_ready, TimePoint final_readback)
+{
+    using Milliseconds = std::chrono::duration<double, std::milli>;
+    std::cout << "SHARDED_RESIDENT_BATCH_WALL algorithm=" << algorithm
+              << " status=" << (pass ? "PASS" : "FAIL")
+              << " layout=trace_aware physical_update_mapping=offline"
+              << " pack_upload_and_host_seed_ms=" << Milliseconds(device_ready - batch_begin).count()
+              << " pack_to_final_readback_ms=" << Milliseconds(final_readback - batch_begin).count()
+              << std::endl;
 }

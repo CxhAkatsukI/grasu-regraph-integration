@@ -60,8 +60,10 @@ struct WeightedPmaRuntimePlan {
         WeightedPmaChannelPolicy::unrestricted};
 };
 
+using WeightedPmaUpdateLanes = std::array<std::vector<std::uint64_t>, 4>;
+
 struct WeightedPmaPackedShardBuffers {
-    std::array<std::vector<std::uint64_t>, 4> updates;
+    WeightedPmaUpdateLanes updates;
     std::array<std::vector<std::uint32_t>, 4> pma_words;
     std::vector<std::uint64_t> row_bounds;
     std::vector<std::uint64_t> binary_heads;
@@ -261,10 +263,23 @@ inline const WeightedPmaBufferRegion &find_weighted_pma_region(
     return *found;
 }
 
+inline WeightedPmaUpdateLanes pack_weighted_pma_update_lanes(
+    const WeightedPmaShard &shard, const WeightedPmaShardRuntimePlan &plan)
+{
+    WeightedPmaUpdateLanes lanes;
+    for (std::size_t lane = 0; lane < lanes.size(); ++lane) {
+        lanes[lane].assign(plan.update_alloc_counts[lane], 0);
+    }
+    for (std::size_t update = 0; update < shard.physical_updates.size(); ++update) {
+        lanes[update % lanes.size()][update / lanes.size()] = shard.physical_updates[update];
+    }
+    return lanes;
+}
+
 inline std::vector<WeightedPmaPackedShardBuffers>
 pack_weighted_pma_runtime_buffers(
     const WeightedPartitionedPmaGraph &graph,
-    const WeightedPmaRuntimePlan &plan)
+    const WeightedPmaRuntimePlan &plan, bool include_updates = true)
 {
     if (graph.shards.size() != plan.shards.size()) {
         throw std::invalid_argument("weighted PMA graph/runtime shard mismatch");
@@ -275,16 +290,12 @@ pack_weighted_pma_runtime_buffers(
         const WeightedPmaShard &shard = graph.shards[shard_index];
         const WeightedPmaShardRuntimePlan &shard_plan = plan.shards[shard_index];
         WeightedPmaPackedShardBuffers &buffers = result[shard_index];
+        if (include_updates) {
+            buffers.updates = pack_weighted_pma_update_lanes(shard, shard_plan);
+        }
         for (std::size_t lane = 0; lane < 4; ++lane) {
-            buffers.updates[lane].assign(
-                shard_plan.update_alloc_counts[lane], 0);
             buffers.pma_words[lane].assign(
                 shard_plan.pma_words[lane], kWeightedPmaEmpty);
-        }
-        for (std::size_t update = 0; update < shard.physical_updates.size();
-             ++update) {
-            buffers.updates[update % 4][update / 4] =
-                shard.physical_updates[update];
         }
         for (std::size_t slot = 0; slot < shard.initial_pma_words.size();
              slot += kWeightedPmaSegmentSlots) {

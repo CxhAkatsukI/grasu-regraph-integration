@@ -222,6 +222,56 @@ void write_device_buffer(cl::CommandQueue &queue,
 
 #include "sharded_cache_runtime.hpp"
 
+[[maybe_unused]] void upload_resident_active_seed(
+    cl::CommandQueue &queue, cl::Buffer &replica0, cl::Buffer &replica1,
+    const AlignedVector<uint32_t> &old_state,
+    const WeightedPartitionedPmaGraph &graph, const Dataset &dataset)
+{
+    constexpr std::size_t page_bytes = 4096;
+    constexpr std::size_t page_words = page_bytes / sizeof(uint32_t);
+    static_assert(kPartitionSize % page_words == 0);
+    std::vector<std::size_t> vertices;
+    for (const unsigned external : update_source_vertices(dataset)) {
+        vertices.push_back(graph.external_to_internal.at(external));
+    }
+    std::sort(vertices.begin(), vertices.end());
+
+    // Write aligned pages to both replicas without changing other vertices.
+    std::vector<std::size_t> page_offsets;
+    AlignedVector<uint32_t> pages;
+    for (const auto vertex : vertices) {
+        const auto page = vertex - vertex % page_words;
+        if (page_offsets.empty() || page != page_offsets.back()) {
+            page_offsets.push_back(page);
+            pages.insert(pages.end(), old_state.begin() + page,
+                         old_state.begin() + page + page_words);
+        }
+        pages[pages.size() - page_words + vertex % page_words] |= kActiveMask;
+    }
+    try {
+        for (std::size_t first = 0; first < page_offsets.size();) {
+            std::size_t end = first + 1;
+            while (end < page_offsets.size() &&
+                   page_offsets[end] == page_offsets[end - 1] + page_words) {
+                ++end;
+            }
+            for (auto *buffer : {&replica0, &replica1}) {
+                check_cl(queue.enqueueWriteBuffer(
+                             *buffer, CL_FALSE,
+                             page_offsets[first] * sizeof(uint32_t),
+                             (end - first) * page_bytes,
+                             pages.data() + first * page_words),
+                         "upload resident active seed");
+            }
+            first = end;
+        }
+        check_cl(queue.finish(), "complete resident batch upload");
+    } catch (...) {
+        queue.finish();
+        throw;
+    }
+}
+
 unsigned update_repeat_count()
 {
     const char *raw = std::getenv("GRASU_UPDATE_REPEATS");
@@ -373,6 +423,7 @@ int main(int argc, char **argv)
         const bool fixture_mode = fixture_offline || fixture_board;
         const bool prepare_only = mode == "--prepare-only";
         const bool update_only = mode == "--update-only";
+        const bool resident_batch_wall = resident_batch_wall_enabled();
         const bool invalid_arguments =
             fixture_mode ? argc != (fixture_board ? 6 : 5)
                          : prepare_only ? (argc < 4 || argc > 6)
@@ -390,6 +441,10 @@ int main(int argc, char **argv)
             return EXIT_FAILURE;
         }
 
+        if (resident_batch_wall &&
+            (fixture_mode || update_only || update_repeat_count() != 1)) {
+            fail("resident batch wall requires one convergent dynamic batch");
+        }
         if (fixture_board) require_active_min_lease();
         int arg_index = (fixture_mode || prepare_only || update_only) ? 2 : 1;
         const std::string xclbin_path = (prepare_only || fixture_offline) ? "" : argv[arg_index++];
@@ -460,6 +515,9 @@ int main(int argc, char **argv)
         }
         const std::vector<unsigned> update_sources =
             update_source_vertices(dataset);
+        if (resident_batch_wall && (!resident_mode || !resident_oracle.converged)) {
+            fail("resident batch wall requires a converged old graph and supported updates");
+        }
         AlgorithmOracleResult oracle;
         std::size_t final_edge_count = dataset.static_edges.size();
         if (!update_only && !fixture_mode) {
@@ -478,7 +536,7 @@ int main(int argc, char **argv)
                              max_supersteps));
         }
         const std::vector<WeightedPmaPackedShardBuffers> packed =
-            pack_weighted_pma_runtime_buffers(graph, runtime_plan);
+            pack_weighted_pma_runtime_buffers(graph, runtime_plan, !resident_batch_wall);
 
         if (graph.shards.empty() || graph.shards.size() > 255) {
             fail("ReGraph sharded control ABI requires 1..255 partitions");
@@ -615,7 +673,7 @@ int main(int argc, char **argv)
                 device_shard.update_dev[lane] = make_buffer(
                     context,
                     CL_MEM_READ_ONLY | CL_MEM_EXT_PTR_XILINX,
-                    host.updates[lane].size() * sizeof(std::uint64_t),
+                    runtime_plan.shards[shard].update_alloc_counts[lane] * sizeof(std::uint64_t),
                     &device_shard.update_ext[lane],
                     "shard" + std::to_string(shard) + "_update" +
                         std::to_string(lane));
@@ -626,11 +684,9 @@ int main(int argc, char **argv)
                     &device_shard.pma_ext[lane],
                     "shard" + std::to_string(shard) + "_pma" +
                         std::to_string(lane));
-                write_device_buffer(
-                    transfer_queue, device_shard.update_dev[lane],
-                    host.updates[lane].size() * sizeof(std::uint64_t),
-                    host.updates[lane].data(),
-                    "update" + std::to_string(lane));
+                if (!resident_batch_wall) {
+                    upload_sharded_update_lane(transfer_queue, device_shard, host.updates, lane);
+                }
                 write_device_buffer(
                     transfer_queue, device_shard.pma_dev[lane],
                     host.pma_words[lane].size() * sizeof(std::uint32_t),
@@ -666,7 +722,7 @@ int main(int argc, char **argv)
         }
         transfer_queue.finish();
 
-        premigrate_sharded_inputs(transfer_queue, device_shards);
+        premigrate_sharded_inputs(transfer_queue, device_shards, !resident_batch_wall);
 
         const unsigned destination_partitions =
             static_cast<unsigned>(graph.shards.size());
@@ -689,8 +745,10 @@ int main(int argc, char **argv)
             apply_prop[internal] = initial_value;
         }
         if (resident_mode) {
-            for (const unsigned external : update_sources) {
-                prop_a[graph.external_to_internal.at(external)] |= kActiveMask;
+            if (!resident_batch_wall) {
+                for (const unsigned external : update_sources) {
+                    prop_a[graph.external_to_internal.at(external)] |= kActiveMask;
+                }
             }
         } else if (!fixture_board && !kConnectedComponents) {
             prop_a[source_internal] = kActiveMask;
@@ -739,7 +797,13 @@ int main(int argc, char **argv)
         Timing timing;
         grasu_regraph::ShardedEventTrace<cl::Event> event_trace(
             fixture_board || grasu_regraph::sharded_event_trace_enabled());
-        const auto wall_begin = std::chrono::high_resolution_clock::now();
+        const auto batch_begin = std::chrono::steady_clock::now();
+        if (resident_batch_wall) {
+            upload_sharded_batch(transfer_queue, device_shards, graph, runtime_plan);
+            upload_resident_active_seed(
+                transfer_queue, prop_a0_dev, prop_a1_dev, prop_a, graph, dataset);
+        }
+        const auto wall_begin = std::chrono::steady_clock::now();
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> grasu_events;
         std::vector<cl::Event> barrier_events;
@@ -1095,7 +1159,7 @@ int main(int argc, char **argv)
                      {*read_props[0]}, CL_MIGRATE_MEM_OBJECT_HOST),
                  "migrate final result");
         transfer_queue.finish();
-        const auto wall_end = std::chrono::high_resolution_clock::now();
+        const auto wall_end = std::chrono::steady_clock::now();
         timing.setup_inclusive_ms =
             std::chrono::duration<double, std::milli>(wall_end - wall_begin)
                 .count();
@@ -1138,6 +1202,9 @@ int main(int argc, char **argv)
 
         const bool pass = mismatch_count == 0 && hardware_converged &&
                           oracle.converged;
+        if (resident_batch_wall) {
+            report_resident_batch_wall(kLogPrefix, pass, batch_begin, wall_begin, wall_end);
+        }
         std::cout << kLogPrefix << "_SHARDED_TIMING"
                   << " grasu_ms=" << std::fixed << std::setprecision(6)
                   << timing.grasu_ms
