@@ -81,7 +81,7 @@ static void compacted_input(hls::stream<edge_burst_pkt_t> &edges,
 }
 #endif
 
-static void check(unsigned invocation, bool empty) {
+static void check(unsigned invocation, bool empty, unsigned vertices = 65536) {
     hls::stream<edge_burst_pkt_t> edges;
     hls::stream<l_ppb_request_pkt> requests;
     hls::stream<l_ppb_response_pkt> responses;
@@ -99,7 +99,8 @@ static void check(unsigned invocation, bool empty) {
         unsigned window = empty ? 0 : windows[p / 6];
         for (unsigned lane = 0; lane < 8; ++lane) {
             unsigned src = window * 4096 + (p * 19 + lane * 7) % 4096;
-            unsigned dst = p % 3 == 0 ? 65535 : (p * 31 + lane) % 127;
+            unsigned dst = p % 3 == 0 ? vertices - 1 :
+                (p * 31 + lane) % (vertices < 127 ? vertices : 127);
             unsigned weight = (p + lane) % 13 + 1;
             bool dummy = empty || (p + lane) % 11 == 0;
             unsigned encoded_dst = dst | (dummy ? 0x80000000U : 0);
@@ -149,13 +150,17 @@ static void check(unsigned invocation, bool empty) {
     });
     // A deliberately wrong slot count verifies TLAST, not a scalar edge count,
     // controls termination. The nonzero base must not be subtracted a second time.
+    const unsigned rows = ((vertices + 15) / 16) * 8;
     lksg_stream(edges, 123456, 0, 131072, invocation == 0,
+#if GRASU_REGRAPH_TAIL_PUBLICATION
+                rows,
+#endif
                 requests, responses, results);
     source.join();
 #if TEST_COMPACT_INPUT
     adapter.join();
 #endif
-    for (unsigned row = 0; row < 32768; ++row) {
+    for (unsigned row = 0; row < rows; ++row) {
         auto packet = results.read();
         for (unsigned half = 0; half < 2; ++half) {
             unsigned expected = 0;
@@ -163,7 +168,7 @@ static void check(unsigned invocation, bool empty) {
                 expected = reduce(expected, oracle[lane][row * 2 + half]);
             assert((unsigned)packet.data.range(half * 32 + 31, half * 32) == expected);
         }
-        assert(bool(packet.last) == (row == 32767));
+        assert(bool(packet.last) == (row + 1 == rows));
     }
     assert(edges.empty() && requests.empty() && responses.empty() && results.empty());
     assert(request_count >= 2);
@@ -207,6 +212,12 @@ static void check_publication_rows(unsigned rows, bool reset, bool empty) {
 int main() {
     for (unsigned invocation = 0; invocation < 6; ++invocation)
         check(invocation, invocation == 1 || invocation == 4);
+#if GRASU_REGRAPH_TAIL_PUBLICATION && !TEST_COMPACT_INPUT
+    check(0, false, 1);
+    check(1, false, 17);
+    check(2, true, 1);
+    check(3, false);
+#endif
     check_publication_rows(8, true, false);
     check_publication_rows(8, false, true);
     check_publication_rows(24, false, false);

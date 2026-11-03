@@ -55,6 +55,34 @@ generators select it through `--adapter-policy prefetch-compact`. The policy
 is restricted to `sharded-k4`. Do not mix it with legacy slot-count termination
 or the old Apply ABI.
 
+### Residual PageRank Tail Publication
+
+The default-off `--tail-publication` candidate removes fixed-length publication
+of the padding beyond the last valid destination. On the final shard, Gather
+initializes and drains `ceil(valid_vertices / 16) * 8` two-vertex rows, and
+the mux forwards that same count. Apply publishes `ceil(total_vertices / 16)`
+512-bit beats. Full shards keep their existing counts; source preparation and
+state buffer allocation remain padded so full source-window reads stay valid.
+
+Use the following profile options on a matching host and hardware image:
+
+- `scripts/prepare_pagerank_pipeline_build.sh --algorithm residual_pagerank --pipeline-mode sharded-k4 --adapter-policy prefetch-compact --tail-publication`
+- `scripts/build_weighted_pma_native_host.sh --algorithm residual_pagerank --pipeline-mode sharded-k4 --prefetch-compact --tail-publication`
+
+These are profile options; supply the usual build/output paths as well. Do
+not mix tail and fixed-length host/image builds. The tail Gather XO adds
+32-bit control argument 5 (`publication_rows`) without changing the four
+stream widths. The tail host sets this argument on each Gather CU before
+submitting work. Other algorithms and the fixed-length build keep the old ABI.
+
+On 2026-11-04, `scripts/check_regraph_framed.sh` passed fixed-length regression
+and tail cases including 1 and 17 valid vertices and reuse of a CU across
+changes in row count. The tail host compiled with warnings treated as errors.
+Vitis 2024.1 exported `lksg_stream.hw.xo` for U55C at a requested 150 MHz:
+the initialization, drain and merge loops reported II=1, and the accumulation
+loop reported II=3. These results do not establish routed timing, finite
+pipeline liveness on a board, or the R performance retention gate.
+
 ## Validation On 2026-10-24
 
 | Check | Result and limit |

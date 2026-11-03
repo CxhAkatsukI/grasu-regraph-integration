@@ -10,7 +10,7 @@ static void run(hls::stream<EdgePacket> &edges, bool reset,
                 hls::stream<l_ppb_request_pkt> &requests,
                 hls::stream<l_ppb_response_pkt> &responses,
                 hls::stream<l_tmp_prop_pkt> &output,
-                unsigned row_count = kFullShardRows) {
+                unsigned row_count) {
 #pragma HLS INLINE OFF
 #pragma HLS DATAFLOW
     hls::stream<Updates> updates;

@@ -110,6 +110,33 @@ class AdapterSelectionTests(SourceSelectionTests):
                     self.assertEqual(result.returncode, 2, result.stderr)
                     self.assertFalse(self.output.exists())
 
+    def test_tail_publication_only_changes_residual_pagerank_gather(self):
+        profile = ("--adapter-policy", "prefetch-compact", "--target", "hw")
+        for algorithm, options in (
+            ("full_pagerank", profile),
+            ("residual_pagerank", ("--adapter-policy", "bank-stream")),
+            ("residual_pagerank", (*profile, "--pipeline-mode", "weighted-axis")),
+        ):
+            with self.subTest(algorithm=algorithm, options=options):
+                result = self.generate(PR, algorithm, *options, "--tail-publication",
+                                       check=False)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("--tail-publication requires", result.stderr)
+                self.assertFalse(self.output.exists())
+        self.generate(PR, "residual_pagerank", *profile)
+        commands = self.output / "compile_commands.sh"
+        before = commands.read_text()
+        self.assertNotIn("GRASU_REGRAPH_TAIL_PUBLICATION", before)
+        self.generate(PR, "residual_pagerank", *profile, "--tail-publication")
+        after = commands.read_text()
+        flag = " -DGRASU_REGRAPH_TAIL_PUBLICATION=1"
+        self.assertEqual(after.count(flag), 1)
+        self.assertIn("/little_gs_stream.cpp", next(
+            line for line in after.splitlines() if flag in line))
+        self.assertEqual(after.replace(flag, ""), before)
+        self.assertIn("TAIL_PUBLICATION=1\n",
+                      (self.output / "manifest.env").read_text())
+
     def test_pagerank_source_archive_records_unavailable_git_identity(self):
         archive = self.root / "source-archive"
         for member in ("scripts", "include", "kernels"):

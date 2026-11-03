@@ -13,6 +13,7 @@ ROW_LINE_READ=0
 ROW_LINE_DEFINE=()
 PROFILE_DEFINE=()
 PREFETCH_COMPACT=0
+TAIL_PUBLICATION=0
 HOST_EXTRA_INPUTS=()
 
 usage() {
@@ -30,6 +31,7 @@ Options:
                     weighted-axis or sharded-k4.
   --row-line-read    Pad row buffers for a ROW_LINE_READ sharded-k4 adapter.
   --prefetch-compact New framed adapter/Gather reuse/Apply split-master ABI.
+  --tail-publication Requires sharded-k4 residual PageRank and --prefetch-compact.
   -h, --help        Show this help.
 USAGE
 }
@@ -49,6 +51,7 @@ while [[ $# -gt 0 ]]; do
     --pipeline-mode) PIPELINE_MODE="$2"; shift 2 ;;
     --row-line-read) ROW_LINE_READ=1; shift ;;
     --prefetch-compact) PREFETCH_COMPACT=1; ROW_LINE_READ=1; shift ;;
+    --tail-publication) TAIL_PUBLICATION=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -112,6 +115,14 @@ fi
 if [[ "${PREFETCH_COMPACT}" == 1 ]]; then
   PROFILE_DEFINE=(-DGRASU_REGRAPH_PREFETCH_COMPACT=1)
 fi
+if [[ "${TAIL_PUBLICATION}" == 1 ]]; then
+  if [[ "${ALGORITHM}" != residual_pagerank ||
+        "${PIPELINE_MODE}" != sharded-k4 || "${PREFETCH_COMPACT}" != 1 ]]; then
+    echo "--tail-publication requires residual_pagerank, sharded-k4 and --prefetch-compact" >&2
+    exit 2
+  fi
+  PROFILE_DEFINE+=(-DGRASU_REGRAPH_TAIL_PUBLICATION=1)
+fi
 
 mkdir -p "${OUT_DIR}"
 if [[ -z "${OUT_BIN}" ]]; then
@@ -149,6 +160,7 @@ CONVERSION_COST=absent
 MAX_CACHE_SEGMENT=131072
 ROW_LINE_READ=${ROW_LINE_READ}
 PREFETCH_COMPACT=${PREFETCH_COMPACT}
+TAIL_PUBLICATION=${TAIL_PUBLICATION}
 HOST=${OUT_BIN}
 MANIFEST
 printf 'built %s\n' "${OUT_BIN}"

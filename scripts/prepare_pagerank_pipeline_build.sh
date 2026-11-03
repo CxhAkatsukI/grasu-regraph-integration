@@ -11,6 +11,7 @@ TARGET="sw_emu"
 ALGORITHM="full_pagerank"
 GRASU_IMPLEMENTATION="legacy-direct-cache"
 ADAPTER_POLICY="legacy"
+TAIL_PUBLICATION=0
 PHYSICAL_PORT_POLICY="independent"
 PLATFORM="xilinx_u55c_gen3x16_xdma_3_202210_1"
 PLATFORM_XPFM="/opt/xilinx/platforms/${PLATFORM}/${PLATFORM}.xpfm"
@@ -36,6 +37,7 @@ Options:
   --algorithm full_pagerank|residual_pagerank
   --grasu-implementation legacy-direct-cache|complete-search-cache|complete-search-cache-bounded
   --adapter-policy legacy|bank-stream|prefetch-compact (latter two: 512-bit row ABI)
+  --tail-publication (sharded-k4 residual PageRank with prefetch-compact only)
   --physical-port-policy independent|shared-ingress
   --platform NAME
   --platform-xpfm PATH
@@ -64,6 +66,7 @@ while [[ $# -gt 0 ]]; do
     --algorithm) ALGORITHM="$2"; shift 2 ;;
     --grasu-implementation) GRASU_IMPLEMENTATION="$2"; shift 2 ;;
     --adapter-policy) ADAPTER_POLICY="$2"; shift 2 ;;
+    --tail-publication) TAIL_PUBLICATION=1; shift ;;
     --physical-port-policy) PHYSICAL_PORT_POLICY="$2"; shift 2 ;;
     --platform)
       PLATFORM="$2"
@@ -97,6 +100,13 @@ case "${PIPELINE_MODE}" in
   weighted-axis|sharded-k4) ;;
   *) echo "Invalid --pipeline-mode: ${PIPELINE_MODE}" >&2; exit 2 ;;
 esac
+if [[ "${TAIL_PUBLICATION}" == 1 &&
+      ( "${ALGORITHM}" != residual_pagerank ||
+        "${PIPELINE_MODE}" != sharded-k4 ||
+        "${ADAPTER_POLICY}" != prefetch-compact ) ]]; then
+  echo "--tail-publication requires residual_pagerank, sharded-k4 and prefetch-compact" >&2
+  exit 2
+fi
 if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
   if [[ "${COMPUTE_PIPELINES_SET}" == 1 && "${COMPUTE_PIPELINES}" != 4 ]]; then
     echo "sharded-k4 requires exactly four PMA/source/gather frontends" >&2
@@ -486,7 +496,11 @@ COMPILE_COMMANDS="${BUILD_ROOT}/compile_commands.sh"
     )
   fi
   emit_compile pma_to_regraph_adapter "${PMA_ADAPTER_SOURCE}" "${REGRAPH_FLAGS[@]}" "${adapter_flags[@]}" "${PMA_ADAPTER_FLAGS[@]}"
-  emit_compile lksg_stream "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp" "${REGRAPH_FLAGS[@]}" "-I${REGRAPH_ROOT}/acc_template/kernel_little_gs"
+  gather_flags=()
+  if [[ "${TAIL_PUBLICATION}" == 1 ]]; then
+    gather_flags+=(-DGRASU_REGRAPH_TAIL_PUBLICATION=1)
+  fi
+  emit_compile lksg_stream "${GRI_ROOT}/kernels/regraph_stream_little_gs/little_gs_stream.cpp" "${REGRAPH_FLAGS[@]}" "${gather_flags[@]}" "-I${REGRAPH_ROOT}/acc_template/kernel_little_gs"
   emit_compile kernelLittleGSMerger "${REGRAPH_MERGER}/kernel_little_gs_merger.cpp" "${REGRAPH_FLAGS[@]}" "-I${REGRAPH_MERGER}"
   emit_compile regraph_pagerank_apply "${GRI_ROOT}/kernels/regraph_pagerank_apply/regraph_pagerank_apply.cpp" "${COMMON_ENV}" "-DGRASU_REGRAPH_PAGERANK_MODE=${MODE}" "-I${GRI_ROOT}/include" "-I${HLS_INCLUDE_ETC}" ${TARGET_DEFINE:+"${TARGET_DEFINE}"}
   if [[ "${PIPELINE_MODE}" == "sharded-k4" ]]; then
@@ -590,6 +604,7 @@ fi
   echo "PIPELINE_MODE=${PIPELINE_MODE}"
   echo "GRASU_IMPLEMENTATION=${GRASU_IMPLEMENTATION}"
   echo "ADAPTER_POLICY=${ADAPTER_POLICY}"
+  echo "TAIL_PUBLICATION=${TAIL_PUBLICATION}"
   echo "PHYSICAL_PORT_POLICY=${PHYSICAL_PORT_POLICY}"
   echo "PHYSICAL_PORT_POLICY_IS_HARDWARE_EVIDENCE=0"
   echo "ADAPTER_ROW_LINE_READ=${PMA_ADAPTER_ROW_LINE_READ}"

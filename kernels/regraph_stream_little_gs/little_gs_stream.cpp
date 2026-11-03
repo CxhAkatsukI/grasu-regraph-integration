@@ -11,6 +11,9 @@
 #include "acc_data_types.h"
 #include "l1_api.h"
 #include "acc_config.h"
+#if GRASU_REGRAPH_TAIL_PUBLICATION && !GRASU_REGRAPH_PREFETCH_COMPACT
+#error "tail publication requires framed gather"
+#endif
 #if GRASU_REGRAPH_PREFETCH_COMPACT
 #include "framed/run.hpp"
 #else
@@ -40,6 +43,9 @@ void lksg_stream(
         uint             compressed_group_count,
         uint             part_dst_offset,
         bool             reset_tmp_prop,
+#if GRASU_REGRAPH_TAIL_PUBLICATION
+        uint             publication_rows,
+#endif
         hls::stream<l_ppb_request_pkt>    &l_ppb_request_stm,
         hls::stream<l_ppb_response_pkt>   &l_ppb_response_stm,
         hls::stream<l_tmp_prop_pkt>       &l_tmp_prop_stm)
@@ -58,6 +64,9 @@ void lksg_stream(
 #pragma HLS INTERFACE s_axilite port=compressed_group_count bundle=control
 #pragma HLS INTERFACE s_axilite port=part_dst_offset bundle=control
 #pragma HLS INTERFACE s_axilite port=reset_tmp_prop bundle=control
+#if GRASU_REGRAPH_TAIL_PUBLICATION
+#pragma HLS INTERFACE s_axilite port=publication_rows bundle=control
+#endif
 #pragma HLS INTERFACE s_axilite port=return bundle=control
 
     (void)compressed_group_count;
@@ -65,8 +74,11 @@ void lksg_stream(
 #if GRASU_REGRAPH_PREFETCH_COMPACT
     (void)part_edge_num;  // This profile terminates on TLAST, not padded slots.
     (void)part_dst_offset; // Adapter destinations are already shard-local.
+#if !GRASU_REGRAPH_TAIL_PUBLICATION
+    const unsigned publication_rows = framed_regraph::kFullShardRows;
+#endif
     framed_regraph::run(edge_burst_in, reset_tmp_prop, l_ppb_request_stm,
-                        l_ppb_response_stm, l_tmp_prop_stm);
+                        l_ppb_response_stm, l_tmp_prop_stm, publication_rows);
 #else
 
     hls::stream<edge_burst_dt> edge_burst_stm;
