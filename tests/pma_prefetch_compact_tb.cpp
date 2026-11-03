@@ -8,7 +8,7 @@ int main() {
     unsigned cases = 0, packets = 0;
     for (unsigned vertices : {0u, 1u, 7u, 9u, 1023u, 1024u, 1025u,
                               4095u, 4096u, 4097u, 8193u}) {
-        for (unsigned placement : {0u, 1u, 2u, 3u}) {
+        for (unsigned placement : {0u, 1u, 2u, 3u, 4u, 5u}) {
             for (unsigned length : {0u, 1u, 3u}) {
                 std::vector<ap_uint<512>> rows((vertices + 7) / 8 + 1, 0);
                 std::vector<ap_uint<512>> banks[4];
@@ -19,7 +19,9 @@ int main() {
                     unsigned begin = segments * 16;
                     bool occupied = placement == 0 ? src % 3 == 0 :
                         placement == 1 ? src == 0 :
-                        placement == 2 ? src + 1 == vertices : src % 17 == 0;
+                        placement == 2 ? src + 1 == vertices :
+                        placement == 3 ? src % 17 == 0 :
+                        placement == 4 ? true : src % 2 == 1;
                     for (unsigned j = 0; j < (occupied ? length : 0); ++j) {
                         ap_uint<512> word = 0;
                         for (unsigned lane = 0; lane < 16; ++lane) {
