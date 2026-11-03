@@ -49,7 +49,8 @@ std::vector<DeviceShard> allocate_page_rank_shards(
     cl::CommandQueue &transfer_queue,
     const WeightedPartitionedPmaGraph &graph,
     const WeightedPmaRuntimePlan &runtime_plan,
-    const std::vector<WeightedPmaPackedShardBuffers> &packed)
+    const std::vector<WeightedPmaPackedShardBuffers> &packed,
+    bool include_updates)
 {
     std::vector<DeviceShard> device_shards(graph.shards.size());
     for (std::size_t shard = 0; shard < graph.shards.size(); ++shard) {
@@ -68,7 +69,7 @@ std::vector<DeviceShard> allocate_page_rank_shards(
             device_shard.pma_ext[lane] = ext_ptr(pma_bank);
             device_shard.update_dev[lane] = make_buffer(
                 context, CL_MEM_READ_ONLY | CL_MEM_EXT_PTR_XILINX,
-                host.updates[lane].size() * sizeof(std::uint64_t),
+                runtime_plan.shards[shard].update_alloc_counts[lane] * sizeof(std::uint64_t),
                 &device_shard.update_ext[lane],
                 "shard" + std::to_string(shard) + "_update" +
                     std::to_string(lane));
@@ -78,10 +79,9 @@ std::vector<DeviceShard> allocate_page_rank_shards(
                 &device_shard.pma_ext[lane],
                 "shard" + std::to_string(shard) + "_pma" +
                     std::to_string(lane));
-            write_device_buffer(
-                transfer_queue, device_shard.update_dev[lane],
-                host.updates[lane].size() * sizeof(std::uint64_t),
-                host.updates[lane].data(), "update" + std::to_string(lane));
+            if (include_updates) {
+                upload_sharded_update_lane(transfer_queue, device_shard, host.updates, lane);
+            }
             write_device_buffer(
                 transfer_queue, device_shard.pma_dev[lane],
                 host.pma_words[lane].size() * sizeof(std::uint32_t),
@@ -127,12 +127,22 @@ int main(int argc, char **argv)
             argc >= 2 && std::string(argv[1]) == "--prepare-only";
         const bool update_only =
             argc >= 2 && std::string(argv[1]) == "--update-only";
+        const bool resident_batch_wall = resident_batch_wall_enabled();
         if ((prepare_only && argc != 4) ||
             (update_only && argc != 5) ||
             (!prepare_only && !update_only && argc != 4)) {
             pagerank_usage(argv[0]);
             return EXIT_FAILURE;
         }
+#ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
+        if (resident_batch_wall && (update_only || update_repeat_count() != 1)) {
+            fail("resident batch wall requires one convergent dynamic batch");
+        }
+#else
+        if (resident_batch_wall) {
+            fail("resident batch wall is not supported by fixed-round FullPR");
+        }
+#endif
         int arg_index = (prepare_only || update_only) ? 2 : 1;
         const std::string xclbin_path = prepare_only ? "" : argv[arg_index++];
         const std::string graph_path = argv[arg_index++];
@@ -183,7 +193,7 @@ int main(int argc, char **argv)
 #endif
         }
         const std::vector<WeightedPmaPackedShardBuffers> packed =
-            pack_weighted_pma_runtime_buffers(graph, runtime_plan);
+            pack_weighted_pma_runtime_buffers(graph, runtime_plan, !resident_batch_wall);
 
         if (graph.shards.empty() || graph.shards.size() > 255) {
             fail("ReGraph sharded PageRank ABI requires 1..255 partitions");
@@ -322,8 +332,9 @@ int main(int argc, char **argv)
             make_kernel("kernelHBMWrapper:{kernelHBMWrapper_1}");
 
         std::vector<DeviceShard> device_shards = allocate_page_rank_shards(
-            context, transfer_queue, graph, runtime_plan, packed);
-        premigrate_sharded_inputs(transfer_queue, device_shards);
+            context, transfer_queue, graph, runtime_plan, packed,
+            !resident_batch_wall);
+        premigrate_sharded_inputs(transfer_queue, device_shards, !resident_batch_wall);
         const unsigned destination_partitions =
             static_cast<unsigned>(graph.shards.size());
         const std::size_t state_capacity =
@@ -422,7 +433,11 @@ int main(int argc, char **argv)
         PageRankTiming timing;
         grasu_regraph::ShardedEventTrace<cl::Event> event_trace(
             grasu_regraph::sharded_event_trace_enabled());
-        const auto wall_begin = std::chrono::high_resolution_clock::now();
+        const auto batch_begin = std::chrono::steady_clock::now();
+        if (resident_batch_wall) {
+            upload_sharded_batch(transfer_queue, device_shards, graph, runtime_plan);
+        }
+        const auto wall_begin = std::chrono::steady_clock::now();
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> update_events;
         const unsigned update_repeats = update_repeat_count();
@@ -889,7 +904,7 @@ int main(int argc, char **argv)
                      final_memories, CL_MIGRATE_MEM_OBJECT_HOST),
                  "read final sharded PageRank state");
         transfer_queue.finish();
-        const auto wall_end = std::chrono::high_resolution_clock::now();
+        const auto wall_end = std::chrono::steady_clock::now();
         timing.device_e2e_ms = event_union_ms(all_events);
         timing.setup_inclusive_ms =
             std::chrono::duration<double, std::milli>(wall_end - wall_begin)
@@ -945,6 +960,10 @@ int main(int argc, char **argv)
 #ifdef GRASU_REGRAPH_RESIDUAL_PAGERANK
         pass = pass && hardware_converged && oracle.converged;
 #endif
+        if (resident_batch_wall) {
+            report_resident_batch_wall(kShardedPageRankPrefix, pass, batch_begin,
+                                       wall_begin, wall_end);
+        }
         std::cout << kShardedPageRankPrefix << "_TIMING"
                   << " update_ms=" << std::fixed << std::setprecision(6)
                   << timing.update_ms

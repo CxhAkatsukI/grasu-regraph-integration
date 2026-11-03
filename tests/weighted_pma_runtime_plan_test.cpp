@@ -71,6 +71,7 @@ int main()
            26 * sizeof(std::uint64_t));
 
     const auto packed = pack_weighted_pma_runtime_buffers(graph, plan);
+    const auto resident = pack_weighted_pma_runtime_buffers(graph, plan, false);
     const auto line_plan = build_weighted_pma_runtime_plan(
         graph, 32, 4, 1ULL << 20, WeightedPmaChannelPolicy::unrestricted, true);
     const auto line_packed = pack_weighted_pma_runtime_buffers(graph, line_plan);
@@ -80,6 +81,14 @@ int main()
          ++shard_index) {
         const auto &shard = graph.shards[shard_index];
         const auto &buffers = packed[shard_index];
+        const auto &resident_buffers = resident[shard_index];
+        assert(std::all_of(resident_buffers.updates.begin(), resident_buffers.updates.end(),
+                           [](const auto &lane) { return lane.empty(); }));
+        assert(grasu::integration::pack_weighted_pma_update_lanes(
+                   shard, plan.shards[shard_index]) == buffers.updates);
+        assert(resident_buffers.pma_words == buffers.pma_words);
+        assert(resident_buffers.row_bounds == buffers.row_bounds);
+        assert(resident_buffers.binary_heads == buffers.binary_heads);
         assert(buffers.row_bounds == shard.row_bounds);
         assert(line_plan.shards[shard_index].row_words == 32);
         assert(line_packed[shard_index].row_bounds.size() == 32);

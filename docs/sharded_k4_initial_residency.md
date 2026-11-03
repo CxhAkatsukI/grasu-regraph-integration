@@ -59,3 +59,28 @@ The host migration is outside its measured update/compute interval and has
 its own wall/event record. Include the recorded initialization in any
 whole-startup claim. Compare resident execution only after both systems'
 initial graph/state loading has genuinely completed.
+
+## Resident Single-Batch Host Wall Time
+
+With the sharded-K4 host built for SSSP, CC or ResPR, set
+`GRASU_SHARDED_RESIDENT_BATCH_WALL=1` on the normal full run. This opt-in
+host change reuses the same compatible xclbin. It rejects repeated and
+update-only runs, and does not apply to fixed-round FullPR.
+
+- Before the clock: build the trace-aware old PMA layout, derive the batch's
+  physical updates, and preload the old PMA and state. The PMA builder knows
+  the batch when it reserves capacity and assigns physical IDs. This is
+  **not** a raw external-ID batch arrival or whole-startup boundary.
+- Inside the clock: pack the physical update words into lanes, upload and
+  migrate them, and generate and upload the active seed for SSSP/CC. ResPR
+  uses its existing timed device correction and seed path. Continue through
+  convergence and final host readback; oracle checking and file output
+  are outside the clock.
+
+`SHARDED_RESIDENT_BATCH_WALL` reports `pack_to_final_readback_ms` and
+`pack_upload_and_host_seed_ms`, with the normal correctness status. The
+existing `setup_inclusive_ms` continues to start after batch upload and
+host seed; it must not be mixed with the new metric. Compare this mode
+only with a peer whose resident state, offline preparation, and timed
+batch input are documented. Compile and offline checks do not establish
+board correctness or performance for this mode.
