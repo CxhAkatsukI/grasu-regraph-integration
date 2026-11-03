@@ -9,7 +9,8 @@ namespace framed_regraph {
 static void run(hls::stream<EdgePacket> &edges, bool reset,
                 hls::stream<l_ppb_request_pkt> &requests,
                 hls::stream<l_ppb_response_pkt> &responses,
-                hls::stream<l_tmp_prop_pkt> &output) {
+                hls::stream<l_tmp_prop_pkt> &output,
+                unsigned row_count = kFullShardRows) {
 #pragma HLS INLINE OFF
 #pragma HLS DATAFLOW
     hls::stream<Updates> updates;
@@ -18,12 +19,12 @@ static void run(hls::stream<EdgePacket> &edges, bool reset,
 #pragma HLS STREAM variable=values depth=8
 #ifdef __SYNTHESIS__
     scatter(edges, requests, responses, updates);
-    gather(updates, values, reset);
-    merge(values, output);
+    gather(updates, values, reset, row_count);
+    merge(values, output, row_count);
 #else
     std::thread s([&] { scatter(edges, requests, responses, updates); });
-    std::thread g([&] { gather(updates, values, reset); });
-    merge(values, output);
+    std::thread g([&] { gather(updates, values, reset, row_count); });
+    merge(values, output, row_count);
     s.join(); g.join();
 #endif
 }

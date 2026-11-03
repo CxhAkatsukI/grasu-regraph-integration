@@ -2,23 +2,29 @@
 #include "types.hpp"
 
 namespace framed_regraph {
+constexpr unsigned kFullShardRows = LITTLE_KERNEL_DST_BUFFER_SIZE >> 1;
+
 static void gather(hls::stream<Updates> &input,
                    hls::stream<ap_uint<64>> (&output)[GATHER_PE_NUM],
-                   bool reset) {
+                   bool reset, unsigned row_count) {
 #pragma HLS INLINE OFF
-    static ap_uint<64> memory[GATHER_PE_NUM][LITTLE_KERNEL_DST_BUFFER_SIZE >> 1];
+    static ap_uint<64> memory[GATHER_PE_NUM][kFullShardRows];
+    static unsigned initialized_rows = 0;
 #pragma HLS ARRAY_PARTITION variable=memory dim=1 complete
 #pragma HLS BIND_STORAGE variable=memory type=RAM_S2P impl=URAM
 #pragma HLS DEPENDENCE variable=memory inter false
-    if (reset) {
-        for (unsigned row = 0; row < (LITTLE_KERNEL_DST_BUFFER_SIZE >> 1); ++row) {
+    const unsigned clear_begin = reset ? 0 : initialized_rows;
+    if (row_count > clear_begin) {
+        for (unsigned row = clear_begin; row < row_count; ++row) {
 #pragma HLS PIPELINE II=1
+#pragma HLS LOOP_TRIPCOUNT min=0 max=kFullShardRows
             for (unsigned lane = 0; lane < GATHER_PE_NUM; ++lane) {
 #pragma HLS UNROLL
                 memory[lane][row] = 0;
             }
         }
     }
+    initialized_rows = row_count > clear_begin ? row_count : clear_begin;
     ap_uint<64> last_value[GATHER_PE_NUM][L + 1];
     unsigned last_index[GATHER_PE_NUM][L + 1];
 #pragma HLS ARRAY_PARTITION variable=last_value complete dim=0
@@ -38,9 +44,9 @@ static void gather(hls::stream<Updates> &input,
         for (unsigned lane = 0; lane < GATHER_PE_NUM; ++lane) {
 #pragma HLS UNROLL
             auto tuple = updates.values.tuples[lane];
-            if (!tuple.dst[19] && IS_ACTIVE_VERTEX(tuple.update)) {
-                unsigned dst = (unsigned)tuple.dst & (LITTLE_KERNEL_DST_BUFFER_SIZE - 1);
-                unsigned row = dst / 2;
+            const unsigned dst = (unsigned)tuple.dst & (LITTLE_KERNEL_DST_BUFFER_SIZE - 1);
+            const unsigned row = dst / 2;
+            if (!tuple.dst[19] && row < row_count && IS_ACTIVE_VERTEX(tuple.update)) {
                 ap_uint<64> value = memory[lane][row];
                 for (unsigned h = 0; h <= L; ++h) {
 #pragma HLS UNROLL
@@ -62,9 +68,10 @@ static void gather(hls::stream<Updates> &input,
             }
         }
     }
-    // Publication clears every row. Only the first physical invocation needs init.
-    for (unsigned row = 0; row < (LITTLE_KERNEL_DST_BUFFER_SIZE >> 1); ++row) {
+    // A completed frame leaves the initialized prefix clear for the next shard.
+    for (unsigned row = 0; row < row_count; ++row) {
 #pragma HLS PIPELINE II=1
+#pragma HLS LOOP_TRIPCOUNT min=1 max=kFullShardRows
         for (unsigned lane = 0; lane < GATHER_PE_NUM; ++lane) {
 #pragma HLS UNROLL
             ap_uint<64> value = memory[lane][row];
@@ -75,10 +82,11 @@ static void gather(hls::stream<Updates> &input,
 }
 
 static void merge(hls::stream<ap_uint<64>> (&input)[GATHER_PE_NUM],
-                  hls::stream<l_tmp_prop_pkt> &output) {
+                  hls::stream<l_tmp_prop_pkt> &output, unsigned row_count) {
 #pragma HLS INLINE OFF
-    for (unsigned row = 0; row < (LITTLE_KERNEL_DST_BUFFER_SIZE >> 1); ++row) {
+    for (unsigned row = 0; row < row_count; ++row) {
 #pragma HLS PIPELINE II=1
+#pragma HLS LOOP_TRIPCOUNT min=1 max=kFullShardRows
         unsigned low = 0, high = 0;
         for (unsigned lane = 0; lane < GATHER_PE_NUM; ++lane) {
 #pragma HLS UNROLL
@@ -91,7 +99,7 @@ static void merge(hls::stream<ap_uint<64>> (&input)[GATHER_PE_NUM],
         packet.data.range(63, 32) = high;
         packet.keep = -1;
         packet.strb = -1;
-        packet.last = row + 1 == (LITTLE_KERNEL_DST_BUFFER_SIZE >> 1);
+        packet.last = row + 1 == row_count;
         output.write(packet);
     }
 }

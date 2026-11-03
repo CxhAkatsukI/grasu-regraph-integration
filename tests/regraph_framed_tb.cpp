@@ -169,9 +169,52 @@ static void check(unsigned invocation, bool empty) {
     assert(request_count >= 2);
 }
 
+static void check_publication_rows(unsigned rows, bool reset, bool empty) {
+    hls::stream<framed_regraph::Updates> updates;
+    hls::stream<ap_uint<64>> values[GATHER_PE_NUM];
+    hls::stream<l_tmp_prop_pkt> output;
+    const unsigned low = source_property(1);
+    const unsigned high = source_property(2);
+    framed_regraph::Updates update;
+    update.last = true;
+    for (unsigned lane = 0; lane < GATHER_PE_NUM; ++lane) {
+        update.values.tuples[lane].dst = 1U << 19;
+        update.values.tuples[lane].update = 0;
+    }
+    if (!empty) {
+        update.values.tuples[0].dst = 0;
+        update.values.tuples[0].update = low;
+        update.values.tuples[1].dst = rows * 2 - 1;
+        update.values.tuples[1].update = high;
+        if (rows < framed_regraph::kFullShardRows) {
+            update.values.tuples[2].dst = rows * 2;
+            update.values.tuples[2].update = high;
+        }
+    }
+    updates.write(update);
+    framed_regraph::gather(updates, values, reset, rows);
+    framed_regraph::merge(values, output, rows);
+    for (unsigned row = 0; row < rows; ++row) {
+        auto packet = output.read();
+        assert((unsigned)packet.data.range(31, 0) == (!empty && row == 0 ? low : 0));
+        assert((unsigned)packet.data.range(63, 32) == (!empty && row + 1 == rows ? high : 0));
+        assert(bool(packet.last) == (row + 1 == rows));
+    }
+    assert(updates.empty() && output.empty());
+    for (auto &lane : values) assert(lane.empty());
+}
+
 int main() {
     for (unsigned invocation = 0; invocation < 6; ++invocation)
         check(invocation, invocation == 1 || invocation == 4);
+    check_publication_rows(8, true, false);
+    check_publication_rows(8, false, true);
+    check_publication_rows(24, false, false);
+    check_publication_rows(8, false, true);
+    check_publication_rows(framed_regraph::kFullShardRows, false, true);
+    check_publication_rows(framed_regraph::kFullShardRows, false, false);
+    check_publication_rows(8, false, true);
+    check_publication_rows(framed_regraph::kFullShardRows, false, true);
     std::cout << "REGRAPH_FRAMED PASS invocations=6 policies=1 reset_reuse=5"
-              << " connected_adapter=" << TEST_COMPACT_INPUT << "\n";
+              << " publication_rows_cases=8 connected_adapter=" << TEST_COMPACT_INPUT << "\n";
 }
