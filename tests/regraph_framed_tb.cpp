@@ -218,10 +218,10 @@ int main() {
     check(2, true, 1);
     check(3, false);
 #endif
-    check_publication_rows(8, true, false);
-    check_publication_rows(8, false, true);
-    check_publication_rows(24, false, false);
-    check_publication_rows(8, false, true);
+    check_publication_rows(9, true, false);
+    check_publication_rows(9, false, true);
+    check_publication_rows(23, false, false);
+    check_publication_rows(7, false, true);
     check_publication_rows(framed_regraph::kFullShardRows, false, true);
     check_publication_rows(framed_regraph::kFullShardRows, false, false);
     check_publication_rows(8, false, true);

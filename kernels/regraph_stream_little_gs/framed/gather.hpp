@@ -3,6 +3,11 @@
 
 namespace framed_regraph {
 constexpr unsigned kFullShardRows = LITTLE_KERNEL_DST_BUFFER_SIZE >> 1;
+#if GRASU_REGRAPH_BANKED_GATHER_CLEAR
+constexpr unsigned kClearBanks = 4;
+static_assert(kFullShardRows % kClearBanks == 0, "gather banks must have equal depth");
+constexpr unsigned kClearGroups = kFullShardRows / kClearBanks;
+#endif
 
 static void gather(hls::stream<Updates> &input,
                    hls::stream<ap_uint<64>> (&output)[GATHER_PE_NUM],
@@ -11,10 +16,31 @@ static void gather(hls::stream<Updates> &input,
     static ap_uint<64> memory[GATHER_PE_NUM][kFullShardRows];
     static unsigned initialized_rows = 0;
 #pragma HLS ARRAY_PARTITION variable=memory dim=1 complete
+#if GRASU_REGRAPH_BANKED_GATHER_CLEAR
+#pragma HLS ARRAY_PARTITION variable=memory dim=2 cyclic factor=4
+#endif
 #pragma HLS BIND_STORAGE variable=memory type=RAM_S2P impl=URAM
 #pragma HLS DEPENDENCE variable=memory inter false
     const unsigned clear_begin = reset ? 0 : initialized_rows;
     if (row_count > clear_begin) {
+#if GRASU_REGRAPH_BANKED_GATHER_CLEAR
+        // The prior publication left its prefix clear, so clearing a partial bank group again is safe.
+        const unsigned first_group = clear_begin / kClearBanks;
+        const unsigned last_group = (row_count + kClearBanks - 1) / kClearBanks;
+    clear_gather_banks:
+        for (unsigned group = first_group; group < last_group; ++group) {
+#pragma HLS PIPELINE II=1
+#pragma HLS LOOP_TRIPCOUNT min=0 max=kClearGroups
+            for (unsigned lane = 0; lane < GATHER_PE_NUM; ++lane) {
+#pragma HLS UNROLL
+                for (unsigned bank = 0; bank < kClearBanks; ++bank) {
+#pragma HLS UNROLL
+                    memory[lane][group * kClearBanks + bank] = 0;
+                }
+            }
+        }
+#else
+    clear_gather_rows:
         for (unsigned row = clear_begin; row < row_count; ++row) {
 #pragma HLS PIPELINE II=1
 #pragma HLS LOOP_TRIPCOUNT min=0 max=kFullShardRows
@@ -23,6 +49,7 @@ static void gather(hls::stream<Updates> &input,
                 memory[lane][row] = 0;
             }
         }
+#endif
     }
     initialized_rows = row_count > clear_begin ? row_count : clear_begin;
     ap_uint<64> last_value[GATHER_PE_NUM][L + 1];
@@ -37,6 +64,7 @@ static void gather(hls::stream<Updates> &input,
         }
     }
     bool terminal = false;
+scatter_gather_rows:
     while (!terminal) {
 #pragma HLS PIPELINE II=1
         Updates updates = input.read();
@@ -69,6 +97,7 @@ static void gather(hls::stream<Updates> &input,
         }
     }
     // A completed frame leaves the initialized prefix clear for the next shard.
+publish_gather_rows:
     for (unsigned row = 0; row < row_count; ++row) {
 #pragma HLS PIPELINE II=1
 #pragma HLS LOOP_TRIPCOUNT min=1 max=kFullShardRows

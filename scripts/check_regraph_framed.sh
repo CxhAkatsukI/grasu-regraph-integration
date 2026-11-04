@@ -9,6 +9,10 @@ fi
 mkdir "$2"
 out=$(cd "$2" && pwd)
 include=${HLS_INCLUDE:-/data/yxx/tools/xilinx/Vitis_HLS/2024.1/include}
+banked_define=()
+if [[ ${BANKED_GATHER_CLEAR:-0} == 1 ]]; then
+  banked_define=(-DGRASU_REGRAPH_BANKED_GATHER_CLEAR=1)
+fi
 for algorithm in sssp cc pagerank; do
   flags=(-DTEST_PAGERANK=0 -DHAVE_EDGE_PROP=0)
   udf="$root/include/regraph_$algorithm"
@@ -23,7 +27,7 @@ for algorithm in sssp cc pagerank; do
   if [[ "$profile" == tail ]]; then tail_define=(-DGRASU_REGRAPH_TAIL_PUBLICATION=1); fi
   for connected in 0 1; do
   binary="$out/$algorithm-$profile-connected-$connected"
-  g++ -std=c++17 -O1 -w -pthread "${flags[@]}" "${tail_define[@]}" \
+  g++ -std=c++17 -O1 -w -pthread "${flags[@]}" "${tail_define[@]}" "${banked_define[@]}" \
     -DTEST_COMPACT_INPUT="$connected" \
     -DGRASU_REGRAPH_PREFETCH_COMPACT=1 -DHAVE_UNSIGNED_PROP=1 \
     -DHAVE_APPLY_OUTDEG=0 -DHAVE_VERTEX_PROP=1 -DPARTITION_SIZE=65536 \
