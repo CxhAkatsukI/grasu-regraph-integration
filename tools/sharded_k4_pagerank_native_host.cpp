@@ -301,6 +301,16 @@ int main(int argc, char **argv)
             make_kernel("process_ddr:{process_ddr_2}");
         cl::Kernel degree_update =
             make_kernel("grasu_degree_update:{grasu_degree_update_1}");
+        const unsigned degree_arguments = degree_update.getInfo<CL_KERNEL_NUM_ARGS>();
+        if (degree_arguments != 5 && degree_arguments != 6) {
+            fail("unrecognized grasu_degree_update ABI");
+        }
+        unsigned degree_source_prefix = 0;
+        if (degree_arguments == 6) {
+            for (const auto &update : graph.physical_internal) {
+                degree_source_prefix = std::max(degree_source_prefix, update.source + 1);
+            }
+        }
         std::array<cl::Kernel, 4> adapter{
             make_kernel("pma_to_regraph_adapter:{pma_to_regraph_adapter_1}"),
             make_kernel("pma_to_regraph_adapter:{pma_to_regraph_adapter_2}"),
@@ -514,6 +524,10 @@ int main(int argc, char **argv)
                      "set degree vertices");
             check_cl(degree_update.setArg(4, physical_updates),
                      "set degree update count");
+            if (degree_arguments == 6) {
+                check_cl(degree_update.setArg(5, degree_source_prefix),
+                         "set degree active source prefix");
+            }
 
             std::array<cl::Event, 10> shard_events;
             check_cl(grasu_queue.enqueueTask(

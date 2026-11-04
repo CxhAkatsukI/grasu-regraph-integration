@@ -1587,6 +1587,10 @@ int main(int argc, char **argv)
         cl::Kernel process_ddr_2 = make_kernel("process_ddr:{process_ddr_2}");
         cl::Kernel degree_update =
             make_kernel("grasu_degree_update:{grasu_degree_update_1}");
+        const unsigned degree_arguments = degree_update.getInfo<CL_KERNEL_NUM_ARGS>();
+        if (degree_arguments != 5 && degree_arguments != 6) {
+            fail("unrecognized grasu_degree_update ABI");
+        }
         cl::Kernel adapter =
             make_kernel("pma_to_regraph_adapter:{pma_to_regraph_adapter_1}");
         cl::Kernel lksg = make_kernel("lksg_stream:{lksg_stream_1}");
@@ -1753,6 +1757,9 @@ int main(int argc, char **argv)
                  "set degree vertices");
         check_cl(degree_update.setArg(4, physical_updates),
                  "set degree update_count");
+        if (degree_arguments == 6) {
+            check_cl(degree_update.setArg(5, 0U), "disable degree prefix cache");
+        }
         check_cl(adapter.setArg(0, pma_dev[0]), "set adapter pma0");
         check_cl(adapter.setArg(1, pma_dev[1]), "set adapter pma1");
         check_cl(adapter.setArg(2, pma_dev[2]), "set adapter pma2");

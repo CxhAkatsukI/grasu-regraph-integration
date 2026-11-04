@@ -38,6 +38,25 @@ void expect_end(hls::stream<pipe_type_96> &stream)
     assert(stream.empty());
 }
 
+template<std::size_t N>
+void update_degrees(hls::stream<grasu_degree_delta_pkt_t> &stream,
+                    std::array<ap_uint<32>, N> &degree,
+                    std::array<ap_uint<32>, 2> &status,
+                    unsigned count, unsigned prefix = 0)
+{
+    std::array<ap_uint<512>, (N + 15) / 16> packed;
+    packed.fill(0);
+    for (std::size_t i = 0; i < N; ++i) {
+        const unsigned low = (i % 16) * 32;
+        packed[i / 16].range(low + 31, low) = degree[i];
+    }
+    grasu_degree_update(stream, packed.data(), status.data(), N, count, prefix);
+    for (std::size_t i = 0; i < N; ++i) {
+        const unsigned low = (i % 16) * 32;
+        degree[i] = packed[i / 16].range(low + 31, low);
+    }
+}
+
 }  // namespace
 
 int main()
@@ -67,8 +86,7 @@ int main()
 
     std::array<ap_uint<32>, 8> degree = {0, 0, 1, 0, 0, 0, 0, 1};
     std::array<ap_uint<32>, 2> status = {99, 99};
-    grasu_degree_update(degree_delta, degree.data(), status.data(),
-                        degree.size(), 5);
+    update_degrees(degree_delta, degree, status, 5);
     assert(status[0] == 0);
     assert(status[1] == 5);
     assert(degree[2] == 2);
@@ -80,8 +98,7 @@ int main()
     underflow.write(make_degree_delta_packet(1, true, 0, false));
     underflow.write(make_degree_delta_packet(0, false, 0, true));
     status = {99, 99};
-    grasu_degree_update(underflow, degree.data(), status.data(),
-                        degree.size(), 1);
+    update_degrees(underflow, degree, status, 1);
     assert(status[0] == 4);
     assert(status[1] == 0);
     assert(underflow.empty());
@@ -90,8 +107,7 @@ int main()
     out_of_order.write(make_degree_delta_packet(1, false, 1, false));
     out_of_order.write(make_degree_delta_packet(0, false, 0, true));
     status = {99, 99};
-    grasu_degree_update(out_of_order, degree.data(), status.data(),
-                        degree.size(), 1);
+    update_degrees(out_of_order, degree, status, 1);
     assert(status[0] == 2);
     assert(status[1] == 0);
     assert(out_of_order.empty());
@@ -100,8 +116,7 @@ int main()
     out_of_range.write(make_degree_delta_packet(8, false, 0, false));
     out_of_range.write(make_degree_delta_packet(0, false, 0, true));
     status = {99, 99};
-    grasu_degree_update(out_of_range, degree.data(), status.data(),
-                        degree.size(), 1);
+    update_degrees(out_of_range, degree, status, 1);
     assert(status[0] == 3);
     assert(status[1] == 0);
     assert(out_of_range.empty());
@@ -111,8 +126,7 @@ int main()
     overflow.write(make_degree_delta_packet(0, false, 0, true));
     degree[4] = ~ap_uint<32>(0);
     status = {99, 99};
-    grasu_degree_update(overflow, degree.data(), status.data(),
-                        degree.size(), 1);
+    update_degrees(overflow, degree, status, 1);
     assert(status[0] == kDegreeUpdateOverflow);
     assert(status[1] == 0);
     assert(degree[4] == ~ap_uint<32>(0));
@@ -121,8 +135,7 @@ int main()
     hls::stream<grasu_degree_delta_pkt_t> early_end;
     early_end.write(make_degree_delta_packet(0, false, 0, true));
     status = {99, 99};
-    grasu_degree_update(early_end, degree.data(), status.data(),
-                        degree.size(), 1);
+    update_degrees(early_end, degree, status, 1);
     assert(status[0] == kDegreeUpdateEarlyEnd);
     assert(status[1] == 0);
     assert(early_end.empty());
@@ -130,11 +143,44 @@ int main()
     hls::stream<grasu_degree_delta_pkt_t> missing_end;
     missing_end.write(make_degree_delta_packet(0, false, 0, false));
     status = {99, 99};
-    grasu_degree_update(missing_end, degree.data(), status.data(),
-                        degree.size(), 0);
+    update_degrees(missing_end, degree, status, 0);
     assert(status[0] == kDegreeUpdateMissingEnd);
     assert(status[1] == 0);
     assert(missing_end.empty());
+
+    std::array<ap_uint<32>, 33> mixed_degree;
+    mixed_degree.fill(0);
+    mixed_degree[1] = 2;
+    mixed_degree[16] = 7;
+    hls::stream<grasu_degree_delta_pkt_t> mixed;
+    for (unsigned i = 0; i < 18; ++i) {
+        mixed.write(make_degree_delta_packet(i % 2 ? 32 : 1, false, i, false));
+    }
+    mixed.write(make_degree_delta_packet(2, true, 18, false));
+    mixed.write(make_degree_delta_packet(1, false, 19, false));
+    mixed.write(make_degree_delta_packet(0, false, 0, true));
+    update_degrees(mixed, mixed_degree, status, 20, 17);
+    assert(status[0] == kDegreeUpdateUnderflow);
+    assert(status[1] == 18);
+    assert(mixed_degree[1] == 11 && mixed_degree[32] == 9 && mixed_degree[16] == 7);
+    assert(mixed.empty());
+
+    hls::stream<grasu_degree_delta_pkt_t> cached;
+    for (unsigned i = 0; i < 16; ++i) {
+        cached.write(make_degree_delta_packet(16 + (i % 2), i % 4 == 2, i, false));
+    }
+    cached.write(make_degree_delta_packet(0, false, 0, true));
+    update_degrees(cached, mixed_degree, status, 16, 18);
+    assert(status[0] == kDegreeUpdateOk && status[1] == 16);
+    assert(mixed_degree[16] == 7 && mixed_degree[17] == 8);
+    assert(cached.empty());
+
+    hls::stream<grasu_degree_delta_pkt_t> cached_early_end;
+    cached_early_end.write(make_degree_delta_packet(17, true, 0, false));
+    cached_early_end.write(make_degree_delta_packet(0, false, 0, true));
+    update_degrees(cached_early_end, mixed_degree, status, 16, 18);
+    assert(status[0] == kDegreeUpdateEarlyEnd && status[1] == 1);
+    assert(mixed_degree[17] == 7 && cached_early_end.empty());
 
     return 0;
 }
