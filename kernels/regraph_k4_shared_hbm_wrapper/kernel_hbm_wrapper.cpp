@@ -7,6 +7,26 @@
 #include "hbm_wrapper.h"
 #include "l1_api.h"
 
+static void emitSourceBlock(
+    const ap_uint<512> *src_prop,
+    ap_uint<32> base_addr,
+    hls::stream<l_ppb_response_pkt> &output)
+{
+#pragma HLS INLINE
+emit_source_block:
+    for (unsigned offset = 0; offset < (SRC_BUFFER_SIZE >> 4); ++offset) {
+#pragma HLS PIPELINE II=1
+        const ap_uint<32> address = base_addr + offset;
+        l_ppb_response_pkt response;
+        response.data = src_prop[address];
+        response.dest = address;
+        response.keep = -1;
+        response.strb = -1;
+        response.last = 0;
+        output.write(response);
+    }
+}
+
 template <int Bank>
 void sharedLittleKernelReadMemory(
     ap_uint<512> *src_prop_a,
@@ -61,21 +81,11 @@ service_requests:
 
         const ap_uint<32> base_addr =
             request.data << LOG2_SRC_BUFFER_SIZE >> 4;
-    emit_source_block:
-        for (unsigned offset = 0; offset < (SRC_BUFFER_SIZE >> 4); ++offset) {
-#pragma HLS PIPELINE II=1
-            const ap_uint<32> address = base_addr + offset;
-            l_ppb_response_pkt response;
-            response.data = use_b ? src_prop_b[address] : src_prop_a[address];
-            response.dest = address;
-            response.keep = -1;
-            response.strb = -1;
-            response.last = 0;
-            if (use_b) {
-                response_b.write(response);
-            } else {
-                response_a.write(response);
-            }
+        // Keep the AXI load unconditional within each contiguous block.
+        if (use_b) {
+            emitSourceBlock(src_prop_b, base_addr, response_b);
+        } else {
+            emitSourceBlock(src_prop_a, base_addr, response_a);
         }
     }
 }
