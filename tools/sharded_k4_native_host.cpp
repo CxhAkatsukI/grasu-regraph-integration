@@ -917,10 +917,6 @@ int main(int argc, char **argv)
 
             cl::Event hbm_event;
             cl::Event apply_event;
-            check_cl(pipeline_queue.enqueueTask(hbm, nullptr, &hbm_event),
-                     "enqueue sharded hbm");
-            check_cl(pipeline_queue.enqueueTask(apply, nullptr, &apply_event),
-                     "enqueue sharded apply");
 
             std::vector<cl::Event> adapter_events(destination_partitions);
             std::vector<cl::Event> lksg_events(destination_partitions);
@@ -998,6 +994,15 @@ int main(int argc, char **argv)
                 // Per-worker event dependencies serialize all reuse. A failed
                 // enqueue aborts the run before this initialization is recorded.
                 gather_initialized[worker] = true;
+                if (partition == 0) {
+                    // Let the leading adapter begin reading before launching
+                    // the shared consumers. The out-of-order queue keeps all
+                    // three streaming stages concurrent.
+                    check_cl(pipeline_queue.enqueueTask(hbm, nullptr, &hbm_event),
+                             "enqueue sharded hbm");
+                    check_cl(pipeline_queue.enqueueTask(apply, nullptr, &apply_event),
+                             "enqueue sharded apply");
+                }
                 std::vector<cl::Event> mux_wait;
                 if (partition != 0) {
                     mux_wait.push_back(mux_events[partition - 1]);
