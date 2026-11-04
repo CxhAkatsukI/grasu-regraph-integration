@@ -894,6 +894,7 @@ int main(int argc, char **argv)
         unsigned executed_supersteps = 0;
         bool hardware_converged = false;
         for (unsigned step = 0; step < max_supersteps; ++step) {
+            const auto host_round_begin = std::chrono::steady_clock::now();
             check_cl(hbm.setArg(0, *read_props[0]), "set hbm src1");
             check_cl(hbm.setArg(1, *read_props[1]), "set hbm src2");
             check_cl(hbm.setArg(2, *read_props[0]), "set hbm src3");
@@ -915,19 +916,7 @@ int main(int argc, char **argv)
             check_cl(apply.setArg(7, apply_prop_dev), "set apply write alias");
 #endif
 
-            cl::Event hbm_event;
-            cl::Event apply_event;
-            check_cl(pipeline_queue.enqueueTask(hbm, nullptr, &hbm_event),
-                     "enqueue sharded hbm");
-            check_cl(pipeline_queue.enqueueTask(apply, nullptr, &apply_event),
-                     "enqueue sharded apply");
-
-            std::vector<cl::Event> adapter_events(destination_partitions);
-            std::vector<cl::Event> lksg_events(destination_partitions);
-            std::vector<cl::Event> mux_events(destination_partitions);
-            std::array<int, 4> previous_partition{{-1, -1, -1, -1}};
-            for (unsigned partition = 0; partition < destination_partitions;
-                 ++partition) {
+            auto bind_frontend = [&](unsigned partition) {
                 const unsigned worker = partition % kK4Frontends;
                 const auto &shard = graph.shards[partition];
                 const auto &shard_plan = runtime_plan.shards[partition];
@@ -973,6 +962,30 @@ int main(int argc, char **argv)
                                            true),
 #endif
                          "set lksg reset");
+            };
+
+            // The first wave uses distinct CUs. Bind it before starting HBM
+            // so argument setup cannot leave the running pipeline idle.
+            const unsigned first_wave =
+                std::min<unsigned>(destination_partitions, kK4Frontends);
+            for (unsigned partition = 0; partition < first_wave; ++partition)
+                bind_frontend(partition);
+
+            cl::Event hbm_event;
+            cl::Event apply_event;
+            check_cl(pipeline_queue.enqueueTask(hbm, nullptr, &hbm_event),
+                     "enqueue sharded hbm");
+            check_cl(pipeline_queue.enqueueTask(apply, nullptr, &apply_event),
+                     "enqueue sharded apply");
+
+            std::vector<cl::Event> adapter_events(destination_partitions);
+            std::vector<cl::Event> lksg_events(destination_partitions);
+            std::vector<cl::Event> mux_events(destination_partitions);
+            std::array<int, 4> previous_partition{{-1, -1, -1, -1}};
+            for (unsigned partition = 0; partition < destination_partitions;
+                 ++partition) {
+                const unsigned worker = partition % kK4Frontends;
+                if (partition >= first_wave) bind_frontend(partition);
                 check_cl(frontend_mux.setArg(4, worker),
                          "set frontend mux worker");
                 check_cl(frontend_mux.setArg(5, kGatherPacketsPerPartition),
@@ -1009,7 +1022,15 @@ int main(int argc, char **argv)
                          "enqueue shared frontend mux");
                 previous_partition[worker] = static_cast<int>(partition);
             }
-            pipeline_queue.finish();
+            check_cl(pipeline_queue.finish(), "finish sharded pipeline");
+            if (fixture_board) {
+                const auto elapsed =
+                    std::chrono::steady_clock::now() - host_round_begin;
+                std::cout << "ACTIVE_MIN_HOST_ROUND round=" << step
+                          << " bind_through_finish_ns="
+                          << std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count()
+                          << '\n';
+            }
 
             timing.hbm_ms += event_duration_ms(hbm_event);
             timing.apply_ms += event_duration_ms(apply_event);
