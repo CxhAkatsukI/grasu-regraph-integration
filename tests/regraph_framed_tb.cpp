@@ -209,6 +209,40 @@ static void check_publication_rows(unsigned rows, bool reset, bool empty) {
     for (auto &lane : values) assert(lane.empty());
 }
 
+static void check_gather_word_collisions() {
+    constexpr unsigned rows = 129;
+    const unsigned destinations[] = {1, 126, 128, 127, 2, 256, 1, 129, 126};
+    for (bool empty : {false, true}) {
+        hls::stream<framed_regraph::Updates> updates;
+        hls::stream<ap_uint<64>> values[GATHER_PE_NUM];
+        hls::stream<l_tmp_prop_pkt> output;
+        unsigned expected[rows * 2] = {};
+        for (unsigned i = 0; i < sizeof(destinations) / sizeof(destinations[0]); ++i) {
+            framed_regraph::Updates packet{};
+            packet.last = i + 1 == sizeof(destinations) / sizeof(destinations[0]);
+            for (unsigned lane = 0; lane < GATHER_PE_NUM; ++lane)
+                packet.values.tuples[lane].dst = 1U << 19;
+            if (!empty) {
+                unsigned dst = destinations[i];
+                unsigned value = source_property(i + 1);
+                packet.values.tuples[0].dst = dst;
+                packet.values.tuples[0].update = value;
+                expected[dst] = reduce(expected[dst], value);
+            }
+            updates.write(packet);
+        }
+        framed_regraph::gather(updates, values, false, rows);
+        framed_regraph::merge(values, output, rows);
+        for (unsigned row = 0; row < rows; ++row) {
+            auto packet = output.read();
+            assert((unsigned)packet.data.range(31, 0) == expected[row * 2]);
+            assert((unsigned)packet.data.range(63, 32) == expected[row * 2 + 1]);
+            assert(bool(packet.last) == (row + 1 == rows));
+        }
+        assert(updates.empty() && output.empty());
+    }
+}
+
 int main() {
     for (unsigned invocation = 0; invocation < 6; ++invocation)
         check(invocation, invocation == 1 || invocation == 4);
@@ -226,6 +260,7 @@ int main() {
     check_publication_rows(framed_regraph::kFullShardRows, false, false);
     check_publication_rows(8, false, true);
     check_publication_rows(framed_regraph::kFullShardRows, false, true);
+    check_gather_word_collisions();
     std::cout << "REGRAPH_FRAMED PASS invocations=6 policies=1 reset_reuse=5"
               << " publication_rows_cases=8 connected_adapter=" << TEST_COMPACT_INPUT << "\n";
 }
