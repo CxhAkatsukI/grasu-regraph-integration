@@ -31,7 +31,8 @@ Options:
                     weighted-axis or sharded-k4.
   --row-line-read    Pad row buffers for a ROW_LINE_READ sharded-k4 adapter.
   --prefetch-compact New framed adapter/Gather reuse/Apply split-master ABI.
-  --tail-publication Requires sharded-k4 residual PageRank and --prefetch-compact.
+  --tail-publication Requires sharded-k4 weighted SSSP or ResPR and
+                     --prefetch-compact. Weighted SSSP also needs the tail merger.
   -h, --help        Show this help.
 USAGE
 }
@@ -116,9 +117,9 @@ if [[ "${PREFETCH_COMPACT}" == 1 ]]; then
   PROFILE_DEFINE=(-DGRASU_REGRAPH_PREFETCH_COMPACT=1)
 fi
 if [[ "${TAIL_PUBLICATION}" == 1 ]]; then
-  if [[ "${ALGORITHM}" != residual_pagerank ||
+  if [[ ( "${ALGORITHM}" != residual_pagerank && "${ALGORITHM}" != weighted_sssp ) ||
         "${PIPELINE_MODE}" != sharded-k4 || "${PREFETCH_COMPACT}" != 1 ]]; then
-    echo "--tail-publication requires residual_pagerank, sharded-k4 and --prefetch-compact" >&2
+    echo "--tail-publication requires weighted_sssp or residual_pagerank, sharded-k4 and --prefetch-compact" >&2
     exit 2
   fi
   PROFILE_DEFINE+=(-DGRASU_REGRAPH_TAIL_PUBLICATION=1)

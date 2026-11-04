@@ -544,6 +544,12 @@ int main(int argc, char **argv)
             make_kernel("lksg_stream:{lksg_stream_2}"),
             make_kernel("lksg_stream:{lksg_stream_3}"),
             make_kernel("lksg_stream:{lksg_stream_4}")};
+#if GRASU_REGRAPH_TAIL_PUBLICATION
+        for (auto &gather : lksg) {
+            check_cl(gather.setArg(5, kGatherPacketsPerPartition),
+                     "verify lksg tail-publication ABI before launching kernels");
+        }
+#endif
         std::array<bool, 4> gather_initialized{};
         cl::Kernel frontend_mux =
             make_kernel("regraph_frontend_mux:{regraph_frontend_mux_1}");
@@ -929,7 +935,15 @@ int main(int argc, char **argv)
                          "set lksg reset");
                 check_cl(frontend_mux.setArg(4, worker),
                          "set frontend mux worker");
-                check_cl(frontend_mux.setArg(5, kGatherPacketsPerPartition),
+#if GRASU_REGRAPH_TAIL_PUBLICATION
+                const unsigned publication_rows = static_cast<unsigned>(
+                    ((shard.destination_vertices + 15u) / 16u) * 8u);
+                check_cl(lksg[worker].setArg(5, publication_rows),
+                         "set lksg publication rows");
+#else
+                const unsigned publication_rows = kGatherPacketsPerPartition;
+#endif
+                check_cl(frontend_mux.setArg(5, publication_rows),
                          "set frontend mux packets");
 
                 std::vector<cl::Event> adapter_wait;

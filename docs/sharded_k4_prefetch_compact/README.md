@@ -83,6 +83,28 @@ the initialization, drain and merge loops reported II=1, and the accumulation
 loop reported II=3. These results do not establish routed timing, finite
 pipeline liveness on a board, or the R performance retention gate.
 
+### Weighted SSSP Tail Publication
+
+Weighted SSSP uses the same optional Gather scalar and aligned row count,
+but its integer Apply ABI still expects a fixed 65,536-vertex partition.
+The [one-input tail merger](../../kernels/regraph_weighted_tail_merger/kernel_little_gs_merger.cpp)
+consumes the short frame up to TLAST and regenerates the remaining neutral
+padding at 512-bit width. This preserves Apply's inputs, output addresses,
+and state allocation. Full shards retain their full frame length.
+
+Build the matching SSSP host with `--pipeline-mode sharded-k4
+--prefetch-compact --tail-publication`. Replace both the Gather XO (add
+`GRASU_REGRAPH_TAIL_PUBLICATION=1`) and the one-input `kernelLittleGSMerger`
+XO (use the source above with the existing weighted SSSP flags). The mux
+is unchanged; the host supplies the short row count. Do not mix this host
+with fixed-length Gather or merger XOs.
+
+The framed C simulation checks four consecutive merger frames, including
+the 12,616-row AskUbuntu tail, against all 262,144 output words. It also
+checks the tail Gather with the actual streaming adapter. This is functional
+evidence only: a reduction in 64-bit rows does not establish end-to-end
+latency, AXI stall behavior, or hardware performance retention.
+
 ## Validation On 2026-10-24
 
 | Check | Result and limit |

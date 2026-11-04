@@ -5,6 +5,9 @@
 #include <thread>
 #include <vector>
 #include "../kernels/regraph_stream_little_gs/little_gs_stream.cpp"
+#if GRASU_REGRAPH_TAIL_PUBLICATION && HAVE_EDGE_PROP
+#include "../kernels/regraph_weighted_tail_merger/kernel_little_gs_merger.cpp"
+#endif
 #if TEST_COMPACT_INPUT
 #define GRASU_REGRAPH_WEIGHTED_PMA HAVE_EDGE_PROP
 #define GRASU_REGRAPH_DESTINATION_ONLY (!HAVE_EDGE_PROP)
@@ -174,6 +177,37 @@ static void check(unsigned invocation, bool empty, unsigned vertices = 65536) {
     assert(request_count >= 2);
 }
 
+#if GRASU_REGRAPH_TAIL_PUBLICATION && HAVE_EDGE_PROP
+static void check_tail_merger() {
+    hls::stream<l_tmp_prop_pkt> input;
+    hls::stream<write_burst_pkt> output;
+    const unsigned sizes[] = {8, 12616, framed_regraph::kFullShardRows, 16};
+    for (unsigned shard = 0; shard < 4; ++shard) {
+        for (unsigned row = 0; row < sizes[shard]; ++row) {
+            l_tmp_prop_pkt packet;
+            packet.data.range(31, 0) = 0x80000000U | (row * 2 + shard);
+            packet.data.range(63, 32) = 0x80000000U | (row * 2 + shard + 1);
+            packet.last = row + 1 == sizes[shard];
+            input.write(packet);
+        }
+    }
+    for (unsigned shard = 0; shard < 4; ++shard) {
+        merge_one_shard(input, output);
+        for (unsigned beat = 0; beat < kBeatsPerShard; ++beat) {
+            const auto packet = output.read();
+            for (unsigned lane = 0; lane < 16; ++lane) {
+                const unsigned vertex = beat * 16 + lane;
+                const unsigned expected = vertex < sizes[shard] * 2
+                    ? (0x80000000U | (vertex + shard)) : 0;
+                assert(packet.data.range(lane * 32 + 31, lane * 32) == expected);
+            }
+        }
+        assert(output.empty());
+    }
+    assert(input.empty());
+}
+#endif
+
 static void check_publication_rows(unsigned rows, bool reset, bool empty) {
     hls::stream<framed_regraph::Updates> updates;
     hls::stream<ap_uint<64>> values[GATHER_PE_NUM];
@@ -210,6 +244,9 @@ static void check_publication_rows(unsigned rows, bool reset, bool empty) {
 }
 
 int main() {
+#if GRASU_REGRAPH_TAIL_PUBLICATION && HAVE_EDGE_PROP
+    check_tail_merger();
+#endif
     for (unsigned invocation = 0; invocation < 6; ++invocation)
         check(invocation, invocation == 1 || invocation == 4);
 #if GRASU_REGRAPH_TAIL_PUBLICATION && !TEST_COMPACT_INPUT

@@ -17,7 +17,7 @@ for algorithm in sssp cc pagerank; do
     pagerank) flags=(-DTEST_PAGERANK=1 -DHAVE_EDGE_PROP=0) ;;
   esac
   profiles=(fixed)
-  if [[ "$algorithm" == pagerank ]]; then profiles+=(tail); fi
+  if [[ "$algorithm" == pagerank || "$algorithm" == sssp ]]; then profiles+=(tail); fi
   for profile in "${profiles[@]}"; do
   tail_define=()
   if [[ "$profile" == tail ]]; then tail_define=(-DGRASU_REGRAPH_TAIL_PUBLICATION=1); fi
