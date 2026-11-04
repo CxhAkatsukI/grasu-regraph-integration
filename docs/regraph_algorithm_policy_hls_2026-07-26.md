@@ -78,3 +78,21 @@ they are superseded and must not be used as evidence for the current source:
 
 These small software-emulation XOs do not contain synthesized PPA data. The
 generated `hw` jobs are the required next evidence tier.
+
+## Experimental ResPR Gather Initialization
+
+`prepare_pagerank_pipeline_build.sh --tail-publication --gather-config-zero`
+enables an optional framed gather policy. It relies on UltraRAM starting at
+zero after configuration, as the public-source gather does in hardware.
+Completed frames clear the entries they write. Explicit `reset=true` still
+clears the requested prefix for recovery. The default remains unchanged.
+
+To exercise the optimization, a future board runner must verify fresh device
+configuration under the same exclusive lease before using `reset=false` on
+the first frame. A reused xclbin UUID, a soft reset, or an interrupted frame
+does not establish clean state. The host currently still requests the first
+clear; selecting the build flag alone does not remove that clear.
+
+`bash scripts/check_regraph_framed.sh` covers fresh zero state, explicit
+reset, and shrink/regrow reuse with and without the adapter. This is a
+functional C simulation, not routed timing or measured performance evidence.

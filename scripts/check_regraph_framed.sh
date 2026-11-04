@@ -17,10 +17,11 @@ for algorithm in sssp cc pagerank; do
     pagerank) flags=(-DTEST_PAGERANK=1 -DHAVE_EDGE_PROP=0) ;;
   esac
   profiles=(fixed)
-  if [[ "$algorithm" == pagerank ]]; then profiles+=(tail); fi
+  if [[ "$algorithm" == pagerank ]]; then profiles+=(tail tail-config-zero); fi
   for profile in "${profiles[@]}"; do
   tail_define=()
-  if [[ "$profile" == tail ]]; then tail_define=(-DGRASU_REGRAPH_TAIL_PUBLICATION=1); fi
+  if [[ "$profile" != fixed ]]; then tail_define=(-DGRASU_REGRAPH_TAIL_PUBLICATION=1); fi
+  if [[ "$profile" == tail-config-zero ]]; then tail_define+=(-DGRASU_REGRAPH_GATHER_CONFIG_ZERO=1); fi
   for connected in 0 1; do
   binary="$out/$algorithm-$profile-connected-$connected"
   g++ -std=c++17 -O1 -w -pthread "${flags[@]}" "${tail_define[@]}" \

@@ -137,6 +137,27 @@ class AdapterSelectionTests(SourceSelectionTests):
         self.assertIn("TAIL_PUBLICATION=1\n",
                       (self.output / "manifest.env").read_text())
 
+    def test_configuration_zero_is_opt_in_and_limited_to_the_tail_gather(self):
+        profile = ("--adapter-policy", "prefetch-compact", "--target", "hw")
+        result = self.generate(PR, "residual_pagerank", *profile,
+                               "--gather-config-zero", check=False)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("--gather-config-zero requires --tail-publication", result.stderr)
+        self.assertFalse(self.output.exists())
+        self.generate(PR, "residual_pagerank", *profile, "--tail-publication")
+        commands = self.output / "compile_commands.sh"
+        before = commands.read_text()
+        self.generate(PR, "residual_pagerank", *profile, "--tail-publication",
+                      "--gather-config-zero")
+        flag = " -DGRASU_REGRAPH_GATHER_CONFIG_ZERO=1"
+        after = commands.read_text()
+        self.assertEqual(after.count(flag), 1)
+        self.assertIn("/little_gs_stream.cpp", next(
+            line for line in after.splitlines() if flag in line))
+        self.assertEqual(after.replace(flag, ""), before)
+        self.assertIn("GATHER_CONFIG_ZERO=1\n",
+                      (self.output / "manifest.env").read_text())
+
     def test_pagerank_source_archive_records_unavailable_git_identity(self):
         archive = self.root / "source-archive"
         for member in ("scripts", "include", "kernels"):

@@ -1,6 +1,10 @@
 #pragma once
 #include "types.hpp"
 
+#ifndef GRASU_REGRAPH_GATHER_CONFIG_ZERO
+#define GRASU_REGRAPH_GATHER_CONFIG_ZERO 0
+#endif
+
 namespace framed_regraph {
 constexpr unsigned kFullShardRows = LITTLE_KERNEL_DST_BUFFER_SIZE >> 1;
 
@@ -9,7 +13,13 @@ static void gather(hls::stream<Updates> &input,
                    bool reset, unsigned row_count) {
 #pragma HLS INLINE OFF
     static ap_uint<64> memory[GATHER_PE_NUM][kFullShardRows];
+#if GRASU_REGRAPH_GATHER_CONFIG_ZERO
+    // UltraRAM starts at zero after configuration; completed frames clear
+    // what they write. An explicit reset still clears the requested prefix.
+    static unsigned initialized_rows = kFullShardRows;
+#else
     static unsigned initialized_rows = 0;
+#endif
 #pragma HLS ARRAY_PARTITION variable=memory dim=1 complete
 #pragma HLS BIND_STORAGE variable=memory type=RAM_S2P impl=URAM
 #pragma HLS DEPENDENCE variable=memory inter false

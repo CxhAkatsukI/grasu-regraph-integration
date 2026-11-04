@@ -210,6 +210,10 @@ static void check_publication_rows(unsigned rows, bool reset, bool empty) {
 }
 
 int main() {
+#if GRASU_REGRAPH_GATHER_CONFIG_ZERO
+    // First invocation after configuration does not request a recovery clear.
+    check_publication_rows(framed_regraph::kFullShardRows, false, false);
+#endif
     for (unsigned invocation = 0; invocation < 6; ++invocation)
         check(invocation, invocation == 1 || invocation == 4);
 #if GRASU_REGRAPH_TAIL_PUBLICATION && !TEST_COMPACT_INPUT
@@ -227,5 +231,6 @@ int main() {
     check_publication_rows(8, false, true);
     check_publication_rows(framed_regraph::kFullShardRows, false, true);
     std::cout << "REGRAPH_FRAMED PASS invocations=6 policies=1 reset_reuse=5"
-              << " publication_rows_cases=8 connected_adapter=" << TEST_COMPACT_INPUT << "\n";
+              << " publication_rows_cases=" << (8 + GRASU_REGRAPH_GATHER_CONFIG_ZERO)
+              << " connected_adapter=" << TEST_COMPACT_INPUT << "\n";
 }
