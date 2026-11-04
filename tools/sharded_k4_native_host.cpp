@@ -422,7 +422,8 @@ int main(int argc, char **argv)
         const bool fixture_board = mode == "--active-min-once";
         const bool fixture_mode = fixture_offline || fixture_board;
         const bool prepare_only = mode == "--prepare-only";
-        const bool update_only = mode == "--update-only";
+        const bool update_setup_once = mode == "--update-setup-once";
+        const bool update_only = mode == "--update-only" || update_setup_once;
         const bool resident_batch_wall = resident_batch_wall_enabled();
         const bool invalid_arguments =
             fixture_mode ? argc != (fixture_board ? 6 : 5)
@@ -435,6 +436,9 @@ int main(int argc, char **argv)
                       << " --update-only <xclbin> <graph_file> <result_file>"
                          " [source_external] [max_supersteps]\n";
             std::cerr << "       " << argv[0]
+                      << " --update-setup-once <xclbin> <graph_file> <result_file>"
+                         " [source_external] [max_supersteps]\n";
+            std::cerr << "       " << argv[0]
                       << " --active-min-prepare <fixture_dir> <reference_expected> <fresh_output_dir>\n"
                       << "       " << argv[0]
                       << " --active-min-once <xclbin> <fixture_dir> <reference_expected> <fresh_output_dir>\n";
@@ -445,7 +449,10 @@ int main(int argc, char **argv)
             (fixture_mode || update_only || update_repeat_count() != 1)) {
             fail("resident batch wall requires one convergent dynamic batch");
         }
-        if (fixture_board) require_active_min_lease();
+        if (update_setup_once && update_repeat_count() != 1) {
+            fail("update setup timing requires exactly one update batch");
+        }
+        if (fixture_board || update_setup_once) require_active_min_lease();
         int arg_index = (fixture_mode || prepare_only || update_only) ? 2 : 1;
         const std::string xclbin_path = (prepare_only || fixture_offline) ? "" : argv[arg_index++];
         const std::string graph_path = argv[arg_index++];
@@ -472,7 +479,14 @@ int main(int argc, char **argv)
         if (source_external >= dataset.node_size) {
             fail("source vertex is outside the graph");
         }
+        if (update_setup_once &&
+            (dataset.update_edges.empty() ||
+             std::any_of(dataset.update_edges.begin(), dataset.update_edges.end(),
+                         [](const WeightedEdgeRecord &edge) { return edge.delete_op; }))) {
+            fail("update setup timing requires a nonempty insertion-only batch");
+        }
 
+        const auto layout_begin = std::chrono::steady_clock::now();
         // Build the PMA before materializing the two oracle maps.  Each map is
         // full-graph sized; overlapping both with the builder's transient
         // state multiplies host memory on 100M-edge inputs without changing
@@ -513,8 +527,8 @@ int main(int argc, char **argv)
                       dataset.node_size, static_edges, source_external,
                       max_supersteps);
         }
-        const std::vector<unsigned> update_sources =
-            update_source_vertices(dataset);
+        const std::vector<unsigned> update_sources = update_setup_once
+            ? std::vector<unsigned>{} : update_source_vertices(dataset);
         if (resident_batch_wall && (!resident_mode || !resident_oracle.converged)) {
             fail("resident batch wall requires a converged old graph and supported updates");
         }
@@ -551,6 +565,7 @@ int main(int argc, char **argv)
             }
         }
 
+        const auto layout_end = std::chrono::steady_clock::now();
         std::cout << kLogPrefix << "_SHARDED_INPUT"
                   << " vertices=" << dataset.node_size
                   << " static_edges=" << dataset.static_edges.size()
@@ -654,6 +669,7 @@ int main(int argc, char **argv)
         cl::Kernel hbm =
             make_kernel("kernelHBMWrapper:{kernelHBMWrapper_1}");
 
+        const auto upload_begin = std::chrono::steady_clock::now();
         std::vector<DeviceShard> device_shards(graph.shards.size());
         for (std::size_t shard = 0; shard < graph.shards.size(); ++shard) {
             DeviceShard &device_shard = device_shards[shard];
@@ -722,77 +738,84 @@ int main(int argc, char **argv)
         }
         transfer_queue.finish();
 
-        premigrate_sharded_inputs(transfer_queue, device_shards, !resident_batch_wall);
+        premigrate_sharded_inputs(
+            transfer_queue, device_shards, !resident_batch_wall, !update_setup_once);
+        const auto upload_end = std::chrono::steady_clock::now();
 
         const unsigned destination_partitions =
             static_cast<unsigned>(graph.shards.size());
         const std::size_t state_capacity =
             static_cast<std::size_t>(destination_partitions) * kPartitionSize;
-        AlignedVector<uint32_t> prop_a(state_capacity, 0);
-        AlignedVector<uint32_t> prop_b(state_capacity, 0);
+        const auto prop_capacity = update_setup_once ? 0 : state_capacity;
+        AlignedVector<uint32_t> prop_a(prop_capacity, 0);
+        AlignedVector<uint32_t> prop_b(prop_capacity, 0);
         AlignedVector<uint32_t> fixture_replica(fixture_board ? state_capacity : 0, 0);
-        AlignedVector<uint32_t> apply_prop(state_capacity, 0);
-        AlignedVector<uint32_t> active_count(1, 0);
-        for (std::size_t internal = 0; internal < dataset.node_size; ++internal) {
-            const std::size_t external = graph.internal_to_external.at(internal);
-            const uint32_t initial_value = fixture_board ? fixture.initial.at(external) : resident_mode
-                ? resident_oracle.prop.at(kConnectedComponents ? internal
-                                                               : external)
-                : (kConnectedComponents
-                       ? static_cast<uint32_t>(internal) | kActiveMask
-                       : kSsspInf);
-            prop_a[internal] = initial_value;
-            apply_prop[internal] = initial_value;
-        }
-        if (resident_mode) {
-            if (!resident_batch_wall) {
-                for (const unsigned external : update_sources) {
-                    prop_a[graph.external_to_internal.at(external)] |= kActiveMask;
-                }
+        AlignedVector<uint32_t> apply_prop(prop_capacity, 0);
+        AlignedVector<uint32_t> active_count(update_setup_once ? 0 : 1, 0);
+        cl::Buffer prop_a0_dev, prop_a1_dev, prop_b0_dev, prop_b1_dev;
+        cl::Buffer apply_prop_dev, active_count_dev;
+        if (!update_setup_once) {
+            for (std::size_t internal = 0; internal < dataset.node_size; ++internal) {
+                const std::size_t external = graph.internal_to_external.at(internal);
+                const uint32_t initial_value = fixture_board ? fixture.initial.at(external) : resident_mode
+                    ? resident_oracle.prop.at(kConnectedComponents ? internal
+                                                                   : external)
+                    : (kConnectedComponents
+                           ? static_cast<uint32_t>(internal) | kActiveMask
+                           : kSsspInf);
+                prop_a[internal] = initial_value;
+                apply_prop[internal] = initial_value;
             }
-        } else if (!fixture_board && !kConnectedComponents) {
-            prop_a[source_internal] = kActiveMask;
-            apply_prop[source_internal] = kActiveMask;
-        }
+            if (resident_mode) {
+                if (!resident_batch_wall) {
+                    for (const unsigned external : update_sources) {
+                        prop_a[graph.external_to_internal.at(external)] |= kActiveMask;
+                    }
+                }
+            } else if (!fixture_board && !kConnectedComponents) {
+                prop_a[source_internal] = kActiveMask;
+                apply_prop[source_internal] = kActiveMask;
+            }
 
-        cl_mem_ext_ptr_t prop_a0_ext = ext_ptr(23, prop_a.data());
-        cl_mem_ext_ptr_t prop_a1_ext = ext_ptr(24, prop_a.data());
-        cl_mem_ext_ptr_t prop_b0_ext = ext_ptr(23, prop_b.data());
-        cl_mem_ext_ptr_t prop_b1_ext = ext_ptr(24, fixture_board ? fixture_replica.data() : prop_b.data());
-        cl_mem_ext_ptr_t apply_prop_ext = ext_ptr(30, apply_prop.data());
-        cl_mem_ext_ptr_t active_count_ext = ext_ptr(30, active_count.data());
-        cl::Buffer prop_a0_dev = make_buffer(
-            context,
-            CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
-            prop_a.size() * sizeof(uint32_t), &prop_a0_ext, "prop_a0");
-        cl::Buffer prop_a1_dev = make_buffer(
-            context,
-            CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
-            prop_a.size() * sizeof(uint32_t), &prop_a1_ext, "prop_a1");
-        cl::Buffer prop_b0_dev = make_buffer(
-            context,
-            CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
-            prop_b.size() * sizeof(uint32_t), &prop_b0_ext, "prop_b0");
-        cl::Buffer prop_b1_dev = make_buffer(
-            context,
-            CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
-            prop_b.size() * sizeof(uint32_t), &prop_b1_ext, "prop_b1");
-        cl::Buffer apply_prop_dev = make_buffer(
-            context,
-            CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
-            apply_prop.size() * sizeof(uint32_t), &apply_prop_ext,
-            "apply_prop");
-        cl::Buffer active_count_dev = make_buffer(
-            context,
-            CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
-            active_count.size() * sizeof(uint32_t), &active_count_ext,
-            "active_count");
-        check_cl(transfer_queue.enqueueMigrateMemObjects(
-                     {prop_a0_dev, prop_a1_dev, prop_b0_dev, prop_b1_dev,
-                      apply_prop_dev, active_count_dev},
-                     0),
-                 "migrate initial state buffers");
-        transfer_queue.finish();
+            cl_mem_ext_ptr_t prop_a0_ext = ext_ptr(23, prop_a.data());
+            cl_mem_ext_ptr_t prop_a1_ext = ext_ptr(24, prop_a.data());
+            cl_mem_ext_ptr_t prop_b0_ext = ext_ptr(23, prop_b.data());
+            cl_mem_ext_ptr_t prop_b1_ext = ext_ptr(24, fixture_board ? fixture_replica.data() : prop_b.data());
+            cl_mem_ext_ptr_t apply_prop_ext = ext_ptr(30, apply_prop.data());
+            cl_mem_ext_ptr_t active_count_ext = ext_ptr(30, active_count.data());
+            prop_a0_dev = make_buffer(
+                context,
+                CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+                prop_a.size() * sizeof(uint32_t), &prop_a0_ext, "prop_a0");
+            prop_a1_dev = make_buffer(
+                context,
+                CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+                prop_a.size() * sizeof(uint32_t), &prop_a1_ext, "prop_a1");
+            prop_b0_dev = make_buffer(
+                context,
+                CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+                prop_b.size() * sizeof(uint32_t), &prop_b0_ext, "prop_b0");
+            prop_b1_dev = make_buffer(
+                context,
+                CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+                prop_b.size() * sizeof(uint32_t), &prop_b1_ext, "prop_b1");
+            apply_prop_dev = make_buffer(
+                context,
+                CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+                apply_prop.size() * sizeof(uint32_t), &apply_prop_ext,
+                "apply_prop");
+            active_count_dev = make_buffer(
+                context,
+                CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR,
+                active_count.size() * sizeof(uint32_t), &active_count_ext,
+                "active_count");
+            check_cl(transfer_queue.enqueueMigrateMemObjects(
+                         {prop_a0_dev, prop_a1_dev, prop_b0_dev, prop_b1_dev,
+                          apply_prop_dev, active_count_dev},
+                         0),
+                     "migrate initial state buffers");
+            transfer_queue.finish();
+        }
 
         Timing timing;
         grasu_regraph::ShardedEventTrace<cl::Event> event_trace(
@@ -807,11 +830,13 @@ int main(int argc, char **argv)
         std::vector<cl::Event> all_events;
         std::vector<cl::Event> grasu_events;
         std::vector<cl::Event> barrier_events;
+        std::chrono::steady_clock::time_point update_end;
         const unsigned update_repeats = fixture_board ? 0 : update_repeat_count();
         std::cout << "GRASU_SHARDED_UPDATE_REPEAT_CONFIG repeats="
                   << update_repeats << " restore_pma_between_repeats=1"
                   << std::endl;
 
+        const auto update_begin = std::chrono::steady_clock::now();
         for (unsigned repeat = 0; repeat < update_repeats; ++repeat) {
           if (repeat != 0) {
             restore_device_shard_pma(transfer_queue, packed, device_shards);
@@ -889,13 +914,16 @@ int main(int argc, char **argv)
                                                 &barrier_event),
                      "enqueue sharded completion barrier");
             grasu_queue.finish();
-            previous_update_shard_end = print_shard_update_events(
-                event_prefix, shard, update_events,
-                std::array<const char *, 9>{
-                    "cache0", "cache1", "ddr0", "ddr1", "dispatch",
-                    "search0", "search1", "search2", "search3"},
-                previous_update_shard_end);
+            if (!update_setup_once) {
+                previous_update_shard_end = print_shard_update_events(
+                    event_prefix, shard, update_events,
+                    std::array<const char *, 9>{
+                        "cache0", "cache1", "ddr0", "ddr1", "dispatch",
+                        "search0", "search1", "search2", "search3"},
+                    previous_update_shard_end);
+            }
             pipeline_queue.finish();
+            if (update_setup_once) update_end = std::chrono::steady_clock::now();
             repeat_update_events.insert(repeat_update_events.end(),
                                         update_events.begin(),
                                         update_events.end());
@@ -920,7 +948,9 @@ int main(int argc, char **argv)
             const PmaUpdateValidation validation =
                 validate_device_pma_updates(
                     transfer_queue, graph, kMaxCacheSegment, device_shards);
-            const bool pass = validation.mismatches == 0;
+            const bool pass = validation.mismatches == 0 &&
+                (!update_setup_once ||
+                 (validation.touched_segments > 0 && validation.checked_words > 0));
             std::ofstream result_out(result_path);
             if (!result_out) {
                 fail("failed to open update-only result file: " + result_path);
@@ -929,6 +959,29 @@ int main(int argc, char **argv)
                        << " touched_segments=" << validation.touched_segments
                        << " checked_words=" << validation.checked_words
                        << " mismatches=" << validation.mismatches << '\n';
+            if (update_setup_once) {
+                if (update_end <= update_begin) fail("no completed G update");
+                result_out.close();
+                if (!result_out) fail("failed to write update-only result: " + result_path);
+                const auto elapsed_ns = [](auto start, auto end) {
+                    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        end - start).count();
+                };
+                const auto layout_ns = elapsed_ns(layout_begin, layout_end);
+                const auto upload_ns = elapsed_ns(upload_begin, upload_end);
+                const auto update_ns = elapsed_ns(update_begin, update_end);
+                std::cout << "GRASU_SHARDED_UPDATE_SETUP_ONCE"
+                          << " status=" << (pass ? "PASS" : "FAIL")
+                          << " vertices=" << dataset.node_size
+                          << " initial_edges=" << dataset.static_edges.size()
+                          << " logical_updates=" << dataset.update_edges.size()
+                          << " layout_ns=" << layout_ns
+                          << " upload_ns=" << upload_ns
+                          << " update_wall_ns=" << update_ns
+                          << " setup_inclusive_ns=" << layout_ns + upload_ns + update_ns
+                          << " repeats=1 trace_aware_pma=1 pma_mismatches="
+                          << validation.mismatches << std::endl;
+            }
             std::cout << "GRASU_SHARDED_UPDATE_ONLY_RESULT"
                       << " status=" << (pass ? "PASS" : "FAIL")
                       << " algorithm=" << kAlgorithmName

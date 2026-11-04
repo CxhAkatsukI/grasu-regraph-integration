@@ -48,3 +48,24 @@ the same board, with migration, readback, and host packing outside the timer.
 Retain each kernel's raw timestamps and the correctness outputs. The physical
 layouts and event schedules differ; do not sum overlapping kernel durations.
 No FPGA timing or 15% retention result is claimed by the offline checks.
+
+## Separate Update-Only Setup Measurement
+
+For the Figure 8 native G arm, build the same weighted-SSSP host and run
+`HOST --update-setup-once XCLBIN GRAPH RESULT SOURCE` under the same board
+lease and expected-BDF policy. This mode requires one nonempty insertion
+batch and does not run ReGraph or allocate/upload its property state.
+
+The `GRASU_SHARDED_UPDATE_SETUP_ONCE` record adds three nonoverlapping
+monotonic-clock intervals: batch-aware PMA layout and packing; allocation
+and upload of the old graph, batch and replicated search metadata; and
+host argument binding and update dispatch through the last completion
+barrier. Input parsing, xclbin programming, untimed diagnostics, and the
+post-update PMA readback/oracle are not included. Keep the device event
+record separate; it is not the setup-inclusive duration.
+
+The Release host compiled with `--prefetch-compact`. The AU 512-update
+legacy CPU preflight output matched the unmodified host byte-for-byte.
+The new entry rejected a repeated and an unleased invocation. Neither
+offline check measures the new mode's board timing or replaces a matched
+Spine measurement.

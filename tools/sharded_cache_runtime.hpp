@@ -124,7 +124,7 @@ inline void upload_sharded_batch(
 
 inline void premigrate_sharded_inputs(
     cl::CommandQueue &queue, const std::vector<DeviceShard> &shards,
-    bool include_updates = true)
+    bool include_updates = true, bool log_timing = true)
 {
     const char *policy = std::getenv("GRASU_SHARDED_PREMIGRATE_INPUTS");
     if (policy && std::string(policy) != "0" && std::string(policy) != "1") {
@@ -154,6 +154,7 @@ inline void premigrate_sharded_inputs(
     check_cl(queue.enqueueMigrateMemObjects(inputs, 0, nullptr, &event),
              "premigrate initial sharded inputs");
     queue.finish();
+    if (!log_timing) return;
     const double wall_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - begin).count();
     std::cout << "SHARDED_INPUT_RESIDENCY policy=premigrate buffers=" << inputs.size()
