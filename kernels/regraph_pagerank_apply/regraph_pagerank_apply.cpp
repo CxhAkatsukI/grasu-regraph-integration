@@ -84,7 +84,12 @@ void regraph_pagerank_apply(
 #endif
 #pragma HLS INTERFACE m_axi port=out_degree offset=slave bundle=gmem2
 #pragma HLS INTERFACE m_axi port=round_stats offset=slave bundle=gmem2
+#if GRASU_REGRAPH_PAGERANK_MODE == 2 && defined(GRI_RESPR_APPLY_REVERSE_AXIS)
+    // The upstream link FIFO buffers data; avoid a second wide forward slice.
+#pragma HLS INTERFACE axis port=merged_prop register_mode=reverse
+#else
 #pragma HLS INTERFACE axis port=merged_prop
+#endif
 #pragma HLS INTERFACE axis port=source_prop_write
 #pragma HLS INTERFACE s_axilite port=rank_state bundle=control
 #if GRASU_REGRAPH_PAGERANK_MODE == 2
